@@ -41,11 +41,20 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
 """
+import importlib.util
 import argparse, contextlib, fcntl, hashlib, json, os, re, stat, subprocess, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import a3a_exec as ex  # noqa: E402
+
+def integrity_check(commit):
+    path = Path(__file__).resolve().parents[1] / 'upgrade' / 'execution_integrity.py'
+    spec = importlib.util.spec_from_file_location('_a3a_repository_execution_integrity', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.check(commit)
+
 
 CAST = os.environ.get('A3A_CAST', str(Path.home()/'.foundry/bin/cast'))
 RECEIPT_WAIT_SECONDS = 600
@@ -282,7 +291,6 @@ def run(args, remote, url, confirm=None):
     snapshot.write_bytes(raw_plan)
     plan = ex.plan_json(raw_plan)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'upgrade'))
-    from execution_integrity import check as integrity_check
     integrity_check(plan['rebuild']['commit'])
     tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     role = role_of(plan, tx['from'])

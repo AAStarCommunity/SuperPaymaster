@@ -97,7 +97,7 @@ class SenderTests(unittest.TestCase):
                               accounts=d / 'accounts.json', out=d / 'out')
         self.args.out.mkdir()
         self.patches = [
-            mock.patch.object(execution_integrity, 'check'),
+            mock.patch.object(sd, 'integrity_check'),
             mock.patch.object(sd, 'CAST', str(wrapper)),
             mock.patch.object(sd, 'LOCK_PATH', d / 'send.lock'),
             # Secrets present in the operator's environment must not reach cast.
@@ -616,7 +616,7 @@ class SenderTests(unittest.TestCase):
             calls.append(commit)
             if len(calls) == 2:  # the recheck after the confirmation pause
                 raise ex.Gate('execution_module_bytes', False, True)
-        with mock.patch.object(execution_integrity, 'check', side_effect=check):
+        with mock.patch.object(sd, 'integrity_check', side_effect=check):
             self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'execution_module_bytes')
         self.assertEqual(calls, ['a'*40, 'a'*40])
         self.assertFalse((self.args.out / 'broadcast.json').exists())
@@ -1114,7 +1114,7 @@ class SenderS7Integration(unittest.TestCase):
     a state where S7 did not take effect.
     """
     def setUp(self):
-        integrity = mock.patch.object(execution_integrity, 'check')
+        integrity = mock.patch.object(sd, 'integrity_check')
         integrity.start()
         self.addCleanup(integrity.stop)
         import test_a3a_exec as te

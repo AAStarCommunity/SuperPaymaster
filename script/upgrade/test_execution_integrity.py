@@ -44,6 +44,58 @@ class IntegrityTests(unittest.TestCase):
         return subprocess.run(['git', *args], cwd=self.root, check=True,
                               capture_output=True, text=True).stdout
 
+    def track_first_party(self, name):
+        path = self.root / 'script' / 'a3a' / (name + '.py')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('VALUE = 1\n')
+        self.git('add', '.')
+        self.git('-c', 'user.name=Offline', '-c', 'user.email=offline@example.invalid',
+                 '-c', 'commit.gpgsign=false', 'commit', '-qm', 'first-party fixture')
+        self.commit = self.git('rev-parse', 'HEAD').strip()
+        return path
+
+    def test_execution_module_origin(self):
+        path = self.track_first_party('a3a_exec')
+        external = self.base / 'a3a_exec.py'
+        external.write_text('VALUE = 1\n')
+        with patch.dict(sys.modules, {'a3a_exec': SimpleNamespace(__file__=str(path))}):
+            e.check(self.commit)
+        for origin in (str(external), None):
+            with self.subTest(origin=origin), patch.dict(
+                    sys.modules, {'a3a_exec': SimpleNamespace(__file__=origin)}):
+                with assert_stop(self, 'execution_module_origin'):
+                    e.check(self.commit)
+
+    def test_preloaded_execution_integrity_cannot_replace_sender_check(self):
+        import a3a_send as sender
+        from unittest.mock import Mock
+        self.track_first_party('execution_integrity')
+        external = self.base / 'execution_integrity.py'
+        external.write_text('def check(commit): pass\n')
+        permissive = Mock()
+        shadow = SimpleNamespace(__file__=str(external), check=permissive)
+        import hashlib
+        import json
+        raw = json.dumps({'rebuild': {'commit': self.commit}}).encode()
+        plan = self.base / 'plan.json'
+        plan.write_bytes(raw)
+        out = self.base / 'sender'
+        out.mkdir()
+        args = SimpleNamespace(plan=plan, out=out,
+                               reviewed_plan_sha256=hashlib.sha256(raw).hexdigest())
+        with patch.dict(sys.modules, {'execution_integrity': shadow,
+                                     '_a3a_repository_execution_integrity': shadow}), \
+             patch.object(sender.ex, 'plan_json', side_effect=json.loads), \
+             patch.object(sender.ex, 'signing_transaction') as signing, \
+             patch.object(sender, 'signed') as signed, \
+             patch.object(sender, 'broadcast') as broadcast:
+            with assert_stop(self, 'execution_module_origin'):
+                sender.run(args, None, 'offline.invalid')
+        permissive.assert_not_called()
+        signing.assert_not_called()
+        signed.assert_not_called()
+        broadcast.assert_not_called()
+
     def test_clean(self):
         e.check(self.commit)
 
@@ -176,7 +228,7 @@ class IntegrityTests(unittest.TestCase):
                  'script/upgrade/execution_integrity.py')
         literals, _ = inventory({file: (root / file).read_text() for file in files})
         for gate in ('execution_root', 'execution_index_flags', 'execution_module_tracked',
-                     'execution_module_bytes', 'execution_head', 'execution_clean_tree'):
+                     'execution_module_bytes', 'execution_module_origin', 'execution_head', 'execution_clean_tree'):
             self.assertEqual(len(literals[gate]), 1, gate)
 
 

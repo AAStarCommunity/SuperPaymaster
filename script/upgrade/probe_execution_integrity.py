@@ -11,6 +11,7 @@ from gate_assertions import assertion_mentions
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = {
+    'execution_module_origin': ['test_execution_module_origin'],
     'execution_root': ['test_execution_root'],
     'execution_index_flags': ['test_execution_index_flags'],
     'execution_module_tracked': ['test_execution_module_tracked'],
@@ -57,7 +58,7 @@ def main():
             print(f'{gate} {"PASS" if good else "FAIL"} sites=1 baseline=green '
                   f'failures={failures} errors={errors} named={named}')
     print(f'EXECUTION_INTEGRITY_PROBES {"PASS" if passed == len(CASES) else "FAIL"} '
-          f'scope=4_new_integrity_gates+existing_read_gate passed={passed} total={len(CASES)}')
+          f'scope=5_integrity_gates+existing_read_gate passed={passed} total={len(CASES)}')
     return int(passed != len(CASES))
 
 

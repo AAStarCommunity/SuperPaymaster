@@ -7012,3 +7012,88 @@ and temporary paths, not a system-wide process census. Full accepted suite logs:
 `/tmp/commit6f-final/`; probe/audit logs: `/tmp/commit6f-final-probes.log`,
 `/tmp/commit6f-final-names.log`, `/tmp/commit6f-final-ast.log`; consolidated
 accepted ledger: `/tmp/commit6f-accepted-final.txt`.
+
+
+## 6g
+
+Daybreak round 2 High: the sender now creates a fresh integrity module from the
+exact repository `script/upgrade/execution_integrity.py` file with
+`spec_from_file_location` under a private name on each check. It never imports
+that helper from `sys.modules`. The existing pre-signing and post-confirmation
+checks remain in place.
+
+`execution_module_origin` enumerates Python basenames tracked at the reviewed
+commit under `script/a3a` and `script/upgrade`. Every loaded exact name must have
+a file whose resolved path equals its repository path; external and missing
+origins stop. Existing tracked-source and byte gates remain unchanged. Exact-name
+regressions cover an external `a3a_exec`, a missing origin, and a permissive
+preloaded `execution_integrity` (also preloaded under the private loader name).
+The sender regression asserts that signing and broadcasting are never reached.
+The new gate's strict single-site deletion probe uses only temporary source trees
+and requires named assertion failures with zero errors. `assert_stop` is unchanged
+and accepts only `a.Gate`.
+
+Updated `gate_6f_additions.json` declarations retain their pinned preimages and
+record the current byte/AST fingerprints and explicit gate locations, with 6g
+reasons. Sender fixtures patch the sender wrapper; the integrity regressions use
+the real loader. The only change to `execution_reads.py` is one docstring sentence
+listing the accepted case-alias path and `sh -c git` bypasses.
+
+All requested commands ran in the foreground using offline fixtures, with no live
+RPC, environment-file, keystore, or chain access. No commit, staging, or background
+job was performed. Full command logs: `/tmp/commit6g-final/`.
+
+Verbatim final lines from the requested checks:
+
+```text
+GATE_RENAME_AST_DIFF PASS n_changes=364
+
+GATE_UNIQUENESS_PROBE PASS sites=1 baseline=green failures=3 errors=0 named=True
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+
+execution_module_origin PASS sites=1 baseline=green failures=2 errors=0 named=True
+execution_root PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_index_flags PASS sites=1 baseline=green failures=2 errors=0 named=True
+execution_module_tracked PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_module_bytes PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_repo_read PASS sites=1 baseline=green failures=2 errors=0 named=True
+EXECUTION_INTEGRITY_PROBES PASS scope=5_integrity_gates+existing_read_gate passed=6 total=6
+
+test_execution_integrity
+Ran 16 tests in 5.561s
+OK
+
+test_a3a_send
+Ran 74 tests in 34.019s
+OK
+
+test_a3a_exec
+Ran 102 tests in 3.448s
+OK
+
+test_manifest_exec
+Ran 535 tests in 423.279s
+OK (skipped=2)
+L1_CONTROL old_owner_creation_before removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL unexpected_proxy_other removed=assertion-failure errors=0
+L1_CONTROL old_owner_undeclared_clone removed=assertion-failure errors=0
+
+test_execution_head
+Ran 6 tests in 1.247s
+OK
+
+test_execution_reads
+Ran 10 tests in 0.087s
+OK
+
+test_gate_names
+Ran 27 tests in 31.385s
+OK
+
+FOREGROUND_6G_CHECKS PASS passed=9 total=9
+HEAD_UNCHANGED 383315b0005bee77e26c42e894106aa10e79803f
+INDEX_UNCHANGED staged_files=0
+ASSERT_STOP_UNCHANGED catches=a.Gate
+```

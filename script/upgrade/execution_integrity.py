@@ -31,6 +31,16 @@ def tree_gates(commit):
 def module_gates(commit):
     root = u.ROOT.resolve()
     tracked = set(git('ls-tree', '-r', '--name-only', '-z', commit).split(b'\0'))
+    for filename in sorted(tracked):
+        relative = Path(os.fsdecode(filename))
+        if relative.suffix != '.py' or relative.parts[:2] not in (
+                ('script', 'a3a'), ('script', 'upgrade')):
+            continue
+        if relative.stem in sys.modules:
+            module = sys.modules[relative.stem]
+            origin = getattr(module, '__file__', None)
+            a.need('execution_module_origin',
+                   bool(origin) and Path(origin).resolve() == (root / relative).resolve(), True)
     for module in tuple(sys.modules.values()):
         filename = getattr(module, '__file__', None)
         if not filename:

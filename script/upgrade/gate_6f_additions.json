@@ -3,10 +3,10 @@
     "file": "script/upgrade/execution_integrity.py",
     "baseline": "81d074ce",
     "before_sha256": null,
-    "after_sha256": "2c66b39e1b1c90262d6fabc4f8f14b2a96784733bc0d23eb24a54ce1489296a9",
+    "after_sha256": "6b0bbe7741d8c919b566a936108b5d4759220e0faa6dd8d966363aa61508da5a",
     "line": 1,
     "column": 0,
-    "ast_sha256": "6a749fd6dd2ec54e3f933f63074981433e317ea88af50441aaa6e96424a606f5",
+    "ast_sha256": "ac1591eab281b92c0932a57ece697de3f0f3aa6c50f6c73370f3b404137392f4",
     "gates": [
       {
         "gate": "execution_root",
@@ -34,18 +34,24 @@
       },
       {
         "gate": "execution_module_tracked",
-        "line": 47,
+        "line": 57,
         "column": 8,
         "ast_sha256": "a6b866ae476f10854a52bdaa6227c198a972d16bb17c6849d0bbd2330566c913"
       },
       {
         "gate": "execution_module_bytes",
-        "line": 49,
+        "line": 59,
         "column": 8,
         "ast_sha256": "802653fbb9058fbb42914fee3e4dc2ff41ea85cf0e71c0710248274a567dff82"
+      },
+      {
+        "gate": "execution_module_origin",
+        "line": 42,
+        "column": 12,
+        "ast_sha256": "c8a97d8a36dcb2c499bfa62e4d3235226cf9254cde7605ac672e702d13bba332"
       }
     ],
-    "reason": "H1/H2 shared tree and loaded-source integrity; four new named gates, two relocated unchanged gate names"
+    "reason": "H1/H2 shared tree and loaded-source integrity; four new named gates, two relocated unchanged gate names; 6g: require exact repository origins for loaded first-party names enumerated from the commit"
   },
   {
     "file": "script/upgrade/manifest_exec.py",
@@ -62,23 +68,23 @@
     "file": "script/a3a/a3a_send.py",
     "baseline": "81d074ce",
     "before_sha256": "d6179257dac8d63f4d95a9f197aadbcd06323bc6c2902b003a82f3432617143d",
-    "after_sha256": "b31e47cdd84322853917ae9d9d0bf8d3a065269bd9cc235e6cf6cebc9dcd94f9",
+    "after_sha256": "e33d47b8e07863b53548e8b62014359b278574c820f73a6773926c3e3b8e7a3e",
     "line": 1,
     "column": 0,
-    "ast_sha256": "c45b00c12d008eb68e25b08f5fc94883efa6af0a799076fda73956739b1236dc",
+    "ast_sha256": "55015d21c9bd0a0df4241146a1139141eb96f6df5c848bc5492dcdfa2111f6c2",
     "gates": [],
-    "reason": "H1 invoke shared integrity before signing and after confirmation before broadcast; operator moved the recheck before the broadcast.json attempt record"
+    "reason": "H1 invoke shared integrity before signing and after confirmation before broadcast; operator moved the recheck before the broadcast.json attempt record; 6g: load fresh integrity helper from exact repository file under private name; synthetic tests patch sender wrapper"
   },
   {
     "file": "script/upgrade/execution_reads.py",
     "baseline": "81d074ce",
     "before_sha256": "d557dae514afd674bbf1f3a2821768b7d736b46b5e8b94502e8705fe2ddaed2b",
-    "after_sha256": "91b2ed63bff2e0495630e1b484499825a2ee16a5edaef22e7301073b94de964e",
+    "after_sha256": "017560f0beb43404154fcc5f4411c8605e6f76068cf0ba0654649eda1e7262ee",
     "line": 1,
     "column": 0,
-    "ast_sha256": "bad6e6a95358308d0a7f94ed7c33d3c0a51ec74d6d237d23711f97f0eb194263",
+    "ast_sha256": "82ca79d9693e4a97da5fbdfc246522a520b88ef37e52afc7557adc9c00104f06",
     "gates": [],
-    "reason": "M intercept os.open and Popen with existing execution_repo_read gate"
+    "reason": "M intercept os.open and Popen with existing execution_repo_read gate; 6g: docstring only records accepted case-alias and sh -c git bypasses"
   },
   {
     "file": "script/upgrade/execution_git_fixture.py",
@@ -95,11 +101,11 @@
     "file": "script/a3a/test_a3a_send.py",
     "baseline": "81d074ce",
     "before_sha256": "94c3a2961bd230a3fe4742b170e5fa24c310f61c8be89c9902fa11522bf3dc01",
-    "after_sha256": "c667a89167cd67a51236ab33c5f3891d34f4dc1260364848544b102f9ee9d773",
+    "after_sha256": "9774661c8acba9a32f149f8a7dd99822ac6f8ef337580ef92ff1ac25f1f3329e",
     "line": 1,
     "column": 0,
-    "ast_sha256": "61a5b799f591a26f98166d9d653b824de755b698b6c3e8b34e79da1b6dd79fff",
+    "ast_sha256": "fd54f55886e2ed481aa606c49241d68dd7bea684a8512b97e28d016a38e5c7eb",
     "gates": [],
-    "reason": "Synthetic sender plan supplies rebuild commit and patches shared integrity helper only; operator added test_integrity_recheck_stops_before_the_attempt_record"
+    "reason": "Synthetic sender plan supplies rebuild commit and patches shared integrity helper only; operator added test_integrity_recheck_stops_before_the_attempt_record; 6g: load fresh integrity helper from exact repository file under private name; synthetic tests patch sender wrapper"
   }
 ]

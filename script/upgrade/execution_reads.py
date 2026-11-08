@@ -1,4 +1,6 @@
-"""Accidental-read barrier, not a security sandbox; plan construction finishes before entry."""
+"""Accidental-read barrier, not a security sandbox; plan construction finishes before entry.
+Known bypasses include case-alias paths and sh -c git invocations.
+"""
 import builtins
 from contextlib import contextmanager
 import io
