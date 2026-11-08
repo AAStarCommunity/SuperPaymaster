@@ -309,6 +309,42 @@ def compare(before, after, mapping, file, rejection_details=None):
     return allowed, rejected
 
 
+def declared_6f(after):
+    """Exact non-rename 6f deltas; retain the existing rename audit on their preimage.
+
+    Each file has pinned pre/post bytes and AST fingerprints, plus explicit gate
+    locations. A changed byte or stale location rejects the declaration. This is
+    intentionally separate from the statement-only production additions format.
+    """
+    rows = json.loads(read(after, 'script/upgrade/gate_6f_additions.json'))
+    originals, changes = {}, []
+    for row in rows:
+        file = row['file']
+        if file in originals:
+            raise ValueError('duplicate 6f file declaration: ' + file)
+        source = read(after, file)
+        original = read(row['baseline'], file)
+        for label, text in (('before', original), ('after', source)):
+            digest = hashlib.sha256(text.encode()).hexdigest() if text is not None else None
+            if digest != row[label + '_sha256']:
+                raise ValueError('6f ' + label + ' fingerprint mismatch: ' + file)
+        tree = ast.parse(source, file)
+        if hashlib.sha256(ast.dump(tree).encode()).hexdigest() != row['ast_sha256']:
+            raise ValueError('6f AST fingerprint mismatch: ' + file)
+        for gate in row['gates']:
+            sites = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                     and node.lineno == gate['line'] and node.col_offset == gate['column']
+                     and node.args and isinstance(node.args[0], ast.Constant)
+                     and node.args[0].value == gate['gate']
+                     and hashlib.sha256(ast.dump(node).encode()).hexdigest() == gate['ast_sha256']]
+            if len(sites) != 1:
+                raise ValueError('6f gate location/fingerprint mismatch: ' + file + ':' + gate['gate'])
+        originals[file] = original
+        changes.append(f"{file}:1:0 REVIEWED_6F_NON_RENAME {row['reason']} "
+                       f"ast_sha256={row['ast_sha256']}")
+    return originals, changes
+
+
 def main(argv):
     changes, faults = [], []
     try:
@@ -317,6 +353,8 @@ def main(argv):
         before, after = argv
         mapping = json.loads(read(after, MAP))
         old_files, new_files = files(before), files(after)
+        six_f, six_f_changes = declared_6f(after)
+        changes.extend(six_f_changes)
         for file in sorted(new_files - old_files):
             if after == 'WORKTREE':
                 raw = (ROOT / file).read_bytes()
@@ -346,6 +384,10 @@ def main(argv):
             if not file.endswith('.py'):
                 continue
             old, new = read(before, file), read(after, file)
+            if file in six_f:
+                new = six_f[file]
+                if new is None:
+                    raise ValueError("6f preimage missing for existing file: " + file)
             if old == new and file not in declared_files:
                 continue
             allowed, rejected = compare(old, new, mapping, file)

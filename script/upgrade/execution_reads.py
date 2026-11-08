@@ -1,4 +1,4 @@
-"""Scoped execution read barrier; plan construction must finish before entry."""
+"""Accidental-read barrier, not a security sandbox; plan construction finishes before entry."""
 import builtins
 from contextlib import contextmanager
 import io
@@ -31,6 +31,7 @@ def require_read(allowed, description):
 @contextmanager
 def guard(allowlist):
     root = u.ROOT.resolve()
+    original_os_open, original_popen = os.open, subprocess.Popen
     original_open, original_io = builtins.open, io.open
     original_text, original_bytes, original_run = Path.read_text, Path.read_bytes, subprocess.run
 
@@ -67,18 +68,34 @@ def guard(allowlist):
         check_path(path)
         return original_bytes(path, *args, **kwargs)
 
-    def run(*args, **kwargs):
+    def os_opened(file, flags, *args, **kwargs):
+        if flags & os.O_ACCMODE != os.O_WRONLY:
+            # A relative dir_fd path has no portable reviewed identity.
+            require_read(kwargs.get('dir_fd') is None or os.path.isabs(file), 'relative dir_fd')
+            check_path(file)
+        return original_os_open(file, flags, *args, **kwargs)
+
+    def popen(*args, **kwargs):
+        check_command(*args, **kwargs)
+        return original_popen(*args, **kwargs)
+
+    def check_command(*args, **kwargs):
         command = args[0] if args else kwargs['args']
-        words = shlex.split(os.fsdecode(command)) if isinstance(command, (str, bytes)) else command
-        # No git operation is needed during execution. Reject even -C/--git-dir
-        # and shell forms, independently of cwd (worktree gitdirs may be external).
+        words = shlex.split(os.fsdecode(command)) if isinstance(command, (str, bytes)) else list(command)
+        if kwargs.get('executable') is not None:
+            words = [*words, kwargs['executable']]
         require_read(not any(Path(os.fsdecode(word)).name == 'git' for word in words), str(command))
+
+    def run(*args, **kwargs):
+        check_command(*args, **kwargs)
         return original_run(*args, **kwargs)
 
     try:
+        os.open, subprocess.Popen = os_opened, popen
         builtins.open, io.open = opened, io_opened
         Path.read_text, Path.read_bytes, subprocess.run = read_text, read_bytes, run
         yield
     finally:
+        os.open, subprocess.Popen = original_os_open, original_popen
         builtins.open, io.open = original_open, original_io
         Path.read_text, Path.read_bytes, subprocess.run = original_text, original_bytes, original_run

@@ -281,6 +281,9 @@ def run(args, remote, url, confirm=None):
     snapshot = args.out/'plan.reviewed.json'
     snapshot.write_bytes(raw_plan)
     plan = ex.plan_json(raw_plan)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'upgrade'))
+    from execution_integrity import check as integrity_check
+    integrity_check(plan['rebuild']['commit'])
     tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     role = role_of(plan, tx['from'])
     accounts = json.loads(args.accounts.read_text())
@@ -298,6 +301,8 @@ def run(args, remote, url, confirm=None):
     again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     ex.need('send_tx_stable', again, tx)
     fee_fits(remote, tx)
+    # Executor integrity again after the pause, before any record claims an attempt.
+    integrity_check(plan['rebuild']['commit'])
     # The attempt is on disk before anything is transmitted: if this write fails, nothing has been sent.
     ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome='attempting'))
     outcome, provider = 'unknown', None

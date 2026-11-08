@@ -1,0 +1,105 @@
+[
+  {
+    "file": "script/upgrade/execution_integrity.py",
+    "baseline": "81d074ce",
+    "before_sha256": null,
+    "after_sha256": "2c66b39e1b1c90262d6fabc4f8f14b2a96784733bc0d23eb24a54ce1489296a9",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "6a749fd6dd2ec54e3f933f63074981433e317ea88af50441aaa6e96424a606f5",
+    "gates": [
+      {
+        "gate": "execution_root",
+        "line": 23,
+        "column": 4,
+        "ast_sha256": "e9e26bd680c6eae39fbed5a01f2048930953a7404a0ac62aab0accefae2f1f35"
+      },
+      {
+        "gate": "execution_index_flags",
+        "line": 25,
+        "column": 4,
+        "ast_sha256": "f613fea8d51d9688faf295e1216ca0cbfa1db6a46a680c5d48d95da3d7d6c109"
+      },
+      {
+        "gate": "execution_head",
+        "line": 27,
+        "column": 4,
+        "ast_sha256": "106e0098e51749e1d842f541a7aa98215085ffbcab389ada236fbd324e00ef7c"
+      },
+      {
+        "gate": "execution_clean_tree",
+        "line": 28,
+        "column": 4,
+        "ast_sha256": "87b36a9aab5add7a076197a59344a336d485e03b57d7ee9aafe16eadc6d78b0b"
+      },
+      {
+        "gate": "execution_module_tracked",
+        "line": 47,
+        "column": 8,
+        "ast_sha256": "a6b866ae476f10854a52bdaa6227c198a972d16bb17c6849d0bbd2330566c913"
+      },
+      {
+        "gate": "execution_module_bytes",
+        "line": 49,
+        "column": 8,
+        "ast_sha256": "802653fbb9058fbb42914fee3e4dc2ff41ea85cf0e71c0710248274a567dff82"
+      }
+    ],
+    "reason": "H1/H2 shared tree and loaded-source integrity; four new named gates, two relocated unchanged gate names"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "baseline": "81d074ce",
+    "before_sha256": "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28",
+    "after_sha256": "70a0fdfa85d4a5e0c11912f1425f9982d6e4be8c4f8e14a8c64065cb26ff1f23",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "a270d1f96fa795432376435ca4625277bfb8bbf5971338eb05479050d467464b",
+    "gates": [],
+    "reason": "H1/H2 replace tree-only implementation with shared integrity helper"
+  },
+  {
+    "file": "script/a3a/a3a_send.py",
+    "baseline": "81d074ce",
+    "before_sha256": "d6179257dac8d63f4d95a9f197aadbcd06323bc6c2902b003a82f3432617143d",
+    "after_sha256": "b31e47cdd84322853917ae9d9d0bf8d3a065269bd9cc235e6cf6cebc9dcd94f9",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "c45b00c12d008eb68e25b08f5fc94883efa6af0a799076fda73956739b1236dc",
+    "gates": [],
+    "reason": "H1 invoke shared integrity before signing and after confirmation before broadcast; operator moved the recheck before the broadcast.json attempt record"
+  },
+  {
+    "file": "script/upgrade/execution_reads.py",
+    "baseline": "81d074ce",
+    "before_sha256": "d557dae514afd674bbf1f3a2821768b7d736b46b5e8b94502e8705fe2ddaed2b",
+    "after_sha256": "91b2ed63bff2e0495630e1b484499825a2ee16a5edaef22e7301073b94de964e",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "bad6e6a95358308d0a7f94ed7c33d3c0a51ec74d6d237d23711f97f0eb194263",
+    "gates": [],
+    "reason": "M intercept os.open and Popen with existing execution_repo_read gate"
+  },
+  {
+    "file": "script/upgrade/execution_git_fixture.py",
+    "baseline": "81d074ce",
+    "before_sha256": "e11abc2b2358817c579920175a7e4c6fe72e331a2bf163a8a80824e0ec2fe22f",
+    "after_sha256": "f9ba7db0f8e2082058d015b2e72fee016facd059bb091caf496682a9c6e84188",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "422fbf3d6e4590044c2ef71891f9d1e91049e55636db7faad8b144ef02623075",
+    "gates": [],
+    "reason": "Synthetic executor fixture patches shared integrity helper only"
+  },
+  {
+    "file": "script/a3a/test_a3a_send.py",
+    "baseline": "81d074ce",
+    "before_sha256": "94c3a2961bd230a3fe4742b170e5fa24c310f61c8be89c9902fa11522bf3dc01",
+    "after_sha256": "c667a89167cd67a51236ab33c5f3891d34f4dc1260364848544b102f9ee9d773",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "61a5b799f591a26f98166d9d653b824de755b698b6c3e8b34e79da1b6dd79fff",
+    "gates": [],
+    "reason": "Synthetic sender plan supplies rebuild commit and patches shared integrity helper only; operator added test_integrity_recheck_stops_before_the_attempt_record"
+  }
+]

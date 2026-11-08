@@ -6861,3 +6861,154 @@ Scan scope for these rows: `script/a3a/a3a_exec.py`, `script/a3a/a3a_send.py`,
 | `old_owner_isolation.py:1250` | `rpc_result_post_upgrade_check_stateBlock` | `pin['stateBlock']` is a parameter read before any producer call | `u.validate_pin` on the same pin |
 | `old_owner_isolation.py:1255` | `rpc_result_post_upgrade_check_target` | targets iterate the `release_targets` parameter | `inventory_source` / `discover_targets` target checks |
 | `old_owner_isolation.py:1558` | `rpc_result_inspect_data` | nested `inspect` has several input routes (outer tx data, constructor tail, decoded values, payload children); no single producer | outer-tx `typed` check and `old_owner_calldata_payload_shape` |
+
+## 6f
+
+H1/H2: `execution_integrity.check(rebuild_commit)` runs sanitized Git checkout
+checks followed by a scan of the current `sys.modules` snapshot. Git runs with
+`cwd=u.ROOT`, every inherited `GIT_*` variable removed, and
+`GIT_CONFIG_NOSYSTEM=1`. The resolved top-level must match `u.ROOT`; lowercase
+index tags and `S`/`s` are refused. Existing `execution_head` and
+`execution_clean_tree` checks remain. Each loaded module whose `__file__`
+resolves inside the repository must have a Python source file tracked at the
+rebuild commit, with bytes identical to `git show`. Untracked/ignored modules
+and bytecode-only imports without source are refused. This checks on-disk
+sources, not in-memory bytecode; it is not an OS sandbox.
+
+The live sender calls the shared helper before its first `signing_transaction`
+and again after confirmation and the final transaction/fee checks, immediately
+before entering the broadcast block. `run_manifest` retains its
+`execution_tree_gates` entry point, which delegates to the shared helper before
+the read guard starts. M: the guard also intercepts read-mode `os.open` and
+`subprocess.Popen`, preserving the git-command refusal for the existing `run`
+path and the subprocess convenience APIs. Its docstring states the
+accidental-read scope.
+
+New gate names (scope: `execution_integrity.py`): `execution_root`,
+`execution_index_flags`, `execution_module_tracked`, `execution_module_bytes`.
+The new uniqueness test scans these seven executor source files together:
+`a3a_exec.py`, `a3a_send.py`, `sp_upgrade_exec.py`, `manifest_exec.py`,
+`old_owner_isolation.py`, `execution_reads.py`, and `execution_integrity.py`.
+The existing gate-name suite/probe keeps its original scope. The deletion runner
+uses temporary source trees exclusively and requires one source site, a green
+baseline, at least one named assertion failure, zero errors, and exit status 1
+for each mutant. It probes the four new gates and the existing
+`execution_repo_read` gate (both `os.open` and direct `Popen`).
+
+The statement-only declaration format cannot represent the helper extraction,
+new module, and call-site changes. `gate_6f_additions.json` explicitly records
+six file deltas against `81d074ce`, exact pre/post byte hashes, whole-module AST
+fingerprints and locations, and individual gate locations/fingerprints. The
+rename audit verifies those declarations before checking their preimages using
+all existing rename rules. Declaration tests reject changed bytes and changed
+gate locations. No wildcard exemption was added. The 64 manifest dependency
+hashes in `gate_finite_domains.json` were repinned after checking each enclosing
+function AST against its existing fingerprint; labels and scope fingerprints
+are unchanged. Count scope: that JSON file's `source_sha256` entries referring
+to `script/upgrade/manifest_exec.py`.
+
+Minimal fixture substitutions:
+
+- `execution_git_fixture.clean_checkout`: patch `execution_integrity.check` for
+  synthetic plans, replacing the two fake Git subprocess responses. Existing
+  callers in manifest/read tests are unchanged.
+- `test_a3a_send.SenderTests.setUp` and `SenderS7Integration.setUp`: patch the
+  shared integrity helper; the synthetic sender plan now includes a rebuild
+  commit. The dedicated integrity tests exercise the real helper at both sender
+  checkpoints and assert no broadcast after a stop.
+- The existing `rehearsal_fault` patch of `execution_tree_gates` is unchanged.
+
+No commit, real RPC, chain operation, environment-file read, or real keystore
+access was performed. Tests use offline fixtures and temporary Git repositories;
+the sender suite retains its existing offline signing fixtures. `assert_stop`
+is unchanged and catches only `a.Gate`. Early fixture failures and an interrupted
+combined suite run were not accepted. A later session-leader sender run received
+SIGHUP from the real-PTY test; rerunning without session leadership passed, with
+no test or gate disabled.
+
+Final foreground results (verbatim final lines; accepted reruns only):
+
+The sequential driver reported 11/12 because it retained the interrupted
+sender attempt. This accepted ledger substitutes only its successful foreground
+rerun (tool session 60565, exit 0); all other suite exits were 0. Suite summary
+lines below are copied verbatim from their logs; some suites print buffered
+control diagnostics after the unittest summary. Intentional mutant FAIL output
+is not a passing-suite error.
+
+```text
+test_a3a_exec
+Ran 102 tests in 3.006s
+OK
+
+test_a3a_send
+Ran 73 tests in 31.636s
+OK
+
+test_manifest_exec
+Ran 535 tests in 450.792s
+OK (skipped=2)
+
+test_manifest_phase_c
+Ran 141 tests in 205.499s
+OK
+
+test_old_owner_isolation
+Ran 143 tests in 39.395s
+OK (skipped=2)
+
+test_sp_upgrade_exec
+Ran 141 tests in 1.725s
+OK
+
+test_execution_head
+Ran 6 tests in 1.283s
+OK
+
+test_execution_reads
+Ran 10 tests in 0.101s
+OK
+
+test_swallow_exceptions
+Ran 9 tests in 2.604s
+OK
+
+test_authority_checkpoints
+Ran 10 tests in 17.422s
+OK
+
+test_gate_names
+Ran 27 tests in 30.628s
+OK
+
+test_execution_integrity
+Ran 14 tests in 3.845s
+OK
+
+FOREGROUND_SUITES scope=11_requested_suites+test_execution_integrity passed=12 total=12
+execution_root PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_index_flags PASS sites=1 baseline=green failures=2 errors=0 named=True
+execution_module_tracked PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_module_bytes PASS sites=1 baseline=green failures=1 errors=0 named=True
+execution_repo_read PASS sites=1 baseline=green failures=2 errors=0 named=True
+EXECUTION_INTEGRITY_PROBES PASS scope=4_new_integrity_gates+existing_read_gate passed=5 total=5
+GATE_FUNDING_LABEL_PROBES PASS 9/9 strict red
+GATE_NAME_PROBES PASS
+GATE_RENAME_AST_DIFF PASS n_changes=364
+HEAD_UNCHANGED 81d074ce3387f874a02a02606083bf598bbec6b9
+ASSERT_STOP_UNCHANGED scope=script/upgrade/gate_assertions.py catches=a.Gate
+INDEX_UNCHANGED scope=this_worktree staged_files=0
+OWNED_TEMP_TREES scope=commit6f-tree-*,commit6f-probe-* remaining=0
+GIT_DIFF_CHECK scope=this_worktree PASS
+```
+
+AST audit count scope: Python files under `script` shared by `2acc71af`
+and WORKTREE, with added files fingerprinted and the explicit 6f declarations
+verified. `n_changes` counts audit change records, not new gate names.
+
+All owned foreground tool sessions completed. Blocking probe/helper subprocess
+calls were reaped, and owned temporary trees were removed. No background job
+was launched or left running. Lifecycle scope is this task’s owned sessions
+and temporary paths, not a system-wide process census. Full accepted suite logs:
+`/tmp/commit6f-final/`; probe/audit logs: `/tmp/commit6f-final-probes.log`,
+`/tmp/commit6f-final-names.log`, `/tmp/commit6f-final-ast.log`; consolidated
+accepted ledger: `/tmp/commit6f-accepted-final.txt`.

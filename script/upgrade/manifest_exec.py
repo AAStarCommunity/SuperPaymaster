@@ -3414,12 +3414,12 @@ def controls_at(rpc, plan, sid, controls, expected=None):
 
 
 def execution_tree_gates(plan):
-    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT,
-                          capture_output=True, text=True, check=True).stdout.strip()
-    a.need('execution_head', head, plan['rebuild']['commit'])
-    state = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=u.ROOT,
-                           capture_output=True, text=True, check=True)
-    a.need('execution_clean_tree', state.stdout, '')
+    """Check the checkout and every loaded repository module before execution.
+
+    Retain this entry point for rehearsal fixtures; the sender shares the helper.
+    """
+    import execution_integrity
+    execution_integrity.check(plan['rebuild']['commit'])
 
 
 def run_manifest(remote, rpc, plan, out, calibrate=True):

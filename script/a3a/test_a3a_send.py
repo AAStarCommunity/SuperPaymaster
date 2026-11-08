@@ -26,7 +26,10 @@ TX = {'chainId': '0xaa36a7', 'from': ANVIL_ADDR, 'to': ex.SAFE,
       'data': '0xd4d9bdcd65f033abab61bfd4b3dd915e34a5a5aee635c6c90c6add2d2b58d6b48c6cd2a0', 'nonce': '0x7',
       'gas': '0x2b974', 'maxFeePerGas': '0x4a817c800', 'maxPriorityFeePerGas': '0x5f5e100', 'value': '0x0'}
 CREATE = dict(TX, to=None, data='0x6080604052348015600e575f80fd5b50', nonce='0x2f63', gas='0xb8a36e')
-PLAN = {'pin': {'block': '0xb70983', 'senders': {'approver': {'address': ANVIL_ADDR}, 'deployer': {'address': '0x' + '11' * 20},
+sys.path.insert(0, str(HERE.parent / 'upgrade'))
+import execution_integrity
+
+PLAN = {'rebuild': {'commit': 'a'*40}, 'pin': {'block': '0xb70983', 'senders': {'approver': {'address': ANVIL_ADDR}, 'deployer': {'address': '0x' + '11' * 20},
                                                  'executor': {'address': '0x' + '22' * 20}}},
         'steps': [{'id': s} for s in ex.STEP_IDS]}
 PLAN_BYTES = json.dumps(PLAN, sort_keys=True).encode()
@@ -94,6 +97,7 @@ class SenderTests(unittest.TestCase):
                               accounts=d / 'accounts.json', out=d / 'out')
         self.args.out.mkdir()
         self.patches = [
+            mock.patch.object(execution_integrity, 'check'),
             mock.patch.object(sd, 'CAST', str(wrapper)),
             mock.patch.object(sd, 'LOCK_PATH', d / 'send.lock'),
             # Secrets present in the operator's environment must not reach cast.
@@ -606,6 +610,18 @@ class SenderTests(unittest.TestCase):
         self.assertEqual(json.loads((self.args.out / 'broadcast.json').read_text()),
                          {'step': 'S5a', 'hash': keccak(self.sent[0]), 'outcome': 'accepted', 'provider': None})
 
+    def test_integrity_recheck_stops_before_the_attempt_record(self):
+        calls = []
+        def check(commit):
+            calls.append(commit)
+            if len(calls) == 2:  # the recheck after the confirmation pause
+                raise ex.Gate('execution_module_bytes', False, True)
+        with mock.patch.object(execution_integrity, 'check', side_effect=check):
+            self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'execution_module_bytes')
+        self.assertEqual(calls, ['a'*40, 'a'*40])
+        self.assertFalse((self.args.out / 'broadcast.json').exists())
+        self.assertEqual(self.sent, [])
+
     def test_local_error_after_broadcast_still_monitors_and_records(self):
         real = Path.write_text
         def write_text(path, data, *a, **kw):
@@ -1098,6 +1114,9 @@ class SenderS7Integration(unittest.TestCase):
     a state where S7 did not take effect.
     """
     def setUp(self):
+        integrity = mock.patch.object(execution_integrity, 'check')
+        integrity.start()
+        self.addCleanup(integrity.stop)
         import test_a3a_exec as te
         self.te = te
         te.ExecutorTests.setUpClass()
