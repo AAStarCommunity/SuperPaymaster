@@ -1,4 +1,9 @@
-"""Test-only archive selection and authenticated offline fixture materialization."""
+"""Test-only archive selection and offline fixture materialization.
+
+The per-file sha256 digests in manifest.json make the fixture self-consistent (every file is checked before any is
+written); they are not anchored to an external trust root, so the fixture is a test input guarded by review. Production
+never reads it: deployed_build rebuilds the Registry from `git archive` of the recorded commit.
+"""
 import gzip
 import hashlib
 import json

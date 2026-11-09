@@ -22,10 +22,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-      - name: Materialize the hash-pinned L-1 Registry fixture (CI has no local archive; interim, removed at L10)
+      - name: Materialize the self-consistent L-1 Registry test fixture (CI has no local archive; interim, removed at L10)
         run: |
           sudo mkdir -p /private/tmp/l1-builds && sudo chown "$USER" /private/tmp/l1-builds
-          cd script/upgrade && python3 -B -c "import pathlib, l1_registry_fixture as f; d = pathlib.Path('/private/tmp/l1-builds')/f.COMMIT; d.mkdir(); f.materialize_fixture(d); print('materialized', d)"
+          cd script/upgrade && python3 -B -c "import pathlib, l1_registry_fixture as f; d = pathlib.Path('/private/tmp/l1-builds')/f.COMMIT; d.mkdir(exist_ok=True); f.materialize_fixture(d); print('materialized', d)"
       - name: Offline legacy timelock address gate and negative controls
         run: python3 -B script/upgrade/test_no_legacy_timelock.py
       - name: Install Foundry (same pin as test.yml)
@@ -46,6 +46,11 @@ jobs:
       - name: Offline pre-sampling manifest tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
+      - name: Offline Registry AST proof, swallow audit and authority-checkpoint controls
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_old_owner_isolation.py RegistryASTProofTests
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_swallow_exceptions.py
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_authority_checkpoints.py
       - name: Offline manifest Phase C tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_phase_c.py
