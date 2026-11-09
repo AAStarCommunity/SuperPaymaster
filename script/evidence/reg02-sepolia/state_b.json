@@ -1,0 +1,362 @@
+[
+ {
+  "user": "0x084b5f85a5149b03adf9396c7c94d8b8f328fb36",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 10,
+  "active": "[0x084b5F85A5149b03aDf9396C7C94D8B8F328FB36]",
+  "memberships": "[(0x084b5F85A5149b03aDf9396C7C94D8B8F328FB36, 1783348884 [1.783e9], true, \"\")]"
+ },
+ {
+  "user": "0x09a0ca08cff72f8dc62585b107364dea52e75c93",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 17,
+  "active": "[0x09a0ca08cFf72F8Dc62585B107364dEa52e75c93]",
+  "memberships": "[(0x09a0ca08cFf72F8Dc62585B107364dEa52e75c93, 1786766424 [1.786e9], true, \"\")]"
+ },
+ {
+  "user": "0x179faf25600c01dbfcef7971f15dcfa3fbe5d31c",
+  "roles": [
+   "ENDUSER"
+  ],
+  "hasEndUser": true,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 4,
+  "active": "[0xEcAACb915f7D92e9916f449F7ad42BD0408733c9]",
+  "memberships": "[(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9, 1782611844 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0x18420702995dad45be6c3344621e22af0c55f613",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 14,
+  "active": "[0x18420702995DAD45BE6C3344621e22Af0C55f613]",
+  "memberships": "[(0x18420702995DAD45BE6C3344621e22Af0C55f613, 1783936584 [1.783e9], true, \"\")]"
+ },
+ {
+  "user": "0x2e72a258fd9e1c69b2b2bb6ed8bc7e94773f7b00",
+  "roles": [
+   "COMMUNITY",
+   "PAYMASTER_SUPER"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 2,
+  "nRolesTrue": 2,
+  "sbtBalance": 1,
+  "sbtId": 7,
+  "active": "[0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00]",
+  "memberships": "[(0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00, 1782638172 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0x368f8cb8cca42174b03156cea761bae31cee5c94",
+  "roles": [
+   "COMMUNITY",
+   "PAYMASTER_SUPER"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 2,
+  "nRolesTrue": 2,
+  "sbtBalance": 1,
+  "sbtId": 8,
+  "active": "[0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94]",
+  "memberships": "[(0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94, 1782638220 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0x40f0b12128f256b62fa22b36d37012ee004bbd1f",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 19,
+  "active": "[0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f]",
+  "memberships": "[(0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f, 1786771752 [1.786e9], true, \"\")]"
+ },
+ {
+  "user": "0x5d870e132cc010e882e90f4afaacdc4f19c7eca3",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 18,
+  "active": "[0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3]",
+  "memberships": "[(0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3, 1786771740 [1.786e9], true, \"\")]"
+ },
+ {
+  "user": "0x64788a3f79db44aa08b166851f42a8d3a8748d60",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 12,
+  "active": "[0x64788A3f79Db44Aa08b166851F42a8d3A8748D60]",
+  "memberships": "[(0x64788A3f79Db44Aa08b166851F42a8d3A8748D60, 1783703136 [1.783e9], true, \"\")]"
+ },
+ {
+  "user": "0x6f7d30f2a018d9f24e9ff6cbe8abbfafbdd6f96e",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 16,
+  "active": "[0x6F7D30f2A018d9F24E9Ff6CbE8abBfAfbDD6F96E]",
+  "memberships": "[(0x6F7D30f2A018d9F24E9Ff6CbE8abBfAfbDD6F96E, 1786766388 [1.786e9], true, \"\")]"
+ },
+ {
+  "user": "0x75c7a90b80a2fd0030ff220ac1c8a74492ebfb66",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 11,
+  "active": "[0x75c7A90b80A2fd0030fF220AC1C8a74492ebFB66]",
+  "memberships": "[(0x75c7A90b80A2fd0030fF220AC1C8a74492ebFB66, 1783702404 [1.783e9], true, \"\")]"
+ },
+ {
+  "user": "0x85744fd1f11e0b9408bef314968eed277258ce68",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 24,
+  "active": "[0x85744FD1F11E0B9408beF314968eED277258ce68]",
+  "memberships": "[(0x85744FD1F11E0B9408beF314968eED277258ce68, 1788158628 [1.788e9], true, \"\")]"
+ },
+ {
+  "user": "0xa5924206b809db98c760e5459bce225bd4207b66",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 25,
+  "active": "[0xA5924206B809Db98c760e5459bCe225Bd4207b66]",
+  "memberships": "[(0xA5924206B809Db98c760e5459bCe225Bd4207b66, 1788158664 [1.788e9], true, \"\")]"
+ },
+ {
+  "user": "0xa9ed1d0635e97063973a1846613f8f84d331e415",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 26,
+  "active": "[0xA9eD1d0635E97063973a1846613f8F84D331e415]",
+  "memberships": "[(0xA9eD1d0635E97063973a1846613f8F84D331e415, 1788664932 [1.788e9], true, \"\")]"
+ },
+ {
+  "user": "0xb5600060e6de5e11d3636731964218e53caadf0e",
+  "roles": [
+   "COMMUNITY",
+   "PAYMASTER_AOA",
+   "PAYMASTER_SUPER",
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 4,
+  "nRolesTrue": 4,
+  "sbtBalance": 1,
+  "sbtId": 1,
+  "active": "[0xb5600060e6de5E11D3636731964218E53caadf0E]",
+  "memberships": "[(0xb5600060e6de5E11D3636731964218E53caadf0E, 1782562260 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0xb78ef5c8dd059aba48b65c8069641f30bbf0a1ed",
+  "roles": [
+   "ENDUSER"
+  ],
+  "hasEndUser": true,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 5,
+  "active": "[0xEcAACb915f7D92e9916f449F7ad42BD0408733c9]",
+  "memberships": "[(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9, 1782611856 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0xca23b643243e74f3a7502eafa6cfb509b5e49b7c",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 13,
+  "active": "[0xCa23b643243E74F3A7502EAfa6cfB509b5E49b7C]",
+  "memberships": "[(0xCa23b643243E74F3A7502EAfa6cfB509b5E49b7C, 1783923456 [1.783e9], true, \"\")]"
+ },
+ {
+  "user": "0xd904a706e355d6b48baedbec472ce94bc6981601",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 20,
+  "active": "[0xD904A706E355D6b48bAeDBec472CE94BC6981601]",
+  "memberships": "[(0xD904A706E355D6b48bAeDBec472CE94BC6981601, 1786771848 [1.786e9], true, \"\")]"
+ },
+ {
+  "user": "0xdaaecdadf2e407682861cc927d3abd988f11f577",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 23,
+  "active": "[0xDAaeCdaDF2e407682861Cc927D3Abd988f11F577]",
+  "memberships": "[(0xDAaeCdaDF2e407682861Cc927D3Abd988f11F577, 1787044284 [1.787e9], true, \"\")]"
+ },
+ {
+  "user": "0xe6a3ab1e8b89a6cf91bfa5dc70c15e996f73a631",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 22,
+  "active": "[0xE6a3AB1e8B89A6cF91BFA5Dc70c15E996f73a631]",
+  "memberships": "[(0xE6a3AB1e8B89A6cF91BFA5Dc70c15E996f73a631, 1787043468 [1.787e9], true, \"\")]"
+ },
+ {
+  "user": "0xecaacb915f7d92e9916f449f7ad42bd0408733c9",
+  "roles": [
+   "COMMUNITY",
+   "PAYMASTER_AOA",
+   "PAYMASTER_SUPER",
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 4,
+  "nRolesTrue": 4,
+  "sbtBalance": 1,
+  "sbtId": 2,
+  "active": "[0xEcAACb915f7D92e9916f449F7ad42BD0408733c9]",
+  "memberships": "[(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9, 1782562668 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0xecd9c07f648b09cfb78906302822ec52ab87dd70",
+  "roles": [
+   "ENDUSER"
+  ],
+  "hasEndUser": true,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 3,
+  "active": "[0xEcAACb915f7D92e9916f449F7ad42BD0408733c9]",
+  "memberships": "[(0xEcAACb915f7D92e9916f449F7ad42BD0408733c9, 1782611832 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0xf36c9317765634e4995ce1e7210b5738225425b0",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 27,
+  "active": "[0xF36C9317765634E4995CE1e7210b5738225425b0]",
+  "memberships": "[(0xF36C9317765634E4995CE1e7210b5738225425b0, 1788760224 [1.788e9], true, \"\")]"
+ },
+ {
+  "user": "0xf7bf79acb7f3702b9dbd397d8140ac9de6ce642c",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 9,
+  "active": "[0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C]",
+  "memberships": "[(0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C, 1783242204 [1.783e9], true, \"\")]"
+ },
+ {
+  "user": "0xf85e760d4c08c79fe9c5de6b16483f6c0a6ff9c0",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 15,
+  "active": "[0xF85e760D4C08c79FE9C5DE6b16483F6C0A6fF9C0]",
+  "memberships": "[(0xF85e760D4C08c79FE9C5DE6b16483F6C0A6fF9C0, 1784527248 [1.784e9], true, \"\")]"
+ },
+ {
+  "user": "0xf92dc383c74ea30d7791b929d5872dad18679516",
+  "roles": [
+   "COMMUNITY",
+   "PAYMASTER_SUPER"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 2,
+  "nRolesTrue": 2,
+  "sbtBalance": 1,
+  "sbtId": 6,
+  "active": "[0xF92DC383c74eA30d7791b929d5872daD18679516]",
+  "memberships": "[(0xF92DC383c74eA30d7791b929d5872daD18679516, 1782638124 [1.782e9], true, \"\")]"
+ },
+ {
+  "user": "0xfaccc5629b1447b3728cbfaee68e80cf9b503c08",
+  "roles": [
+   "DVT"
+  ],
+  "hasEndUser": false,
+  "userRoleCount": 1,
+  "nRolesTrue": 1,
+  "sbtBalance": 1,
+  "sbtId": 21,
+  "active": "[0xfAcCC5629b1447b3728cbFaee68e80cf9b503C08]",
+  "memberships": "[(0xfAcCC5629b1447b3728cbFaee68e80cf9b503C08, 1787024772 [1.787e9], true, \"\")]"
+ }
+]
