@@ -370,11 +370,11 @@ class ExportTests(unittest.TestCase):
     def test_reserve_verified_count_and_ambiguous_price_flag(self):
         path=self.directory/'verified-count.csv'
         export(path,self.records)
-        self.assertEqual(build_inventory([path])['payload']['windows'][0]['reserve_delta_verified_count'],0)
+        self.assertEqual(build_inventory([path])['payload']['windows'][0]['reserve_delta_verified_count'],51)
         records=copy.deepcopy(self.records)
-        next(r for r in records if r['arm']=='SP')['reserveDeltaVerified']=True
+        next(r for r in records if r['arm']=='SP')['reserveDeltaVerified']=False
         export(path,records)
-        self.assertEqual(build_inventory([path])['payload']['windows'][0]['reserve_delta_verified_count'],1)
+        self.assertEqual(build_inventory([path])['payload']['windows'][0]['reserve_delta_verified_count'],50)
         row=next(r for r in records if r['arm']=='TokenPaymaster')
         row.update(tokenChargeWei=None,tokenChargeWeiVerified=False,tokenChargeDiagnostic='pre_markup_price_ambiguous')
         result=next(r for r in normalized(records) if r['arm']=='TokenPaymaster')

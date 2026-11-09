@@ -5,7 +5,7 @@
       {
         "window_id": "fixture-1",
         "experiment_id": "synthetic-rq3",
-        "csv_sha256": "3a65de28563e4aa75bb91ba77ee88452df76ceb77cef5c3f972a32f29d0071ea",
+        "csv_sha256": "56286a7a3278463f982df408f3f6691c8345e61f2322325c824f8626734db2f0",
         "prior_formal_slots": 0,
         "slots": [
           0,
@@ -61,7 +61,7 @@
           50,
           51
         ],
-        "reserve_delta_verified_count": 0,
+        "reserve_delta_verified_count": 51,
         "attempts": [
           {
             "pair_id": "block-00",
@@ -1153,5 +1153,5 @@
     ],
     "consumed_formal_slots": 52
   },
-  "sha256": "a48da38a6f630afd831ad5f08ec9bda8efaf46e5d26adcf4783136de4de77e84"
+  "sha256": "5fa41618083f9e2c5b7450750a68074cd23531140b972f1d05b79a4909f73dbc"
 }

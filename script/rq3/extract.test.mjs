@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extract, spFormula, invertPenalty } from './extract.mjs';
+import { extract, spFormula, invertPenalty, RESERVE_EVENTS_ABI } from './extract.mjs';
 import { encodeAbiParameters, encodeEventTopics } from 'viem';
 import { fixture, address, reads, hash, logReads } from './fixtures.mjs';
 
@@ -190,11 +190,9 @@ test('frozen receipt timeout, depth and canonical reread are enforced',()=>{
     [a=>delete a.confirmation.rereadBlockNumber,'collector_corruption',/hash reread required/],
     [a=>a.qualification.payload.receipt_timeout_seconds=999,'collector_corruption',/qualification manifest mismatch/],
   ]) {const a=fixture();mutate(a);const r=extract(a);assert.equal(r.invalid_reason,reason);assert.match(r.diagnostic,diagnostic);}
-  // a shared block skips the reserve-delta check (recorded), it is not corruption
+  // Unrelated transactions do not block attribution.
   const shared=fixture();shared.receiptBlock.transactions.push('another-tx');
-  const sr=extract(shared);assert.equal(sr.success,true);assert.equal(sr.reserveDeltaVerified,false);
-  assert.equal(extract(fixture()).reserveDeltaVerified,false);
-  assert.equal(extract(fixture()).reserveDeltaDiagnostic,'reserve_attribution_blocked_source_audit');
+  assert.equal(extract(shared).reserveDeltaVerified,true);
   const late=fixture();late.confirmation.observedAt=120;
   const r=extract(late);assert.equal(r.success,false);assert.equal(r.failure_reason,'receipt_timeout');
   assert.equal(r.actualGasUsed,null);assert.equal(r.supplemental_only,true);
@@ -335,11 +333,62 @@ test('A reserves exactly a0; each reconciliation stop retains row identity',()=>
   }
 });
 
-test('B source-audit stop never claims reserve verification even with a matching delta',()=>{
-  const a=fixture();assert.equal(extract(a).reserveDeltaVerified,false);
+test('B attributable block verifies reserve delta; wrong delta stops settlement',()=>{
+  const a=fixture();assert.equal(extract(a).reserveDeltaVerified,true);
   for(const r of a.state.reserveAfter) r.result=a.state.reserveBefore[0].result;
-  const row=extract(a);assert.equal(row.success,true);assert.equal(row.reserveDeltaVerified,false);
-  assert.equal(row.reserveDeltaDiagnostic,'reserve_attribution_blocked_source_audit');
+  const row=extract(a);assert.equal(row.stop_reason,'settlement_mismatch');
+  assert.equal(row.userOpHash,a.operation.userOpHash);
+  assert.match(row.diagnostic,/SP reserve delta mismatch/);
+});
+
+test('B another SP UserOperationEvent blocks even when failed; another paymaster does not',()=>{
+  for(const same of [true,false]) {
+    const a=fixture(), log=structuredClone(a.reserveLogs.entryPoint[0].result[0]);
+    log.topics[1]=hash(999);log.logIndex=9;
+    if(!same) log.topics[3]='0x'+'00'.repeat(12)+address(99).slice(2);
+    log.data=encodeAbiParameters(['uint256','bool','uint256','uint256'].map(type=>({type})),[0n,false,7n,1n]);
+    for(const r of a.reserveLogs.entryPoint) r.result.push(structuredClone(log));
+    if(same) {delete a.state.reserveBefore;delete a.state.reserveAfter;}
+    const row=extract(a);assert.equal(row.success,true);assert.equal(row.reserveDeltaVerified,!same);
+    if(same) assert.match(row.reserveDeltaDiagnostic,/blocking UserOperationEvent.*logIndex=9/);
+  }
+});
+
+test('B each pinned operator event blocks only its indexed operator',()=>{
+  for(const [name,types,values] of [
+    ['OperatorDeposited',['uint256'],[1n]],
+    ['OperatorWithdrawn',['uint256'],[1n]],
+    ['SponsorshipReleased',['uint256'],[1n]],
+    ['OperatorSlashed',['uint256','uint8'],[1n,1]],
+    ['SlashExecutedWithProof',['uint8','uint256','bytes32','uint256'],[1,1n,hash(88),1n]],
+  ]) for(const same of [true,false]) {
+    const a=fixture();
+    const log={address:a.operation.paymaster,blockHash:a.receipt.blockHash,logIndex:8,
+      topics:encodeEventTopics({abi:RESERVE_EVENTS_ABI,eventName:name,args:{operator:address(same?13:99),opHash:hash(98)}}),
+      data:encodeAbiParameters(types.map(type=>({type})),values)};
+    for(const r of a.reserveLogs.paymaster) r.result.push(structuredClone(log));
+    if(same) {delete a.state.reserveBefore;delete a.state.reserveAfter;}
+    const row=extract(a);assert.equal(row.success,true);assert.equal(row.reserveDeltaVerified,!same);
+    if(same) assert.match(row.reserveDeltaDiagnostic,new RegExp(`blocking ${name}.*logIndex=8`));
+  }
+});
+
+test('B requires complete equal dual RPC block-hash logs and bound reserve reads',()=>{
+  for(const target of ['entryPoint','paymaster']) {
+    const a=fixture();a.reserveLogs[target][1].result=[];
+    // The SP scan normally contains TransactionSponsored, so both mutations disagree.
+    assert.equal(extract(a).invalid_reason,'rpc_mismatch');
+    for(const mutate of [
+      a=>delete a.reserveLogs[target],
+      a=>a.reserveLogs[target][0].params[0].fromBlock='latest',
+      a=>a.reserveLogs[target][0].params[0].blockHash=hash(1),
+      a=>a.reserveLogs[target][0].endpoint=a.reserveLogs[target][1].endpoint,
+    ]) {const b=fixture();mutate(b);assert.equal(extract(b).invalid_reason,'collector_corruption');}
+  }
+  const a=fixture();a.receiptBlock.parentHash=hash(1);
+  assert.equal(extract(a).invalid_reason,'collector_corruption');
+  const b=fixture();b.state.reserveAfter[1].result=b.state.reserveBefore[0].result;
+  assert.equal(extract(b).invalid_reason,'rpc_mismatch');
 });
 
 function configEvent(a) {

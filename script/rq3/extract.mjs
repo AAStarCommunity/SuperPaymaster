@@ -2,8 +2,8 @@
 import { decodeAbiParameters, decodeEventLog, decodeFunctionData, parseAbi, toFunctionSelector } from 'viem';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { validateTPMWindow, settlementCheck } from './window.mjs';
-import { checkRuntime, check, decodeExternal, invertPenalty, receiptReady } from './evidence.mjs';
+import { validateTPMWindow, settlementCheck, archivedLogs } from './window.mjs';
+import { checkRuntime, check, decodeExternal, invertPenalty, receiptReady, dualRead } from './evidence.mjs';
 export { invertPenalty } from './evidence.mjs';
 import { EP_EVENTS_ABI, SP_EVENTS_ABI } from '../a6-collector/gauge-lib.mjs';
 
@@ -11,6 +11,16 @@ export const POSTOP_ABI = parseAbi(['function postOp(uint8 mode, bytes context, 
 export const TASK_ABI = parseAbi(['function execute(address dest, uint256 value, bytes func)', 'function transfer(address to, uint256 amount) returns (bool)', 'event Transfer(address indexed from, address indexed to, uint256 value)']);
 export const LOCK_ABI = parseAbi(['event LockCreated(address indexed user, bytes32 indexed opHash, address indexed locker, uint256 xLocked, uint256 aReserved)', 'event LockSettled(address indexed user, bytes32 indexed opHash, uint256 xBurned, uint256 aCharged)']);
 export const TPM_ABI = parseAbi(['event UserOperationSponsored(address indexed user, uint256 actualTokenCharge, uint256 actualGasCost, uint256 actualTokenPriceWithMarkup)']);
+// Pinned 8de39026 interfaces/ISuperPaymaster.sol:49-54 and
+// SuperPaymasterStorage.sol:236-242,258. Decoding binds the indexed operator:
+// topic 2 for SponsorshipReleased, topic 1 for the other four events.
+export const RESERVE_EVENTS_ABI = parseAbi([
+  'event OperatorDeposited(address indexed operator, uint256 amount)',
+  'event OperatorWithdrawn(address indexed operator, uint256 amount)',
+  'event SponsorshipReleased(bytes32 indexed opHash, address indexed operator, uint256 aPNTs)',
+  'event OperatorSlashed(address indexed operator, uint256 amount, uint8 level)',
+  'event SlashExecutedWithProof(address indexed operator, uint8 level, uint256 penalty, bytes32 proofHash, uint256 timestamp)',
+]);
 const POSTOP = toFunctionSelector('postOp(uint8,bytes,uint256,uint256)');
 const INNER = '0x0042dc53';
 const lower = v => String(v).toLowerCase();
@@ -84,7 +94,7 @@ function extractChecked(archive) {
     chargeAPNTs: null, chargeHatAPNTs: null, a0APNTs: null,
     refundPostopCost: null, actualTokenNeeded: null, actualTokenPriceWithMarkup: null, tokenChargeWei: null,
     tokenChargeWeiVerified: false, reserveDeltaVerified: false,
-    reserveDeltaDiagnostic: metadata.arm==='SP' ? 'reserve_attribution_blocked_source_audit' : null, unverified_columns: [], stop_reason: null };
+    reserveDeltaDiagnostic: metadata.arm==='SP' ? 'reserve_attribution_not_evaluated' : null, unverified_columns: [], stop_reason: null };
   if (metadata.precheck_refused) {
     requireValue(metadata.arm === 'SP' && !receipt && !trace && !archive.validationContext,
       'refused attempt has broadcast evidence');
@@ -203,10 +213,32 @@ function extractChecked(archive) {
       if(burned>c.xLocked) burned=c.xLocked;
       settlementCheck(t.aCharged===charge && t.aCharged===args.debtAPNTs, 'SP lock charge mismatch');
       settlementCheck(t.xBurned===burned, 'SP lock burn mismatch');
-      // Decision B explicitly stops implementation if any balance writer lacks a listed event.
-      // Pin: validation debit SP:322 has no event; refund SP:447 emits TransactionSponsored:450.
-      row.reserveDeltaVerified=false;
-      row.reserveDeltaDiagnostic='reserve_attribution_blocked_source_audit';
+      // Both scans must agree before deciding attribution, even if one already blocks it.
+      const epLogs=archivedLogs(archive.reserveLogs?.entryPoint,op.entryPoint,receipt.blockHash);
+      const spLogs=archivedLogs(archive.reserveLogs?.paymaster,op.paymaster,receipt.blockHash);
+      const spOps=events({logs:epLogs},op.entryPoint,EP_EVENTS_ABI).filter(e=>
+        e.eventName==='UserOperationEvent' && eq(e.args.paymaster,op.paymaster));
+      const writers=events({logs:spLogs},op.paymaster,RESERVE_EVENTS_ABI).filter(e=>
+        eq(e.args.operator,formula.operator));
+      const other=spOps.find(e=>!eq(e.args.userOpHash,op.userOpHash));
+      if(spOps.length!==1 || other) {
+        const blocking=other ?? spOps[1];
+        row.reserveDeltaDiagnostic=blocking
+          ? `blocking UserOperationEvent userOpHash=${blocking.args.userOpHash} logIndex=${blocking.logIndex}`
+          : 'UserOperationEvent for row missing from SP block logs';
+      } else if(writers.length) {
+        const blocking=writers[0];
+        row.reserveDeltaDiagnostic=`blocking ${blocking.eventName} operator=${blocking.args.operator} logIndex=${blocking.logIndex}`;
+      } else {
+        const block=archive.receiptBlock;
+        check(block?.hash===receipt.blockHash && /^0x[0-9a-f]{64}$/i.test(block.parentHash),
+          'reserve parent block binding mismatch');
+        const before=dualRead(state.reserveBefore,op.paymaster,block.parentHash,'operators',[formula.operator])[0];
+        const after=dualRead(state.reserveAfter,op.paymaster,receipt.blockHash,'operators',[formula.operator])[0];
+        settlementCheck(after-before===-charge,'SP reserve delta mismatch');
+        row.reserveDeltaVerified=true;
+        row.reserveDeltaDiagnostic='reserve_delta_verified';
+      }
     }
   } else if (metadata.arm === 'TokenPaymaster') {
     // Pinned TPM.sol:167-191; UniswapHelper.sol:74-79. The snapshot must

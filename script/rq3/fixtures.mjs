@@ -19,7 +19,7 @@ export function logReads(address, blockHash, logs=[]) {
     params:[{address,blockHash}],result:structuredClone(logs)}));
 }
 export function fixture(slot = 0, arm = 'SP', legacy = false) {
-  const sender = address(2 + (slot + ['SP','VerifyingPaymaster','TokenPaymaster'].indexOf(arm)) % 3), ep = address(1), pm = address(10), token = address(12), operator = address(13);
+  const sender = address(2 + (slot + ['SP','VerifyingPaymaster','TokenPaymaster'].indexOf(arm)) % 3), ep = address(1), pm = address(10 + 100 * ['SP','VerifyingPaymaster','TokenPaymaster'].indexOf(arm)), token = address(12), operator = address(13);
   const call = 100001n, post = 480000n, cPre = 3000004n, pOp = 7n;
   const opHash = hash(1000 + slot * 3 + ['SP','VerifyingPaymaster','TokenPaymaster'].indexOf(arm));
   const txHash = hash(2000 + slot * 3 + ['SP','VerifyingPaymaster','TokenPaymaster'].indexOf(arm));
@@ -59,6 +59,8 @@ export function fixture(slot = 0, arm = 'SP', legacy = false) {
     qualification:qualificationFor('op-mainnet'),
     confirmation:{broadcastAt:0,observedAt:30,headNumber:110,rereadBlockNumber:100,rereadHeadNumber:110,rereadBlockHash:hash(9000+slot)},
     transactionHash:txHash,validationContext:context,state,task,baseline,
+    reserveLogs:{entryPoint:logReads(ep,hash(9000+slot),logs.filter(l=>l.address===ep).map(l=>({...l,blockHash:hash(9000+slot)}))),
+      paymaster:logReads(pm,hash(9000+slot),logs.filter(l=>l.address===pm).map(l=>({...l,blockHash:hash(9000+slot)})))},
     tpmWindow:{window_id:'fixture-1',address:pm,firstBlockHash:hash(9000+slot),lastBlockHash:hash(9000+slot),
       configFirst:state.config,configLast:structuredClone(state.config),
       blocks:[{hash:hash(9000+slot),number:100,parentHash:hash(8999+slot),logs:logReads(pm,hash(9000+slot))}]},
@@ -99,6 +101,14 @@ export function windowFixture() {
     if(a.receipt) a.receipt.blockNumber=100+slot;
     Object.assign(a.confirmation,{headNumber:110+slot,rereadBlockNumber:100+slot,rereadHeadNumber:110+slot});
     a.tpmWindow=w;
+    if(a.metadata.arm==='SP') {
+      const logs=archives.filter(other=>other.metadata.block_slot===slot)
+        .flatMap(other=>other.receipt?.logs??[]).map(l=>({...l,blockHash:hash(9000+slot)}));
+      a.reserveLogs={
+        entryPoint:logReads(a.operation.entryPoint,hash(9000+slot),logs.filter(l=>l.address===a.operation.entryPoint)),
+        paymaster:logReads(a.operation.paymaster,hash(9000+slot),logs.filter(l=>l.address===a.operation.paymaster)),
+      };
+    }
   }
   return archives;
 }

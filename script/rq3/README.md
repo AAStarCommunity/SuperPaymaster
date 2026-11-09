@@ -114,9 +114,9 @@ Offline only; fixtures are synthetic. Broadcasting remains disabled
    CSV before raising a stop carrying `rows`, `diagnostic`, and `stop_reason`;
    stopped windows cannot reach the gate or accepted inventory.
 
-## Open for DSR
+## Implemented / DSR ruling B
 
-**B: reserve attribution stopped at the requested source audit (2026-11-09).**
+**B: block-scoped reserve attribution (2026-11-09).**
 The complete balance-write search at `8de39026` found seven write sites (including
 storage alias `config`); no whole-operator replacement/deletion was found.
 Paths below are under `contracts/src/paymasters/superpaymaster/v3/`:
@@ -125,8 +125,8 @@ Paths below are under `contracts/src/paymasters/superpaymaster/v3/`:
 | --- | --- |
 | `SuperPaymaster.sol:172` deposit credit (deposit, depositFor, onTransferReceived) | `OperatorDeposited` at `:174` |
 | `SuperPaymaster.sol:204` withdrawal | `OperatorWithdrawn` at `:207` |
-| `SuperPaymaster.sol:322` validation debit | **No event**; interface `ISuperPaymaster.sol:56` explicitly notes validation cannot emit |
-| `SuperPaymaster.sol:447` postOp refund | **Unlisted** `TransactionSponsored` at `:450` |
+| `SuperPaymaster.sol:322` validation debit | No direct event; covered by condition (a), below |
+| `SuperPaymaster.sol:447` postOp refund | `TransactionSponsored` at `:450`; covered by condition (a), below |
 | `SuperPaymaster.sol:462` stale sponsorship release | `SponsorshipReleased` at `:463` |
 | `SuperPaymasterAdmin.sol:637` slash decrement | `OperatorSlashed` at `:655`; BLS caller also emits `SlashExecutedWithProof` at `:609` |
 | `SuperPaymasterAdmin.sol:641` slash zeroing | Same emissions as `:637` |
@@ -141,13 +141,59 @@ Pinned ABI signatures: `OperatorDeposited(address,uint256)`,
 `TransactionSponsored(address,address,uint256,uint256)` (operator/user indexed;
 `ISuperPaymaster.sol:53`). Admin `:599,601` are reads, not writers.
 
-Per B's explicit instruction, the unlogged/unlisted writers stop this part.
-No SP log attribution adapter was invented. The obsolete sole-transaction check
-is removed; rows say `reserveDeltaVerified=false` and
-`reserveDeltaDiagnostic=reserve_attribution_blocked_source_audit`.
-Inventory exports `reserve_delta_verified_count` (`export.py:103`), currently zero.
-Dedicated-operator and full dual-RPC SP/EntryPoint block-log attribution, and its
-reserve-mismatch stop, remain unimplemented pending a revised event coverage rule.
+**Coverage argument (condition a).** The entry methods are **both `handleOps`
+and `handleAggregatedOps`**. In local
+`singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol`,
+they validate at `:182-194` / `:245-258` and execute every validated operation
+through `_executeUserOp` at `:199-201` / `:271-274`. The paymaster is decoded
+from the operation at `:384-390`; validation calls that address at `:529-542`.
+SP's validation entry is `validatePaymasterUserOp` (not a separate externally
+callable `_validatePaymasterUserOp`); it and `postOp` have `onlyEntryPoint`
+at pinned `SuperPaymaster.sol:230,382`. The guard compares `msg.sender` with
+`entryPoint` at `BasePaymasterUpgradeable.sol:92-95`. There is no other public
+path to these two writers outside the configured EntryPoint.
+
+`innerHandleOp` is self-call-only (`EntryPoint.sol:318-320`), calls the sender
+and selects success/failure mode (`:339-353`), then `_postExecution` (`:356-358`).
+That function calls the operation's paymaster (`:697-711`) and emits exactly
+one UserOperationEvent on its surviving normal or capped-failure branch
+(`:730-747`). A reverted inner call loses its logs and writes; `_executeUserOp`
+either aborts the entire bundle with AA95 (`:123-126`), emits one failed event
+for low prefund (`:127-133`), or calls `_postExecution(postOpReverted)`
+(`:134-148`). The latter skips a second paymaster call (`:704`) and emits one
+failed event (`:733-747`). Every event binds the operation's paymaster and hash
+(`:153-162`). Validation failures, e.g. AA31/AA33/AA36 (`:532-550`), or any other
+outer transaction revert roll back all writes, including validation debits.
+Thus every surviving `:322` debit / `:447` refund belongs to an SP operation
+revealed by a UserOperationEvent, including failed operations. Exactly one
+SP event with the row's hash excludes all other such writes in the block.
+The five listed operator events cover all remaining balance writes in the table.
+
+**Archived evidence and reconciliation.** `reserveLogs.entryPoint` and
+`reserveLogs.paymaster` each contain two distinct endpoint records with
+`method: eth_getLogs`, `params: [{address, blockHash}]`, and raw `result` logs.
+Both full scans are mandatory, with no topic or block-range filters (EIP-234).
+Both endpoint replies must agree or the row is `rpc_mismatch`; logs must bind
+the requested address and receipt block hash. These are offline archive checks.
+Condition (a) requires exactly one SP UserOperationEvent, matching the row's
+`userOpHash`. Condition (b) excludes all five listed events for the row's
+operator. ABI decoding uses indexed topic 2 for `SponsorshipReleased.operator`
+and topic 1 for each other operator event (UserOperationEvent.paymaster is topic 3).
+A blocker leaves `reserveDeltaVerified=false`, with its event name, indexed
+identity and log index in `reserveDeltaDiagnostic`; it is not corruption.
+Missing/malformed archives remain evidence errors. A missing own event leaves
+attribution unverified with a diagnostic.
+
+Only attributable rows use `state.reserveBefore` / `state.reserveAfter` dual-RPC
+`operators(operator)` reads, bound by EIP-1898 to `receiptBlock.parentHash` and
+the receipt block hash. The block header must match the receipt. Require
+`after-before == -debtAPNTs`; disagreement raises `WindowStop settlement_mismatch`.
+Success sets `reserveDeltaVerified=true`. Inventory exports the actual per-window
+`reserve_delta_verified_count` (`export.py:103`). Shared blocks are allowed;
+transaction counts are not attribution evidence. The synthetic window has
+51 verified SP rows and one refused SP attempt.
+
+## Open for DSR
 
 **C: event-only conversion conflicts with the protocol definition.** The supplied
 `82453054 main.tex sec:gas` definition requires pre-markup price so markup appears
@@ -170,7 +216,7 @@ not implemented; its explicit protocol-conflict exception is applied.
 ## Remaining / evidence limits
 
 - Every successful arm, VPM included, needs its trace: the penalty inversion (ruling 1) applies
-  to all arms. Binding/decoding failures yield a `collector_corruption` row; A/C stops retain identity and diagnostics.
+  to all arms. Binding/decoding failures yield a `collector_corruption` row; A/B/C stops retain identity and diagnostics.
 - A finalised timeout (`finalTimeout`) must carry `timeoutDeclaredAt` at or after the frozen
   deadline; a flag alone cannot shorten the timeout.
 - This directory validates injected/archived evidence. It has no receipt polling,
@@ -199,6 +245,6 @@ node --test script/rq3/extract.test.mjs
 
 Tests cover positive cases and diagnostic-specific negative controls for penalty
 inversion, manifests, sender binding, timing, receipt depth/reorg, TPM reads and
-runtime, legacy stops, SP lock matching/burn/charge, reserve-audit blocking, config windows and stopped exports. Synthetic
+runtime, legacy stops, SP lock matching/burn/charge, block-log reserve attribution, config windows and stopped exports. Synthetic
 examples remain 52 consumed slots, 155 attempts, 49 complete blocks; the separate
 positive gate control reaches 50 (`test_rq3.py:285`).
