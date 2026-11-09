@@ -52,6 +52,47 @@ CASES += [
     (base_tests.ManifestTests, 'test_dvt_closing_binds_pointer_and_stale_proposals', 'closing_committee_pointer'),
     (base_tests.F05ExecuteB4Gates, 'test_B4_timestamp', 'B4_timestamp'),
 ]
+CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
+          ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')]
+CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
+          ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay',
+           'old_timelock_unused', 'old_timelock_allowance')]
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_inventory_new_role', 'old_timelock_inventory'),
+          (base_tests.ManifestTests, 'test_old_timelock_inventory_new_token', 'old_timelock_inventory')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_legacy_timelock_source_targets', 'old_owner_source_targets')]
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history', 'old_timelock_approval_history'),
+          (base_tests.ManifestTests, 'test_old_timelock_external_approval', 'old_timelock_allowance'),
+          (base_tests.ManifestTests, 'test_old_timelock_approval_incomplete', 'old_owner_log_partition')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_range_grant', 'old_owner_never_granted_set')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_control_holder', 'old_owner_never_granted_holder')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_function_falls_back', 'old_owner_mapping_getter')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_role_control_case_without_path_gate', 'old_owner_role_control_case')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_positive_zero', 'old_owner_mapping_positive')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_negative_one', 'old_owner_mapping_negative')]
+CASES += [(base_tests.ManifestTests, 'test_never_granted_closing_change', 'old_owner_never_granted_recheck')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, name, gate) for name, gate in (
+    ('test_never_granted_extra_zero','old_owner_history_positive'),
+    ('test_never_granted_missing_role','old_owner_never_granted_set'),
+    ('test_never_granted_old_holder','old_owner_never_granted_holder'),
+    ('test_history_all_roles_zero','old_owner_history_positive'))]
+CASES += [(base_tests.ManifestTests,'test_never_granted_pre_send_change','old_owner_never_granted_recheck')]
+CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in ('test_old_role_closing_change', 'test_old_role_pre_send_change')]
+CASES += [(base_tests.DeltaTests, 'test_old_timelock_delta_'+g, 'old_timelock_delta_'+g) for g in base_tests.DELTA_CASES]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_history_standard_revoke_only', 'old_owner_history_positive')]
+C1_GATES = ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control')
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C1_GATES]
+C2_GATES = ('xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin')
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C2_GATES]
+CASES += [(base_tests.ManifestTests, 'test_xpnts_owner_'+stage, 'old_owner_xpnts_owner_recheck') for stage in ('pre_send','closing')]
+CASES += [(base_tests.DiscoveryTests, 'test_'+gate, gate) for gate in base_tests.DISCOVERY_GATES]
+# These new/changed isolation gates must fail by assertion, with zero test errors.
+ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
+                        'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
+                        'old_owner_mapping_positive', 'old_owner_mapping_negative',
+                        'old_owner_history_positive'}
+ASSERTION_ONLY_GATES.update('old_owner_'+g for g in (*C1_GATES,*C2_GATES,'xpnts_owner_recheck'))
+ASSERTION_ONLY_GATES.update(base_tests.DISCOVERY_GATES)
+ASSERTION_ONLY_GATES.update('old_timelock_delta_'+g for g in base_tests.DELTA_CASES)
 GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 # Gate literals whose control is a whole family (name+'_gate', name+'_restore').
 FAMILIES = {'_gate': 'X_gate', '_restore': 'X_restore'}
@@ -71,7 +112,7 @@ def run(cls, name, gate=None):
     with patch.object(a, 'need', side_effect=without_gate):
         # A suite (not a bare case) so class fixtures (setUpClass) run.
         result = unittest.TextTestRunner(stream=stream).run(unittest.TestSuite([cls(name)]))
-    return result.wasSuccessful(), bool(suppressed), stream.getvalue()
+    return result.wasSuccessful() or bool(gate in ASSERTION_ONLY_GATES and (result.errors or not result.failures)), bool(suppressed), stream.getvalue()
 
 
 def new_gates(base):
@@ -108,10 +149,13 @@ def main(argv):
     print('|---|---|---|---|')
     for row in rows:
         print('| %s | `%s` | %s | %s |' % row)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'evidence'))
+    from enduser_mapping_probes import manifest_probes
+    deletions = manifest_probes()
     bad = [r for r in rows if r[3] != 'red']
-    print(f'PHASE_C_GATE_PROBES {"PASS" if not bad and not missing else "FAIL"} '
+    print(f'PHASE_C_GATE_PROBES {"PASS" if not bad and not missing and deletions else "FAIL"} '
           f'{len(rows)-len(bad)}/{len(rows)} red; uncovered new gates: {missing}')
-    return 1 if bad or missing else 0
+    return 1 if bad or missing or not deletions else 0
 
 
 if __name__ == '__main__':
