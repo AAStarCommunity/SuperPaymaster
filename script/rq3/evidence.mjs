@@ -14,12 +14,21 @@ export class EvidenceError extends Error {
 export const check = (condition, diagnostic, reason = 'collector_corruption') => {
   if (!condition) throw new EvidenceError(reason, diagnostic);
 };
-// Decoding archived (external) bytes: a viem decode failure there is malformed evidence ->
-// collector_corruption. Internal ABI/encoding errors are NOT wrapped and still abort.
+// Decoding archived (external) bytes. Only viem errors that describe the INPUT bytes (too short,
+// empty, out of range, log data/topics not matching the event) are malformed evidence ->
+// collector_corruption. ABI-shape errors (unknown function/type, signature not in our ABI, ...)
+// describe OUR code and still abort. Callers check selectors themselves before decoding, so a
+// selector mismatch never reaches this wrapper as an ambiguous AbiFunctionSignatureNotFoundError.
+export const MALFORMED_INPUT_ERRORS = new Set(['AbiDecodingZeroDataError', 'AbiDecodingDataSizeTooSmallError',
+  'PositionOutOfBoundsError', 'SliceOffsetOutOfBoundsError', 'SizeExceedsPaddingSizeError',
+  'InvalidBytesBooleanError', 'InvalidHexBooleanError', 'IntegerOutOfRangeError', 'InvalidHexValueError',
+  'DecodeLogDataMismatch', 'DecodeLogTopicsMismatch']);
+export const isMalformedInput = error => error instanceof BaseError &&
+  (MALFORMED_INPUT_ERRORS.has(error.name) || MALFORMED_INPUT_ERRORS.has(error.constructor?.name));
 export function decodeExternal(decode, label) {
   try { return decode(); }
   catch (error) {
-    if (error instanceof BaseError) throw new EvidenceError('collector_corruption', `${label}: ${error.shortMessage ?? error.name}`);
+    if (isMalformedInput(error)) throw new EvidenceError('collector_corruption', `${label}: ${error.shortMessage ?? error.name}`);
     throw error;
   }
 }

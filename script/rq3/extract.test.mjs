@@ -287,11 +287,28 @@ test('malformed archived evidence is a corruption row, not an aborted batch (rev
   corrupt(b,/./);
 });
 
-test('an internal ABI regression still aborts; it is never recorded as corruption (review r6)',async()=>{
-  const ev=await import('./evidence.mjs');
-  const saved=[...ev.STATE_ABI];
-  const i=ev.STATE_ABI.findIndex(x=>x.name==='tokenPaymasterConfig'); ev.STATE_ABI.splice(i,1);
-  try { assert.throws(()=>extract(fixture(0,'TokenPaymaster')),/tokenPaymasterConfig/); }
-  finally { ev.STATE_ABI.splice(0,ev.STATE_ABI.length,...saved); }
+test('an internal ABI regression still aborts; it is never recorded as corruption (review r6/r7)',async()=>{
+  const ev=await import('./evidence.mjs'); const ex=await import('./extract.mjs');
+  const mutations=[
+    ()=>{const i=ev.STATE_ABI.findIndex(x=>x.name==='tokenPaymasterConfig'); ev.STATE_ABI.splice(i,1);},
+    ()=>{ex.POSTOP_ABI.splice(0,ex.POSTOP_ABI.length);},
+    ()=>{const i=ev.STATE_ABI.findIndex(x=>x.name==='tokenPaymasterConfig');
+         ev.STATE_ABI[i]={...ev.STATE_ABI[i],outputs:[{type:'invalid_internal_type'},...ev.STATE_ABI[i].outputs.slice(1)]};},
+  ];
+  for (const mutate of mutations) {
+    const a=fixture(0,'TokenPaymaster');                 // built BEFORE the ABI is broken
+    assert.equal(extract(fixture(0,'TokenPaymaster')).success,true);
+    const savedState=[...ev.STATE_ABI], savedPost=[...ex.POSTOP_ABI];
+    mutate();
+    try { assert.throws(()=>extract(a)); }
+    finally { ev.STATE_ABI.splice(0,ev.STATE_ABI.length,...savedState); ex.POSTOP_ABI.splice(0,ex.POSTOP_ABI.length,...savedPost); }
+  }
   assert.equal(extract(fixture(0,'TokenPaymaster')).success,true);
+});
+
+test('a log with our event topic but malformed data is corruption, other events are skipped',()=>{
+  const a=fixture(); const settle=a.receipt.logs[2]; a.receipt.logs.push({...settle,data:'0x1234'});
+  corrupt(a,/malformed event log/);
+  const b=fixture(); b.receipt.logs.push({...b.receipt.logs[2],topics:['0x'+'ab'.repeat(32)]});
+  assert.equal(extract(b).success,true);
 });

@@ -57,8 +57,13 @@ function frames(root) {
 }
 function events(receipt, address, abi) {
   return (receipt.logs ?? []).filter(l => eq(l.address, address)).flatMap(log => {
+    // A log of another event from the same contract is skipped; a log whose topic matches one of
+    // our events but whose data/topics do not decode is malformed evidence.
     try { return [{ ...decodeEventLog({ abi, ...log, strict: true }), logIndex: log.logIndex }]; }
-    catch { return []; }
+    catch (error) {
+      if (error?.name === 'AbiEventSignatureNotFoundError') return [];
+      return decodeExternal(() => { throw error; }, 'malformed event log');
+    }
   });
 }
 
@@ -122,9 +127,13 @@ function extractChecked(archive) {
     const task = archive.task;
     requireValue(task && BigInt(task.amount) > 0n && BigInt(task.recipientBalanceBefore) > 0n,
       'real ERC20 task with nonzero recipient balance required');
+    requireValue(String(op.callData).slice(0, 10) === toFunctionSelector('execute(address,uint256,bytes)'),
+      'account callData is not execute');
     const execution = decodeExternal(() => decodeFunctionData({ abi: TASK_ABI, data: op.callData }), 'malformed account callData');
     requireValue(execution.functionName === 'execute' && eq(execution.args[0], task.token) &&
       execution.args[1] === 0n, 'account execution task mismatch');
+    requireValue(String(execution.args[2]).slice(0, 10) === toFunctionSelector('transfer(address,uint256)'),
+      'task calldata is not transfer');
     const transfer = decodeExternal(() => decodeFunctionData({ abi: TASK_ABI, data: execution.args[2] }), 'malformed transfer calldata');
     requireValue(transfer.functionName === 'transfer' && eq(transfer.args[0], task.recipient) &&
       transfer.args[1] === BigInt(task.amount), 'ERC20 transfer calldata mismatch');
