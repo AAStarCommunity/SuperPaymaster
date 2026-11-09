@@ -7394,3 +7394,18 @@ Checks (scan scope: the named files):
 - T2 targeted (9 `_run_manifest` rows, same criterion as audit605): `RUN_MANIFEST_PROBES PASS 9/9` on bin and nightly.
 - test_execution_integrity now asserts the exact 14 declared files: bin/nightly `Ran 20 tests` / `OK`;
   probe_execution_integrity bin/nightly `PASS … passed=9 total=9`.
+
+### 6l review fix (Codex Daybreak, High)
+
+Finding: rpc_result_merge.py credited any well-formed PASS row without checking the driver completed or owned
+the gate (false green if a driver crashed after the decisive rows, or emitted a PASS for another gate).
+Fix: a credit counts only with the driver's rc from SUMMARY.txt (typed: 1 iff it has BLOCKED rows; paired and
+producer: 0), its exact terminal line (`RPC_RESULT_PROBES … total=88 … errors_accepted=0` consistent with its
+88 rows; `DSR2_RPC_AGGREGATE … processed=11 accepted=11 blocked=0 errors_accepted=0`; the producer's
+rebuild_artifacts_object_2 PASS last), and PASS sets equal to the owned sets (11 paired, 2 producer).
+Controls: script/evidence/test_rpc_result_merge.py `Ran 10 tests` / `OK` (synthetic logs: crash after rows,
+rc=1, unowned PASS, truncated producer, spurious mid-log PASS, missing/inconsistent direct rows, missing rc
+line, extra blocked gate). On the 678e68b0 logs: bin and nightly `RPC_RESULT_MERGE PASS
+blocked_equals_known_gaps=True faults=0`. Codex found no other issue: every REQUIRED (function, gate) pair
+exists once, every PHASE_FUNCTIONS name is a current top-level def, no top-level def added or removed since
+2acc71af, and no gate literal changed in the six declared files between d21042ad and 15885ce6.
