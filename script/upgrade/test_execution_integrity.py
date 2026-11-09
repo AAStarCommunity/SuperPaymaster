@@ -329,8 +329,11 @@ class DeclarationTests(unittest.TestCase):
             'script/a3a/a3a_exec.py', 'script/upgrade/test_execution_head.py',
             'script/upgrade/test_manifest_exec.py', 'script/upgrade/probe_phase_c_gates.py',
             'script/evidence/enduser_mapping_probes.py', 'script/upgrade/probe_execution_head.py',
-            'script/evidence/audit605_probes.py', 'script/upgrade/audit/probe_gate_removal.py']))
-        self.assertEqual(len(changes), 14)
+            'script/evidence/audit605_probes.py', 'script/upgrade/audit/probe_gate_removal.py',
+            'script/upgrade/test_old_owner_isolation.py', 'script/upgrade/test_authority_checkpoints.py',
+            'script/upgrade/test_execution_integrity.py', 'script/upgrade/l1_registry_fixture.py',
+            'script/upgrade/fixtures/make_l1_registry_fixture.py']))
+        self.assertEqual(len(changes), 19)
         real_read = audit.read
         declaration = 'script/upgrade/gate_6f_additions.json'
         rows = json.loads(real_read('WORKTREE', declaration))

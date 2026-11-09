@@ -215,5 +215,60 @@
     "reason": "6l: PHASE_FUNCTIONS += _run_manifest so its gate sites are listed; probe driver only",
     "after_sha256": "00524d4136de9d77883bf42353a5c10d308c14a3b512eac855f2eb83f61be364",
     "ast_sha256": "044f3f6f55abf039ab788e92b4c9cb52f7bbc1d8bea0e7b28c98096e1658d143"
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "baseline": "7e11f677",
+    "before_sha256": "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314",
+    "after_sha256": "d4dd82f26e3928d0a1feb912194f0c72b74f7bbcc2dae2e98eeefed717656813",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "389b274939d5b340e7d6ca6c45b524e2c902c6e94b46792cc66a16971923302a",
+    "gates": [],
+    "reason": "Offline L-1 archive fixture: authenticated real compiler sources and ASTs, deterministic generation and test-only fallback; production gates unchanged"
+  },
+  {
+    "file": "script/upgrade/test_authority_checkpoints.py",
+    "baseline": "7e11f677",
+    "before_sha256": "525bec89676b39cf2242f2ca0c10404f84bca803a260284b0ec7f46b132ba8ee",
+    "after_sha256": "4309124c0f05fd5c3a6d6384c91a1ec1761b9a90ab60146daf61769c9402c139",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "89e63052796161e8cbb9e35508e7fadee7833085b8645d6aa1564fb7c153fb18",
+    "gates": [],
+    "reason": "Offline L-1 archive fixture: authenticated real compiler sources and ASTs, deterministic generation and test-only fallback; production gates unchanged"
+  },
+  {
+    "file": "script/upgrade/test_execution_integrity.py",
+    "baseline": "7e11f677",
+    "before_sha256": "9f436240f17c7c8d4a890ade61fa0aa8857ba00c8d81dee2f5db92ce0f4874ec",
+    "after_sha256": "af14405391254f3aec81748f3e03ae26e225146fc98c9790f592ae2f506a4789",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "791204a6fa257f42bc9b50469411fcd4b4b3d89c192e69176e21ee61039dd922",
+    "gates": [],
+    "reason": "Offline L-1 archive fixture: authenticated real compiler sources and ASTs, deterministic generation and test-only fallback; production gates unchanged"
+  },
+  {
+    "file": "script/upgrade/l1_registry_fixture.py",
+    "baseline": "7e11f677",
+    "before_sha256": null,
+    "after_sha256": "3ccb2a5f3ae825878aa06a588ef8b0571a24c8ae0d6a9e089890974b8086af36",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "5a8efe64c303964616fdde861c88432272cc2cdaa1a9ae5bfdfb1ef860d42e34",
+    "gates": [],
+    "reason": "Offline L-1 archive fixture: authenticated real compiler sources and ASTs, deterministic generation and test-only fallback; production gates unchanged"
+  },
+  {
+    "file": "script/upgrade/fixtures/make_l1_registry_fixture.py",
+    "baseline": "7e11f677",
+    "before_sha256": null,
+    "after_sha256": "e6a49969fd33da12e91d23390cdd5d77c2d04ad75482cd2856013b77e19f29db",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "7951b845417ea486075eb5b68a604183bd40936d5d395ba1e42b844d3c48468b",
+    "gates": [],
+    "reason": "Offline L-1 archive fixture: authenticated real compiler sources and ASTs, deterministic generation and test-only fallback; production gates unchanged"
   }
 ]

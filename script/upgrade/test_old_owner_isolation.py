@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from unittest.mock import patch
 import old_owner_isolation as o
+from l1_registry_fixture import registry_tree
 
 a, u = o.a, o.u
 TOKEN = '0x'+'12'*20
@@ -95,7 +96,7 @@ def role_writes(nodes):
 
 @lru_cache(maxsize=1)
 def archived_registry_build():
-    path = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT/'out/build-info/e34c552b450719a1.json'
+    path = registry_tree()/'out/build-info/e34c552b450719a1.json'
     return json.loads(path.read_text())
 
 
@@ -1183,7 +1184,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_init_standard')
 
     def test_role_init_real_build_info(self):
-        tree = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT
+        tree = registry_tree()
         self.assertTrue(list((tree/'out/build-info').glob('*.json')), 'a839347e build-info required')
         result = o.extract(tree, ('Registry',))
         matches = result['Registry']['astProofInputs']['callSites']
@@ -2233,6 +2234,45 @@ class RegistryASTProofTests(unittest.TestCase):
             path.write_text(json.dumps(data))
             with patch.object(a, 'raw_artifact', side_effect=lambda t, n: artifacts[n]):
                 self.stop(gate, lambda: o.extract(tree))
+
+class CommittedRegistryFixtureTests(unittest.TestCase):
+    def test_regenerated_fixture_matches_archive(self):
+        from l1_registry_fixture import archive_tree
+        from fixtures.make_l1_registry_fixture import FIXTURE, generate
+        archive = archive_tree()
+        if not archive.is_dir():
+            self.skipTest('real L-1 archive unavailable (CI); byte regeneration requires original build')
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            generate(archive, output)
+            expected = {p.relative_to(FIXTURE): p.read_bytes() for p in FIXTURE.rglob('*') if p.is_file()}
+            actual = {p.relative_to(output): p.read_bytes() for p in output.rglob('*') if p.is_file()}
+            self.assertEqual(actual.keys(), expected.keys())
+            for path in expected:
+                self.assertEqual(actual[path], expected[path], str(path))
+
+    def test_fixture_extracts_real_registry(self):
+        from l1_registry_fixture import materialize_fixture
+        with tempfile.TemporaryDirectory() as directory:
+            tree = materialize_fixture(Path(directory))
+            result = o.inventory_source(tree, mode='release', names=('Registry',))
+            self.assertEqual(len(result['Registry']['astProofInputs']['callSites']), 3)
+            self.assertTrue(result['Registry']['roles'])
+
+    def test_corrupt_fixture_rejected_before_materialization(self):
+        import shutil
+        from l1_registry_fixture import materialize_fixture
+        from fixtures.make_l1_registry_fixture import FIXTURE, BUILD_INFO
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture = root / 'fixture'
+            shutil.copytree(FIXTURE, fixture)
+            path = fixture / (BUILD_INFO + '.gz')
+            path.write_bytes(path.read_bytes() + b'corruption')
+            with self.assertRaisesRegex(ValueError, 'SHA256 mismatch'):
+                materialize_fixture(root / 'output', fixture)
+            self.assertFalse((root / 'output').exists())
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

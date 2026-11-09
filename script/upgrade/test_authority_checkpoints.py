@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 import test_manifest_exec as t
 from gate_assertions import assert_stop
+from l1_registry_fixture import registry_tree
 
 m, a, u = t.m, t.a, t.u
 
@@ -127,7 +128,7 @@ class AuthorityCheckpointTests(unittest.TestCase):
 class RealRegistryAuthorityRowsTests(unittest.TestCase):
     def test_real_registry_authority_union(self):
         o = m.isolation
-        tree = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT
+        tree = registry_tree()
         inventory = o.extract(tree, ('Registry',))
         standard = {r['value'] for r in inventory['Registry']['roles']}
         event_role, history_role = a.keccak('EVENT_ONLY_ROLE'), a.keccak('HISTORY_ONLY_ROLE')
