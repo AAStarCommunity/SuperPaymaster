@@ -430,12 +430,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint64 public pendingFraudProofVerifierReadyAt;
 
     /// @dev CC-48 HIGH-2: the case window MUST strictly dominate a full exit notice
-    ///      (delay + consumption window). At 2 days each, an accused guardian could
-    ///      line up `readyAt` with the case deadline and walk the moment the case
-    ///      expired. 4 > 2 + 1 leaves no such alignment: an exit notice opened at or
-    ///      after the queueing block always expires before the case does.
-    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 4 days;
+    ///      (delay + challenge + consumption window). 5 > 2 + 1 + 1 ensures a
+    ///      notice open when a case is queued expires before that case does.
+    ///      Pending cases block new notices and cancellation.
+    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 5 days;
     uint256 public constant GUARDIAN_EXIT_DELAY = 2 days;
+    uint256 public constant GUARDIAN_FRAUD_CHALLENGE = 1 days;
     uint256 public constant GUARDIAN_EXIT_WINDOW = 1 days;
     /// @notice Quiet period imposed after cancelling an exit notice (BLOCKER-1).
     uint256 public constant GUARDIAN_EXIT_COOLDOWN = 1 days;
@@ -445,7 +445,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.12.0";
+        return "BLSAggregator-4.13.0";
     }
 
     // ====================================
@@ -1105,7 +1105,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // verifyAndExecute; the reversible pre-flag has its own dedicated quorum-gated
         // entry (queueSlashWithConsensus) — neither should be a generic .call, and
         // routing queueSlash through executeProposal would also consume its
-        // proposalId (executedProposals + markProposalExecuted), breaking a later
+        // proposalId (executedProposals), breaking a later
         // verifyAndExecute for the same id. Selector-scoped (not target-scoped) so
         // Registry.updateOperatorBlacklist still works.
         if (callData.length >= 4) {
@@ -1126,6 +1126,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 3. Verify BLS Signatures with custom threshold
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
+        proposalSignersCommitment[proposalId] = _computeSignersCommitment(proof, proposalId, expectedMessageHash);
 
         // 4. Execute Call
         (bool success, bytes memory returnData) = target.call(callData);
@@ -1133,9 +1134,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 5. Mark as Executed
         executedProposals[proposalId] = true;
-        if (DVT_VALIDATOR != address(0)) {
-            IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
-        }
 
         emit ProposalExecuted(proposalId, target, keccak256(callData));
     }
@@ -1717,9 +1715,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         emit FraudProofVerifierEmergencyDisarmed(current, pending);
     }
 
-    /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with an
-    ///         active request is excluded from BLS verification immediately,
-    ///         giving watchers the full delay to queue a fraud proof.
+    /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with a
+    ///         notice remains eligible until readyAt, then stops signing for a
+    ///         full fraud-challenge period before withdrawal opens.
     function requestGuardianExit() external {
         if (!REGISTRY.hasRole(keccak256("DVT"), msg.sender)) {
             revert SlotValidatorRoleRevoked(0, msg.sender);
@@ -1734,7 +1732,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
         _requireCommitteeSurvivesExit(msg.sender);
         uint64 readyAt = uint64(block.timestamp + GUARDIAN_EXIT_DELAY);
-        uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_EXIT_WINDOW);
+        uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_FRAUD_CHALLENGE + GUARDIAN_EXIT_WINDOW);
         guardianExitRequests[msg.sender] = GuardianExitRequest(readyAt, expiresAt);
         emit GuardianExitRequested(msg.sender, readyAt, expiresAt);
     }
@@ -1866,7 +1864,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (pendingGuardianSlashCount[guardian] != 0) {
             revert GuardianExitBlockedBySlash(guardian, pendingGuardianSlashCount[guardian]);
         }
-        if (block.timestamp < request.readyAt) revert GuardianExitNotReady(guardian, request.readyAt);
+        uint256 withdrawAt = uint256(request.readyAt) + GUARDIAN_FRAUD_CHALLENGE;
+        if (block.timestamp < withdrawAt) revert GuardianExitNotReady(guardian, withdrawAt);
         if (block.timestamp > request.expiresAt) revert GuardianExitRequestExpired(guardian, request.expiresAt);
         delete guardianExitRequests[guardian];
         emit GuardianExitConsumed(guardian);
@@ -1875,7 +1874,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
     /// @dev The full proof is checked before any freeze is installed, so arbitrary
     ///      callers cannot lock honest guardians. A bounded window
-    ///      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full
+    ///      (`GUARDIAN_SLASH_CASE_WINDOW`, 5 days — it must strictly dominate a full
     ///      exit notice, see the constant's own comment) prevents an abandoned case
     ///      from becoming a permanent withdrawal denial.
     /// @dev `fraudProofId` is consumed for ever by this call, whatever the case's

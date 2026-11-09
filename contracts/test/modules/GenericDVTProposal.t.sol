@@ -18,6 +18,12 @@ contract MockTarget {
         lastValue = value;
     }
 
+    bytes32 public observedCommitment;
+
+    function observeCommitment(uint256 proposalId) external {
+        observedCommitment = BLSAggregator(msg.sender).proposalSignersCommitment(proposalId);
+    }
+
     function setShouldRevert(bool _shouldRevert) external {
         shouldRevert = _shouldRevert;
     }
@@ -188,6 +194,39 @@ contract GenericDVTProposalTest is Test {
     // ========================================
     // Success Cases
     // ========================================
+
+    function test_GenericProposalDoesNotTouchSlashTracker() public {
+        bytes memory callData = abi.encodeCall(MockTarget.setValue, (123));
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        vm.mockCallRevert(
+            address(dvtValidator), abi.encodeWithSelector(MockDVTValidator.markProposalExecuted.selector, 900),
+            abi.encodeWithSignature("ProposalDoesNotExist()")
+        );
+        vm.prank(owner);
+        bls.executeProposal(900, address(target), callData, 3, _createMockProof(3));
+        assertEq(target.lastValue(), 123);
+        assertTrue(bls.executedProposals(900));
+        assertFalse(dvtValidator.executedProposals(900));
+    }
+
+    function test_GenericCommitmentIsStoredBeforeTargetCall() public {
+        bytes memory callData = abi.encodeCall(MockTarget.observeCommitment, (901));
+        bytes32 messageHash = keccak256(abi.encode(
+            bls.domainSeparator(), keccak256("SuperPaymaster.BLS.Proposal.v1"),
+            uint256(901), address(target), keccak256(callData), uint256(3)
+        ));
+        address[] memory signers = new address[](3);
+        for (uint256 i; i < 3; ++i) signers[i] = address(uint160(201 + i));
+        bytes32 expected = keccak256(abi.encode(
+            bls.domainSeparator(), keccak256("SuperPaymaster.BLS.SignersCommitment.v1"),
+            uint256(901), messageHash, uint256(7), signers
+        ));
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        vm.prank(owner);
+        bls.executeProposal(901, address(target), callData, 3, _createMockProof(3));
+        assertEq(target.observedCommitment(), expected);
+        assertEq(bls.proposalSignersCommitment(901), expected);
+    }
 
     function test_ExecuteProposal_Success() public {
         uint256 proposalId = 100;

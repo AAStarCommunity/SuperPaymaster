@@ -1397,6 +1397,7 @@ contract V2InvHandler is Test {
     function _onRotate(address newSP) internal {
         gCurSP = newSP;
         gHistorical[newSP] = true;
+        if (gStandby == newSP) gStandby = address(0);
         // default caps moved with the current SP → restart every I6 cell window
         for (uint256 i; i < 3; i++) {
             for (uint256 j; j < 5; j++) _i6RestartCell(cellAddrs[j], users[i]);
@@ -1645,6 +1646,7 @@ contract V2InvHandler is Test {
         if (t.SUPERPAYMASTER_ADDRESS() != gCurSP) return (false, "S-*: current SP != ghost");
         if (t.emergencyDisabled() != gEmergency) return (false, "S-4/S-7: emergency flag != ghost");
         if (t.standbySP() != gStandby) return (false, "S-5/S-6: standby != ghost");
+        if (t.standbySP() == t.SUPERPAYMASTER_ADDRESS()) return (false, "S-5: standby is current SP");
         for (uint256 i; i < 3; i++) {
             if (t.historicalSP(sps[i]) != gHistorical[sps[i]]) return (false, "L-5: historicalSP != ghost");
         }

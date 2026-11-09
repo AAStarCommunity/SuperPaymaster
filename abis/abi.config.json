@@ -1,13 +1,13 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-09-27T04:48:29Z",
-  "totalHash": "da8708aeb644ef8eac94f16da2b8407bdf66c69727c12aa3e097dbc1af96b6bb",
+  "buildTime": "2026-11-09T11:08:43Z",
+  "totalHash": "5ee5822aa58bcb6a467f3eb285c2ae6231f885e778aa6e6e244e2cb6e52ab504",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
     { "name": "BLSAggregator-4.11.0.deployed.json", "hash": "df667b4d7e59b78afda728c03259c35074ef634a7c257e7f40fa3247e81106ce" },
-    { "name": "BLSAggregator.json", "hash": "4f20651ba7cc1ff325f56223dd99c9e91e567f03febbd7068e136877d9dd6447" },
+    { "name": "BLSAggregator.json", "hash": "dd4444db3cf596e07b56a4b776bd5dd9e2ed5dea5884b0185b3e41b663078c29" },
     { "name": "DVTValidator.json", "hash": "24f8aff0ad9cab66232b765e3e05293632644de51acc8a622ade41fd9475a50f" },
     { "name": "EntryPoint.json", "hash": "fb52a7e1d92dfed8285b78d1849661936c09401227e27e2eceda905b20cd6844" },
     { "name": "GlobalTierSource.json", "hash": "11b22ae116e85e774525d2b95788bbca2deac91a4843546633dfba6512e3b5dc" },
@@ -25,16 +25,16 @@
     { "name": "SimpleAccount.json", "hash": "8ce0cf540d5f131b88578d6d3fe550c378c13e36099b1b23586529b4187e50da" },
     { "name": "SimpleAccountFactory.json", "hash": "54de0987d947381efe89546322b02564f96cba4c9704c67822f785df39f37022" },
     { "name": "SuperPaymaster.full.json", "hash": "29ae43150d7fc4ae2b0b3577586cd0d9f3cf0f1a51e46999155016eab46d4e1a" },
-    { "name": "SuperPaymaster.json", "hash": "07edff2d6905f67b52c75860834e268ba9ae6c732ce7b3edafba1ea96cfc2f11" },
-    { "name": "SuperPaymasterAdmin.json", "hash": "806bf1c835b594bfedcd4c4079945134430209115620739f54d11ff96390b36b" },
+    { "name": "SuperPaymaster.json", "hash": "f608eff92663c59e76ca5848e5765f1a98c679dc44ac6e8a1ff7e18a768a542d" },
+    { "name": "SuperPaymasterAdmin.json", "hash": "d0fa9531228d26423362efac6dad772a0cf11bc8549cf35039d2a4ee870bb713" },
     { "name": "SuperPaymasterLens.json", "hash": "5767e0ec4caf6c14a0b56ddd6adbe4758e5ebbd3dc197d4dadcb36aa2da1e25d" },
     { "name": "TimelockController.json", "hash": "db7d0dbcd81f3dfa4c83bd97115a9031fcce2fa482c9833c5e95a98eaa599226" },
     { "name": "X402Facilitator.json", "hash": "8f44ddb4a80d7156a9eafb43c29c4ab56d600eadcae1dd2aec63bd1c38b15d8d" },
     { "name": "xPNTsFactory.json", "hash": "d90511e08d19146af0207a386701232774c5b2c3db3cb9bff81e06f42af78a5d" },
-    { "name": "xPNTsFactoryV2.json", "hash": "893ef9d200e9fd80408b449a945aeda2f3a040b0443efd89445e225838c2b683" },
+    { "name": "xPNTsFactoryV2.json", "hash": "959eadd9840650ff6a7d2638aa0b7cdae4e08456b71d9203efca65804a15d5e6" },
     { "name": "xPNTsToken.json", "hash": "e0fde871cb0292ba6133504b4a487b70870ec9fb73bb42440f4ea3f827528270" },
     { "name": "xPNTsTokenV2.full.json", "hash": "e7def77e1cbfb6378a1cdf04b1e2191b2c995c9b252264c9ca582d0c7b703826" },
-    { "name": "xPNTsTokenV2.json", "hash": "968548bc1b626a5202cf33d6dc279fad8b61c2995814c8575f9c0fe3f54261b7" },
-    { "name": "xPNTsTokenV2Ext.json", "hash": "d9b2e9e724852f33c5e482ac2caa25cc3bbf0596860c2c337cd310d631baf7a3" }
+    { "name": "xPNTsTokenV2.json", "hash": "7da9d3e2b03974a40aaa8c559673196f739c9083f99f1a8e3d85d6e052839253" },
+    { "name": "xPNTsTokenV2Ext.json", "hash": "0236725c882a15ba6329ddf326777bbd6e3fdb4cce1b163a016bd5eceaec7f61" }
   ]
 }

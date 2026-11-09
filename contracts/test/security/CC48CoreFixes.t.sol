@@ -404,7 +404,7 @@ contract CC48ExitNoticeTest is Test {
         bls.requestGuardianExit();
         (uint64 readyAt, uint64 expiresAt) = bls.guardianExitRequests(_v(2));
         assertEq(uint256(readyAt), t0 + bls.GUARDIAN_EXIT_DELAY());
-        assertEq(uint256(expiresAt), uint256(readyAt) + bls.GUARDIAN_EXIT_WINDOW());
+        assertEq(uint256(expiresAt), uint256(readyAt) + bls.GUARDIAN_FRAUD_CHALLENGE() + bls.GUARDIAN_EXIT_WINDOW());
     }
 
     /// Flip-flopping is what made the pre-fix halt repeatable and invisible.
@@ -586,7 +586,7 @@ contract CC48ExitNoticeTest is Test {
     function test_ExpiredNoticeIsClearedByCancel() public {
         vm.prank(_v(3));
         bls.requestGuardianExit();
-        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_EXIT_WINDOW() + 1);
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_FRAUD_CHALLENGE() + bls.GUARDIAN_EXIT_WINDOW() + 1);
 
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), _v(3)));
         bls.verify(keccak256("m"), _fullMask(), 3, _sigBytes());
@@ -783,7 +783,7 @@ contract CC48GuardianSlashRetryTest is Test {
     function test_CaseWindowStrictlyDominatesAFullExitNotice() public {
         assertGt(
             bls.GUARDIAN_SLASH_CASE_WINDOW(),
-            bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_EXIT_WINDOW(),
+            bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_FRAUD_CHALLENGE() + bls.GUARDIAN_EXIT_WINDOW(),
             "case window must outlast a full exit notice"
         );
 

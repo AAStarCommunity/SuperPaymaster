@@ -71,6 +71,27 @@ contract DVTSlashTest is Test {
         vm.stopPrank();
     }
 
+    function test_MajorProofEventReportsAppliedPenalty() public {
+        _registerOperatorForSlash();
+        vm.startPrank(operator);
+        gtoken.approve(address(paymaster), 1000 ether);
+        paymaster.depositFor(operator, 1000 ether);
+        vm.stopPrank();
+        vm.startPrank(dvtAggregator);
+        paymaster.queueSlash(operator);
+        vm.expectEmit(true, false, false, true, address(paymaster));
+        emit SuperPaymasterStorage.SlashExecutedWithProof(
+            operator, ISuperPaymaster.SlashLevel.MAJOR, 300 ether, keccak256("major-proof"), block.timestamp
+        );
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MAJOR, "major-proof");
+        vm.stopPrank();
+        (uint128 balance,,,,,,,,) = paymaster.operators(operator);
+        assertEq(balance, 700 ether);
+        assertEq(paymaster.protocolRevenue(), 300 ether);
+        (, uint256 amount,,,) = paymaster.slashHistory(operator, 0);
+        assertEq(amount, 300 ether);
+    }
+
     function test_FullTwoTierSlashIntegration() public {
         // 1. Register Operator
         vm.startPrank(operator);

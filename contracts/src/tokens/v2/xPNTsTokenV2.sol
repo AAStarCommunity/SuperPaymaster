@@ -45,7 +45,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-4.0.0";
+        return "XPNTs-4.0.1";
     }
 
     // ---------------------------------------------------------------------

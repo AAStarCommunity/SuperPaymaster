@@ -206,7 +206,102 @@ contract PendingGuardianExitFreezeTest is Test {
     function _prepareExit() internal {
         vm.prank(guardian);
         bls.requestGuardianExit();
-        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY());
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_FRAUD_CHALLENGE());
+    }
+
+    function test_ChallengeBlocksExitUntilExactBoundary() public {
+        vm.prank(guardian);
+        bls.requestGuardianExit();
+        (uint64 readyAt, uint64 expiresAt) = bls.guardianExitRequests(guardian);
+        uint256 withdrawAt = uint256(readyAt) + bls.GUARDIAN_FRAUD_CHALLENGE();
+        assertEq(expiresAt, withdrawAt + bls.GUARDIAN_EXIT_WINDOW());
+        vm.warp(readyAt);
+        _expectNotReady(withdrawAt);
+        vm.warp(withdrawAt - 1);
+        _expectNotReady(withdrawAt);
+        vm.warp(withdrawAt);
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+        assertFalse(registry.hasRole(ROLE_DVT, guardian));
+        assertEq(staking.getLockedStake(guardian, ROLE_DVT), 0);
+    }
+
+    function _expectNotReady(uint256 withdrawAt) internal {
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitNotReady.selector, guardian, withdrawAt));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+    }
+
+    function test_CaseQueuedDuringChallengeFreezesMatureExit() public {
+        vm.prank(guardian);
+        bls.requestGuardianExit();
+        (uint64 readyAt,) = bls.guardianExitRequests(guardian);
+        uint256 withdrawAt = uint256(readyAt) + bls.GUARDIAN_FRAUD_CHALLENGE();
+        vm.warp(uint256(readyAt) + 1);
+        bls.queueGuardianSlash(10, _guardians(), hex"10");
+        vm.warp(withdrawAt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitBlockedBySlash.selector, guardian, 1));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+        assertEq(staking.getLockedStake(guardian, ROLE_DVT), 30 ether);
+    }
+
+    /// DSR rc.8 (b): a case queued in the last challenge second freezes the exit, and its deadline
+    /// (queue time + GUARDIAN_SLASH_CASE_WINDOW) falls after the last moment the guardian could withdraw,
+    /// so the case cannot lapse while the guardian can still leave.
+    function test_LastSecondCaseOutlivesWithdrawalWindow() public {
+        vm.prank(guardian);
+        bls.requestGuardianExit();
+        (uint64 readyAt, uint64 expiresAt) = bls.guardianExitRequests(guardian);
+        uint256 withdrawAt = uint256(readyAt) + bls.GUARDIAN_FRAUD_CHALLENGE();
+        vm.warp(withdrawAt - 1);
+        bls.queueGuardianSlash(11, _guardians(), hex"11");
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(11);
+        assertEq(uint256(deadline), withdrawAt - 1 + bls.GUARDIAN_SLASH_CASE_WINDOW());
+        assertGt(uint256(deadline), uint256(expiresAt));
+        for (uint256 t = withdrawAt; t <= expiresAt; t += 6 hours) {
+            vm.warp(t);
+            vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitBlockedBySlash.selector, guardian, 1));
+            vm.prank(guardian);
+            registry.exitRole(ROLE_DVT);
+        }
+        vm.warp(expiresAt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitBlockedBySlash.selector, guardian, 1));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+    }
+
+    /// The tight case for the invariant GUARDIAN_SLASH_CASE_WINDOW > DELAY + CHALLENGE + WINDOW: a case
+    /// queued right after the notice opens must still be pending when that notice's withdrawal window ends.
+    function test_CaseQueuedAtNoticeOpenOutlivesWholeNotice() public {
+        vm.prank(guardian);
+        bls.requestGuardianExit();
+        (, uint64 expiresAt) = bls.guardianExitRequests(guardian);
+        bls.queueGuardianSlash(12, _guardians(), hex"12");
+        (,, uint64 deadline,,,,,) = bls.guardianSlashCases(12);
+        assertGt(uint256(deadline), uint256(expiresAt));
+        vm.warp(expiresAt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitBlockedBySlash.selector, guardian, 1));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+    }
+
+    function test_ExitAtNewExpiryBoundary() public {
+        _prepareExit();
+        (, uint64 expiresAt) = bls.guardianExitRequests(guardian);
+        vm.warp(expiresAt);
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+        assertFalse(registry.hasRole(ROLE_DVT, guardian));
+    }
+
+    function test_ExitAfterNewExpiryReverts() public {
+        _prepareExit();
+        (, uint64 expiresAt) = bls.guardianExitRequests(guardian);
+        vm.warp(uint256(expiresAt) + 1);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitRequestExpired.selector, guardian, expiresAt));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
     }
 
     function test_InstantExitWithoutPublicNoticeReverts() public {
@@ -264,7 +359,7 @@ contract PendingGuardianExitFreezeTest is Test {
 
     /// CC-48 HIGH-2: expiry is still permissionless, but it no longer hands the
     /// accused guardian a ready-to-use exit. GUARDIAN_SLASH_CASE_WINDOW now strictly
-    /// outlasts GUARDIAN_EXIT_DELAY + GUARDIAN_EXIT_WINDOW, so the notice filed at
+    /// outlasts delay + challenge + consumption window, so the notice filed at
     /// queue time is already dead by the time the case expires and the guardian has
     /// to serve a fresh notice.
     function test_ExpiredCaseReleasesFreezeButNotAReadyExit() public {
@@ -293,7 +388,7 @@ contract PendingGuardianExitFreezeTest is Test {
         vm.warp(block.timestamp + bls.GUARDIAN_EXIT_COOLDOWN());
         vm.prank(guardian);
         bls.requestGuardianExit();
-        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY());
+        vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_FRAUD_CHALLENGE());
         vm.prank(guardian);
         registry.exitRole(ROLE_DVT);
         assertFalse(registry.hasRole(ROLE_DVT, guardian));
