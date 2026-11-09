@@ -175,6 +175,12 @@ def validate_ci_run(e):
     a.need('evidence_ci_overall', not failing if run['overall'] == 'success' else bool(direct & accepted), True)
 
 
+@lru_cache(maxsize=32)
+def evidence_test_names(source):
+    return frozenset(n.name for n in ast.walk(ast.parse(source))
+                     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
+
+
 def validate_evidence_details(e, kind, evidence_dir=None):
     if kind == 'conformance':
         schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]
@@ -186,7 +192,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
                 path = (root / ref['suite']).resolve()
                 a.need('evidence_test_suite', path.is_relative_to(root) and path.suffix == '.py' and path.is_file(), True)
                 try:
-                    names = {n.name for n in ast.walk(ast.parse(path.read_text())) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                    names = evidence_test_names(path.read_text())
                 except (OSError, SyntaxError):
                     names = set()
                 a.need('evidence_test_name', ref['test'] in names, True)
@@ -1018,17 +1024,19 @@ def discovery_coverage(plan, passed):
 
 def current_discovery(rpc, pin, block):
     found = isolation.discover_targets(rpc, dict(pin, stateBlock=block))
+    release_tokens = None
     if 'discoveryReleaseFactory' in pin and u.code(rpc, pin['discoveryReleaseFactory'], block) != '0x':
         found['releaseFactory'] = [pin['discoveryReleaseFactory']]
-        if found['xPNTsFactory'] != found['releaseFactory']:
-            tokens = u.addr_array(a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block))
-            found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
+        release_tokens = u.addr_array(a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block))
+        found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(release_tokens))
     if 'discoveryOriginalFactory' in pin and found['xPNTsFactory'][0] != pin['discoveryOriginalFactory']:
         found['legacyFactory'] = [pin['discoveryOriginalFactory']]
         tokens = u.addr_array(a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block))
+        a.need('old_owner_original_factory_enumeration', set(isolation.ROUND_CLONES) | set(pin['discoveryRetainedTokens']) <= set(tokens), True)
+        a.need('old_owner_release_factory_enumeration', release_tokens is not None and set(release_tokens) == set(pin['discoveryExpected']['xpnts']) - set(pin['discoveryRetainedTokens']), True)
         found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
     return dict(targets={name: group[0] for name, group in found.items() if name != 'xPNTsToken'},
-                xpnts=sorted(set(found['xPNTsToken']) | set(pin.get('isolationLegacyTokens', []))))
+                xpnts=sorted(set(found['xPNTsToken'])))
 
 
 def discovery_old_authority(rpc, pin, block):
@@ -1194,6 +1202,7 @@ def dvt_closing(rpc, plan):
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {})
     coverage = discovery_coverage(plan, {s['id'] for s in plan['steps']})
     never_granted = isolation.never_granted_recheck(rpc, coverage, block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
@@ -2088,6 +2097,14 @@ def stage_readback(plan, rpc):
     return dict(prefixDigest=plan['prefixDigest'], domainSeparator=domain)
 
 
+def stage_pin(pin, stage):
+    """Require Phase C evidence before the builder reads it; strip it for earlier stages."""
+    if stage in PC_STAGES:
+        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
+        return pin
+    return {k: v for k, v in pin.items() if k != 'phaseC'}
+
+
 def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     a.need('manifest_inputs_required', inputs is not None, True)
     required(inputs, ('sha256', 'data'), 'external_binding')
@@ -2097,10 +2114,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     validate_external(d, stage)
     # Phase C pin reads belong only to the stages that build Phase C; a7/b4 prefixes are
     # byte-identical whether or not the supplied pin carries them.
-    if stage in PC_STAGES:
-        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
-    else:
-        pin = {k: v for k, v in pin.items() if k != 'phaseC'}
+    pin = stage_pin(pin, stage)
     sources = copy.deepcopy(stage_sources or {})
     a.need("stage_sources", set(sources), set() if stage == "a7" else ({"a7"} if stage == "b4" else ({"a7", "b4"} if sources else set())))
     salt_digest = sources["b4"]["plan"]["externalInputs"]["sha256"] if "b4" in sources else inputs["sha256"]
@@ -3196,6 +3210,7 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
     block = a.block_data(rpc,'latest')['number']
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {})
     # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
     coverage = discovery_coverage(plan, context.get('passed', set()))
     isolation.never_granted_recheck(rpc, coverage, block)

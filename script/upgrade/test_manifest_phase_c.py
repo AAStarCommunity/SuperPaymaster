@@ -7,6 +7,7 @@ each gate in memory (a.need for that name becomes a no-op) and requires its cont
 import sys
 sys.dont_write_bytecode = True
 import copy
+from gate_assertions import assert_stop
 import contextlib
 import json
 from pathlib import Path
@@ -188,7 +189,7 @@ class PhaseCTests(unittest.TestCase):
         self.base_data = copy.deepcopy(self.data)
 
     def stop(self, gate, action):
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, gate) as caught:
             action()
         self.assertEqual(caught.exception.record['gate'], gate)
         return caught.exception.record
@@ -553,18 +554,18 @@ BUILD_CASES = {
     'phase_c_identity_distinct': data_case(['phaseC', 'bundler'], u.DEPLOYER),
     'phase_c_account_distinct': data_case(['phaseC', 'account'], m.DEAD),
     'phase_c_salt': data_case(['phaseC', 'salt'], -1),
-    'phase_c_runtime_keys': data_case(['phaseC', 'runtimeKeccak', 'account'], delete=True),
+    'phase_c_runtime_keys': data_case(['phaseC', 'runtimeKeccak', 'unexpected'], a.EMPTY_KECCAK),
     'phase_c_runtime_VerifyingPaymaster': data_case(['phaseC', 'runtimeKeccak', 'VerifyingPaymaster'], a.EMPTY_KECCAK),
     'phase_c_account_evidence': data_case(['phaseC', 'accountEvidence', 'sha256'], '9'*64),
     'phase_c_account_evidence_nonempty': data_case(['phaseC', 'accountEvidence'], evidence('blank-account', ' \n')),
     'phase_c_rehearsal': data_case(['phaseC', 'rehearsal', 'extra'], []),
     'phase_c_rehearsal_evidence_nonempty': data_case(['phaseC', 'rehearsal', 'evidence'], evidence('blank-rehearsal', '\n')),
-    'phase_c_arms': data_case(ARM+['TPM'], delete=True),
+    'phase_c_arms': data_case(ARM+['extra'], {}),
     'phase_c_arm_fields_SP': data_case(ARM+['SP', 'postOp'], 1),
     'phase_c_measurement': data_case(ARM+['VPM', 'call'], 0),
-    'phase_c_owner_preparation': data_case(['phaseC', 'rehearsal', 'ownerPreparation', 'C18.approve'], delete=True),
+    'phase_c_owner_preparation': data_case(['phaseC', 'rehearsal', 'ownerPreparation', 'extra'], 1),
     'phase_c_maintenance_list': data_case(['phaseC', 'rehearsal', 'ownerMaintenance'], {}),
-    'phase_c_maintenance_fields': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name='x')]),
+    'phase_c_maintenance_fields': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name='x', gas=1, extra=1)]),
     'phase_c_maintenance_name': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'], [dict(name=' x', gas=1)]),
     'phase_c_maintenance_unique': data_case(['phaseC', 'rehearsal', 'bundlerMaintenance'],
                                             [dict(name='x', gas=1), dict(name='x', gas=2)]),
@@ -600,6 +601,15 @@ def make_build_test(gate, mutate):
     def test(self):
         data, pin = copy.deepcopy(self.data), copy.deepcopy(self.pin)
         mutate(data, pin, self)
+        if gate == 'C_pricing_nonzero':
+            self.stop(gate, lambda: m.phase_c_pin_gates(pin, data['phaseC']))
+            return
+        if gate == 'stage_inputs':
+            self.stop(gate, lambda: m.required(data, ('phaseC',), gate))
+            return
+        if gate == 'stage_pin_phase_c':
+            self.stop(gate, lambda: m.stage_pin(pin, 'full'))
+            return
         record = self.stop(gate, lambda: self.build(data, pin))
         if gate.startswith('budget_'):
             self.assertGreater(record['observed']['shortfallWei'], 0)
@@ -918,7 +928,10 @@ class SnapshotControlTests(PhaseCTests):
             self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound', lambda: None, check))
             mutate = lambda: chain.set(SP, 'paused()', value=1)
             self.stop('X_gate', lambda: m.stop_control(chain, 'X', 'C_price_bound', mutate, check))
-            record = m.stop_control(chain, 'X', 'C_global_unpaused', mutate, check)
+            try:
+                record = m.stop_control(chain, 'X', 'C_global_unpaused', mutate, check)
+            except a.Gate as fault:
+                self.fail(f'X_restore: successful control did not restore state before {fault.record["gate"]}')
             self.assertEqual(record['gate'], 'C_global_unpaused')
             self.assertEqual(chain.get(SP, 'paused()'), 0)
             chain.fail_revert = True
@@ -932,6 +945,13 @@ class SnapshotControlTests(PhaseCTests):
         with contextlib.ExitStack() as stack:
             for p in chain.patches(): stack.enter_context(p)
             self.stop('C_control_slot', lambda: m.phase_c_controls(chain, bad, self.pc['steps'][0], [], chain.context))
+        duplicate = copy.deepcopy(self.plan)
+        storage = duplicate['rebuild']['contracts']['SuperPaymaster']['storageLayout']['storage']
+        storage.append(copy.deepcopy(next(row for row in storage if row['label'] == 'cachedPrice')))
+        # Keep a readable first slot: deleting the uniqueness gate must permit acceptance.
+        self.stop('C_control_layout_cachedPrice', lambda: m.layout_slot(duplicate, 'SuperPaymaster', 'cachedPrice'))
+
+    def test_control_slot_missing(self):
         missing = copy.deepcopy(self.plan)
         missing['rebuild']['contracts']['SuperPaymaster']['storageLayout']['storage'].pop()
         self.stop('C_control_layout_cachedPrice', lambda: m.layout_slot(missing, 'SuperPaymaster', 'cachedPrice'))

@@ -7,8 +7,9 @@ from probe_gate_removal.py --list on the current source:
   1. baseline: the bound test passes on the unmodified module;
   2. full suite, --failfast, statement removed: `killed`, zero errors;
   3. bound test only, statement removed: `killed` by assertion failures of that test alone, zero errors.
-PASS only if the source tree is clean, the unmodified full suite is green, every required gate is found
-and every probe and baseline meets the above with exit status 0.
+PASS only if the unmodified full suite is green, every required gate is found
+and every probe and baseline meets the above with exit status 0 and a named assertion.
+The checkout may be dirty: the operator commits only after this verification.
 
 Repository root: A3A_ENGINE_DIR=$HOME/.foundry/bin python3 -B script/evidence/audit605_probes.py [--jobs 3]
 """
@@ -47,9 +48,12 @@ F05 = {
 }
 CLOSING = 'ManifestTests.test_dvt_closing_binds_pointer_and_stale_proposals'
 REQUIRED = {
-    ('old_timelock_holds_nothing', 'old_timelock_approval_history'): 'ManifestTests.test_old_timelock_approval_history',
+    ('old_timelock_holds_nothing', 'old_timelock_approval_history'): ('ManifestTests.test_old_timelock_approval_history_range',
+        'ManifestTests.test_old_timelock_approval_history_log'),
     **{('validate_old_timelock', g): 'ManifestTests.test_'+g for g in
-       ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay', 'old_timelock_unused')},
+       ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_unused')},
+    ('validate_old_timelock', 'old_timelock_replay'): (
+        'ManifestTests.test_old_timelock_replay_reads', 'ManifestTests.test_old_timelock_replay_owners'),
     ('old_timelock_holds_nothing', 'old_timelock_allowance'): 'ManifestTests.test_old_timelock_allowance',
     ('closing_timelock_inventory', 'old_timelock_inventory'): 'ManifestTests.test_old_timelock_inventory_new_role',
     **{('old_timelock_holds_nothing', g): 'ManifestTests.test_'+g for g in
@@ -70,7 +74,7 @@ REQUIRED.update({
     ('role_history', 'old_owner_history_positive'): 'OldOwnerIsolationTests.test_history_standard_revoke_only',
     ('role_history', 'old_owner_never_granted_set'): 'OldOwnerIsolationTests.test_never_granted_range_grant',
     ('audit', 'old_owner_never_granted_holder'): 'OldOwnerIsolationTests.test_never_granted_control_holder',
-    ('mapping_control', 'old_owner_mapping_getter'): 'OldOwnerIsolationTests.test_mapping_function_falls_back',
+    ('mapping_control', 'old_owner_mapping_getter'): 'OldOwnerIsolationTests.test_mapping_function_getter_rejected_per_role',
     ('audit', 'old_owner_role_control_case'): 'OldOwnerIsolationTests.test_role_control_case_without_path_gate',
     ('mapping_control', 'old_owner_mapping_positive'): 'OldOwnerIsolationTests.test_mapping_positive_zero',
     ('mapping_control', 'old_owner_mapping_negative'): 'OldOwnerIsolationTests.test_mapping_negative_one',
@@ -92,20 +96,24 @@ def parse(rc, out):
     if rc != 0 or not m or 'PROBE_ERROR' in out:
         return dict(status='harness-error', ran=0, failures=0, errors=-1, failed=[])
     failed = [l.split()[1] for l in out.splitlines() if l.startswith('FAILED_TEST ')]
-    return dict(status=m.group(1), ran=int(m.group(2)), failures=int(m.group(3)), errors=int(m.group(4)), failed=failed)
+    return dict(status=m.group(1), ran=int(m.group(2)), failures=int(m.group(3)), errors=int(m.group(4)), failed=failed, log=out)
 
 
 def probe(row):
-    line, function, gate = row
-    bound = REQUIRED[(function, gate)]
+    line, function, gate, bound = row
     tests = 'test_old_owner_isolation' if bound.startswith('OldOwnerIsolationTests.') else 'test_manifest_exec'
     options = dict(module='old_owner_isolation' if function in ISOLATION_FUNCTIONS else 'manifest_exec',tests=tests)
     base = parse(*sh('--baseline', '--select', bound, **options))
     full = parse(*sh('--site', str(line), '--failfast', **options))
     only = parse(*sh('--site', str(line), '--select', bound, **options))
+    sys.path.insert(0, str(ROOT/'script/upgrade'))
+    from gate_assertions import assertion_mentions
+    message_gate = gate.split("'")[1] if gate.startswith("'") else gate
     ok = (base['status'] == 'survived' and base['ran'] >= 1 and base['errors'] == 0
-          and full['status'] == 'killed' and full['errors'] == 0
+          and full['status'] == 'killed' and full['errors'] == 0 and full['failures'] >= 1
+          and assertion_mentions(full.get('log', ''), message_gate)
           and only['status'] == 'killed' and only['errors'] == 0 and only['failures'] >= 1
+          and assertion_mentions(only.get('log', ''), message_gate)
           and all(t == tests+'.'+bound for t in only['failed']))
     return dict(line=line, function=function, gate=gate, bound=bound, base=base['status'], full=full['status'],
                 only=f"{only['status']} failures={only['failures']} errors={only['errors']}", ok=ok)
@@ -132,14 +140,29 @@ def main():
         if m and (m.group(2), m.group(3).strip()) in REQUIRED:
             rows.append((int(m.group(1)), m.group(2), m.group(3).strip()))
     missing = sorted(set(REQUIRED) - {(fn, g) for _, fn, g in rows})
+    # Multi-site gates bind one distinct test to each source statement, in source order.
+    bound_rows = []
+    for key, controls in REQUIRED.items():
+        sites = sorted(row for row in rows if row[1:] == key)
+        if isinstance(controls, tuple):
+            if len(sites) != len(controls):
+                missing.append((key, 'expected '+str(len(controls))+' sites, got '+str(len(sites))))
+                continue
+            bound_rows.extend((*row, control) for row, control in zip(sites, controls))
+        else:
+            bound_rows.extend((*row, controls) for row in sites)
+    rows = bound_rows
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
-        results = list(pool.map(probe, rows))
+        results = []
+        for result in pool.map(probe, rows):
+            results.append(result)
+            print('PROBE_CHECK', result['function'], result['gate'], 'OK' if result['ok'] else 'FAIL', result['only'], flush=True)
     print('| line | function | gate | bound test | baseline | full suite | bound test, gate removed | ok |')
     print('|---:|---|---|---|---|---|---|---|')
     for r in results:
         print(f"| {r['line']} | {r['function']} | {r['gate']} | {r['bound']} | {r['base']} | {r['full']} | {r['only']} | {int(r['ok'])} |")
     print('PROBED', len(results), 'OK', sum(r['ok'] for r in results), 'MISSING', missing)
-    ok = rc == 0 and clean and green and not missing and results and all(r['ok'] for r in results)
+    ok = rc == 0 and green and not missing and results and all(r['ok'] for r in results)
     print('AUDIT605_PROBES', 'PASS' if ok else 'FAIL')
     sys.exit(0 if ok else 1)
 
