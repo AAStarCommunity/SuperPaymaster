@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from collections import Counter
 from schedule import generate, digest, ARMS
-from precheck import before_sp_attempt, broadcast_disabled, stop_reason, timing_check, account_available
+from precheck import POLICY_GATES, before_sp_attempt, broadcast_disabled, stop_reason, timing_check, account_available
 from export import export, normalized, write_csv, validate_csv, build_inventory, gate, VENDOR
 
 ROOT = Path(__file__).parent
@@ -35,10 +35,13 @@ class ScheduleTests(unittest.TestCase):
             generate('seed',['a','b','c'],20,1)
 
 
+class Refusal(Exception):
+    def __init__(self, gate, observed=1, expected=0):
+        self.record = dict(gate=gate, observed=observed, expected=expected, url='not archived')
+
+
 class PrecheckTests(unittest.TestCase):
     def test_both_endpoints_even_if_refused(self):
-        class Refusal(Exception):
-            pass
         plans = {'alice': {'phaseC': {'addresses': {'S':'alice'}}}}
         calls, seen = [], []
         def helper(rpc, plan, flags):
@@ -46,7 +49,7 @@ class PrecheckTests(unittest.TestCase):
             head = rpc('eth_getBlockByNumber',['latest',False])
             reply = rpc('eth_call',[])
             if reply == 'refuse':
-                raise Refusal('refusal')
+                raise Refusal('precheck_total')
             if reply == 'bug':
                 raise KeyError('sampler defect')
             return dict(block=head['number'],blockHash=head['hash'],flags=flags)
@@ -61,7 +64,7 @@ class PrecheckTests(unittest.TestCase):
         self.assertEqual(len(calls),2)
         # the second endpoint is asked for the first endpoint's block, never its own 'latest'
         heads = [p for m, p in seen if m == 'eth_getBlockByNumber']
-        self.assertEqual([h[0] for h in heads], ['latest', '0x1'])
+        self.assertEqual([h[0] for h in heads], ['latest', '0x1', '0x1', '0x1'])
         result=run([rpc(),rpc('0xbb')])
         self.assertEqual(result['invalid_reason'],'rpc_mismatch')
         self.assertTrue(result['precheck_refused'])
@@ -77,6 +80,65 @@ class PrecheckTests(unittest.TestCase):
             run([rpc(),rpc()],'bob')
         with self.assertRaises(NotImplementedError):
             broadcast_disabled()
+
+    def test_policy_gates_and_unpinned_refusal(self):
+        plans = {'alice': {'phaseC': {'addresses': {'S':'alice'}}}}
+        def rpc(method, params):
+            return dict(number='0x1',hash='0xaa')
+        for name in POLICY_GATES | {'rpc_result', 'canonical_quantity', 'unknown'}:
+            calls = []
+            def helper(rpc, plan, flags):
+                calls.append(flags)
+                raise Refusal(name)
+            if name in POLICY_GATES:
+                result=before_sp_attempt([rpc,rpc],plans,'alice',helper,Refusal)
+                self.assertEqual(len(calls),2)
+                self.assertEqual(result['endpoint_pins'],[None,None])
+                self.assertEqual(result['invalid_reason'],'')
+                self.assertTrue(result['precheck_refused'])
+                self.assertEqual(result['endpoints'][0]['refusal'],dict(gate=name,observed=1,expected=0))
+            else:
+                with self.assertRaises(Refusal):
+                    before_sp_attempt([rpc,rpc],plans,'alice',helper,Refusal)
+        def helper(rpc, plan, flags):
+            if not seen:
+                seen.append(True)
+                raise Refusal('SP_RENEW_never')
+            head=rpc('eth_getBlockByNumber',['latest',False])
+            return dict(block=head['number'],blockHash=head['hash'])
+        seen, reads = [], []
+        def second(method, params):
+            reads.append(params[0])
+            return rpc(method,params)
+        result=before_sp_attempt([rpc,second],plans,'alice',helper,Refusal)
+        self.assertEqual(reads,['latest','0x1'])
+        self.assertEqual(result['endpoint_pins'],[None,None])
+        for gates in [('precheck_total','precheck_allowance'), ('precheck_total','precheck_total')]:
+            names=iter(gates)
+            values=iter([1,2])
+            def refuse(rpc, plan, flags):
+                raise Refusal(next(names),next(values))
+            result=before_sp_attempt([rpc,rpc],plans,'alice',refuse,Refusal)
+            self.assertEqual(result['invalid_reason'],'rpc_mismatch')
+        def no_anchor(rpc, plan, flags):
+            return dict(block='0x1',blockHash='0xaa')
+        with self.assertRaisesRegex(ValueError,'anchor missing'):
+            before_sp_attempt([rpc,rpc],plans,'alice',no_anchor,Refusal)
+
+    def test_post_read_reorg_after_acceptance_or_refusal(self):
+        plans = {'alice': {'phaseC': {'addresses': {'S':'alice'}}}}
+        for refused in (False,True):
+            for endpoint in (0,1):
+                def helper(rpc, plan, flags):
+                    head=rpc('eth_getBlockByNumber',['latest',False])
+                    if refused: raise Refusal('precheck_total')
+                    return dict(block=head['number'],blockHash=head['hash'])
+                def rpc(changed):
+                    hashes=iter(['0xaa','0xbb' if changed else '0xaa'])
+                    return lambda method,params: dict(number='0x1',hash=next(hashes))
+                result=before_sp_attempt([rpc(endpoint==0),rpc(endpoint==1)],plans,'alice',helper,Refusal)
+                self.assertEqual(result['invalid_reason'],'chain_reorg')
+                self.assertTrue(result['precheck_refused'])
 
     def test_observed_timing_and_timeout_account_lock(self):
         slot=generate('seed',['a','b','c'])['payload']['slots'][0]
@@ -149,15 +211,25 @@ class ExportTests(unittest.TestCase):
             elif kind=='duplicate':
                 r=copy.deepcopy(rows[0]); r['attempt_index']=59; r['userOpHash']='unique'; rows.append(r)
             return rows
-        for kind in ('refused_broadcast','exclusion','penalty','chat','slot','duplicate'):
+        diagnostics = {
+            'refused_broadcast': ('broadcast field on refused row', 'precheck_refused attempt was not broadcast'),
+            'exclusion': ('wrong exclusion_reason', 'exclusion_reason='),
+            'penalty': ('actualGasUsed - gasBeforePenalty', 'actualGasUsed - gasBeforePenalty'),
+            'chat': ('reconstructed c_hat', 'reconstructed c_hat'),
+            'slot': ('block_slot=60 outside', 'block_slot=60 outside'),
+            'duplicate': ('several formal attempts for the same (pair_id, arm)', 'several formal attempts for the same (pair_id, arm)'),
+        }
+        for kind, (export_message, gate_message) in diagnostics.items():
             with self.subTest(kind=kind):
                 rows=corrupt(kind)
                 path=self.directory/f'{kind}.csv'
-                with self.assertRaises((ValueError,gate.GateError)):
+                with self.assertRaises((ValueError,gate.GateError)) as caught:
                     export(path,rows)
+                self.assertIn(export_message,str(caught.exception))
                 write_csv(path,rows)
                 result=subprocess.run(['python3','-B',str(VENDOR),'--design','aoa','--csv',str(path)],capture_output=True,text=True)
                 self.assertEqual(result.returncode,2,result.stderr)
+                self.assertIn(gate_message,result.stderr)
 
     def test_cross_window_inventory(self):
         first=[r for r in self.records if r['block_slot']<20]

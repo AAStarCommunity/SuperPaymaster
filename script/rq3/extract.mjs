@@ -84,6 +84,18 @@ export function extract(archive) {
     eq(uoe.paymaster, op.paymaster) && uoe.nonce === BigInt(op.nonce), 'UserOperationEvent binding mismatch');
   row.success = BigInt(receipt.status) === 1n && uoe.success;
   row.failure_reason = row.success ? '' : 'user_operation_failed';
+  const settlement = metadata.arm === 'SP' ? ['TransactionSponsored', SP_EVENTS_ABI] :
+    metadata.arm === 'TokenPaymaster' ? ['UserOperationSponsored', TPM_ABI] : null;
+  const sponsored = settlement ? events(receipt, op.paymaster, settlement[1])
+    .filter(e => e.eventName === settlement[0]) : [];
+  if (settlement) {
+    requireValue(sponsored.length <= 1, 'ambiguous settlement event');
+    if (sponsored.length) requireValue(eq(sponsored[0].args.user, op.sender), 'settlement operation mismatch');
+    else {
+      row.success = false;
+      row.failure_reason = 'missing_settlement_event';
+    }
+  }
   if (row.success) {
     const task = archive.task;
     requireValue(task && BigInt(task.amount) > 0n && BigInt(task.recipientBalanceBefore) > 0n,
@@ -135,7 +147,6 @@ export function extract(archive) {
     requireValue(eq(formula.user, op.sender) && eq(formula.opHash, op.userOpHash), 'SP context operation mismatch');
     requireValue(formula.callGasLimit === BigInt(op.callGasLimit) && formula.paymasterPostOpGasLimit === BigInt(op.paymasterPostOpGasLimit), 'SP context gas mismatch');
     for (const key of Object.keys(row)) if (key in formula) row[key] = formula[key];
-    const sponsored = events(receipt, op.paymaster, SP_EVENTS_ABI).filter(e => e.eventName === 'TransactionSponsored');
     if (sponsored.length) {
       requireValue(!inner[0].error && !post.error && sponsored.length === 1, 'ambiguous/reverted SP sponsorship');
       const args = sponsored[0].args;
@@ -146,7 +157,6 @@ export function extract(archive) {
   } else if (metadata.arm === 'TokenPaymaster') {
     // Pinned TPM.sol:167-191; UniswapHelper.sol:74-79. The snapshot must
     // identify the postOp-updated price BEFORE markup, never validation price.
-    const sponsored = events(receipt, op.paymaster, TPM_ABI);
     if (sponsored.length) {
       requireValue(sponsored.length === 1 && !post.error && !inner[0].error, 'ambiguous/reverted TPM sponsorship');
       const args = sponsored[0].args;

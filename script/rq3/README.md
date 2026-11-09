@@ -11,18 +11,32 @@ behavior and contracts are unchanged. All fixtures are synthetic, not measuremen
   17/17/16. JSON includes SHA256 of canonical UTF-8 `payload` (sorted keys, compact
   separators). Defaults are illustrative: 30-second period, 20-second maximum
   elapsed bound. The conservative spacing check is `3*period-maxElapsed >= 60`.
-  `precheck.py:77` checks observed timing/order against that bound.
-- `precheck.py:5`: invoke an injected `sp_attempt_precheck` once on each of two
+  `precheck.py:96` checks observed timing/order against that bound.
+- `precheck.py:15`: invoke an injected `sp_attempt_precheck` once on each of two
   injected RPCs, even after the first refuses. Archive each block number/hash,
-  flags, outcome, and accepted helper evidence. A refusal with a readable head
-  retains that head. Transport failure leaves the missing head explicit. Exception
-  messages are not archived because they could expose endpoint credentials.
-  Disagreement refuses and sets `invalid_reason=rpc_mismatch`. The second endpoint is
-  pinned to the block number the first endpoint read as `latest`, so the two records
-  describe the same state, not two heads. Only `refusal_types` (the executor's `Gate`)
-  count as a refusal; any other exception is a sampler or transport defect and
-  propagates, so the window stops instead of logging a refusal.
+  flags, outcome, and accepted helper evidence. Refusals archive only the gate
+  name, observed and expected values; exception text and extra fields are omitted.
+  Only an executor `Gate` whose name is in `POLICY_GATES` counts as a policy
+  refusal; all other Gates and exceptions propagate. A refusal before any head
+  read retains an empty anchor, and the second endpoint still runs using its own
+  `latest`. `endpoint_pins` records whether each endpoint had an incoming pin.
+  Acceptance without an anchor raises. When available, the first head's number
+  pins the second endpoint. After acceptance or refusal with a head, each endpoint
+  re-reads that number and checks the hash; a change sets `chain_reorg` and refuses.
+  Otherwise differing records set `rpc_mismatch`. Number pinning plus this
+  post-read hash check is **not proof that every eth_call saw that block hash**.
+  Source audit: `manifest_exec.py:2710,2716–2725` names `SP_RENEW_never`,
+  `precheck_renewal_mode`, `precheck_allowance_cap`, `precheck_total_cap`,
+  `precheck_allowance`, `precheck_total`; `price_gate` at lines 2610–2611 names
+  `C_price_decimals`, `C_price_bound`. The requested allowlist also includes
+  `C_after_activation`, `C_after_token_eta`, `C_token_swapped`, `C_gas_tuple`,
+  `C_global_unpaused`, `C_sampled_unpaused`, `C_pricing_unchanged`, which occur
+  in **phase_c_state**, lines 2617–2631, not in the attempt helper or price_gate.
+  `C_unsampled_paused` is outside this allowlist. `a3a_exec.py:74–77` defines
+  the Gate record; its exception type alone does not identify a policy refusal.
 - `extract.mjs:56`: raw receipt log decoding, unique UserOperationEvent binding,
+  receipt-status/UOE-success checks and exactly one bound settlement event for
+  SP/TPM (independent of trace availability; VPM needs none),
   ERC20 transfer calldata/event checks, callTracer postOp calldata decoding,
   context decoding, SP charge reconciliation, and TPM integer conversion. Receipt
   and trace bind to one transaction/block; innerHandleOp binds sender, nonce,
@@ -42,7 +56,7 @@ behavior and contracts are unchanged. All fixtures are synthetic, not measuremen
   needs at least one row. First window has prior=0; consumed slots are cumulative.
   The inventory has its own canonical payload hash. Hashes establish consistency,
   not independent proof that an earlier window was never omitted.
-- `precheck.py:59`: stop after three consecutive infrastructure failures, or >5%
+- `precheck.py:78`: stop after three consecutive infrastructure failures, or >5%
   cumulative failures from attempt 20 onward. All formal attempts, including
   refusals, enter the denominator; failure classification must be explicit.
   Other protocol stops are injected as `stop_reason`. `account_available` keeps a
@@ -61,6 +75,11 @@ State values are normalized archived snapshots with phase=`postOp`, transaction
 and block anchors. No latest-state read is substituted. An archive adapter must
 supply and retain the raw state evidence proving those snapshots; this draft
 checks anchors and event arithmetic, not a storage proof or full source-map replay.
+**Export rule: TPM `tokenChargeWei` / `refundPostopCost` and SP live `feeBps`
+when `feeSnap=0` are UNVERIFIED supplied-state values.** Any SP formula outputs
+using that live fee are likewise UNVERIFIED. CSV presence and a passing gate do
+not certify their provenance; consumers must retain this designation until a
+proof adapter exists.
 The exporter does not certify schedule execution, passport invariants, funding,
 confirmation depth, or dual-RPC receipt consensus. Those remain sampler duties.
 
@@ -76,8 +95,10 @@ exist; the negative controls deliberately inject a wrong G to exercise that chec
 
 Raw receipt logs, including PostOpRevertReason, remain in the archive. SP charges
 come from TransactionSponsored, TPM amounts from UserOperationSponsored. A
-missing sponsorship event leaves charge fields empty rather than asserting the
-predicted charge was actually collected. Full token settlement reconciliation
+missing sponsorship event sets `success=false`,
+`failure_reason=missing_settlement_event` and leaves collected charge fields empty.
+Settlement binds to the paymaster and sender under the single-UOE transaction rule;
+trace-backed arithmetic additionally checks the SP operator and TPM gas cost. Full token settlement reconciliation
 and automatic A6 journal-to-archive adaptation are not implemented here.
 
 ## Formula/source audit
@@ -148,31 +169,37 @@ CLI exit 3 INCOMPLETE. A separate 53-slot positive control yields 50 complete
 blocks and CLI exit 0 PASS. Tests invoke the unchanged CLI (10,000 bootstrap
 resamples); internal exporter validation uses 100 resamples solely for structural
 checks, and never publishes those results as paper statistics. Negative controls
-assert CLI exit 2 and exporter rejection for refusal broadcast fields, wrong
+assert specific diagnostic substrings in both CLI stderr (exit 2) and exporter
+rejection for refusal broadcast fields, wrong
 exclusion, penalty, c_hat, out-of-range slot and duplicate block/arm attempts.
 
 ## Open decisions for DSR before any live implementation
 
 1. **Three-account precheck plans:** `script/upgrade/manifest_exec.py:2704–2712`
-   binds to phaseC.addresses.S. `precheck.py:5` requires separately frozen plans
+   binds to phaseC.addresses.S. `precheck.py:15` requires separately frozen plans
    for all senders, without rewriting the original plan. Decide the audited
    multi-account funding/Amax plan format and how it is signed/frozen.
 2. **Exact G tracer:** qualify an opcode trace/source-map/bytecode pin at
-   EntryPoint.sol:716–726; `extract.mjs:119–121` deliberately exports no G from
+   EntryPoint.sol:716–726; `extract.mjs:131–134` deliberately exports no G from
    callTracer. Trace method, node support, and reverted/fallback paths need
    qualification before penalty statistics can be claimed.
 3. **Timeout and confirmations:** DSR `82453054` paper `main.tex:553` requires a
    frozen timeout but supplies no numeric value. Choose timeout and confirmation
    depth, head alignment/reorg policy and evidence for a provably dropped op.
-   `precheck.py:93` implements only the pure account-lock decision.
-4. **PostOp state provenance:** `extract.mjs:129–164` requires the state at postOp,
+   `precheck.py:112` implements only the pure account-lock decision.
+4. **PostOp state provenance:** `extract.mjs:141–177` requires the state at postOp,
    especially TPM's updated cache and legacy SP live fee. Decide the qualified
    trace/storage proof adapter; block-end state is insufficient if later calls
-   changed the slot. No automatic adapter or proof verifier is claimed.
+   changed the slot. No automatic adapter or proof verifier is claimed. TPM
+   `tokenChargeWei` / `refundPostopCost` and the legacy-SP live fee come from a
+   supplied snapshot whose provenance is not proven and remain **UNVERIFIED**.
+   The review scaled `postOpCachedPrice` and `priceMarkup` proportionally with
+   identical logs/trace, changing `tokenChargeWei` from 3,608,004 to 5,412,006.
+   DSR must confirm the proof adapter before these columns can be treated as verified.
 5. **Cadence, stop classification, window handoff:** freeze public seed, period,
    elapsed bound, pilot limits, infrastructure-failure taxonomy and every
    non-infrastructure stop from paper `main.tex:547–558`. `schedule.py:18` and
-   `precheck.py:59` implement mechanics only. `export.py:51` currently restricts
+   `precheck.py:78` implement mechanics only. `export.py:51` currently restricts
    retry annotations to the current window; agree a cross-window reference
    format before enabling those annotations. All earlier CSVs must be available
    for inventory verification (`export.py:78`).
@@ -182,6 +209,15 @@ exclusion, penalty, c_hat, out-of-range slot and duplicate block/arm attempts.
    transactions on Sepolia (12-second blocks) cannot finish inside 20 s, so the
    Sepolia qualification run needs its own frozen period/bound.
 
-The sole send entry point is `precheck.py:55` (`broadcast_disabled`), which always
+7. **Timeout invalid code:** REQUIREMENTS #1.4 says timeout rows carry an
+   "invalid code", but the pinned gate permits only
+   `rpc_mismatch|chain_reorg|collector_corruption`. The draft records
+   `success=false` plus `failure_reason=receipt_timeout` per `main.tex:553`.
+   DSR: please confirm this representation or revise the pinned gate/specification.
+8. **SP token settlement:** reconciliation required by `main.tex:569` is not
+   implemented. DSR must define and qualify the token-settlement evidence adapter;
+   TransactionSponsored charge arithmetic alone does not establish settlement.
+
+The sole send entry point is `precheck.py:74` (`broadcast_disabled`), which always
 raises. There is no live sampler loop. No chain, keystore, environment credential
 file, or remote RPC was used to produce this draft.

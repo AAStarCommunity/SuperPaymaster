@@ -2,13 +2,22 @@
 from copy import deepcopy
 
 
+# manifest_exec.py:2610-2631,2710-2725; only these policy failures are refusals.
+POLICY_GATES = frozenset({
+    'SP_RENEW_never', 'precheck_renewal_mode', 'precheck_allowance_cap',
+    'precheck_total_cap', 'precheck_allowance', 'precheck_total',
+    'C_after_activation', 'C_after_token_eta', 'C_gas_tuple', 'C_global_unpaused',
+    'C_price_bound', 'C_price_decimals', 'C_pricing_unchanged',
+    'C_sampled_unpaused', 'C_token_swapped',
+})
+
+
 def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusal_types, flags=0):
     """Run the existing helper exactly once per endpoint, including after refusal.
 
-    Only `refusal_types` (the executor's Gate) count as a refusal; any other exception is a
-    sampler/transport defect and propagates, so the window stops instead of logging a refusal.
-    The second endpoint is pinned to the block the first one read as `latest`, so the two
-    records compare the same state rather than two different heads.
+    Only allowlisted Gate records count as policy refusals; other errors propagate.
+    Pin the second endpoint by number when possible, then recheck each head hash.
+    This does not prove that every eth_call observed that hash.
 
     Require separately frozen per-sender plans: silently replacing S in a plan
     would reuse single-account funding/Amax assertions for a different account.
@@ -19,8 +28,10 @@ def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusa
     plan = plans_by_sender[sender]
     if plan['phaseC']['addresses']['S'].lower() != sender.lower():
         raise ValueError('plan S is not the rotating sender')
-    records, pinned = [], None
+    records, pinned, reorg = [], None, False
+    pins = []
     for rpc in rpcs:
+        pins.append(pinned)
         record = dict(block=None, blockHash=None, flags=flags, accepted=False)
 
         def archive(method, params):
@@ -40,16 +51,24 @@ def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusa
             if record['block'] is None or evidence['block'] != record['block'] or evidence['blockHash'] != record['blockHash']:
                 raise ValueError('precheck anchor missing or inconsistent')
         except refusal_types as error:
-            record.update(accepted=False, failure_type=type(error).__name__)
-            # Do not serialize exception text: transport errors may contain URLs.
+            if error.record['gate'] not in POLICY_GATES:
+                raise
+            record.update(accepted=False, refusal={k: deepcopy(error.record[k])
+                          for k in ('gate', 'observed', 'expected')})
+        if record['block'] is not None:
+            number = record['block'] if isinstance(record['block'], str) else hex(record['block'])
+            head = rpc('eth_getBlockByNumber', [number, False])
+            record['postReadBlockHash'] = head['hash'] if head else None
+            if not head or head['number'] != record['block'] or head['hash'] != record['blockHash']:
+                reorg = True
+                record['accepted'] = False
         records.append(record)
-        if pinned is None:
-            if record['block'] is None:
-                raise ValueError('first endpoint returned no anchor block')
+        if len(records) == 1 and record['block'] is not None:
             pinned = record['block'] if isinstance(record['block'], str) else hex(record['block'])
     agree = records[0] == records[1]
-    return dict(sender=sender, endpoints=records, precheck_refused=not (agree and all(r['accepted'] for r in records)),
-                invalid_reason='' if agree else 'rpc_mismatch')
+    return dict(sender=sender, endpoints=records, endpoint_pins=pins,
+                precheck_refused=reorg or not (agree and all(r['accepted'] for r in records)),
+                invalid_reason='chain_reorg' if reorg else ('' if agree else 'rpc_mismatch'))
 
 
 def broadcast_disabled(*args, **kwargs):

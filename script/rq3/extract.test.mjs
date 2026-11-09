@@ -69,3 +69,32 @@ test('small source-formula vector distinguishes nested ceilings and cap',()=>{
   assert.equal(result.chargeHatAPNTs,12n);
   assert.equal(result.expectedChargeAPNTs,10n);
 });
+
+test('settlement is required with or without a trace; VPM needs none',()=>{
+  for (const arm of ['SP','TokenPaymaster']) for (const traced of [true,false]) {
+    const a=fixture(0,arm);
+    if (!traced) delete a.trace;
+    assert.equal(extract(a).success,true);
+    a.receipt.logs.pop();
+    const row=extract(a);
+    assert.equal(row.success,false);
+    assert.equal(row.failure_reason,'missing_settlement_event');
+    for (const field of ['chargeAPNTs','actualTokenNeeded','tokenChargeWei']) assert.equal(row[field],null);
+  }
+  const vpm=fixture(0,'VerifyingPaymaster'); delete vpm.trace;
+  assert.equal(extract(vpm).success,true);
+});
+test('receipt settlement binds paymaster and sender and must be unique',()=>{
+  for (const arm of ['SP','TokenPaymaster']) {
+    const a=fixture(0,arm); delete a.trace;
+    a.receipt.logs.push(a.receipt.logs[2]);
+    assert.throws(()=>extract(a),/ambiguous settlement/);
+    a.receipt.logs.pop();
+    a.receipt.logs[2].address=address(99);
+    assert.equal(extract(a).success,false);
+    a.receipt.logs[2]=fixture(1,arm).receipt.logs[2];
+    assert.throws(()=>extract(a),/settlement operation mismatch/);
+    const b=fixture(0,arm); delete b.trace; b.receipt.status='0x0';
+    assert.equal(extract(b).success,false);
+  }
+});
