@@ -53,14 +53,16 @@ exact maturity, withdrawal at exact new expiry, and rejection one second later.
 Existing cutoff, cancellation, cooldown, expired-key exclusion and committee-floor
 tests remain in place; existing withdrawal/expiry timings were updated.
 
-### Conditional C4-L-01 and C4-L-02
+### C4-L-01 deferred, C4-L-02 included
 
-FIX 1 alone measured 24,367 B, leaving 209 B, so both optional fixes were included.
-Generic `executeProposal` no longer calls the slash-only DVT callback. It stores
-`proposalSignersCommitment` after signature verification and before calling the
-arbitrary target. Slash execution retains its own callback. Tests use a rejecting
-slash callback and a target that observes the exact expected commitment during
-execution, including real signatures on Prague.
+C4-L-02 is included: generic `executeProposal` stores `proposalSignersCommitment` after signature
+verification and before calling the arbitrary target (test_GenericCommitmentIsStoredBeforeTargetCall,
+test_Prague_GenericProposalRecordsSigners).
+
+C4-L-01 is NOT fixed in rc.8. A first attempt removed the generic-path `markProposalExecuted` callback; the
+Daybreak re-review showed that generic and slash proposals still share `executedProposals`, so a fresh generic
+id could then pre-consume a slash proposal id that DVTValidator allocates later (a new reachable path). The
+callback is restored exactly as before rc.8 and C4-L-01 is deferred to 5.5.1 (disjoint id namespaces).
 
 ### C2-01: invalidate stale standby roles
 

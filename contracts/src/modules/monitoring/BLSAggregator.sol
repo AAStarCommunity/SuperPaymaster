@@ -1682,7 +1682,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///             timelocked emergency stop is not an emergency stop — so for the DISARM
     ///             path the Safe-compatible M-of-N owner is the ONLY governance defence,
     ///             not defence in depth.
-    ///             The in-contract 4-day delay still governs RE-ARMING: there is no
+    ///             The in-contract 5-day delay still governs RE-ARMING: there is no
     ///             counterpart that sets a non-zero verifier, so coming back on-line
     ///             remains propose -> 5 days -> apply, and disarm is not a fast path to a
     ///             verifier of the owner's choosing.
@@ -1983,8 +1983,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed
     ///           address's lock is independent of whether it still holds a slot).
     ///           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian
-    ///           must first publish a bounded exit notice and is immediately excluded
-    ///           from BLS signer masks; any queued slash case freezes consumption.
+    ///           must first publish a bounded exit notice, is excluded from BLS signer
+    ///           masks from readyAt and can withdraw only after GUARDIAN_FRAUD_CHALLENGE;
+    ///           any queued slash case freezes consumption.
     ///           GuardianSlashSkipped remains for legacy/direct staking drift, but
     ///           the coordinated Registry path cannot release a queued guardian.
     ///         - Permissionless CALL, gated by the verdict frozen at queue time: fraud
