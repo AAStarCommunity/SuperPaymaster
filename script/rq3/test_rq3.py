@@ -316,6 +316,16 @@ class ExportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'tpm_window_envelope_missing'):
             normalized(bare)
 
+    def test_tpm_sc_excluded_count_per_window(self):
+        path=self.directory/'excluded.csv'
+        records=copy.deepcopy(self.records)
+        row=next(r for r in records if r['arm']=='TokenPaymaster' and r.get('tokenChargeWeiVerified') is True and r['success'])
+        row['tokenChargeWeiVerified']=False; row['tokenChargeDiagnostic']='pre_markup_price_ambiguous'
+        export(path,records)
+        entry=build_inventory([path])['payload']['windows'][0]
+        self.assertEqual(entry['tpm_sc_excluded_unverified_count'],1)
+        self.assertEqual(next(r for r in gate.load_rows(path)[0] if r['userOpHash']==row['userOpHash'])['tokenChargeWei'],None)
+
     def test_vendor_hashes(self):
         for file,sha in json.loads((ROOT/'vendor/SHA256SUMS.json').read_text()).items():
             self.assertEqual(hashlib.sha256((ROOT/'vendor'/file).read_bytes()).hexdigest(),sha)

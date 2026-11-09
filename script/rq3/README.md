@@ -202,7 +202,12 @@ block envelope and that envelope must contain every broadcast row's block (`expo
 the pre-markup price interval convert the charge to the same wei (`extract.mjs` `preMarkupWei`),
 even if the price itself is ambiguous (diagnostic `pre_markup_price_ambiguous_wei_exact`).
 
-**C: event-only conversion conflicts with the protocol definition.** The supplied
+**C ruling (DSR 2026-11-09, final):** the preregistered pre-markup definition stands (no amendment).
+A TPM row whose pre-markup interval does not fix the wei has `tokenChargeWei` empty/UNVERIFIED, is left
+out of the s_c summary, and is counted per window as `tpm_sc_excluded_unverified_count` (inventory).
+`eventTokenChargeWei` is a diagnostic only and never enters s_c.
+
+**C (history): event-only conversion conflicts with the protocol definition.** The supplied
 `82453054 main.tex sec:gas` definition requires pre-markup price so markup appears
 in `s_c`; the event logs the price after markup. This definition was supplied in
 this task; no DSR repository/network access was used. The implementation follows

@@ -62,6 +62,7 @@
           51
         ],
         "reserve_delta_verified_count": 51,
+        "tpm_sc_excluded_unverified_count": 0,
         "attempts": [
           {
             "pair_id": "block-00",
@@ -1153,5 +1154,5 @@
     ],
     "consumed_formal_slots": 52
   },
-  "sha256": "a0707669f7834fbfaaed2ee611f9a83094c942fbdbf7973478d90a2a3d3b57df"
+  "sha256": "09b9e36a2d34f9bcd6fe984007a0c27996e5f4b811fa20d4d22d346a9fe1173b"
 }

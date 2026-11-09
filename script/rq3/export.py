@@ -125,6 +125,11 @@ def inventory_entry(path):
     return dict(window_id=result['window_id'], experiment_id=result['experiment_id'], csv_sha256=sha,
                 prior_formal_slots=prior, slots=slots,
                 reserve_delta_verified_count=sum(r['arm'] == 'SP' and r.get('reserveDeltaVerified') == 'true' for r in rows),
+                # DSR 2026-11-09: TPM rows whose pre-markup interval does not fix the wei are left out of s_c
+                # (tokenChargeWei exported empty, so the gate's sc_wei skips them); counted here per window.
+                tpm_sc_excluded_unverified_count=sum(r['arm'] == 'TokenPaymaster' and r['success'] and
+                                                     'tokenChargeWei' in str(r.get('unverified_columns') or '').split(';')
+                                                     for r in rows),
                 attempts=[{k: r[k] for k in ('pair_id', 'block_slot', 'arm', 'attempt_index', 'userOpHash')}
                           for r in formal])
 
