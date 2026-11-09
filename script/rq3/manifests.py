@@ -1,4 +1,5 @@
 """Canonical offline freezes; no RPC transport."""
+import math
 from copy import deepcopy
 from schedule import digest
 
@@ -65,8 +66,10 @@ def check_plan(manifest, sender, plan):
 def receipt_status(qualification_manifest, broadcast_at, observed_at, receipt=None,
                    head_number=None, reread_hash=None, finalized_timeout=False, timeout_declared_at=None):
     p = validate_qualification(qualification_manifest)
-    if finalized_timeout and (timeout_declared_at is None or
-                              timeout_declared_at - broadcast_at < p['receipt_timeout_seconds']):
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in (broadcast_at, observed_at)):
+        raise ValueError('receipt timing evidence required')
+    if finalized_timeout and (not isinstance(timeout_declared_at, (int, float)) or not math.isfinite(timeout_declared_at)
+                              or timeout_declared_at - broadcast_at < p['receipt_timeout_seconds']):
         raise ValueError('final timeout declared before frozen deadline')
     timeout = finalized_timeout or observed_at - broadcast_at >= p['receipt_timeout_seconds']
     if timeout:

@@ -84,6 +84,11 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'declared before frozen deadline'):
                 receipt_status(q,0,1,receipt,finalized_timeout=True,timeout_declared_at=timeout-1)
             self.assertEqual(receipt_status(q,0,1,receipt,finalized_timeout=True,timeout_declared_at=timeout)['failure_reason'],'receipt_timeout')
+            for bad in (float('nan'), float('inf'), None, '120'):
+                with self.assertRaises(ValueError):
+                    receipt_status(q,0,1,receipt,finalized_timeout=True,timeout_declared_at=bad)
+            with self.assertRaisesRegex(ValueError,'timing evidence'):
+                receipt_status(q,float('nan'),1,receipt)
             self.assertTrue(receipt_status(q,0,10,receipt,5+depth-1)['pending'])
             self.assertTrue(receipt_status(q,0,10,receipt,5+depth,'h')['ready'])
             self.assertEqual(receipt_status(q,0,10,receipt,5+depth,'changed')['invalid_reason'],'chain_reorg')

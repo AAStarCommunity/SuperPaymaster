@@ -1,5 +1,5 @@
 // Offline archive extraction. No clients, transport, signer, or chain calls.
-import { decodeAbiParameters, decodeEventLog, decodeFunctionData, parseAbi, toFunctionSelector } from 'viem';
+import { BaseError, decodeAbiParameters, decodeEventLog, decodeFunctionData, parseAbi, toFunctionSelector } from 'viem';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { dualRead, checkRuntime, check, invertPenalty, receiptReady } from './evidence.mjs';
@@ -233,11 +233,13 @@ function extractChecked(archive) {
         check(chargeOk, 'TPM token charge mismatch');
         check(priceOk, 'TPM updated price mismatch');
       }
-      row.refundPostopCost=chargeOk ? BigInt(refund) : null;
+      // Integer division means several refund constants can reproduce one charge (review r5), so
+      // the block-end constant is the postOp one only in an isolated block with no config write.
+      const refundOk=exact && chargeOk;
+      row.refundPostopCost=refundOk ? BigInt(refund) : null;
       row.tokenChargeWei=priceOk ? args.actualTokenCharge*price/unit : null;
       row.tokenChargeWeiVerified=exact && priceOk && low===high;
-      // The exact integer charge equation is itself the proof of refundPostopCost.
-      row.unverified_columns=[...(chargeOk ? [] : ['refundPostopCost']),
+      row.unverified_columns=[...(refundOk ? [] : ['refundPostopCost']),
         ...(row.tokenChargeWeiVerified ? [] : ['tokenChargeWei'])];
     }
   }
@@ -247,6 +249,9 @@ function extractChecked(archive) {
 export function extract(archive) {
   try { return extractChecked(archive); }
   catch(error) {
+    // Malformed archived evidence (viem decode/slice errors) is collector_corruption too;
+    // anything else is a programming error and still aborts.
+    if (error instanceof BaseError && !error.invalid_reason) error.invalid_reason='collector_corruption';
     if (!error.invalid_reason && !error.stop_reason) throw error;
     return {...archive.metadata, sender:archive.operation.sender, userOpHash:archive.operation.userOpHash,
       callGasLimit:archive.operation.callGasLimit, paymasterPostOpGasLimit:archive.operation.paymasterPostOpGasLimit,

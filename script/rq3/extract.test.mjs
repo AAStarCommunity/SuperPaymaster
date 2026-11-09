@@ -226,7 +226,7 @@ test('TPM singleton stays unverified without configuration-time isolation',async
   ]) {
     const a=fixture(0,'TokenPaymaster');assert.equal(extract(a).tokenChargeWeiVerified,true);
     mutate(a);assert.equal(extract(a).tokenChargeWeiVerified,false);
-    assert.deepEqual(extract(a).unverified_columns,['tokenChargeWei']);
+    assert.deepEqual(extract(a).unverified_columns,['refundPostopCost','tokenChargeWei']);
   }
 });
 
@@ -260,7 +260,7 @@ test('a later in-block price move leaves TPM columns unverified, not corrupt (re
   a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',1n);
   const r=extract(a);
   assert.equal(r.success,true); assert.ok(!r.invalid_reason);
-  assert.equal(r.tokenChargeWei,null); assert.deepEqual(r.unverified_columns,['tokenChargeWei']);
+  assert.equal(r.tokenChargeWei,null); assert.deepEqual(r.unverified_columns,['refundPostopCost','tokenChargeWei']);
   assert.equal(r.actualTokenNeeded,1202668n);
 });
 
@@ -270,4 +270,19 @@ test('a final timeout needs proof the frozen deadline had elapsed (review r4 #3)
   a.confirmation.timeoutDeclaredAt=119; corrupt(a,/final timeout declared before frozen deadline/);
   a.confirmation.timeoutDeclaredAt=120; const r=extract(a);
   assert.equal(r.failure_reason,'receipt_timeout'); assert.equal(r.supplemental_only,true);
+});
+
+test('refundPostopCost is verified only in an isolated block (review r5: division admits several constants)',()=>{
+  const a=fixture(0,'TokenPaymaster'); assert.equal(extract(a).refundPostopCost,40000n);
+  a.receiptBlock.transactions.push('later-config-change');
+  const r=extract(a); assert.equal(r.refundPostopCost,null);
+  assert.ok(r.unverified_columns.includes('refundPostopCost'));
+});
+
+test('malformed archived evidence is a corruption row, not an aborted batch (review r5 #4)',()=>{
+  const a=fixture(0,'TokenPaymaster'); for(const r of a.state.config) r.result='0x';
+  corrupt(a,/./);
+  const b=fixture(); const f=b.trace.result.calls.flatMap(function walk(c){return [c,...(c.calls??[]).flatMap(walk)];})
+    .find(c=>c.input?.startsWith('0x7c627b21')); f.input=f.input.slice(0,10);
+  corrupt(b,/./);
 });

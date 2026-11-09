@@ -135,8 +135,9 @@ Offline only; fixtures are synthetic. Broadcasting remains disabled
   inverse at the supplied markup is unique. In a shared block a later transaction may
   also move `cachedPrice` (`OracleHelper.sol:88,118-121`), so a charge or price mismatch
   there leaves `refundPostopCost`/`tokenChargeWei` empty and UNVERIFIED; only in an isolated
-  block is a mismatch `collector_corruption`. `refundPostopCost` is verified whenever the exact
-  integer charge equation (`TokenPaymaster.sol:171-172`) reproduces the logged charge.
+  block is a mismatch `collector_corruption`. `refundPostopCost` is verified only in an isolated
+  block with no config write: integer division (`TokenPaymaster.sol:171-172`) lets several refund
+  constants reproduce one logged charge, so equality alone does not identify it.
 - Every successful arm, VPM included, needs its trace: the penalty inversion (ruling 1) applies
   to all arms. A data check that fails yields a `collector_corruption` row, not an aborted run.
 - A finalised timeout (`finalTimeout`) must carry `timeoutDeclaredAt` at or after the frozen
