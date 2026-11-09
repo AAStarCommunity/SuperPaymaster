@@ -2,13 +2,12 @@
 from copy import deepcopy
 
 
-# manifest_exec.py:2610-2631,2710-2725; only these policy failures are refusals.
+# Exactly the gates sp_attempt_precheck can raise: manifest_exec.py:2710,2717,2722-2725 and its
+# price_gate (manifest_exec.py:2608-2611). Anything else (rpc_result, canonical_quantity, ...) is a defect.
 POLICY_GATES = frozenset({
     'SP_RENEW_never', 'precheck_renewal_mode', 'precheck_allowance_cap',
     'precheck_total_cap', 'precheck_allowance', 'precheck_total',
-    'C_after_activation', 'C_after_token_eta', 'C_gas_tuple', 'C_global_unpaused',
-    'C_price_bound', 'C_price_decimals', 'C_pricing_unchanged',
-    'C_sampled_unpaused', 'C_token_swapped',
+    'C_price_decimals', 'C_price_bound',
 })
 
 

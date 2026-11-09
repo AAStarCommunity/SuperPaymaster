@@ -28,11 +28,9 @@ behavior and contracts are unchanged. All fixtures are synthetic, not measuremen
   Source audit: `manifest_exec.py:2710,2716–2725` names `SP_RENEW_never`,
   `precheck_renewal_mode`, `precheck_allowance_cap`, `precheck_total_cap`,
   `precheck_allowance`, `precheck_total`; `price_gate` at lines 2610–2611 names
-  `C_price_decimals`, `C_price_bound`. The requested allowlist also includes
-  `C_after_activation`, `C_after_token_eta`, `C_token_swapped`, `C_gas_tuple`,
-  `C_global_unpaused`, `C_sampled_unpaused`, `C_pricing_unchanged`, which occur
-  in **phase_c_state**, lines 2617–2631, not in the attempt helper or price_gate.
-  `C_unsampled_paused` is outside this allowlist. `a3a_exec.py:74–77` defines
+  `C_price_decimals`, `C_price_bound`; `POLICY_GATES` is exactly these eight. The
+  `phase_c_state` gates (lines 2615–2631) are not reachable from the attempt helper.
+  `a3a_exec.py:74–77` defines
   the Gate record; its exception type alone does not identify a policy refusal.
 - `extract.mjs:56`: raw receipt log decoding, unique UserOperationEvent binding,
   receipt-status/UOE-success checks and exactly one bound settlement event for
