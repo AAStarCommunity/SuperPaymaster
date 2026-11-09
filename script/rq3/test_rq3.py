@@ -47,7 +47,7 @@ class PrecheckTests(unittest.TestCase):
         def helper(rpc, plan, flags):
             calls.append(plan['phaseC']['addresses']['S'])
             head = rpc('eth_getBlockByNumber',['latest',False])
-            reply = rpc('eth_call',[])
+            reply = rpc('eth_call',[{}, head['number']])
             if reply == 'refuse':
                 raise Refusal('precheck_total')
             if reply == 'bug':
@@ -80,6 +80,24 @@ class PrecheckTests(unittest.TestCase):
             run([rpc(),rpc()],'bob')
         with self.assertRaises(NotImplementedError):
             broadcast_disabled()
+        # every state read reaches the endpoint bound to the anchor HASH (EIP-1898)
+        state = [p for m, p in seen if m == 'eth_call']
+        self.assertTrue(state and all(p[-1] in ({'blockHash':'0xaa','requireCanonical':True},
+                                                {'blockHash':'0xbb','requireCanonical':True}) for p in state))
+
+    def test_state_read_must_name_the_anchor_block(self):
+        plans = {'alice': {'phaseC': {'addresses': {'S':'alice'}}}}
+        rpc = lambda method, params: dict(number='0x1',hash='0xaa') if method=='eth_getBlockByNumber' else 'ok'
+        for bad in (['latest'], ['0x2'], []):
+            def helper(rpc, plan, flags, bad=bad):
+                rpc('eth_getBlockByNumber',['latest',False])
+                rpc('eth_call',[{}, *bad])
+            with self.assertRaisesRegex(ValueError,'not bound to the anchor block'):
+                before_sp_attempt([rpc,rpc],plans,'alice',helper,Refusal)
+        def before_head(rpc, plan, flags):
+            rpc('eth_call',[{}, '0x1'])
+        with self.assertRaisesRegex(ValueError,'not bound to the anchor block'):
+            before_sp_attempt([rpc,rpc],plans,'alice',before_head,Refusal)
 
     def test_policy_gates_and_unpinned_refusal(self):
         plans = {'alice': {'phaseC': {'addresses': {'S':'alice'}}}}
@@ -172,6 +190,25 @@ class ExportTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.temp.cleanup()
+
+    def test_supplied_state_columns_are_flagged_and_blank_by_default(self):
+        tpm=[r for r in self.records if r['arm']=='TokenPaymaster' and r.get('tokenChargeWei') not in (None,'')]
+        self.assertTrue(tpm)
+        rows=normalized(copy.deepcopy(self.records))
+        out=[r for r in rows if r['arm']=='TokenPaymaster' and r['unverified_columns']]
+        self.assertEqual(len(out),len(tpm))
+        self.assertTrue(all(r['tokenChargeWei']=='' and 'tokenChargeWei' in r['unverified_columns'].split(';') for r in out))
+        kept=normalized(copy.deepcopy(self.records),include_unverified=True)
+        self.assertTrue(all(r['tokenChargeWei'] not in ('',None) for r in kept if r['unverified_columns']))
+        # an incoming claim is ignored: the exporter recomputes the flag
+        forged=copy.deepcopy(self.records); forged[0]['unverified_columns']=''
+        self.assertEqual([r['unverified_columns'] for r in normalized(forged)],[r['unverified_columns'] for r in rows])
+        legacy=copy.deepcopy(self.records)
+        sp=next(r for r in legacy if r['arm']=='SP' and r.get('feeBps') not in (None,''))
+        sp['feeSnap']=0
+        flagged=next(r for r in normalized(legacy) if r['userOpHash']==sp['userOpHash'])
+        self.assertEqual(flagged['feeBps'],'')
+        self.assertIn('feeBps',flagged['unverified_columns'])
 
     def test_vendor_hashes(self):
         for file,sha in json.loads((ROOT/'vendor/SHA256SUMS.json').read_text()).items():

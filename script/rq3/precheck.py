@@ -11,6 +11,14 @@ POLICY_GATES = frozenset({
 })
 
 
+def as_int(block):
+    if isinstance(block, int) and not isinstance(block, bool):
+        return block
+    if isinstance(block, str) and block.startswith('0x'):
+        return int(block, 16)
+    return None
+
+
 def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusal_types, flags=0):
     """Run the existing helper exactly once per endpoint, including after refusal.
 
@@ -39,6 +47,12 @@ def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusa
                 raise ValueError('precheck attempted a non-read RPC method')
             if pinned is not None and method == 'eth_getBlockByNumber' and params and params[0] == 'latest':
                 params = [pinned, *params[1:]]
+            if method != 'eth_getBlockByNumber':
+                # State reads are bound to the anchor HASH (EIP-1898), not to its number, so a
+                # reorg between the head read and a call fails instead of reading another block.
+                if record['blockHash'] is None or not params or as_int(params[-1]) != as_int(record['block']):
+                    raise ValueError('state read not bound to the anchor block')
+                params = [*params[:-1], {'blockHash': record['blockHash'], 'requireCanonical': True}]
             result = rpc(method, params)
             if method == 'eth_getBlockByNumber' and result and record['block'] is None:
                 record.update(block=result['number'], blockHash=result['hash'])

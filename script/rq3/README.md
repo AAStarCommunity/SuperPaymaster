@@ -23,8 +23,9 @@ behavior and contracts are unchanged. All fixtures are synthetic, not measuremen
   Acceptance without an anchor raises. When available, the first head's number
   pins the second endpoint. After acceptance or refusal with a head, each endpoint
   re-reads that number and checks the hash; a change sets `chain_reorg` and refuses.
-  Otherwise differing records set `rpc_mismatch`. Number pinning plus this
-  post-read hash check is **not proof that every eth_call saw that block hash**.
+  Otherwise differing records set `rpc_mismatch`. Every state read (`eth_call`, `eth_getCode`, `eth_getStorageAt`) is rewritten to the anchor
+  HASH (EIP-1898 `{blockHash, requireCanonical: true}`); a read naming any other block, or made
+  before the anchor head read, raises. An endpoint that ignores EIP-1898 is not detected here.
   Source audit: `manifest_exec.py:2710,2716–2725` names `SP_RENEW_never`,
   `precheck_renewal_mode`, `precheck_allowance_cap`, `precheck_total_cap`,
   `precheck_allowance`, `precheck_total`; `price_gate` at lines 2610–2611 names
@@ -75,7 +76,8 @@ supply and retain the raw state evidence proving those snapshots; this draft
 checks anchors and event arithmetic, not a storage proof or full source-map replay.
 **Export rule: TPM `tokenChargeWei` / `refundPostopCost` and SP live `feeBps`
 when `feeSnap=0` are UNVERIFIED supplied-state values.** Any SP formula outputs
-using that live fee are likewise UNVERIFIED. CSV presence and a passing gate do
+using that live fee are likewise UNVERIFIED. `export.py` writes these columns EMPTY by default and names them in
+`unverified_columns` (`--include-unverified` keeps the values, still named). CSV presence and a passing gate do
 not certify their provenance; consumers must retain this designation until a
 proof adapter exists.
 The exporter does not certify schedule execution, passport invariants, funding,

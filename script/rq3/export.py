@@ -12,13 +12,33 @@ gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 COLUMNS = sorted(gate.REQUIRED_COLUMNS | set(gate.OPTIONAL_INT_COLUMNS) |
                  {'sender', 'precheck_refused', 'failure_reason', 'retry_of', 'contextLength',
-                  'C_POSTOP', 'C_WRAP', 'bufGas', 'feeSnap', 'price', 'decimals', 'aPriceUSD'})
+                  'C_POSTOP', 'C_WRAP', 'bufGas', 'feeSnap', 'price', 'decimals', 'aPriceUSD',
+                  'unverified_columns'})
+# Columns computed from a supplied postOp state snapshot whose provenance is not proven (README
+# "UNVERIFIED"): TPM refund constant / cached price, and the live fee of a context without a fee
+# snapshot. Exported empty unless include_unverified, and always named in unverified_columns.
+TPM_UNVERIFIED = ('refundPostopCost', 'tokenChargeWei')
+LEGACY_FEE_UNVERIFIED = ('feeBps', 'chargeHatAPNTs')
 
 
-def normalized(records):
+def unverified(row):
+    if row['arm'] == 'TokenPaymaster':
+        return [k for k in TPM_UNVERIFIED if row[k] not in ('', None)]
+    if row['arm'] == 'SP' and str(row['feeSnap']) == '0':
+        return [k for k in LEGACY_FEE_UNVERIFIED if row[k] not in ('', None)]
+    return []
+
+
+def normalized(records, include_unverified=False):
     rows = []
     for record in records:
         row = {key: record.get(key, '') for key in COLUMNS}
+        # Always recomputed here; an incoming value is never trusted.
+        flagged = unverified(row)
+        row['unverified_columns'] = ';'.join(flagged)
+        if not include_unverified:
+            for key in flagged:
+                row[key] = ''
         for field in ('success', 'warmup', 'injected', 'precheck_refused'):
             if type(row[field]) is not bool:
                 raise ValueError(f'{field} must be a boolean')
@@ -96,8 +116,8 @@ def build_inventory(paths):
     return dict(payload=payload, sha256=digest(payload))
 
 
-def export(path, records):
-    rows = normalized(records)
+def export(path, records, include_unverified=False):
+    rows = normalized(records, include_unverified)
     write_csv(path, rows)
     try:
         validate_csv(path)
@@ -113,6 +133,8 @@ if __name__ == '__main__':
     parser.add_argument('--csv', type=Path, required=True)
     parser.add_argument('--earlier-csv', type=Path, action='append', default=[])
     parser.add_argument('--inventory', type=Path, required=True)
+    parser.add_argument('--include-unverified', action='store_true',
+                        help='keep supplied-state columns (still named in unverified_columns)')
     args = parser.parse_args()
-    export(args.csv, json.loads(args.records.read_text()))
+    export(args.csv, json.loads(args.records.read_text()), args.include_unverified)
     args.inventory.write_text(json.dumps(build_inventory([*args.earlier_csv, args.csv]), indent=2) + '\n')
