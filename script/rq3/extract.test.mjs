@@ -459,3 +459,9 @@ test('C a pre-markup interval whose ends convert to different wei stays unverifi
   const wide=preMarkupWei(10n**27n,marked,markup);
   assert.ok(wide.high>wide.low); assert.notEqual(wide.weiLow,wide.weiHigh);
 });
+
+test('a late receipt keeps its block number for window coverage (review r10)',()=>{
+  const a=fixture(); a.confirmation.observedAt=a.confirmation.broadcastAt+999;
+  const r=extract(a); assert.equal(r.failure_reason,'receipt_timeout'); assert.equal(r.blockNumber,a.receipt.blockNumber);
+  assert.equal(r.txGasUsed,null);
+});

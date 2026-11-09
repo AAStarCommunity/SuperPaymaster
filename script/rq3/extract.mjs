@@ -111,7 +111,10 @@ function extractChecked(archive) {
       spFormula(c,0n,0n);
   }
   const receiptDecision=receiptReady(archive);
-  if(receiptDecision) return {...row,...receiptDecision};
+  // A late (supplemental) receipt is not analysed, but its block is still inside the window and
+  // must be covered by the TPM config envelope (Codex r10).
+  if(receiptDecision) return {...row,...receiptDecision,
+    blockNumber: receipt && eq(receipt.transactionHash, archive.transactionHash) ? receipt.blockNumber : null};
   requireValue(eq(receipt.transactionHash, archive.transactionHash), 'receipt transaction mismatch');
   row.blockNumber = receipt.blockNumber;
   row.txGasUsed = BigInt(receipt.gasUsed);

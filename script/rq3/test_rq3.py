@@ -302,6 +302,19 @@ class ExportTests(unittest.TestCase):
         other['blockNumber']=int(tpm[0]['tpmWindowLastBlock'])+1
         with self.assertRaisesRegex(ValueError,'tpm_window_envelope_does_not_cover_window'):
             normalized(outside)
+        # Codex r10: a late (timeout) receipt's block must be covered too
+        late=copy.deepcopy(self.records)
+        timeout=next(r for r in late if r.get('failure_reason')=='receipt_timeout')
+        timeout['blockNumber']=int(tpm[0]['tpmWindowLastBlock'])+1
+        with self.assertRaisesRegex(ValueError,'tpm_window_envelope_does_not_cover_window'):
+            normalized(late)
+        # Codex r10: broadcast TPM rows but no envelope anywhere in the window
+        bare=copy.deepcopy(self.records)
+        for r in bare:
+            for k in ('tpmWindowFirstBlock','tpmWindowLastBlock','tpmWindowFirstBlockHash','tpmWindowLastBlockHash'):
+                r.pop(k,None)
+        with self.assertRaisesRegex(ValueError,'tpm_window_envelope_missing'):
+            normalized(bare)
 
     def test_vendor_hashes(self):
         for file,sha in json.loads((ROOT/'vendor/SHA256SUMS.json').read_text()).items():

@@ -26,14 +26,19 @@ ENVELOPE = ('tpmWindowFirstBlock', 'tpmWindowLastBlock', 'tpmWindowFirstBlockHas
 def check_tpm_envelope(rows):
     """DSR C: ONE first..last envelope per window, covering every broadcast row of the window.
     Per-row envelopes could skip a block between two attempts (Codex r9), missing a ConfigUpdated."""
+    has_block = lambda r: r['blockNumber'] not in ('', None)
     tpm = [r for r in rows if r['arm'] == 'TokenPaymaster' and r['tpmWindowFirstBlockHash'] not in ('', None)]
     if not tpm:
+        # A broadcast TPM row without any envelope in the window (e.g. missing settlement event)
+        # would otherwise skip the ConfigUpdated scan entirely (Codex r10).
+        if any(r['arm'] == 'TokenPaymaster' and has_block(r) for r in rows):
+            raise ValueError('window_stop: tpm_window_envelope_missing')
         return
     envelopes = {tuple(str(r[k]) for k in ENVELOPE) for r in tpm}
     if len(envelopes) != 1:
         raise ValueError('window_stop: tpm_window_envelope_inconsistent')
     first, last = int(tpm[0]['tpmWindowFirstBlock']), int(tpm[0]['tpmWindowLastBlock'])
-    blocks = [int(r['blockNumber']) for r in rows if r['blockNumber'] not in ('', None)]
+    blocks = [int(r['blockNumber']) for r in rows if has_block(r)]
     if blocks and not (first <= min(blocks) and max(blocks) <= last):
         raise ValueError('window_stop: tpm_window_envelope_does_not_cover_window')
 def unverified(row):
