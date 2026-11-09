@@ -1,15 +1,18 @@
 #!/usr/bin/env node
+// LEGACY: pre-A3a historical snapshot; inspects the old timelock, not current governance.
 // A3a precheck: read-only snapshot of live Sepolia state relevant to runbook step 1 ①–③.
 // Usage: RPC_A=<url> RPC_B=<url> [BLOCK=<n>] node scripts/a3a-snapshot.mjs > snapshot.json
 // Only eth_call / getCode / getStorageAt / getBalance / getTransactionCount at ONE pinned block.
 // RPC URLs are read from the environment and never written to the output.
+import { readFileSync } from 'node:fs';
 import { createPublicClient, http, parseAbi, keccak256, toHex } from 'viem';
 
 const A = process.env.RPC_A, B = process.env.RPC_B;
 if (!A) { console.error('RPC_A required'); process.exit(2); }
 const SP = '0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9';
 const REG = '0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71';
-const TL = '0x86C86c789EDc099801cc6a5F48334F1D67dC9564';
+const TL = JSON.parse(readFileSync(new URL('../deployments/config.sepolia.json', import.meta.url), 'utf8')).timelockControllerLegacy;
+if (!TL) throw new Error('timelockControllerLegacy required');
 const SAFE = '0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114';
 const EOA = '0xb5600060e6de5E11D3636731964218E53caadf0E';
 const ANNI = '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9';

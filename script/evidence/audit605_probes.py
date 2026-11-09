@@ -47,6 +47,13 @@ F05 = {
 }
 CLOSING = 'ManifestTests.test_dvt_closing_binds_pointer_and_stale_proposals'
 REQUIRED = {
+    ('old_timelock_holds_nothing', 'old_timelock_approval_history'): 'ManifestTests.test_old_timelock_approval_history',
+    **{('validate_old_timelock', g): 'ManifestTests.test_'+g for g in
+       ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay', 'old_timelock_unused')},
+    ('old_timelock_holds_nothing', 'old_timelock_allowance'): 'ManifestTests.test_old_timelock_allowance',
+    ('closing_timelock_inventory', 'old_timelock_inventory'): 'ManifestTests.test_old_timelock_inventory_new_role',
+    **{('old_timelock_holds_nothing', g): 'ManifestTests.test_'+g for g in
+       ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')},
     ('validate_external', 'sampled_deployer_only'): 'ManifestTests.test_sampled_deployer_only',
     ('budget', "'budget_' + label"): 'ManifestTests.test_budget_includes_stake_and_deposit',
     ('build_plan', 'pin_pending_token_eta'): 'ManifestTests.test_pin_pending_token_eta',
@@ -58,9 +65,25 @@ REQUIRED = {
     **{(fn, g): f'{F05_CLASS[fn]}.test_{g}' for fn, gates in F05.items() for g in gates},
 }
 
+ISOLATION_FUNCTIONS = {'role_history','audit','mapping_control','never_granted_recheck'}
+REQUIRED.update({
+    ('role_history', 'old_owner_history_positive'): 'OldOwnerIsolationTests.test_history_standard_revoke_only',
+    ('role_history', 'old_owner_never_granted_set'): 'OldOwnerIsolationTests.test_never_granted_range_grant',
+    ('audit', 'old_owner_never_granted_holder'): 'OldOwnerIsolationTests.test_never_granted_control_holder',
+    ('mapping_control', 'old_owner_mapping_getter'): 'OldOwnerIsolationTests.test_mapping_function_falls_back',
+    ('audit', 'old_owner_role_control_case'): 'OldOwnerIsolationTests.test_role_control_case_without_path_gate',
+    ('mapping_control', 'old_owner_mapping_positive'): 'OldOwnerIsolationTests.test_mapping_positive_zero',
+    ('mapping_control', 'old_owner_mapping_negative'): 'OldOwnerIsolationTests.test_mapping_negative_one',
+    ('never_granted_recheck', 'old_owner_never_granted_recheck'): 'ManifestTests.test_never_granted_closing_change',
+    ('never_granted_recheck', 'old_owner_role_recheck'): 'ManifestTests.test_old_role_closing_change',
+})
 
-def sh(*args):
-    p = subprocess.run([sys.executable, '-B', str(PROBE), *args], cwd=ROOT, capture_output=True, text=True)
+REQUIRED.update({('post_pin_delta', 'old_timelock_delta_'+g): 'DeltaTests.test_old_timelock_delta_'+g
+                 for g in ('address', 'removed', 'topics', 'range', 'canonical', 'number', 'allowance', 'config_owner', 'timelock_role', 'old_role', 'targets', 'xpnts')})
+
+
+def sh(*args, module="manifest_exec", tests="test_manifest_exec"):
+    p = subprocess.run([sys.executable, '-B', str(PROBE), '--module', module, '--tests', tests, *args], cwd=ROOT, capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
 
 
@@ -75,13 +98,15 @@ def parse(rc, out):
 def probe(row):
     line, function, gate = row
     bound = REQUIRED[(function, gate)]
-    base = parse(*sh('--baseline', '--select', bound))
-    full = parse(*sh('--site', str(line), '--failfast'))
-    only = parse(*sh('--site', str(line), '--select', bound))
+    tests = 'test_old_owner_isolation' if bound.startswith('OldOwnerIsolationTests.') else 'test_manifest_exec'
+    options = dict(module='old_owner_isolation' if function in ISOLATION_FUNCTIONS else 'manifest_exec',tests=tests)
+    base = parse(*sh('--baseline', '--select', bound, **options))
+    full = parse(*sh('--site', str(line), '--failfast', **options))
+    only = parse(*sh('--site', str(line), '--select', bound, **options))
     ok = (base['status'] == 'survived' and base['ran'] >= 1 and base['errors'] == 0
           and full['status'] == 'killed' and full['errors'] == 0
           and only['status'] == 'killed' and only['errors'] == 0 and only['failures'] >= 1
-          and all(t == 'test_manifest_exec.'+bound for t in only['failed']))
+          and all(t == tests+'.'+bound for t in only['failed']))
     return dict(line=line, function=function, gate=gate, bound=bound, base=base['status'], full=full['status'],
                 only=f"{only['status']} failures={only['failures']} errors={only['errors']}", ok=ok)
 
@@ -98,6 +123,9 @@ def main():
     green = suite.returncode == 0 and re.search(r'^OK\b', suite.stderr, re.M) is not None
     print('BASELINE_SUITE', 'green' if green else 'RED', (re.findall(r'^Ran .*$', suite.stderr, re.M) or ['?'])[-1], flush=True)
     rc, listing = sh('--list')
+    isolation_rc, isolation_listing = sh('--list',module='old_owner_isolation')
+    rc = rc or isolation_rc
+    listing += '\n'+isolation_listing
     rows = []
     for l in listing.splitlines():
         m = re.match(r'\s*(\d+) (\S+)\s+(.+)$', l)

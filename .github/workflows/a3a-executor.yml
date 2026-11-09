@@ -5,22 +5,8 @@ name: a3a-executor
 # the executor itself still pins and verifies the Amsterdam engine commit at fork start.
 on:
   pull_request:
-    paths:
-      - 'script/a3a/**'
-      - 'script/upgrade/**'
-      - 'script/evidence/**'
-      - 'script/a6-collector/**'
-      - 'docs/design/aoa-balance-mode/data/a6-gauge-credit/**'
-      - '.github/workflows/a3a-executor.yml'
   push:
     branches: [main]
-    paths:
-      - 'script/a3a/**'
-      - 'script/upgrade/**'
-      - 'script/evidence/**'
-      - 'script/a6-collector/**'
-      - 'docs/design/aoa-balance-mode/data/a6-gauge-credit/**'
-      - '.github/workflows/a3a-executor.yml'
 permissions:
   contents: read
 jobs:
@@ -36,10 +22,14 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
+      - name: Offline legacy timelock address gate and negative controls
+        run: python3 -B script/upgrade/test_no_legacy_timelock.py
       - name: Install Foundry (same pin as test.yml)
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.7.1
+      - name: Build Registry build-info for test_role_init_real_build_info (interim; removed at L3)
+        run: forge build --build-info contracts/src/core/Registry.sol
       - name: Offline executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_exec.py

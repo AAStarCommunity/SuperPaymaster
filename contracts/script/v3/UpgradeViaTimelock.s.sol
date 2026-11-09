@@ -69,7 +69,14 @@ abstract contract D5bUpgradeChecks is DefaultArtifacts {
         c.entryPoint = vm.parseJsonAddress(j, ".entryPoint");
         c.priceFeed = vm.parseJsonAddress(j, ".priceFeed");
         c.dvt = _opt(j, ".dvtValidator");
-        c.timelock = vm.envOr("TIMELOCK", _opt(j, ".timelockController"));
+        c.timelock = selectTimelock(j, vm.envOr("TIMELOCK", address(0)));
+    }
+
+    /// @dev Migrated configs require a deliberate address choice, including calldata-only runs.
+    function selectTimelock(string memory j, address explicitTimelock) public view returns (address) {
+        require(!vm.keyExistsJson(j, ".timelockControllerLegacy") || explicitTimelock != address(0),
+            "TIMELOCK required after migration: A3a is Safe-only; EOA cannot schedule/execute");
+        return explicitTimelock != address(0) ? explicitTimelock : _opt(j, ".timelockController");
     }
 
     function _opt(string memory j, string memory key) internal view returns (address a) {
