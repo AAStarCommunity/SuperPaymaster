@@ -287,6 +287,22 @@ class ExportTests(unittest.TestCase):
             normalized(legacy)
         self.assertTrue(all('refundPostopCost' not in r['unverified_columns'] for r in rows))
 
+    def test_tpm_window_envelope_is_one_and_covers_the_window(self):
+        # Codex r9: per-row envelopes could skip a block between attempts (ConfigUpdated missed)
+        tpm=[r for r in self.records if r['arm']=='TokenPaymaster' and r.get('tpmWindowFirstBlockHash')]
+        self.assertTrue(tpm)
+        normalized(copy.deepcopy(self.records))
+        split=copy.deepcopy(self.records)
+        row=next(r for r in split if r['arm']=='TokenPaymaster' and r.get('tpmWindowFirstBlockHash'))
+        row['tpmWindowFirstBlockHash']='0x'+'cd'*32
+        with self.assertRaisesRegex(ValueError,'tpm_window_envelope_inconsistent'):
+            normalized(split)
+        outside=copy.deepcopy(self.records)
+        other=next(r for r in outside if r.get('blockNumber') not in (None,''))
+        other['blockNumber']=int(tpm[0]['tpmWindowLastBlock'])+1
+        with self.assertRaisesRegex(ValueError,'tpm_window_envelope_does_not_cover_window'):
+            normalized(outside)
+
     def test_vendor_hashes(self):
         for file,sha in json.loads((ROOT/'vendor/SHA256SUMS.json').read_text()).items():
             self.assertEqual(hashlib.sha256((ROOT/'vendor'/file).read_bytes()).hexdigest(),sha)

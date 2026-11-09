@@ -113,6 +113,7 @@ function extractChecked(archive) {
   const receiptDecision=receiptReady(archive);
   if(receiptDecision) return {...row,...receiptDecision};
   requireValue(eq(receipt.transactionHash, archive.transactionHash), 'receipt transaction mismatch');
+  row.blockNumber = receipt.blockNumber;
   row.txGasUsed = BigInt(receipt.gasUsed);
   row.l1FeeWei = receipt.l1Fee == null ? null : BigInt(receipt.l1Fee);
   const uoes = events(receipt, op.entryPoint, EP_EVENTS_ABI).filter(e => e.eventName === 'UserOperationEvent');
@@ -257,20 +258,36 @@ function extractChecked(archive) {
       check((args.actualGasCost+refund*pOp)*unit < 2n**256n, 'TPM arithmetic overflow');
       check(args.actualTokenCharge===(args.actualGasCost+refund*pOp)*unit/marked,
         'TPM token charge mismatch');
-      const low=ceil(marked*markup,unit), high=ceil((marked+1n)*markup,unit)-1n;
+      const {low, high, weiLow, weiHigh}=preMarkupWei(args.actualTokenCharge, marked, markup);
       check(low*unit < 2n**256n, 'TPM arithmetic overflow');
       row.refundPostopCost=refund;
       row.priceMarkup=markup;
       row.preMarkupPriceMin=low;
       row.preMarkupPriceMax=high;
       row.eventTokenChargeWei=args.actualTokenCharge*marked/unit;
-      row.tokenChargeWei=low===high ? args.actualTokenCharge*low/unit : null;
-      row.tokenChargeWeiVerified=low===high;
-      row.unverified_columns=low===high ? [] : ['tokenChargeWei'];
-      row.tokenChargeDiagnostic=low===high ? 'pre_markup_price_exact' : 'pre_markup_price_ambiguous';
+      // The converted amount is monotone in the price, so it is determined whenever both ends of
+      // the pre-markup price interval convert to the same wei, even if the price itself is not.
+      const exact=weiLow===weiHigh;
+      row.tokenChargeWei=exact ? weiLow : null;
+      row.tokenChargeWeiVerified=exact;
+      row.unverified_columns=exact ? [] : ['tokenChargeWei'];
+      row.tokenChargeDiagnostic=low===high ? 'pre_markup_price_exact' :
+        exact ? 'pre_markup_price_ambiguous_wei_exact' : 'pre_markup_price_ambiguous';
+      // Window envelope identity, checked across all rows of the window by export.py.
+      row.tpmWindowFirstBlock=config.blocks[0].number;
+      row.tpmWindowLastBlock=config.blocks.at(-1).number;
+      row.tpmWindowFirstBlockHash=archive.tpmWindow.firstBlockHash;
+      row.tpmWindowLastBlockHash=archive.tpmWindow.lastBlockHash;
     }
   }
   return row;
+}
+
+// Pre-markup price interval consistent with the logged marked price (marked = price*U/markup, floor),
+// and the wei amounts its ends give for the token charge (UniswapHelper tokenToWei: amount*price/U).
+export function preMarkupWei(charge, marked, markup) {
+  const unit=10n**26n, low=ceil(marked*markup,unit), high=ceil((marked+1n)*markup,unit)-1n;
+  return {low, high, weiLow:charge*low/unit, weiHigh:charge*high/unit};
 }
 
 export function extract(archive) {

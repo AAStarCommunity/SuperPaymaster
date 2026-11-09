@@ -5,7 +5,7 @@
       {
         "window_id": "fixture-1",
         "experiment_id": "synthetic-rq3",
-        "csv_sha256": "56286a7a3278463f982df408f3f6691c8345e61f2322325c824f8626734db2f0",
+        "csv_sha256": "94b1fd022f515c4ac3f6198d0022f0edf33d9c2ae92dab83b48fa13b46016251",
         "prior_formal_slots": 0,
         "slots": [
           0,
@@ -1153,5 +1153,5 @@
     ],
     "consumed_formal_slots": 52
   },
-  "sha256": "5fa41618083f9e2c5b7450750a68074cd23531140b972f1d05b79a4909f73dbc"
+  "sha256": "a0707669f7834fbfaaed2ee611f9a83094c942fbdbf7973478d90a2a3d3b57df"
 }

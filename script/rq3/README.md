@@ -195,6 +195,13 @@ transaction counts are not attribution evidence. The synthetic window has
 
 ## Open for DSR
 
+**C window envelope (Codex r9):** every TPM row of a window must carry the SAME first/last
+block envelope and that envelope must contain every broadcast row's block (`export.py`
+`check_tpm_envelope`); otherwise the export stops (`tpm_window_envelope_inconsistent` /
+`tpm_window_envelope_does_not_cover_window`). `tokenChargeWei` is determined whenever both ends of
+the pre-markup price interval convert the charge to the same wei (`extract.mjs` `preMarkupWei`),
+even if the price itself is ambiguous (diagnostic `pre_markup_price_ambiguous_wei_exact`).
+
 **C: event-only conversion conflicts with the protocol definition.** The supplied
 `82453054 main.tex sec:gas` definition requires pre-markup price so markup appears
 in `s_c`; the event logs the price after markup. This definition was supplied in

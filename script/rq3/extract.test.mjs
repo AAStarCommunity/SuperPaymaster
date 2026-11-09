@@ -129,8 +129,9 @@ test('TPM verified refund uses both hash-bound raw config replies; ambiguity sta
   const marked=extract(a).actualTokenPriceWithMarkup;
   a.tpmWindow.configFirst=a.tpmWindow.configLast=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[2n*unit,0n,40000,3600]);
   a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',2n*marked);
-  assert.equal(extract(a).tokenChargeWeiVerified,false);
-  assert.deepEqual(extract(a).unverified_columns,['tokenChargeWei']);
+  // 2U markup: two pre-markup prices fit but convert to the same wei (review r9), so verified
+  assert.equal(extract(a).tokenChargeWeiVerified,true);
+  assert.deepEqual(extract(a).unverified_columns,[]);
   a.tpmWindow.configFirst=a.tpmWindow.configLast=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[unit,0n,40000,3600]);
   a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',marked);
   assert.equal(extract(a).tokenChargeWeiVerified,true);
@@ -443,8 +444,18 @@ test('C event-only conversion cancels markup; protocol conversion requires uniqu
   const ambiguous=extract(a);
   assert.equal(ambiguous.preMarkupPriceMin,545454545454545454545454544n);
   assert.equal(ambiguous.preMarkupPriceMax,545454545454545454545454545n);
-  assert.equal(ambiguous.tokenChargeWei,null);assert.equal(ambiguous.tokenChargeWeiVerified,false);
+  // two prices fit, but both convert this charge to the same wei: the metric is determined (review r9)
+  assert.equal(ambiguous.tokenChargeWei,6560007n);assert.equal(ambiguous.tokenChargeWeiVerified,true);
   assert.equal(ambiguous.eventTokenChargeWei,3280003n);
-  assert.equal(ambiguous.tokenChargeDiagnostic,'pre_markup_price_ambiguous');
-  assert.deepEqual(ambiguous.unverified_columns,['tokenChargeWei']);
+  assert.equal(ambiguous.tokenChargeDiagnostic,'pre_markup_price_ambiguous_wei_exact');
+  assert.deepEqual(ambiguous.unverified_columns,[]);
+});
+
+test('C a pre-markup interval whose ends convert to different wei stays unverified',async()=>{
+  const {preMarkupWei}=await import('./extract.mjs');
+  const U=10n**26n, marked=545454545454545454545454545n/2n, markup=2n*U;
+  const tight=preMarkupWei(1202668n,272727272727272727272727272n,2n*U);
+  assert.equal(tight.weiLow,tight.weiHigh);
+  const wide=preMarkupWei(10n**27n,marked,markup);
+  assert.ok(wide.high>wide.low); assert.notEqual(wide.weiLow,wide.weiHigh);
 });

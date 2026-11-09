@@ -17,7 +17,25 @@ COLUMNS = sorted(gate.REQUIRED_COLUMNS | set(gate.OPTIONAL_INT_COLUMNS) |
                   'unverified_columns', 'unusedGasPenaltyMin', 'unusedGasPenaltyMax',
                   'gasBeforePenaltyCandidates', 'actualTokenPriceWithMarkup', 'stop_reason', 'diagnostic',
                   'tokenChargeWeiVerified', 'reserveDeltaVerified', 'reserveDeltaDiagnostic',
-                  'priceMarkup', 'preMarkupPriceMin', 'preMarkupPriceMax', 'eventTokenChargeWei', 'tokenChargeDiagnostic'})
+                  'priceMarkup', 'preMarkupPriceMin', 'preMarkupPriceMax', 'eventTokenChargeWei', 'tokenChargeDiagnostic',
+                  'blockNumber', 'tpmWindowFirstBlock', 'tpmWindowLastBlock',
+                  'tpmWindowFirstBlockHash', 'tpmWindowLastBlockHash'})
+ENVELOPE = ('tpmWindowFirstBlock', 'tpmWindowLastBlock', 'tpmWindowFirstBlockHash', 'tpmWindowLastBlockHash')
+
+
+def check_tpm_envelope(rows):
+    """DSR C: ONE first..last envelope per window, covering every broadcast row of the window.
+    Per-row envelopes could skip a block between two attempts (Codex r9), missing a ConfigUpdated."""
+    tpm = [r for r in rows if r['arm'] == 'TokenPaymaster' and r['tpmWindowFirstBlockHash'] not in ('', None)]
+    if not tpm:
+        return
+    envelopes = {tuple(str(r[k]) for k in ENVELOPE) for r in tpm}
+    if len(envelopes) != 1:
+        raise ValueError('window_stop: tpm_window_envelope_inconsistent')
+    first, last = int(tpm[0]['tpmWindowFirstBlock']), int(tpm[0]['tpmWindowLastBlock'])
+    blocks = [int(r['blockNumber']) for r in rows if r['blockNumber'] not in ('', None)]
+    if blocks and not (first <= min(blocks) and max(blocks) <= last):
+        raise ValueError('window_stop: tpm_window_envelope_does_not_cover_window')
 def unverified(row):
     if row['arm'] == 'TokenPaymaster' and row.get('tokenChargeWeiVerified') is not True:
         return ['tokenChargeWei'] if row['tokenChargeWei'] not in ('', None) or row.get('tokenChargeDiagnostic') == 'pre_markup_price_ambiguous' else []
@@ -54,6 +72,7 @@ def normalized(records, include_unverified=False):
         if row['arm'] == 'SP' and int(row['paymasterPostOpGasLimit']) < 480000:
             raise ValueError('SP postOp limit must be >= 480000')
         rows.append(row)
+    check_tpm_envelope(rows)
     return rows
 
 
