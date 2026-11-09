@@ -28,6 +28,8 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.7.1
+      - name: Build Registry build-info for test_role_init_real_build_info (interim; removed at L3)
+        run: forge build --build-info contracts/src/core/Registry.sol
       - name: Offline executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_exec.py

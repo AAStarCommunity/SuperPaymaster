@@ -698,7 +698,7 @@ def rebuild_commit(head):
     arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
     a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release"), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release", names=tuple(sorted(set(isolation.NAMES) | {"xPNTsFactoryV2", "xPNTsTokenV2", "xPNTsTokenV2Ext"}))), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -913,12 +913,144 @@ def validate_old_timelock(pin):
     a.need('old_timelock_unused', next(reads, None), None)
 
 
+# Getter discovery changes only at these reviewed steps. Deployments also expand coverage.
+DISCOVERY_STEPS = {
+    'A4.factory': 'factory deployment',
+    'A6.upgrade': 'Registry implementation; getters unchanged',
+    'upgrade_execute_exec': 'factory pointer',
+    'C3.deploy': 'factory token enumeration',
+    'C3.configure': 'operator token',
+}
+
+
+def pin_discovery(pin):
+    section = pin['oldOwnerIsolation']
+    return dict(targets=copy.deepcopy(section['targets']), xpnts=list(section['xpnts']))
+
+
+def build_expected_discovery(plan):
+    state = pin_discovery(plan['pin'])
+    expected = {}
+    required_ids = set(DISCOVERY_STEPS)
+    if plan['stage'] == 'a7':
+        required_ids -= {'upgrade_execute_exec', 'C3.deploy', 'C3.configure'}
+    elif plan['stage'] == 'b4':
+        required_ids -= {'C3.deploy', 'C3.configure'}
+    ids = [s['id'] for s in plan['steps']]
+    a.need('discovery_step_table', set(ids) & set(DISCOVERY_STEPS) == required_ids and len(ids) == len(set(ids)), True)
+    factory = plan['addresses']['xPNTsFactoryV2']
+    token = a.create_address(factory, 1)
+    sensitive = ('setXPNTsFactory(address)', 'deployxPNTsToken(string,string,string,string,uint256,address)',
+                 'configureOperator(address,address)', 'setStaking(address)', 'setMySBT(address)', 'upgradeToAndCall(address,bytes)')
+    schedules = {a.keccak(sig)[:10] for sig in plan['rebuild']['calldataSignatures'] if sig.startswith(('schedule(', 'scheduleBatch('))}
+    allowed = {sensitive[0]: {'upgrade_execute_exec'}, sensitive[1]: {'C3.deploy'}, sensitive[2]: {'C3.configure'},
+               sensitive[5]: {'A6.upgrade', 'upgrade_execute_exec'}}
+    for step in plan['steps']:
+        sid = step['id']
+        # Inspect executed payloads, excluding Safe approvals and timelock scheduling.
+        data, effects = step['tx']['data'], []
+        if step['tx']['to'] is not None:
+            decoded = isolation.assert_manifest_calldata([step], plan['rebuild']['calldataSignatures'])
+            outer = decoded[-1] if decoded else {}
+            payload = outer.get('arguments', [])[2] if outer.get('signature', '').startswith('execTransaction(') else data
+            inactive = data[:10] == a.keccak('approveHash(bytes32)')[:10] or payload[:10] in schedules
+            effects = [] if inactive else [r for r in decoded if r['signature'] in sensitive]
+            a.need('discovery_unlisted_effect', all(sid in allowed.get(r['signature'], set()) for r in effects), True)
+        if sid == 'A4.factory':
+            a.need('discovery_factory_prediction', step.get('creates'), factory)
+            state['targets']['releaseFactory'] = factory
+        elif sid == 'upgrade_execute_exec':
+            calls = [r['arguments'][0].lower() for r in effects if r['signature'] == sensitive[0]]
+            a.need('discovery_factory_argument', bool(calls) and set(calls) == {factory}, True)
+            state['targets']['legacyFactory'] = state['targets']['xPNTsFactory']
+            state['targets']['xPNTsFactory'] = factory
+        elif sid == 'C3.deploy':
+            a.need('discovery_token_prediction', step['tx']['to'] == factory and
+                   data == a.calldata('deployxPNTsToken(string,string,string,string,uint256,address)', *PC_TOKEN, PC_RATE, a.ZERO) and
+                   any(r.get('kind') == 'code' and r['target'] == token for r in step['readbacks']), True)
+            state['xpnts'] = sorted(set(state['xpnts']) | {token})
+        elif sid == 'C3.configure':
+            a.need('discovery_operator_argument', step['tx']['to'] == u.SP and
+                   data == a.calldata('configureOperator(address,address)', token, PC_TREASURY), True)
+            state['xpnts'] = sorted(set(state['xpnts']) | {token})
+        expected[sid] = copy.deepcopy(state)
+    return expected
+
+
+def expected_discovery(plan, passed):
+    state = pin_discovery(plan['pin'])
+    for step in plan['steps']:
+        if step['id'] in passed:
+            state = plan['expectedDiscoveryAfter'][step['id']]
+    return copy.deepcopy(state)
+
+
+def discovery_coverage(plan, passed):
+    pin = copy.deepcopy(plan['pin'])
+    section = pin['oldOwnerIsolation']
+    state = expected_discovery(plan, passed)
+    section['targets'].update(state['targets'])
+    section['xpnts'] = sorted(set(section['xpnts']) | set(state['xpnts']) | set(isolation.ROUND_CLONES))
+    section['tokens'] = sorted(set(section['tokens']) | set(section['xpnts']))
+    inventory = section['inventory']
+    old_factory = plan['pin']['oldOwnerIsolation']['targets']['xPNTsFactory']
+    if 'A4.factory' in passed:
+        factory = plan['addresses']['xPNTsFactoryV2']
+        section['targets']['legacyFactory'] = old_factory
+        section['targets']['releaseFactory'] = factory
+        pin['discoveryReleaseFactory'] = factory
+        inventory['legacyFactory'] = inventory.get('targetInventories', {}).get(old_factory, inventory['xPNTsFactory'])
+        release = plan['rebuild']['oldOwnerInventory']
+        inventory['releaseFactory'] = release['xPNTsFactoryV2']
+        inventory.setdefault('targetInventories', {})[factory] = release['xPNTsFactoryV2']
+        for token in set(section['xpnts']) - set(plan['pin']['oldOwnerIsolation']['xpnts']):
+            spec = copy.deepcopy(release['xPNTsTokenV2'])
+            for group in ('roles', 'authorities', 'mappings'):
+                rows = {r['signature']: r for r in spec[group]}
+                rows.update({r['signature']: r for r in release['xPNTsTokenV2Ext'][group]})
+                spec[group] = list(rows.values())
+            inventory['targetInventories'][token] = spec
+    pin['discoveryExpected'] = state
+    pin['discoveryOriginalFactory'] = old_factory
+    pin['discoveryRetainedTokens'] = plan['pin']['oldOwnerIsolation']['xpnts']
+    return pin
+
+
+def current_discovery(rpc, pin, block):
+    found = isolation.discover_targets(rpc, dict(pin, stateBlock=block))
+    if 'discoveryReleaseFactory' in pin and u.code(rpc, pin['discoveryReleaseFactory'], block) != '0x':
+        found['releaseFactory'] = [pin['discoveryReleaseFactory']]
+        if found['xPNTsFactory'] != found['releaseFactory']:
+            tokens = u.addr_array(a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block))
+            found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
+    if 'discoveryOriginalFactory' in pin and found['xPNTsFactory'][0] != pin['discoveryOriginalFactory']:
+        found['legacyFactory'] = [pin['discoveryOriginalFactory']]
+        tokens = u.addr_array(a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block))
+        found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
+    return dict(targets={name: group[0] for name, group in found.items() if name != 'xPNTsToken'},
+                xpnts=sorted(set(found['xPNTsToken']) | set(pin.get('isolationLegacyTokens', []))))
+
+
+def discovery_old_authority(rpc, pin, block):
+    rows = isolation.authority_rows(pin['oldOwnerIsolation'])
+    clean = []
+    for target, sig, args, kind in rows:
+        args = [isolation.OLD if arg == isolation.OLD_TIMELOCK else arg for arg in args]
+        raw = a.call(rpc, target, sig, *args, block=block)
+        clean.append(u.config(raw)['owner'] != isolation.OLD if kind == 'config' else
+                     u.addr_word(u.uints(raw)[0]) != isolation.OLD if kind == 'address' else u.uints(raw) == [0])
+    for token in pin['oldOwnerIsolation']['tokens']:
+        for holder in isolation.allowance_holders():
+            clean.append(u.uints(a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD, block=block)) == [0])
+    a.need('discovery_old_authority', all(clean), True)
+
+
 def closing_timelock_inventory(rpc, pin, block):
     current = dict(pin, stateBlock=block)
     section = copy.deepcopy(pin['oldOwnerIsolation'])
-    found = isolation.discover_targets(rpc, current)
-    section['xpnts'] = sorted(set(found.pop('xPNTsToken')) | set(pin.get('isolationLegacyTokens', [])))
-    section['targets'] = {name: group[0] for name, group in found.items()}
+    found = current_discovery(rpc, pin, block)
+    expected = pin.get('discoveryExpected', pin_discovery(pin))
+    section['xpnts'] = sorted(set(section['xpnts']) | set(found['xpnts']))
     section['tokens'] = sorted({pin['capped'], isolation.OLD_TOKEN, section['targets']['GToken'], *section['xpnts']})
     inventory = section['inventory']
     deployments = {r['target']: r['creationBlock'] for r in inventory.get('deployedSources', [])}
@@ -931,16 +1063,75 @@ def closing_timelock_inventory(rpc, pin, block):
     spec = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
     logs = isolation.bounded_history_logs(rpc, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
         toBlock=block, topics=[spec['roleEventTopic']]))
-    section['configuredRoles'] = sorted({log['topics'][1] for log in logs} | set(section['roleHistory'].get(u.REG, [])))
-    fields = ('targets', 'xpnts', 'tokens', 'roleHistory', 'configuredRoles')
-    a.need('old_timelock_inventory', {k: section[k] for k in fields},
-           {k: pin['oldOwnerIsolation'][k] for k in fields})
+    section['configuredRoles'] = sorted({r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs} | set(section['roleHistory'].get(u.REG, [])))
+    fields = ('configuredRoles',) if 'discoveryExpected' in pin else ('targets', 'xpnts', 'tokens', 'roleHistory', 'configuredRoles')
+    # Coverage never shrinks: every pin target keeps its pinned role history, even after planned discovery changes.
+    pinned = pin['oldOwnerIsolation']['roleHistory']
+    a.need('old_timelock_inventory_pinned_history', {t: section['roleHistory'].get(t) for t in pinned}, pinned)
+    a.need('old_timelock_inventory', (found, {k: section[k] for k in fields}),
+           (expected, {k: pin['oldOwnerIsolation'][k] for k in fields}))
     return dict(pin, oldOwnerIsolation=section)
 
 
+def post_pin_delta(rpc, pin, block):
+    section = pin['oldOwnerIsolation']
+    start, stop = a.qty(pin['stateBlock'])+1, a.qty(block)
+    owners = copy.deepcopy(pin['oldTimelock']['approvalOwners'])
+    counts, checked, canonical = {}, {}, {}
+    spender = '0x'+isolation.OLD_TIMELOCK[2:].zfill(64)
+    approval = a.keccak('Approval(address,address,uint256)')
+    inventory = section['inventory']
+    registry = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
+    configured = registry['roleEventTopic']
+    def scan(target, topics):
+        logs = isolation.bounded_history_logs(rpc, dict(address=target, fromBlock=hex(start), toBlock=block, topics=topics)) if start <= stop else []
+        for log in logs:
+            a.need('old_timelock_delta_address', log.get('address'), target)
+            a.need('old_timelock_delta_removed', log.get('removed', False), False)
+            ts = log.get('topics', [])
+            signatures = topics[0] if isinstance(topics[0], list) else [topics[0]]
+            length = 2 if ts and ts[0] == configured else 3 if ts and ts[0] in (approval, a.keccak(isolation.REGISTERED), a.keccak(isolation.EXITED)) else 4
+            a.need('old_timelock_delta_topics', isinstance(ts, list) and len(ts) == length and ts[0] in signatures and
+                   all(isinstance(t, str) and re.fullmatch(r'0x[0-9a-fA-F]{64}', t) for t in ts) and
+                   (topics[0] != approval or ts[2] == spender), True)
+            number = a.qty(a.typed(log.get('blockNumber'), a.QTY))
+            a.need('old_timelock_delta_range', start <= number <= stop, True)
+            if number not in canonical:
+                canonical[number] = rpc('eth_getBlockByNumber', [hex(number), False])
+            a.need('old_timelock_delta_canonical', log.get('blockHash'), canonical[number]['hash'])
+            a.need('old_timelock_delta_number', canonical[number]['number'], hex(number))
+        counts[target+':'+str(topics[0])] = len(logs)
+        return logs
+    for token in section['tokens']:
+        holders = set(owners.get(token, []))
+        for log in scan(token, [approval, None, spender]):
+            holders.add(u.addr_word(int(log['topics'][1], 16)))
+        owners[token] = sorted(holders)
+        for holder in sorted(holders - set(pin['oldTimelock']['approvalOwners'].get(token, []))):
+            a.need('old_timelock_delta_allowance', u.uints(a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK, block=block)), [0])
+    configured_roles = {log['topics'][1] for log in scan(u.REG, [configured])}
+    for name, target in [*sorted(section['targets'].items()), *(('xPNTsToken', t) for t in section['xpnts'])]:
+        spec = inventory.get('targetInventories', {}).get(target, inventory[name])
+        roles = set(configured_roles) if target == u.REG else set()
+        if spec['hasRole']:
+            events = [isolation.GRANTED, isolation.REVOKED] + ([isolation.REGISTERED, isolation.EXITED] if target == u.REG else [])
+            roles.update(log['topics'][1] for log in scan(target, [[a.keccak(e) for e in events]]))
+        checked[target] = sorted(roles)
+        for role in sorted(roles):
+            if target == u.REG:
+                a.need('old_timelock_delta_config_owner', u.config(a.call(rpc, target, 'getRoleConfig(bytes32)', role, block=block))['owner'] != isolation.OLD_TIMELOCK, True)
+            if spec['hasRole']:
+                a.need('old_timelock_delta_timelock_role', u.uints(a.call(rpc, target, 'hasRole(bytes32,address)', role, isolation.OLD_TIMELOCK, block=block)), [0])
+                a.need('old_timelock_delta_old_role', u.uints(a.call(rpc, target, 'hasRole(bytes32,address)', role, isolation.OLD, block=block)), [0])
+    found = current_discovery(rpc, pin, block)
+    expected = pin.get('discoveryExpected', pin_discovery(pin))
+    a.need('old_timelock_delta_targets', found['targets'], expected['targets'])
+    a.need('old_timelock_delta_xpnts', found['xpnts'], expected['xpnts'])
+    return dict(fromBlock=hex(start), toBlock=block, logCounts=counts, rolesChecked=checked, approvalOwners=owners)
+
+
 def old_timelock_holds_nothing(rpc, pin, block, owners=None):
-    # owners: the pin's discovered Approval owners per token. pre_send passes them to skip the log scan (every
-    # other read and predicate runs live at `block`); closing and the pin rediscover them.
+    # pre_send supplies pinned owners plus the post-pin delta; closing and the pin scan full history.
     section = pin['oldOwnerIsolation']
     reads = []
     def call(target, sig, *args):
@@ -1003,7 +1194,8 @@ def dvt_closing(rpc, plan):
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
-    never_granted = isolation.never_granted_recheck(rpc,plan['pin'],block)
+    coverage = discovery_coverage(plan, {s['id'] for s in plan['steps']})
+    never_granted = isolation.never_granted_recheck(rpc, coverage, block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
     pointers = dict(registry=a.address(rpc, u.REG, 'blsAggregator()', block), dvt=a.address(rpc, dvt, 'BLS_AGGREGATOR()', block),
                     committee=a.address(rpc, d['committee'], 'blsAggregator()', block))
@@ -1014,8 +1206,10 @@ def dvt_closing(rpc, plan):
     a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
         a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))[3]), (proposal, 0))
+    closing = closing_timelock_inventory(rpc, coverage, block)
+    discovery_old_authority(rpc, closing, block)
     return dict(neverGranted=never_granted, block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS),
-                oldTimelock=old_timelock_holds_nothing(rpc, closing_timelock_inventory(rpc, plan['pin'], block), block))
+                oldTimelock=old_timelock_holds_nothing(rpc, closing, block))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1964,6 +2158,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         isolation.assert_manifest_calldata(steps, arts['calldataSignatures'])
         if stage in PC_STAGES:
             plan['phaseC'] = phase_c
+        plan['expectedDiscoveryAfter'] = build_expected_discovery(plan)
         bind_timing(plan)
         plan['prefixDigest'] = prefix_digest(plan)
         prefix_pin = {k: v for k, v in pin.items() if k != 'phaseC'}
@@ -3001,11 +3196,13 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
     block = a.block_data(rpc,'latest')['number']
-    isolation.never_granted_recheck(rpc,plan['pin'],block)
     # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
-    # Without the pin's owner set (never for a valid plan) fall back to full rediscovery.
-    owners = (plan['pin'].get('oldTimelock') or {}).get('approvalOwners')
-    old_timelock_holds_nothing(rpc, plan['pin'], block, owners if isinstance(owners, dict) else None)
+    coverage = discovery_coverage(plan, context.get('passed', set()))
+    isolation.never_granted_recheck(rpc, coverage, block)
+    delta = post_pin_delta(rpc, coverage, block)
+    context['oldTimelockDelta'] = delta
+    discovery_old_authority(rpc, coverage, block)
+    old_timelock_holds_nothing(rpc, coverage, block, delta['approvalOwners'])
     handover_gate(rpc, plan, step, context)
     if step.get('phase') == 'C':
         phase_c_pre_send(rpc, plan, step, context)

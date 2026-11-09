@@ -67,7 +67,7 @@ REQUIRED = {
 
 ISOLATION_FUNCTIONS = {'role_history','audit','mapping_control','never_granted_recheck'}
 REQUIRED.update({
-    ('role_history', 'old_owner_history_positive'): 'OldOwnerIsolationTests.test_history_all_roles_zero',
+    ('role_history', 'old_owner_history_positive'): 'OldOwnerIsolationTests.test_history_standard_revoke_only',
     ('role_history', 'old_owner_never_granted_set'): 'OldOwnerIsolationTests.test_never_granted_range_grant',
     ('audit', 'old_owner_never_granted_holder'): 'OldOwnerIsolationTests.test_never_granted_control_holder',
     ('mapping_control', 'old_owner_mapping_getter'): 'OldOwnerIsolationTests.test_mapping_function_falls_back',
@@ -77,6 +77,9 @@ REQUIRED.update({
     ('never_granted_recheck', 'old_owner_never_granted_recheck'): 'ManifestTests.test_never_granted_closing_change',
     ('never_granted_recheck', 'old_owner_role_recheck'): 'ManifestTests.test_old_role_closing_change',
 })
+
+REQUIRED.update({('post_pin_delta', 'old_timelock_delta_'+g): 'DeltaTests.test_old_timelock_delta_'+g
+                 for g in ('address', 'removed', 'topics', 'range', 'canonical', 'number', 'allowance', 'config_owner', 'timelock_role', 'old_role', 'targets', 'xpnts')})
 
 
 def sh(*args, module="manifest_exec", tests="test_manifest_exec"):
