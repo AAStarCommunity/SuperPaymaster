@@ -273,6 +273,19 @@ contract PendingGuardianExitFreezeTest is Test {
 
     /// The tight case for the invariant GUARDIAN_SLASH_CASE_WINDOW > DELAY + CHALLENGE + WINDOW: a case
     /// queued right after the notice opens must still be pending when that notice's withdrawal window ends.
+    /// DSR rc.8 parameters, pinned as literals so a mutation that still satisfies the inequalities (e.g. a
+    /// six-day case window) fails here.
+    function test_DsrApprovedTimingParameters() public view {
+        assertEq(bls.GUARDIAN_EXIT_DELAY(), 2 days);
+        assertEq(bls.GUARDIAN_FRAUD_CHALLENGE(), 1 days);
+        assertEq(bls.GUARDIAN_EXIT_WINDOW(), 1 days);
+        assertEq(bls.GUARDIAN_SLASH_CASE_WINDOW(), 5 days);
+        assertEq(bls.VERIFIER_ROTATION_DELAY(), 5 days);
+        assertEq(bls.VERIFIER_ROTATION_DELAY(), bls.GUARDIAN_SLASH_CASE_WINDOW());
+        assertGt(bls.GUARDIAN_SLASH_CASE_WINDOW(),
+            bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_FRAUD_CHALLENGE() + bls.GUARDIAN_EXIT_WINDOW());
+    }
+
     function test_CaseQueuedAtNoticeOpenOutlivesWholeNotice() public {
         vm.prank(guardian);
         bls.requestGuardianExit();

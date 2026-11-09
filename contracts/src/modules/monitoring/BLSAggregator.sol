@@ -1105,7 +1105,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // verifyAndExecute; the reversible pre-flag has its own dedicated quorum-gated
         // entry (queueSlashWithConsensus) — neither should be a generic .call, and
         // routing queueSlash through executeProposal would also consume its
-        // proposalId (executedProposals), breaking a later
+        // proposalId (executedProposals + markProposalExecuted), breaking a later
         // verifyAndExecute for the same id. Selector-scoped (not target-scoped) so
         // Registry.updateOperatorBlacklist still works.
         if (callData.length >= 4) {
@@ -1134,6 +1134,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 5. Mark as Executed
         executedProposals[proposalId] = true;
+        if (DVT_VALIDATOR != address(0)) {
+            IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
+        }
 
         emit ProposalExecuted(proposalId, target, keccak256(callData));
     }
@@ -1591,14 +1594,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         structurally instead (execution never calls a verifier at all, see
     ///         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay
     ///         still buys is the direction that matters: ARMING or REPLACING the
-    ///         authority behind a 100%-of-lock slash is publicly visible for four days
+    ///         authority behind a 100%-of-lock slash is publicly visible for five days
     ///         before it can act. It is deliberately NOT applied to disarming — see
     ///         `emergencyDisarmFraudProofVerifier`, which is immediate because it only
     ///         ever removes power (CC-48 round-5 MEDIUM-2).
     /// @dev    ROLE_DVT exit is now gated by requestGuardianExit + a bounded
-    ///         unbonding delay. The request immediately removes the guardian from
-    ///         valid signer masks; a verifier-approved queued case increments the
-    ///         pending counter and Registry cannot consume the exit until all cases
+    ///         unbonding delay. The guardian leaves valid signer masks at readyAt and can
+    ///         withdraw only after a further GUARDIAN_FRAUD_CHALLENGE; a verifier-approved
+    ///         queued case increments the pending counter and Registry cannot consume the exit until all cases
     ///         resolve. Governance must wire this aggregator into Registry before
     ///         arming the verifier.
     function proposeFraudProofVerifier(address verifier) external onlyOwner {
@@ -1636,9 +1639,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         guardian-slash case can be opened from this block onwards.
     /// @dev    CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a
     ///         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +
-    ///         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A
+    ///         `VERIFIER_ROTATION_DELAY` (5 days) + `applyFraudProofVerifier`. A
     ///         compromised verifier can open a case and have it executed for 100% of
-    ///         every accused guardian's lock within a SINGLE block, so a four-day
+    ///         every accused guardian's lock within a SINGLE block, so a five-day
     ///         remedy was not a remedy. This call is the answer to "the verifier is
     ///         lying, stop it now".
     ///
@@ -1652,7 +1655,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///
     ///         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier
     ///         revisions of this comment claimed a stolen `owner` "gains nothing new"
-    ///         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal
+    ///         because `proposeFraudProofVerifier(0)` + 5 days reached the same terminal
     ///         state. That is FALSE in the only dimension that matters here — TIME — and
     ///         it is retracted:
     ///           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in
@@ -1671,7 +1674,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could
     ///             still open cases that round-4's frozen verdict then protected.
     ///           • This power is accepted deliberately: a compromised verifier can slash
-    ///             100% of every accused guardian's lock inside ONE block, so a four-day
+    ///             100% of every accused guardian's lock inside ONE block, so a five-day
     ///             remedy is not a remedy, and censoring future accusations is strictly
     ///             less damaging than that. It is a trade, not a free win.
     ///           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and
@@ -1681,7 +1684,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///             not defence in depth.
     ///             The in-contract 4-day delay still governs RE-ARMING: there is no
     ///             counterpart that sets a non-zero verifier, so coming back on-line
-    ///             remains propose -> 4 days -> apply, and disarm is not a fast path to a
+    ///             remains propose -> 5 days -> apply, and disarm is not a fast path to a
     ///             verifier of the owner's choosing.
     ///           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8
     ///             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns

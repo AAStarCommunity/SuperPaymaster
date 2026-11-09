@@ -14,11 +14,9 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 /// @dev BLSAggregator rejects a zero DVT_VALIDATOR and makes a typed call into it
 ///      after execution, so the address must hold code.
 contract PragueStateMachineDVTStub {
-    bool public rejectSlashCallback;
 
-    function setRejectSlashCallback() external { rejectSlashCallback = true; }
 
-    function markProposalExecuted(uint256) external view { require(!rejectSlashCallback, "slash-only callback"); }
+    function markProposalExecuted(uint256) external {}
 }
 
 /// @dev Stands in for the DVT repo's fraud-proof verifier. Deliberately NOT a BLS
@@ -181,7 +179,7 @@ contract CC48PragueStateMachine is Test {
         observedGenericCommitment = agg.proposalSignersCommitment(proposalId);
     }
 
-    function test_Prague_GenericProposalRecordsSignersWithoutSlashCallback() public {
+    function test_Prague_GenericProposalRecordsSigners() public {
         _skipWithoutPrague();
         uint256 id = 7191;
         bytes memory callData = abi.encodeCall(this.observeGenericCommitment, (id));
@@ -193,7 +191,6 @@ contract CC48PragueStateMachine is Test {
         bytes32 expected = keccak256(abi.encode(
             agg.domainSeparator(), agg.TAG_SIGNERS_COMMITMENT(), id, h, uint256(7), signers
         ));
-        dvtSink.setRejectSlashCallback();
         agg.executeProposal(id, address(this), callData, 3, _proof(h, 3));
         assertEq(observedGenericCommitment, expected);
         assertEq(agg.proposalSignersCommitment(id), expected);

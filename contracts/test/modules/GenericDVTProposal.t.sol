@@ -195,20 +195,6 @@ contract GenericDVTProposalTest is Test {
     // Success Cases
     // ========================================
 
-    function test_GenericProposalDoesNotTouchSlashTracker() public {
-        bytes memory callData = abi.encodeCall(MockTarget.setValue, (123));
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
-        vm.mockCallRevert(
-            address(dvtValidator), abi.encodeWithSelector(MockDVTValidator.markProposalExecuted.selector, 900),
-            abi.encodeWithSignature("ProposalDoesNotExist()")
-        );
-        vm.prank(owner);
-        bls.executeProposal(900, address(target), callData, 3, _createMockProof(3));
-        assertEq(target.lastValue(), 123);
-        assertTrue(bls.executedProposals(900));
-        assertFalse(dvtValidator.executedProposals(900));
-    }
-
     function test_GenericCommitmentIsStoredBeforeTargetCall() public {
         bytes memory callData = abi.encodeCall(MockTarget.observeCommitment, (901));
         bytes32 messageHash = keccak256(abi.encode(
