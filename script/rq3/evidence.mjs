@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 // Archived EIP-1898 requests and raw ABI replies from two distinct endpoints.
 import { baselineFor } from './baseline.mjs';
-import { decodeFunctionResult, encodeFunctionData, parseAbi, keccak256 } from 'viem';
+import { BaseError, decodeFunctionResult, encodeFunctionData, parseAbi, keccak256 } from 'viem';
 export const STATE_ABI = parseAbi([
   'function tokenPaymasterConfig() view returns (uint256 priceMarkup,uint128 minEntryPointBalance,uint48 refundPostopCost,uint48 priceMaxAge)',
   'function cachedPrice() view returns (uint256)',
@@ -14,6 +14,15 @@ export class EvidenceError extends Error {
 export const check = (condition, diagnostic, reason = 'collector_corruption') => {
   if (!condition) throw new EvidenceError(reason, diagnostic);
 };
+// Decoding archived (external) bytes: a viem decode failure there is malformed evidence ->
+// collector_corruption. Internal ABI/encoding errors are NOT wrapped and still abort.
+export function decodeExternal(decode, label) {
+  try { return decode(); }
+  catch (error) {
+    if (error instanceof BaseError) throw new EvidenceError('collector_corruption', `${label}: ${error.shortMessage ?? error.name}`);
+    throw error;
+  }
+}
 export function dualRead(records, address, blockHash, functionName, args = []) {
   check(records?.length === 2 && records[0].endpoint && records[1].endpoint &&
     records[0].endpoint !== records[1].endpoint, 'two distinct RPC archives required');
@@ -25,7 +34,8 @@ export function dualRead(records, address, blockHash, functionName, args = []) {
     'hash-bound state read mismatch');
   }
   check(records[0].result === records[1].result, 'state replies disagree', 'rpc_mismatch');
-  return decodeFunctionResult({abi:STATE_ABI, functionName, data:records[0].result});
+  return decodeExternal(() => decodeFunctionResult({abi:STATE_ABI, functionName, data:records[0].result}),
+    `malformed ${functionName} reply`);
 }
 export function checkRuntime(baseline, records, address, blockHash) {
   check(baseline?.tpm_runtime_codehash && baseline?.frozen_build_sha256,

@@ -286,3 +286,12 @@ test('malformed archived evidence is a corruption row, not an aborted batch (rev
     .find(c=>c.input?.startsWith('0x7c627b21')); f.input=f.input.slice(0,10);
   corrupt(b,/./);
 });
+
+test('an internal ABI regression still aborts; it is never recorded as corruption (review r6)',async()=>{
+  const ev=await import('./evidence.mjs');
+  const saved=[...ev.STATE_ABI];
+  const i=ev.STATE_ABI.findIndex(x=>x.name==='tokenPaymasterConfig'); ev.STATE_ABI.splice(i,1);
+  try { assert.throws(()=>extract(fixture(0,'TokenPaymaster')),/tokenPaymasterConfig/); }
+  finally { ev.STATE_ABI.splice(0,ev.STATE_ABI.length,...saved); }
+  assert.equal(extract(fixture(0,'TokenPaymaster')).success,true);
+});

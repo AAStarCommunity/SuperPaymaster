@@ -1,8 +1,8 @@
 // Offline archive extraction. No clients, transport, signer, or chain calls.
-import { BaseError, decodeAbiParameters, decodeEventLog, decodeFunctionData, parseAbi, toFunctionSelector } from 'viem';
+import { decodeAbiParameters, decodeEventLog, decodeFunctionData, parseAbi, toFunctionSelector } from 'viem';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { dualRead, checkRuntime, check, invertPenalty, receiptReady } from './evidence.mjs';
+import { dualRead, checkRuntime, check, decodeExternal, invertPenalty, receiptReady } from './evidence.mjs';
 export { invertPenalty } from './evidence.mjs';
 import { EP_EVENTS_ABI, SP_EVENTS_ABI } from '../a6-collector/gauge-lib.mjs';
 
@@ -27,7 +27,7 @@ export function spFormula(context, cPreWei, pOp) {
   requireValue([352, 384].includes(length), 'invalid context length');
   const types = ['address', 'address', 'uint256', 'bytes32', 'address', 'uint8',
     'uint128', 'uint128', 'int256', 'uint8', 'uint256', ...(length === 384 ? ['uint256'] : [])];
-  const c = decodeAbiParameters(types.map(type => ({ type })), context);
+  const c = decodeExternal(() => decodeAbiParameters(types.map(type => ({ type })), context), 'malformed SP context');
   const [token, user, a0, opHash, operator, mode, call, post, price, decimals, aPriceUSD] = c;
   requireValue(price > 0n && aPriceUSD > 0n, 'invalid price');
   const snap = length === 384 ? c[11] : 0n;
@@ -122,10 +122,10 @@ function extractChecked(archive) {
     const task = archive.task;
     requireValue(task && BigInt(task.amount) > 0n && BigInt(task.recipientBalanceBefore) > 0n,
       'real ERC20 task with nonzero recipient balance required');
-    const execution = decodeFunctionData({ abi: TASK_ABI, data: op.callData });
+    const execution = decodeExternal(() => decodeFunctionData({ abi: TASK_ABI, data: op.callData }), 'malformed account callData');
     requireValue(execution.functionName === 'execute' && eq(execution.args[0], task.token) &&
       execution.args[1] === 0n, 'account execution task mismatch');
-    const transfer = decodeFunctionData({ abi: TASK_ABI, data: execution.args[2] });
+    const transfer = decodeExternal(() => decodeFunctionData({ abi: TASK_ABI, data: execution.args[2] }), 'malformed transfer calldata');
     requireValue(transfer.functionName === 'transfer' && eq(transfer.args[0], task.recipient) &&
       transfer.args[1] === BigInt(task.amount), 'ERC20 transfer calldata mismatch');
     const transfers = events(receipt, task.token, TASK_ABI).filter(e => e.eventName === 'Transfer' &&
@@ -163,7 +163,7 @@ function extractChecked(archive) {
   check(calls.length===1 || !row.success || metadata.arm==='VerifyingPaymaster', 'unique postOp call required');
   if (calls.length !== 1) return row;
   const post = calls[0];
-  const [, context, cPre, pOp] = decodeFunctionData({ abi: POSTOP_ABI, data: post.input }).args;
+  const [, context, cPre, pOp] = decodeExternal(() => decodeFunctionData({ abi: POSTOP_ABI, data: post.input }), 'malformed postOp input').args;
   row.cPreWei = cPre;
   row.actualUserOpFeePerGas = pOp;
   if (archive.validationContext != null) requireValue(eq(context, archive.validationContext), 'validation/postOp context disagreement');
@@ -249,9 +249,6 @@ function extractChecked(archive) {
 export function extract(archive) {
   try { return extractChecked(archive); }
   catch(error) {
-    // Malformed archived evidence (viem decode/slice errors) is collector_corruption too;
-    // anything else is a programming error and still aborts.
-    if (error instanceof BaseError && !error.invalid_reason) error.invalid_reason='collector_corruption';
     if (!error.invalid_reason && !error.stop_reason) throw error;
     return {...archive.metadata, sender:archive.operation.sender, userOpHash:archive.operation.userOpHash,
       callGasLimit:archive.operation.callGasLimit, paymasterPostOpGasLimit:archive.operation.paymasterPostOpGasLimit,
