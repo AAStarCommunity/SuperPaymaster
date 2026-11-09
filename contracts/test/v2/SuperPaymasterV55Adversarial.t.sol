@@ -781,6 +781,135 @@ contract SuperPaymasterV55AdversarialTest is Test {
         assertGt(1_000 ether - token.balanceOf(v), 0);
     }
 
+    enum T22Action { Disable, BurnFree, BurnAll, TransferFrom, Renew, ReleaseAndDisable, ReleaseStale }
+
+    function test_T22_disableSpenderForSelf_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.Disable);
+    }
+
+    function test_T22_burn_free_balance_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.BurnFree);
+    }
+
+    function test_T22_burn_all_balance_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.BurnAll);
+    }
+
+    function test_T22_transferFrom_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.TransferFrom);
+    }
+
+    function test_T22_renewForSelf_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.Renew);
+    }
+
+    function test_T22_releaseAndDisable_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.ReleaseAndDisable);
+    }
+
+    function test_T22_releaseStaleLock_postop_still_settles() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        _t22SiblingAction(T22Action.ReleaseStale);
+    }
+
+    function _t22SiblingAction(T22Action action) internal {
+        address u = _mkUser(PK_U, 1_000 ether);
+        address sink = address(0x5111);
+        uint256 bal0 = token.balanceOf(u);
+        uint256 x0 = _a0(POST, 1 gwei); // Fixture exchange rate is 1:1.
+        uint256 voluntaryBurn = action == T22Action.BurnFree ? bal0 - 2 * x0 : 0;
+        bool expectedSuccess = action == T22Action.Disable || action == T22Action.BurnFree;
+        PackedUserOperation[] memory ops = new PackedUserOperation[](2);
+        // EntryPoint validates both ops before execution: op0 acts while op1 is live.
+        ops[1] = _op(u, PK_U, 1 << 64, POST, 0, "", 1 gwei);
+        bytes32 h1 = entryPoint.getUserOpHash(ops[1]);
+        bytes memory data;
+        bytes memory expectedRevert;
+        if (action == T22Action.Disable) {
+            data = abi.encodeCall(IAdv.disableSpenderForSelf, (address(sp)));
+        } else if (action == T22Action.BurnFree || action == T22Action.BurnAll) {
+            data = abi.encodeWithSignature("burn(uint256)", expectedSuccess ? voluntaryBurn : bal0);
+            expectedRevert = abi.encodeWithSelector(xPNTsV2Base.BalanceLocked.selector, u, 2 * x0);
+        } else if (action == T22Action.TransferFrom) {
+            data = abi.encodeCall(IERC20.transferFrom, (u, sink, bal0));
+            expectedRevert = abi.encodeWithSelector(xPNTsV2Base.BalanceLocked.selector, u, 2 * x0);
+        } else if (action == T22Action.Renew) {
+            data = abi.encodeCall(xPNTsTokenV2.renewForSelf, (address(sp)));
+            expectedRevert = abi.encodeWithSelector(xPNTsV2Base.RenewBlocked.selector);
+        } else {
+            data = action == T22Action.ReleaseAndDisable
+                ? abi.encodeWithSignature("releaseAndDisable(address,bytes32)", address(sp), h1)
+                : abi.encodeCall(xPNTsTokenV2.releaseStaleLock, (u, h1));
+            expectedRevert = abi.encodeWithSelector(xPNTsV2Base.StillLive.selector);
+        }
+        bytes memory execution = _exec(address(token), data);
+        if (action == T22Action.TransferFrom) {
+            address[] memory targets = new address[](2);
+            targets[0] = address(token);
+            targets[1] = address(token);
+            bytes[] memory calls = new bytes[](2);
+            calls[0] = abi.encodeCall(IERC20.approve, (u, type(uint256).max));
+            calls[1] = data;
+            execution = abi.encodeWithSignature("executeBatch(address[],uint256[],bytes[])", targets, new uint256[](0), calls);
+        }
+        ops[0] = _op(u, PK_U, 0, POST, 0, execution, 1 gwei);
+        bytes32 h0 = entryPoint.getUserOpHash(ops[0]);
+        uint256 opb0 = _opBal();
+        uint256 rev0 = sp.protocolRevenue();
+        (bool ok, , Vm.Log[] memory logs) = _bundle(ops);
+        assertTrue(ok, "bundle accepted");
+        assertEq(_count(logs, POST_OP_REVERT_REASON), 0, "neither postOp reverts");
+        assertEq(_count(logs, USER_OP_EVENT), 2, "both ops processed");
+        (bool found0, bool success0, ) = _opEvent(logs, h0);
+        (bool found1, bool success1, ) = _opEvent(logs, h1);
+        assertTrue(found0 && found1, "events for both hashes");
+        assertEq(success0, expectedSuccess, "op0 execution outcome");
+        assertTrue(success1, "sibling executes successfully");
+        assertEq(token.lockedOf(u), 0, "both locks settled");
+        assertTrue(token.usedOpHashes(h0) && token.usedOpHashes(h1), "both settlements recorded");
+        // Exclude the intentional self-burn from the user's gas payment.
+        uint256 paid = bal0 - token.balanceOf(u) - voluntaryBurn;
+        assertGt(paid, 0, "user paid gas");
+        assertEq(paid, sp.protocolRevenue() - rev0, "I9: user payment equals revenue");
+        assertEq(paid, opb0 - _opBal(), "I9: user payment equals operator loss");
+        assertEq(token.balanceOf(sink), 0, "no tokens escaped escrow");
+        assertEq(token.spenderDisabled(address(sp), u), action == T22Action.Disable);
+        if (!expectedSuccess) {
+            bytes32 reasonTopic = keccak256("UserOperationRevertReason(bytes32,address,uint256,bytes)");
+            uint256 reasons;
+            for (uint256 i; i < logs.length; i++) {
+                if (logs[i].emitter == address(entryPoint) && logs[i].topics.length > 1
+                    && logs[i].topics[0] == reasonTopic && logs[i].topics[1] == h0) {
+                    (uint256 nonce, bytes memory reason) = abi.decode(logs[i].data, (uint256, bytes));
+                    assertEq(nonce, 0);
+                    assertEq(reason, expectedRevert, "exact inner execution revert");
+                    reasons++;
+                }
+            }
+            assertEq(reasons, 1, "execution revert is visible");
+        }
+    }
+
+    function test_T22_control_settle_revert_is_visible() public {
+        assertEq(token.creditPolicy(), 0, "measurement start: OFF");
+        address u = _mkUser(PK_U, 1_000 ether);
+        PackedUserOperation memory op = _op(u, PK_U, 0, POST, 0, "", 1 gwei);
+        vm.mockCallRevert(address(token), abi.encodeWithSelector(IxPNTsTokenV2.settleLocked.selector), "T22 settle failure");
+        (bool ok, , Vm.Log[] memory logs) = _bundle1(op);
+        vm.clearMockedCalls();
+        assertTrue(ok, "EntryPoint handles postOp failure");
+        assertEq(_count(logs, POST_OP_REVERT_REASON), 1, "positive control detects postOp revert");
+        (bool found, bool success, ) = _opEvent(logs, entryPoint.getUserOpHash(op));
+        assertTrue(found);
+        assertFalse(success);
+    }
+
     /// @notice Route A maxCost above the cap (single-tx limit): a0 > maxSingleTxLimit → validation
     ///         fails (SINGLE_TX_LIMIT, never truncated to the limit), nothing is written. Control at 1 gwei.
     function test_RouteA_maxCost_above_single_tx_limit_rejected_not_truncated() public {

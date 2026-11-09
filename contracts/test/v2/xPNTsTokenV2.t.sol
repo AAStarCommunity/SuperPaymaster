@@ -350,6 +350,29 @@ contract xPNTsTokenV2Test is Test {
         assertEq(t.allowance(user, address(spender)), 40 ether);
     }
 
+    function test_T23_explicit_approval_bounded_by_approval_not_revoked_by_disable() public {
+        // approvedFacilitators is not read by the v2 spend path; explicit ERC-20 approval suffices.
+        assertFalse(t.autoApprovedSpenders(address(spender)));
+        vm.prank(user);
+        t.approve(address(spender), 100 ether);
+        spender.pull(address(t), user, 40 ether);
+        assertEq(t.allowance(user, address(spender)), 60 ether);
+        vm.expectRevert(xPNTsV2Base.BurnExceedsAllowance.selector);
+        spender.pull(address(t), user, 60 ether + 1);
+        assertEq(t.allowance(user, address(spender)), 60 ether, "failed pull preserves approval");
+
+        vm.prank(user);
+        _ext().disableSpenderForSelf(address(spender));
+        assertTrue(t.spenderDisabled(address(spender), user));
+        assertEq(t.allowance(user, address(spender)), 60 ether, "disable preserves explicit approval");
+        spender.pull(address(t), user, 60 ether);
+        assertEq(t.allowance(user, address(spender)), 0);
+        assertEq(t.balanceOf(address(spender)), 100 ether);
+        assertEq(t.balanceOf(user), 9_900 ether);
+        vm.expectRevert(xPNTsV2Base.BurnExceedsAllowance.selector);
+        spender.pull(address(t), user, 1);
+    }
+
     function test_B7_saturating_allowance_with_explicit_max() public {
         vm.startPrank(community);
         _ext().proposeSpender(address(spender));
@@ -509,6 +532,31 @@ contract xPNTsTokenV2Test is Test {
         vm.prank(sp2);
         vm.expectRevert(); // not the locker (and not live either in isolate mode)
         t.settleLocked(user, OP1, 1 ether);
+    }
+
+    function test_T23_old_locker_settles_after_rotation_new_sp_cannot() public {
+        vm.prank(sp);
+        (IxPNTsTokenV2.LockResult result, uint256 locked) = t.tryLockForGas(user, OP1, 100 ether, false);
+        assertEq(uint8(result), uint8(IxPNTsTokenV2.LockResult.OK));
+        assertEq(locked, 100 ether);
+        vm.prank(community);
+        _ext().proposeSP(sp2);
+        // Non-isolated test: warp advances time, but preserves the original transaction's live marker.
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        _ext().activateSP();
+        assertEq(t.SUPERPAYMASTER_ADDRESS(), sp2);
+        assertEq(t.lockOf(OP1, user).locker, sp, "authority remains with recorded locker");
+        vm.prank(sp2);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.Unauthorized.selector, sp2));
+        t.settleLocked(user, OP1, 30 ether);
+        assertEq(t.lockedOf(user), 100 ether, "unauthorized settlement preserves lock");
+        vm.prank(sp);
+        assertEq(t.settleLocked(user, OP1, 30 ether), 30 ether);
+        assertEq(t.lockedOf(user), 0);
+        assertEq(t.balanceOf(user), 9_970 ether);
+        assertTrue(t.usedOpHashes(OP1));
+        (, uint256 used) = t.autoAllowance(user, sp);
+        assertEq(used, 30 ether, "refund goes to old locker allowance");
     }
 
     // ------------------------------------------------------------------
