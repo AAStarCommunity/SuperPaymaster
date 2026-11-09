@@ -248,7 +248,7 @@ python3 scripts/check_storage_layout.py
 
 ```text
 OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 entries)
-OK  Registry storage layout = snapshot (unchanged) (32 entries)
+OK  Registry storage layout = deployed 5.9.0 snapshot + 2 allowed appended mappings (34 entries)
 ```
 
 The default build that compiled the production fixes reported `Compiler run successful with warnings:`; the final cached build confirms the final tree.

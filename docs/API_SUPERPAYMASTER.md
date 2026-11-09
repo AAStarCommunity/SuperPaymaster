@@ -9,8 +9,8 @@
 > **v5.4 god-split note:** the on-chain `version()` strings are now `SuperPaymaster-5.4.0`
 > and `Registry-5.4.0`. The v5.4 implementation extracts the x402 settlement functions into a
 > **standalone [`X402Facilitator`](#x402facilitator-standalone-contract--v54)** contract and adds a
-> standalone **[`PolicyRegistry`](#policyregistry-standalone-contract--v54)** (both keep their own
-> `1.0.0` version). The `settleX402Payment*` entries below remain documented for the SP-embedded
+> standalone **[`PolicyRegistry`](#policyregistry-standalone-contracts)**, which is versioned
+> independently. The `settleX402Payment*` entries below remain documented for the SP-embedded
 > path but are **superseded by `X402Facilitator`** in v5.4.
 
 ---
@@ -23,7 +23,7 @@
 | **Sepolia Proxy** | `0x030025f40d509b1a99547bAEb3795bD27F7182b7` |
 | **Sepolia Impl** | `0x24a94572cfB6Ca6C8dE107431043556D461d8cFf` |
 | **X402Facilitator (Sepolia)** | `0x326Fc3413c8A0185b0179B971C69813B6dFD971B` |
-| **PolicyRegistry (Sepolia)** | `0x8c2488d46d5447418558c38AA6441720df656094` |
+| **PolicyRegistry 1.0.0 (Sepolia, historical)** | `0x8c2488d46d5447418558c38AA6441720df656094` |
 | **TimelockController (Sepolia)** | `0xB734df3c0A1809bc06708512363D368Ac51dF1A2` |
 | **MicroPaymentChannel (Sepolia)** | `0x405851A141Cde827E33247d4D4089Af2814c2FF5` |
 | **AgentIdentityRegistry (Sepolia)** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
@@ -992,55 +992,136 @@ function settleX402PaymentDirect(
 
 ---
 
-## PolicyRegistry (Standalone Contract) — v5.4
+## PolicyRegistry standalone contracts
 
-**Version:** `PolicyRegistry-1.0.0` · **Sepolia:** `0x8c2488d46d5447418558c38AA6441720df656094`
-· **Type:** Standalone, non-upgradeable, governance-gated (`TimelockController` + guardian)
+### HISTORICAL: PolicyRegistry 1.0.0
 
-PolicyRegistry is the single on-chain source of truth for **sender-keyed, governance-gated spend
-policy and DVT-trigger rules**. Staked consumers (SuperPaymaster, AirAccount) read it during
-validation; DVT nodes and the slash path reference the same policy so that "what a node enforced ==
-what is punished". It **never inspects signature wire-format** — it reasons only about
-`(sender, target, asset, amount, selector)`. Governance evolves policy through the injected
-`TimelockController` (Sepolia `0xB734df3c0A1809bc06708512363D368Ac51dF1A2`) and a guardian, not via
-code upgrades. ETH uses a sentinel address `0xEeee...EEeE` (`asset == address(0)` is invalid).
+**Sepolia address:** `0x8c2488d46d5447418558c38AA6441720df656094`
 
-### checkPolicy (read path)
+This address runs `PolicyRegistry-1.0.0`. Integrations that use this historical deployment must use
+its old ABI. In particular, it implements `getContractScope(address,address)`, not
+`getTargetScope(address,address)`.
 
-```solidity
-function checkPolicy(address sender, address target, address asset, uint256 amount, bytes4 selector)
-    external view returns (PolicyDecision decision, uint256 remainingDaily)
-```
+The complete 1.0.0 function set is:
 
-- **Decision:** `ALLOW` / `REJECT` / DVT-required — a frozen sender is a hard `REJECT`.
-  Opt-in default: an unconfigured dimension imposes **no** constraint (`remainingDaily = type(uint256).max`);
-  configured asset / contract-scope dimensions narrow it (daily/velocity windows, selector allow-list).
-- **Pure read** — consumers call this during ERC-4337 validation (ERC-7562 sender-associated storage).
+| Category | Old function signatures |
+|---|---|
+| Constants and metadata | `DEFAULT_WINDOW()`, `ETH_SENTINEL()`, `version()`, `guardian()`, `timelock()` |
+| Policy and counter reads | `checkPolicy(address,address,address,uint256,bytes4)`, `getAssetPolicy(address,address)`, `getAssetSpend(address,address)`, `getContractScope(address,address)`, `isSelectorAllowed(address,address,bytes4)`, `isFrozen(address)`, `isAuthorizedConsumer(address)` |
+| Execution hook | `recordSpend(address,address,address,uint256,bytes4)` |
+| Timelock mutations | `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))`, `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))`, `unfreezeSender(address)`, `setGuardian(address)`, `setConsumerAuthorization(address,bool)` |
+| Immediate tightening | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))`, `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))`, `freezeSender(address)` |
 
-### recordSpend (write path)
+The old `getAssetSpend` output is `(uint128 spentInWindow, uint64 windowStart)`. The old
+`getContractScope` output is
+`(bool allowed, bool requireDVTAlways, uint128 velocityLimit, uint64 velocityWindow, bool configured)`.
 
-```solidity
-function recordSpend(address sender, address target, address asset, uint256 amount, bytes4 selector)
-    external onlyAuthorizedConsumer
-```
+### PolicyRegistry 3.0.1
 
-- **Access:** only authorized consumers (staked SuperPaymaster / AirAccount; toggled by Timelock via
-  `setConsumerAuthorization`). Advances the per-asset and per-target velocity counters, rolling the
-  window first if elapsed. Emits `SpendRecorded`.
+**Address:** Deployed by the 5.5.0 manifest. No address is assigned yet.
 
-### Governance & views (PolicyRegistry)
+**Type:** Standalone, non-upgradeable, and governed by an external `TimelockController` plus a
+guardian.
 
-| Function | Access | Purpose |
-|----------|--------|---------|
-| `setAssetPolicy` / `setContractScope` | timelock | Set per-(sender,asset) and per-(sender,target) policy |
-| `tightenAssetPolicy` / `tightenContractScope` | guardian/timelock | Monotonic tighten-only fast path |
-| `freezeSender` / `unfreezeSender` | guardian / timelock | Emergency hard-block a sender |
-| `setGuardian` / `setConsumerAuthorization` | timelock | Rotate guardian, authorize consumers |
-| `getAssetPolicy` / `getContractScope` / `getAssetSpend` / `isSelectorAllowed` / `isFrozen` / `isAuthorizedConsumer` | view | Inspection |
+PolicyRegistry 3.0.1 evaluates `(sender, target, asset, amount, selector)`. Its policy is opt-in.
+An unconfigured asset or target adds no restriction, while a frozen sender always receives
+`REJECT`. ETH uses `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`; `address(0)` is invalid.
 
-> **Note:** `POLICY_REGISTRY_ADDRESS` handoff to the SuperPaymaster/AirAccount consumer wiring
-> (issue #110) and the multisig/Timelock ownership transfer are **deferred to GA** — see the
-> [v5.4.0-beta.1 deploy record](./announcements/deployment/sepolia-deploy-record-v5.4.0-beta.1.md).
+#### 3.0.1 data model
+
+- `AssetPolicy` is keyed by `(sender, asset)`. It contains `dvtTriggerAmount`,
+  `perTxHardCap`, `dailyLimit`, `windowSeconds`, and `configured`.
+- `ContractScope` is target-global and keyed by `(sender, target)`. It contains `allowed`,
+  `requireDVTAlways`, `velocityWindow`, and `configured`.
+- The target velocity limit is separate from `ContractScope`. It is keyed by
+  `(sender, target, asset)` and contains `uint128 limit` plus `bool configured`.
+- Asset counters are keyed by `(sender, asset)`. Target counters are keyed by
+  `(sender, target, asset)`. Both use `uint256 spentInWindow` and `uint64 windowStart`.
+- If a configured scope has `velocityWindow != 0`, a missing velocity entry for the requested
+  asset fails closed with `REJECT`.
+
+`recordSpend` updates the asset counter only for a configured asset policy. It updates the target
+counter only for a configured scope with a nonzero velocity window and a configured target velocity.
+
+#### 3.0.1 function selectors
+
+The signatures use canonical ABI tuple syntax. Selectors were computed with
+`~/.foundry/bin/cast sig`.
+
+| Function signature | Selector | Return or access |
+|---|---|---|
+| `DEFAULT_WINDOW()` | `0x43a0c39f` | `uint64` |
+| `ETH_SENTINEL()` | `0xb743be94` | `address` |
+| `checkPolicy(address,address,address,uint256,bytes4)` | `0x969cb5da` | `(uint8,uint256)` |
+| `recordSpend(address,address,address,uint256,bytes4)` | `0xa1a4a180` | Authorized consumer |
+| `getAssetPolicy(address,address)` | `0x29210a4b` | `(uint128,uint128,uint256,uint64,bool)` |
+| `getTargetScope(address,address)` | `0x7ac0774b` | `(bool,bool,uint64,bool)` |
+| `getTargetVelocity(address,address,address)` | `0xcb9fa794` | `(uint128,bool)` |
+| `isSelectorAllowed(address,address,bytes4)` | `0xb1655919` | `bool` |
+| `getAssetSpend(address,address)` | `0x715904dd` | `(uint256,uint64)` |
+| `isFrozen(address)` | `0xe5839836` | `bool` |
+| `isAuthorizedConsumer(address)` | `0x7df732ea` | `bool` |
+| `guardian()` | `0x452a9320` | `address` |
+| `timelock()` | `0xd33219b4` | `address` |
+| `version()` | `0x54fd4d50` | `string` |
+| `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | `0xbe29f491` | Timelock |
+| `setContractScope(address,address,(bool,bool,uint64,bytes4[]))` | `0xc28b58c1` | Timelock |
+| `setTargetVelocity(address,address,address,uint128)` | `0xf8f33e86` | Timelock |
+| `unfreezeSender(address)` | `0x53d8cb68` | Timelock |
+| `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | `0x055b8e7b` | Guardian or timelock |
+| `tightenContractScope(address,address,(bool,bool,uint64,bytes4[]))` | `0x7f6f42f0` | Guardian or timelock |
+| `tightenTargetVelocity(address,address,address,uint128)` | `0xac0a0e81` | Guardian or timelock |
+| `freezeSender(address)` | `0x7e19482e` | Guardian or timelock |
+| `setGuardian(address)` | `0x8a0dac4a` | Timelock |
+| `setConsumerAuthorization(address,bool)` | `0x6ef778ee` | Timelock |
+
+The timelock-only setters can loosen or tighten after the external timelock delay.
+`setContractScope` adds selectors without clearing the existing set. The guardian-or-timelock
+functions provide the immediate tightening path. `tightenContractScope` preserves the velocity
+window and removes its listed selectors. `tightenTargetVelocity` can only lower an existing limit.
+`unfreezeSender` is timelock-only.
+
+PolicyRegistry has no internal proposal queue. It does not implement `propose*`,
+`executeProposal`, `cancelProposal`, `looseningEta`, or `LOOSEN_TIMELOCK`. The external
+`TimelockController` owns scheduling, delay, execution, and cancellation.
+
+#### 3.0.1 event topics
+
+Topic 0 values were computed with `~/.foundry/bin/cast sig-event`.
+
+| Event signature | Topic 0 |
+|---|---|
+| `AssetPolicySet(address,address,uint128,uint128,uint256,uint64)` | `0x5d9b9bcdce2cd939b17ac423b2aa97770271ecebda7bf7c45e7db25d980c52ae` |
+| `ContractScopeSet(address,address,bool,bool,uint64)` | `0x9da60c6786d525ccc6003f478437c74ad59a8b556fb0fd5dec6dcd6f267c16c2` |
+| `TargetVelocitySet(address,address,address,uint128)` | `0xa0cc9fdb8f54d3382e30589f0ae0733455166be350b0d2db1aa8e4f2e4b91b21` |
+| `SelectorScopeSet(address,address,bytes4,bool)` | `0xdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e62780` |
+| `PolicyTightened(address,address)` | `0x4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e6` |
+| `SenderFrozen(address,address)` | `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` |
+| `SenderUnfrozen(address)` | `0xf70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee11765` |
+| `SpendRecorded(address,address,address,uint256,bytes4)` | `0xc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f88` |
+| `GuardianUpdated(address,address)` | `0x064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad909` |
+| `ConsumerAuthorizationSet(address,bool)` | `0x5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd45` |
+
+#### Consumer reads
+
+| Consumer | Required reads |
+|---|---|
+| SDK | Read `getAssetPolicy`, `getTargetScope`, `getTargetVelocity`, `isSelectorAllowed`, `getAssetSpend`, and `isFrozen`. Decode `spentInWindow` as `uint256`. Read pending operations from the external timelock. |
+| DVT nodes | Read `getTargetScope` and `getTargetVelocity` together, plus the asset policy, selector permissions, frozen state, and `getAssetSpend` as `(uint256,uint64)`. |
+| Validation and slash-policy consumers | Use `checkPolicy` and the same 3.0.1 getter schema. Authorized post-execution consumers call `recordSpend`. |
+
+#### ABI migration from 1.0.0
+
+- `getAssetSpend(address,address)` keeps selector `0x715904dd`, but its `spentInWindow`
+  output changed from `uint128` to `uint256`. Strict ABI decoders must update despite the
+  unchanged selector.
+- `getContractScope(address,address)` was renamed to `getTargetScope(address,address)`.
+  The new selector is `0x7ac0774b`, and the velocity limit is no longer in the returned tuple.
+- `getTargetVelocity(address,address,address)`, `setTargetVelocity(address,address,address,uint128)`,
+  and `tightenTargetVelocity(address,address,address,uint128)` now handle the asset-specific limit.
+- The old `getContractScope` selector `0x35cefaa8`, old `setContractScope` selector
+  `0x3ef43aff`, and old `tightenContractScope` selector `0xccd7129f` are absent in 3.0.1.
+  Calls with those selectors revert.
 
 ---
 

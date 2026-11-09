@@ -729,7 +729,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## PolicyRegistry
 
 - **Source:** `contracts/src/core/PolicyRegistry.sol`
-- **Functions:** 21 · **Events:** 9 · **Errors:** 7
+- **Functions:** 24 · **Events:** 10 · **Errors:** 6
 - **Title:** PolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
 - Reference implementation of {IPolicyRegistry}. See the interface for the full design         invariants. This contract is the single on-chain source of truth that staked consumers         (SuperPaymaster #283, AirAccount #70) read during validation, and that DVT nodes /         the slash path reference so that "what a node enforced == what is punished".
 
@@ -743,7 +743,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7e19482e` | `freezeSender(address)` | nonpayable | — | Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =         AirAccount 2-of-3 RecoveryService). Unfreezing is a loosening → {unfreezeSender}. |
 | `0x29210a4b` | `getAssetPolicy(address,address)` | view | — |  |
 | `0x715904dd` | `getAssetSpend(address,address)` | view | — |  |
-| `0x35cefaa8` | `getContractScope(address,address)` | view | — |  |
+| `0x7ac0774b` | `getTargetScope(address,address)` | view | — |  |
+| `0xcb9fa794` | `getTargetVelocity(address,address,address)` | view | — |  |
 | `0x452a9320` | `guardian()` | view | — | AirAccount 2-of-3 RecoveryService — immediate tighten / freeze. |
 | `0x7df732ea` | `isAuthorizedConsumer(address)` | view | — |  |
 | `0xe5839836` | `isFrozen(address)` | view | — |  |
@@ -751,10 +752,12 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa1a4a180` | `recordSpend(address,address,address,uint256,bytes4)` | nonpayable | — | Authoritative spend record. Called AFTER execution (SuperPaymaster `postOp`,         or the account post-call) by an authorized staked consumer. Advances both the         per-asset and per-target sender-keyed counters, rolling the window if elapsed. |
 | `0xbe29f491` | `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`         (use the ETH sentinel for ETH). Emits {AssetPolicySet}. |
 | `0x6ef778ee` | `setConsumerAuthorization(address,bool)` | nonpayable | — | Authorize / revoke a staked consumer permitted to call {recordSpend}.         `onlyTimelock`. Only staked EntryPoint entities should be authorized. |
-| `0x3ef43aff` | `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}. |
+| `0xc28b58c1` | `setContractScope(address,address,(bool,bool,uint64,bytes4[]))` | nonpayable | — | Set a target-global (sender, target) scope and ADD selectors.         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}. |
 | `0x8a0dac4a` | `setGuardian(address)` | nonpayable | — | Set the guardian (AirAccount 2-of-3 RecoveryService) that may freeze/tighten.         `onlyTimelock`. |
+| `0xf8f33e86` | `setTargetVelocity(address,address,address,uint128)` | nonpayable | — | Set one asset-specific target velocity. `onlyTimelock`. |
 | `0x055b8e7b` | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Immediately tighten a (sender, asset) policy. MUST revert unless the new params         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`. |
-| `0xccd7129f` | `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`. |
+| `0x7f6f42f0` | `tightenContractScope(address,address,(bool,bool,uint64,bytes4[]))` | nonpayable | — | Immediately tighten target-global scope fields.         `onlyGuardianOrTimelock`. |
+| `0xac0a0e81` | `tightenTargetVelocity(address,address,address,uint128)` | nonpayable | — | Immediately lower an existing asset-specific target velocity. |
 | `0xd33219b4` | `timelock()` | view | — | OZ {TimelockController}; its `minDelay` (= 2 days) gates loosening. Immutable so the         loosening authority can never be silently re-pointed without redeploying. |
 | `0x53d8cb68` | `unfreezeSender(address)` | nonpayable | — | Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`. |
 | `0x54fd4d50` | `version()` | pure | — | Contract version (see CLAUDE.md versioning convention). |
@@ -767,7 +770,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Validation-time policy decision for one intended action. MUST be `view` and         read only `sender`-associated storage so a staked consumer can call it inside         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation.
 
-*@dev* Reads ONLY `sender`-keyed slots so a staked consumer may call it inside      `validatePaymasterUserOp` / `validateUserOp`. Mirrors SP `_creditExceeded`'s      sender-keyed ceiling pattern.      OPT-IN, default-ALLOW. This registry is an OPT-IN DVT layer, NOT a global      allowlist: a sender with nothing configured for an (asset, target) is UNRESTRICTED      and resolves to ALLOW with `remainingDaily == type(uint256).max`. An explicit      `freeze` is the one hard block (highest priority). Each dimension is enforced ONLY      when it is `configured`; an unconfigured dimension imposes no constraint and never      triggers DVT. Combine: any configured dimension yielding REJECT ⇒ REJECT; else any      configured dimension yielding REQUIRE_DVT ⇒ REQUIRE_DVT; else ALLOW.
+*@dev* Reads ONLY `sender`-keyed slots so a staked consumer may call it inside      `validatePaymasterUserOp` / `validateUserOp`. Mirrors SP `_creditExceeded`'s      sender-keyed ceiling pattern.      OPT-IN, default-ALLOW. This registry is an OPT-IN DVT layer, NOT a global      allowlist: a sender with nothing configured for an (asset, target) is UNRESTRICTED      and resolves to ALLOW with `remainingDaily == type(uint256).max`. An explicit      `freeze` is the one hard block (highest priority). Each dimension is enforced ONLY      when it is `configured`. If a configured target enables velocity, every asset must      have an explicit velocity limit; a missing pair rejects. Combine: any configured      dimension yielding REJECT ⇒ REJECT; else any      configured dimension yielding REQUIRE_DVT ⇒ REQUIRE_DVT; else ALLOW.
 
 | param | type | description |
 |---|---|---|
@@ -836,12 +839,12 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `spentInWindow` | `uint128` | cumulative native-unit spend in the current window for this asset. |
+| `spentInWindow` | `uint256` | cumulative native-unit spend in the current window for this asset.         It is `uint256` so every amount accepted by {checkPolicy} can be recorded without         narrowing, including cumulative spend above `type(uint128).max`. |
 | `windowStart` | `uint64` | unix timestamp the current window began. |
 
-#### `getContractScope(address sender, address target)`
+#### `getTargetScope(address sender, address target)`
 
-`0x35cefaa8` · view · access: —
+`0x7ac0774b` · view · access: —
 
 | param | type | description |
 |---|---|---|
@@ -850,7 +853,22 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `_0` | `(bool,bool,uint128,uint64,bool)` |  |
+| `_0` | `(bool,bool,uint64,bool)` |  |
+
+#### `getTargetVelocity(address sender, address target, address asset)`
+
+`0xcb9fa794` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `limit` | `uint128` |  |
+| `configured` | `bool` |  |
 
 #### `guardian()`
 
@@ -941,11 +959,11 @@ Authoritative, auto-generated reference for every external/public function, even
 | `consumer` | `address` |  |
 | `authorized` | `bool` |  |
 
-#### `setContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+#### `setContractScope(address sender, address target, (bool,bool,uint64,bytes4[]) params)`
 
-`0x3ef43aff` · nonpayable · access: —
+`0xc28b58c1` · nonpayable · access: —
 
-> Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
+> Set a target-global (sender, target) scope and ADD selectors.         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
 
 *@dev* Selectors are ADDED to the allow set (Q3 additive). Removal is via {tightenContractScope}.
 
@@ -953,7 +971,7 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `sender` | `address` |  |
 | `target` | `address` |  |
-| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+| `params` | `(bool,bool,uint64,bytes4[])` |  |
 
 #### `setGuardian(address newGuardian)`
 
@@ -964,6 +982,19 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `newGuardian` | `address` |  |
+
+#### `setTargetVelocity(address sender, address target, address asset, uint128 limit)`
+
+`0xf8f33e86` · nonpayable · access: —
+
+> Set one asset-specific target velocity. `onlyTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+| `limit` | `uint128` |  |
 
 #### `tightenAssetPolicy(address sender, address asset, (uint128,uint128,uint256,uint64) params)`
 
@@ -979,11 +1010,11 @@ Authoritative, auto-generated reference for every external/public function, even
 | `asset` | `address` |  |
 | `params` | `(uint128,uint128,uint256,uint64)` |  |
 
-#### `tightenContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+#### `tightenContractScope(address sender, address target, (bool,bool,uint64,bytes4[]) params)`
 
-`0xccd7129f` · nonpayable · access: —
+`0x7f6f42f0` · nonpayable · access: —
 
-> Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`.
+> Immediately tighten target-global scope fields.         `onlyGuardianOrTimelock`.
 
 *@dev* Tighten = disallow target (true→false ok, false→true forbidden), set requireDVTAlways      (false→true ok, true→false forbidden), lower velocityLimit, and REMOVE the listed      selectors from the allow set. Requires the scope to already be configured.
 
@@ -991,7 +1022,20 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `sender` | `address` |  |
 | `target` | `address` |  |
-| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+| `params` | `(bool,bool,uint64,bytes4[])` |  |
+
+#### `tightenTargetVelocity(address sender, address target, address asset, uint128 limit)`
+
+`0xac0a0e81` · nonpayable · access: —
+
+> Immediately lower an existing asset-specific target velocity.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+| `limit` | `uint128` |  |
 
 #### `timelock()`
 
@@ -1027,15 +1071,16 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | topic0 | event |
 |---|---|
-| `0x9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe` | `AssetPolicySet(address,address,uint128,uint128,uint256)` |
+| `0x5d9b9bcdce2cd939b17ac423b2aa97770271ecebda7bf7c45e7db25d980c52ae` | `AssetPolicySet(address,address,uint128,uint128,uint256,uint64)` |
 | `0x5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd45` | `ConsumerAuthorizationSet(address,bool)` |
-| `0x92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc` | `ContractScopeSet(address,address,bool,bool,uint128,uint64)` |
+| `0x9da60c6786d525ccc6003f478437c74ad59a8b556fb0fd5dec6dcd6f267c16c2` | `ContractScopeSet(address,address,bool,bool,uint64)` |
 | `0x064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad909` | `GuardianUpdated(address,address)` |
 | `0x4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e6` | `PolicyTightened(address,address)` |
 | `0xdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e62780` | `SelectorScopeSet(address,address,bytes4,bool)` |
 | `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` | `SenderFrozen(address,address)` |
 | `0xf70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee11765` | `SenderUnfrozen(address)` |
 | `0xc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f88` | `SpendRecorded(address,address,address,uint256,bytes4)` |
+| `0xa0cc9fdb8f54d3382e30589f0ae0733455166be350b0d2db1aa8e4f2e4b91b21` | `TargetVelocitySet(address,address,address,uint128)` |
 
 ### Errors
 
@@ -1045,7 +1090,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x954afe27` | `NotGuardianOrTimelock()` |
 | `0xc8922921` | `NotStrictlyTighter()` |
 | `0xcad4da2a` | `NotTimelock()` |
-| `0x6dfcc650` | `SafeCastOverflowedUintDowncast(uint8,uint256)` |
 | `0x75ae9c29` | `SenderIsFrozen()` |
 | `0xd92e233d` | `ZeroAddress()` |
 
@@ -1073,7 +1117,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Registry
 
 - **Source:** `contracts/src/core/Registry.sol`
-- **Functions:** 52 · **Events:** 24 · **Errors:** 40
+- **Functions:** 56 · **Events:** 27 · **Errors:** 40
 
 ### Function selector index
 
@@ -1108,8 +1152,12 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb8a8f126` | `maxTotalCreditExposure()` | view | — | Hard ceiling on totalCreditExposure. Zero is intentionally fail-closed. |
 | `0x19c46e81` | `MYSBT()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x4841328e` | `pendingMembershipCleanup(address)` | view | — |  |
 | `0xe30c3978` | `pendingOwner()` | view | — | The nominated owner; address(0) when there is no pending transfer. |
+| `0x607004dd` | `pendingSBTBurn(address)` | view | — |  |
 | `0x52d1902d` | `proxiableUUID()` | view | — |  |
+| `0x056c8a98` | `reconcileMembershipDeactivation(address)` | nonpayable | — | Retry ENDUSER membership cleanup after a non-fatal exit synchronization failure. |
+| `0x9c227a36` | `reconcileSBTBurn(address)` | nonpayable | — | Retry a failed final-role SBT burn. |
 | `0x669d7762` | `registerRole(bytes32,address,bytes)` | nonpayable | nonReentrant | Register a user for a specific role (unified API) |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
 | `0x17e1c595` | `safeMintForRole(bytes32,address,bytes)` | nonpayable | nonReentrant |  |
@@ -1462,6 +1510,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
+#### `pendingMembershipCleanup(address arg0)`
+
+`0x4841328e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
 #### `pendingOwner()`
 
 `0xe30c3978` · view · access: —
@@ -1472,6 +1532,18 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `p` | `address` |  |
 
+#### `pendingSBTBurn(address arg0)`
+
+`0x607004dd` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
 #### `proxiableUUID()`
 
 `0x52d1902d` · view · access: —
@@ -1481,6 +1553,26 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bytes32` |  |
+
+#### `reconcileMembershipDeactivation(address user)`
+
+`0x056c8a98` · nonpayable · access: —
+
+> Retry ENDUSER membership cleanup after a non-fatal exit synchronization failure.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+
+#### `reconcileSBTBurn(address user)`
+
+`0x9c227a36` · nonpayable · access: —
+
+> Retry a failed final-role SBT burn.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
 
 #### `registerRole(bytes32 roleId, address user, bytes roleData)`
 
@@ -1720,6 +1812,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7e684e0b76ed13bc9cf7e4fbac7d11873036be9c9a83f9958382721eeda46010` | `CreditTierUpdated(uint256,uint256)` |
 | `0xbb42fde0252fd03324102c3666f457311508c4dd05f96e66e0fd26f0c28e8542` | `GlobalReputationUpdated(address,uint256,uint256)` |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
+| `0xbd9ff2407526546b1e2709150d0af5a1e673decc84b2f1ca3a2ac7bbb45f0638` | `MembershipDeactivationFailed(address)` |
+| `0x8a59deaaeec963ad08ce31dd8b1991b2056af25b7b38f8180d04cc9024f77469` | `MembershipDeactivationReconciled(address)` |
 | `0x171f7dbde35aed7cddf3ece2dad8f4eb62443a3d6bf8616586da6fd03c6b4ed9` | `MySBTContractUpdated(address,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
@@ -1732,6 +1826,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x2c48d754bbf59f20e71c13710fac35aa1ea020da58dcbb366de0ef7f75c9377d` | `RoleRegistered(bytes32,address,uint256,uint256)` |
 | `0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b` | `RoleRevoked(bytes32,address,address)` |
 | `0xf6da96ea84a034d6f30b7b377637742735f36f14cfda9144397e4f1e69116f4a` | `SBTBurnFailed(address,bytes32)` |
+| `0x7d7723bde2fdf2e4f1526e8af4d7888b8c98f69c0a4dfc3a51a4e6e1fe75fe65` | `SBTBurnReconciled(address)` |
 | `0x78b2b518370694dbabbd3a63a8babdbff376dff74a1b2b09c8c23f0f265cd161` | `SBTStatusSyncFailed(address,bytes32)` |
 | `0x7042586b23181180eb30b4798702d7a0233b7fc2551e89806770e8e5d9392e6a` | `StakingContractUpdated(address,address)` |
 | `0x1f7cd67c986d0cce4aa6f69075b5278a05438ef2a5d1abf6eeded51ba8123245` | `SuperPaymasterUpdated(address,address)` |
@@ -3422,7 +3517,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IPolicyRegistry
 
 - **Source:** `contracts/src/interfaces/v3/IPolicyRegistry.sol`
-- **Functions:** 18 · **Events:** 9 · **Errors:** 6
+- **Functions:** 21 · **Events:** 10 · **Errors:** 6
 - **Title:** IPolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
 - Single source of truth for "is this op within policy / does it need DVT co-sign".         Read by staked EntryPoint consumers (SuperPaymaster) during         `validatePaymasterUserOp`, by AirAccount accounts (#70) during `validateUserOp`,         and by DVT nodes / the slash path off-chain. ALL of those read the SAME registry         and the SAME schema so that the policy a node enforces == the policy the slash         path punishes against (fair punishment).
 
@@ -3434,7 +3529,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7e19482e` | `freezeSender(address)` | nonpayable | — | Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =         AirAccount 2-of-3 RecoveryService). Unfreezing is a loosening → {unfreezeSender}. |
 | `0x29210a4b` | `getAssetPolicy(address,address)` | view | — |  |
 | `0x715904dd` | `getAssetSpend(address,address)` | view | — |  |
-| `0x35cefaa8` | `getContractScope(address,address)` | view | — |  |
+| `0x7ac0774b` | `getTargetScope(address,address)` | view | — |  |
+| `0xcb9fa794` | `getTargetVelocity(address,address,address)` | view | — |  |
 | `0x452a9320` | `guardian()` | view | — |  |
 | `0x7df732ea` | `isAuthorizedConsumer(address)` | view | — |  |
 | `0xe5839836` | `isFrozen(address)` | view | — |  |
@@ -3442,10 +3538,12 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa1a4a180` | `recordSpend(address,address,address,uint256,bytes4)` | nonpayable | — | Authoritative spend record. Called AFTER execution (SuperPaymaster `postOp`,         or the account post-call) by an authorized staked consumer. Advances both the         per-asset and per-target sender-keyed counters, rolling the window if elapsed. |
 | `0xbe29f491` | `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`         (use the ETH sentinel for ETH). Emits {AssetPolicySet}. |
 | `0x6ef778ee` | `setConsumerAuthorization(address,bool)` | nonpayable | — | Authorize / revoke a staked consumer permitted to call {recordSpend}.         `onlyTimelock`. Only staked EntryPoint entities should be authorized. |
-| `0x3ef43aff` | `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}. |
+| `0xc28b58c1` | `setContractScope(address,address,(bool,bool,uint64,bytes4[]))` | nonpayable | — | Set a target-global (sender, target) scope and ADD selectors.         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}. |
 | `0x8a0dac4a` | `setGuardian(address)` | nonpayable | — | Set the guardian (AirAccount 2-of-3 RecoveryService) that may freeze/tighten.         `onlyTimelock`. |
+| `0xf8f33e86` | `setTargetVelocity(address,address,address,uint128)` | nonpayable | — | Set one asset-specific target velocity. `onlyTimelock`. |
 | `0x055b8e7b` | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | nonpayable | — | Immediately tighten a (sender, asset) policy. MUST revert unless the new params         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`. |
-| `0xccd7129f` | `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | nonpayable | — | Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`. |
+| `0x7f6f42f0` | `tightenContractScope(address,address,(bool,bool,uint64,bytes4[]))` | nonpayable | — | Immediately tighten target-global scope fields.         `onlyGuardianOrTimelock`. |
+| `0xac0a0e81` | `tightenTargetVelocity(address,address,address,uint128)` | nonpayable | — | Immediately lower an existing asset-specific target velocity. |
 | `0xd33219b4` | `timelock()` | view | — | The OZ {TimelockController} whose `minDelay` (= 2 days) gates every loosening.         It is the only address allowed to call the `onlyTimelock` loosening/admin setters. |
 | `0x53d8cb68` | `unfreezeSender(address)` | nonpayable | — | Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`. |
 
@@ -3457,7 +3555,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Validation-time policy decision for one intended action. MUST be `view` and         read only `sender`-associated storage so a staked consumer can call it inside         `validatePaymasterUserOp` / `validateUserOp` without a bundler storage violation.
 
-*@dev* OPT-IN, default-ALLOW (NOT a global allowlist). An explicit `freeze` ⇒ REJECT (the one      hard block, top priority). Otherwise each dimension is enforced ONLY when `configured`:      an unconfigured asset is UNRESTRICTED (no cap / daily / amount-DVT; `remainingDaily ==      type(uint256).max`) and an unconfigured target is UNRESTRICTED (no allow-list / selector      / velocity / requireDVTAlways check). Combine: any configured dimension ⇒ REJECT wins;      else any configured dimension ⇒ REQUIRE_DVT wins; else ALLOW. A sender with NOTHING      configured ⇒ ALLOW with `remainingDaily == type(uint256).max`.
+*@dev* OPT-IN, default-ALLOW (NOT a global allowlist). An explicit `freeze` ⇒ REJECT (the one      hard block, top priority). Otherwise each dimension is enforced ONLY when `configured`:      an unconfigured asset is UNRESTRICTED (no cap / daily / amount-DVT; `remainingDaily ==      type(uint256).max`) and an unconfigured target is UNRESTRICTED (no allow-list / selector      / velocity / requireDVTAlways check). For a configured target with velocity enabled,      a missing (target, asset) velocity limit fails closed. Combine: any configured      dimension ⇒ REJECT wins; else any configured dimension ⇒ REQUIRE_DVT wins; else ALLOW. A sender with NOTHING      configured ⇒ ALLOW with `remainingDaily == type(uint256).max`.
 
 | param | type | description |
 |---|---|---|
@@ -3506,12 +3604,12 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `spentInWindow` | `uint128` | cumulative native-unit spend in the current window for this asset. |
+| `spentInWindow` | `uint256` | cumulative native-unit spend in the current window for this asset.         It is `uint256` so every amount accepted by {checkPolicy} can be recorded without         narrowing, including cumulative spend above `type(uint128).max`. |
 | `windowStart` | `uint64` | unix timestamp the current window began. |
 
-#### `getContractScope(address sender, address target)`
+#### `getTargetScope(address sender, address target)`
 
-`0x35cefaa8` · view · access: —
+`0x7ac0774b` · view · access: —
 
 | param | type | description |
 |---|---|---|
@@ -3520,7 +3618,22 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `_0` | `(bool,bool,uint128,uint64,bool)` |  |
+| `_0` | `(bool,bool,uint64,bool)` |  |
+
+#### `getTargetVelocity(address sender, address target, address asset)`
+
+`0xcb9fa794` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `limit` | `uint128` |  |
+| `configured` | `bool` |  |
 
 #### `guardian()`
 
@@ -3607,11 +3720,11 @@ Authoritative, auto-generated reference for every external/public function, even
 | `consumer` | `address` |  |
 | `authorized` | `bool` |  |
 
-#### `setContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+#### `setContractScope(address sender, address target, (bool,bool,uint64,bytes4[]) params)`
 
-`0x3ef43aff` · nonpayable · access: —
+`0xc28b58c1` · nonpayable · access: —
 
-> Set a (sender, target) scope and ADD the listed selectors to the allow set         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
+> Set a target-global (sender, target) scope and ADD selectors.         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
 
 *@dev* ADDITIVE semantics (Q3, by design — accepted carry-forward, PR #285 round-3):      re-calling UNIONS the new `selectorAllowlist` with whatever is already allowed; it      does NOT replace. To REMOVE selectors (a tightening) use {tightenContractScope}.      There is intentionally no single-call "replace": loosen adds, tighten removes — so      "swap the selector set" = tighten away the stale ones, then set the new ones. This      keeps loosen/tighten direction unambiguous for the timelock-vs-guardian split.
 
@@ -3619,7 +3732,7 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `sender` | `address` |  |
 | `target` | `address` |  |
-| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+| `params` | `(bool,bool,uint64,bytes4[])` |  |
 
 #### `setGuardian(address guardian)`
 
@@ -3630,6 +3743,19 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `guardian` | `address` |  |
+
+#### `setTargetVelocity(address sender, address target, address asset, uint128 limit)`
+
+`0xf8f33e86` · nonpayable · access: —
+
+> Set one asset-specific target velocity. `onlyTimelock`.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+| `limit` | `uint128` |  |
 
 #### `tightenAssetPolicy(address sender, address asset, (uint128,uint128,uint256,uint64) params)`
 
@@ -3643,17 +3769,30 @@ Authoritative, auto-generated reference for every external/public function, even
 | `asset` | `address` |  |
 | `params` | `(uint128,uint128,uint256,uint64)` |  |
 
-#### `tightenContractScope(address sender, address target, (bool,bool,uint128,uint64,bytes4[]) params)`
+#### `tightenContractScope(address sender, address target, (bool,bool,uint64,bytes4[]) params)`
 
-`0xccd7129f` · nonpayable · access: —
+`0x7f6f42f0` · nonpayable · access: —
 
-> Immediately tighten a (sender, target) scope (disallow target, remove the listed         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.         `onlyGuardianOrTimelock`.
+> Immediately tighten target-global scope fields.         `onlyGuardianOrTimelock`.
 
 | param | type | description |
 |---|---|---|
 | `sender` | `address` |  |
 | `target` | `address` |  |
-| `params` | `(bool,bool,uint128,uint64,bytes4[])` |  |
+| `params` | `(bool,bool,uint64,bytes4[])` |  |
+
+#### `tightenTargetVelocity(address sender, address target, address asset, uint128 limit)`
+
+`0xac0a0e81` · nonpayable · access: —
+
+> Immediately lower an existing asset-specific target velocity.
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+| `limit` | `uint128` |  |
 
 #### `timelock()`
 
@@ -3679,15 +3818,16 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | topic0 | event |
 |---|---|
-| `0x9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe` | `AssetPolicySet(address,address,uint128,uint128,uint256)` |
+| `0x5d9b9bcdce2cd939b17ac423b2aa97770271ecebda7bf7c45e7db25d980c52ae` | `AssetPolicySet(address,address,uint128,uint128,uint256,uint64)` |
 | `0x5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd45` | `ConsumerAuthorizationSet(address,bool)` |
-| `0x92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc` | `ContractScopeSet(address,address,bool,bool,uint128,uint64)` |
+| `0x9da60c6786d525ccc6003f478437c74ad59a8b556fb0fd5dec6dcd6f267c16c2` | `ContractScopeSet(address,address,bool,bool,uint64)` |
 | `0x064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad909` | `GuardianUpdated(address,address)` |
 | `0x4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e6` | `PolicyTightened(address,address)` |
 | `0xdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e62780` | `SelectorScopeSet(address,address,bytes4,bool)` |
 | `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` | `SenderFrozen(address,address)` |
 | `0xf70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee11765` | `SenderUnfrozen(address)` |
 | `0xc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f88` | `SpendRecorded(address,address,address,uint256,bytes4)` |
+| `0xa0cc9fdb8f54d3382e30589f0ae0733455166be350b0d2db1aa8e4f2e4b91b21` | `TargetVelocitySet(address,address,address,uint128)` |
 
 ### Errors
 
@@ -5199,7 +5339,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BLSAggregator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 76 · **Events:** 32 · **Errors:** 56
+- **Functions:** 77 · **Events:** 32 · **Errors:** 56
 - **Title:** BLSAggregator
 - BLS signature aggregation and verification for DVT slash consensus (V3)
 
@@ -5228,6 +5368,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa69dfb5e` | `GUARDIAN_EXIT_COOLDOWN()` | view | — | Quiet period imposed after cancelling an exit notice (BLOCKER-1). |
 | `0xb89c7362` | `GUARDIAN_EXIT_DELAY()` | view | — |  |
 | `0x12e360b4` | `GUARDIAN_EXIT_WINDOW()` | view | — |  |
+| `0xc8f66d24` | `GUARDIAN_FRAUD_CHALLENGE()` | view | — |  |
 | `0x95702d76` | `GUARDIAN_SLASH_BPS_MAX()` | view | — |  |
 | `0x019969d7` | `GUARDIAN_SLASH_BPS_MIN()` | view | — |  |
 | `0x570e530f` | `GUARDIAN_SLASH_CASE_WINDOW()` | view | — |  |
@@ -5255,7 +5396,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x25cad7a4` | `releaseKeyBinding(bytes32)` | nonpayable | onlyOwner | CC-48 round-3 recovery: release a `blsKeyOwner` binding that no ACTIVE         slot is using. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x79cada55` | `reputationMessageHash(uint256,address[],uint256[],uint256)` | view | — | Canonical reputation-batch pre-image. MUST stay byte-identical to         `Registry._reputationMessageHash` — Registry independently re-verifies         the same signature, and any divergence turns every reputation proposal         into an unexplained `BLSFailed`. |
-| `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with an         active request is excluded from BLS verification immediately,         giving watchers the full delay to queue a fraud proof. |
+| `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens. |
 | `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | onlyOwner | Revoke a previously registered BLS validator key. |
 | `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set default threshold for legacy calls (verifyAndExecute) |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner |  |
@@ -5391,7 +5532,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > EMERGENCY: disarm the fraud-proof verifier immediately — no delay.         Clears the active verifier AND any in-flight rotation, so no new         guardian-slash case can be opened from this block onwards.
 
-*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have it executed for 100% of         every accused guardian's lock within a SINGLE block, so a four-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             100% of every accused guardian's lock inside ONE block, so a four-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 4-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 4 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
+*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (5 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have it executed for 100% of         every accused guardian's lock within a SINGLE block, so a five-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 5 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             100% of every accused guardian's lock inside ONE block, so a five-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 5-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 5 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
 
 #### `executedProposals(uint256 arg0)`
 
@@ -5411,7 +5552,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Slash the FULL ROLE_DVT stake of guardians proven (by the external         fraud-proof verifier) to have co-signed a fraudulent proposal. This         is the thin SP execution entry for the paper's ρ·S_op collusion         deterrent (Protocol B stage 1). It complements _executeSlash, which         targets the operator's aPNTs — a DIFFERENT asset (guardian ROLE_DVT         stake ≠ operator aPNTs, even if the addresses coincide).
 
-*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice and is immediately excluded           from BLS signer masks; any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg           auto-ejects the guardian on the next verify. No 30% cap: proven           collusion must lose eligibility, not merely pay a fee — but this           holds for a guardian whose case is queued inside the configured           exit-notice window. The operator-path cap protects honest operators           from one bad epoch — a different threat model.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
+*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice, is excluded from BLS signer           masks from readyAt and can withdraw only after GUARDIAN_FRAUD_CHALLENGE;           any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg           auto-ejects the guardian on the next verify. No 30% cap: proven           collusion must lose eligibility, not merely pay a fee — but this           holds for a guardian whose case is queued inside the configured           exit-notice window. The operator-path cap protects honest operators           from one bad epoch — a different threat model.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
 
 | param | type | description |
 |---|---|---|
@@ -5510,6 +5651,14 @@ Authoritative, auto-generated reference for every external/public function, even
 #### `GUARDIAN_EXIT_WINDOW()`
 
 `0x12e360b4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `GUARDIAN_FRAUD_CHALLENGE()`
+
+`0xc8f66d24` · view · access: —
 
 | returns | type | description |
 |---|---|---|
@@ -5742,7 +5891,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`.
 
-*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a 100%-of-lock slash is publicly visible for four days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The request immediately removes the guardian from         valid signer masks; a verifier-approved queued case increments the         pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
+*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a 100%-of-lock slash is publicly visible for five days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The guardian leaves valid signer masks at readyAt and can         withdraw only after a further GUARDIAN_FRAUD_CHALLENGE; a verifier-approved         queued case increments the pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
 
 | param | type | description |
 |---|---|---|
@@ -5754,7 +5903,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
 
-*@dev* The full proof is checked before any freeze is installed, so arbitrary      callers cannot lock honest guardians. A bounded window      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full      exit notice, see the constant's own comment) prevents an abandoned case      from becoming a permanent withdrawal denial.`fraudProofId` is consumed for ever by this call, whatever the case's      eventual outcome, and the accused set is chosen by the CALLER. Verifiers      therefore MUST reject any set that is not exactly the one the evidence      commits to — otherwise a front-runner can open the case on a subset and      burn the id for everyone else. See `IFraudProofVerifier` above and      `FraudProofVerifierConformance.assertSetBound`.
+*@dev* The full proof is checked before any freeze is installed, so arbitrary      callers cannot lock honest guardians. A bounded window      (`GUARDIAN_SLASH_CASE_WINDOW`, 5 days — it must strictly dominate a full      exit notice, see the constant's own comment) prevents an abandoned case      from becoming a permanent withdrawal denial.`fraudProofId` is consumed for ever by this call, whatever the case's      eventual outcome, and the accused set is chosen by the CALLER. Verifiers      therefore MUST reject any set that is not exactly the one the evidence      commits to — otherwise a front-runner can open the case on a subset and      burn the id for everyone else. See `IFraudProofVerifier` above and      `FraudProofVerifierConformance.assertSetBound`.
 
 | param | type | description |
 |---|---|---|
@@ -5841,7 +5990,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xf7664c8d` · nonpayable · access: —
 
-> Start a bounded ROLE_DVT unbonding notice. A guardian with an         active request is excluded from BLS verification immediately,         giving watchers the full delay to queue a fraud proof.
+> Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens.
 
 #### `revokeBLSPublicKey(address validator)`
 
@@ -14455,7 +14604,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - **Source:** `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
 - **Functions:** 46 · **Events:** 11 · **Errors:** 15
 - **Title:** xPNTsFactoryV2
-- xPNTs v2 (XPNTs-4.0.0) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
+- xPNTs v2 (XPNTs-4.0.1) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
 
 ### Function selector index
 
@@ -15089,7 +15238,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsTokenV2
 
 - **Source:** `contracts/src/tokens/v2/xPNTsTokenV2.sol`
-- **Functions:** 89 · **Events:** 42 · **Errors:** 49
+- **Functions:** 89 · **Events:** 44 · **Errors:** 49
 - **Title:** xPNTsTokenV2 (CORE)
 - Community gas token with a BOUNDED auto-allowance and validation-time escrow.
 
@@ -16167,6 +16316,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
 | `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` |
 | `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
@@ -16329,7 +16480,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsTokenV2Ext
 
 - **Source:** `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
-- **Functions:** 128 · **Events:** 42 · **Errors:** 49
+- **Functions:** 128 · **Events:** 44 · **Errors:** 49
 - **Title:** xPNTsTokenV2Ext (EXTENSION)
 - Administration, user settings, relayed actions and CC-28 views of xPNTs v2.
 
@@ -17682,6 +17833,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
 | `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` |
 | `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
@@ -17746,7 +17899,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsV2Base
 
 - **Source:** `contracts/src/tokens/v2/xPNTsV2Base.sol`
-- **Functions:** 69 · **Events:** 42 · **Errors:** 48
+- **Functions:** 69 · **Events:** 44 · **Errors:** 48
 - **Title:** xPNTsV2Base
 - Shared storage, constants, events, errors and internal logic of xPNTs v2.
 
@@ -18552,6 +18705,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
 | `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` |
 | `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |

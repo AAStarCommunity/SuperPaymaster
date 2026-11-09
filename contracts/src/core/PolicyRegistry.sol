@@ -2,7 +2,6 @@
 pragma solidity 0.8.33;
 
 import {IPolicyRegistry} from "../interfaces/v3/IPolicyRegistry.sol";
-import {SafeCast} from "@openzeppelin-v5.0.2/contracts/utils/math/SafeCast.sol";
 
 /// @title PolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
 /// @author SuperPaymaster (DVT cross-repo program, hub: AAStarCommunity/YetAnotherAA-Validator#42)
@@ -24,8 +23,6 @@ import {SafeCast} from "@openzeppelin-v5.0.2/contracts/utils/math/SafeCast.sol";
 ///      The combined-signature 0x04/05/07 packing is owned entirely by AirAccount #70. Here we
 ///      only reason about (sender, target, asset, amount, selector) — never raw signatures.
 contract PolicyRegistry is IPolicyRegistry {
-    using SafeCast for uint256;
-
     // ─────────────────────────────────────────────────────────────────────────
     // Constants
     // ─────────────────────────────────────────────────────────────────────────
@@ -43,20 +40,35 @@ contract PolicyRegistry is IPolicyRegistry {
 
     /// @dev Sender-keyed cumulative spend / velocity counter ("todaySpent").
     struct SpendCounter {
-        uint128 spentInWindow;
+        uint256 spentInWindow;
         uint64 windowStart;
+    }
+
+    struct TargetVelocity {
+        uint128 limit;
+        bool configured;
+    }
+
+    struct TargetScope {
+        bool allowed;
+        bool requireDVTAlways;
+        uint64 velocityWindow;
+        bool configured;
     }
 
     // policy config (governance-gated)
     mapping(address sender => mapping(address asset => AssetPolicy)) private _assetPolicy;
-    mapping(address sender => mapping(address target => ContractScope)) private _contractScope;
+    mapping(address sender => mapping(address target => TargetScope)) private _contractScope;
     mapping(address sender => mapping(address target => mapping(bytes4 selector => bool)))
         private _selectorAllowed;
+    mapping(address sender => mapping(address target => mapping(address asset => TargetVelocity)))
+        private _targetVelocity;
     mapping(address sender => bool) private _frozen;
 
     // sender-keyed cumulative spend / velocity counters
     mapping(address sender => mapping(address asset => SpendCounter)) private _assetSpend;
-    mapping(address sender => mapping(address target => SpendCounter)) private _targetSpend;
+    mapping(address sender => mapping(address target => mapping(address asset => SpendCounter)))
+        private _targetSpend;
 
     // governance machinery (Q5: delay provided by the external TimelockController)
     mapping(address consumer => bool) private _authorizedConsumer;
@@ -141,8 +153,9 @@ contract PolicyRegistry is IPolicyRegistry {
     ///      allowlist: a sender with nothing configured for an (asset, target) is UNRESTRICTED
     ///      and resolves to ALLOW with `remainingDaily == type(uint256).max`. An explicit
     ///      `freeze` is the one hard block (highest priority). Each dimension is enforced ONLY
-    ///      when it is `configured`; an unconfigured dimension imposes no constraint and never
-    ///      triggers DVT. Combine: any configured dimension yielding REJECT ⇒ REJECT; else any
+    ///      when it is `configured`. If a configured target enables velocity, every asset must
+    ///      have an explicit velocity limit; a missing pair rejects. Combine: any configured
+    ///      dimension yielding REJECT ⇒ REJECT; else any
     ///      configured dimension yielding REQUIRE_DVT ⇒ REQUIRE_DVT; else ALLOW.
     function checkPolicy(
         address sender,
@@ -178,16 +191,19 @@ contract PolicyRegistry is IPolicyRegistry {
         }
 
         // (c) CONTRACT-SCOPE dimension — enforced ONLY when configured (else target UNRESTRICTED).
-        ContractScope storage cs = _contractScope[sender][target];
+        TargetScope storage cs = _contractScope[sender][target];
         if (cs.configured) {
             // target must be on the call-target allowlist, and the selector allowed.
             if (!cs.allowed) return (PolicyDecision.REJECT, 0);
             if (!_selectorAllowed[sender][target][selector]) return (PolicyDecision.REJECT, 0);
-            // per-target velocity window (0 window ⇒ no velocity limit).
+            // Per-target velocity window (0 window ⇒ no velocity limit). A missing per-asset
+            // limit fails closed so switching assets cannot bypass the target scope.
             if (cs.velocityWindow != 0) {
+                TargetVelocity storage velocity = _targetVelocity[sender][target][asset];
+                if (!velocity.configured) return (PolicyDecision.REJECT, 0);
                 uint256 targetSpent =
-                    _effectiveSpent(_targetSpend[sender][target], cs.velocityWindow);
-                if (targetSpent + amount > cs.velocityLimit) return (PolicyDecision.REJECT, 0);
+                    _effectiveSpent(_targetSpend[sender][target][asset], cs.velocityWindow);
+                if (targetSpent + amount > velocity.limit) return (PolicyDecision.REJECT, 0);
             }
             // target flagged requireDVTAlways ⇒ REQUIRE_DVT regardless of amount.
             if (cs.requireDVTAlways) {
@@ -215,11 +231,14 @@ contract PolicyRegistry is IPolicyRegistry {
 
         // Advance the per-asset counter, rolling the window first if elapsed.
         AssetPolicy storage ap = _assetPolicy[sender][asset];
-        _advance(_assetSpend[sender][asset], ap.windowSeconds, amount);
+        if (ap.configured) _advance(_assetSpend[sender][asset], ap.windowSeconds, amount);
 
         // Advance the per-target velocity counter.
-        ContractScope storage cs = _contractScope[sender][target];
-        _advance(_targetSpend[sender][target], cs.velocityWindow, amount);
+        TargetScope storage cs = _contractScope[sender][target];
+        if (
+            cs.configured && cs.velocityWindow != 0
+                && _targetVelocity[sender][target][asset].configured
+        ) _advance(_targetSpend[sender][target][asset], cs.velocityWindow, amount);
 
         emit SpendRecorded(sender, asset, target, amount, selector);
     }
@@ -235,7 +254,7 @@ contract PolicyRegistry is IPolicyRegistry {
         } else {
             base = c.spentInWindow;
         }
-        c.spentInWindow = (base + amount).toUint128(); // reverts on >uint128 overflow.
+        c.spentInWindow = base + amount;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -258,7 +277,8 @@ contract PolicyRegistry is IPolicyRegistry {
             configured: true
         });
         emit AssetPolicySet(
-            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit
+            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit,
+            _window(params.windowSeconds)
         );
     }
 
@@ -269,15 +289,14 @@ contract PolicyRegistry is IPolicyRegistry {
         onlyTimelock
     {
         if (target == address(0)) revert ZeroAddress();
-        _contractScope[sender][target] = ContractScope({
+        _contractScope[sender][target] = TargetScope({
             allowed: params.allowed,
             requireDVTAlways: params.requireDVTAlways,
-            velocityLimit: params.velocityLimit,
             velocityWindow: params.velocityWindow,
             configured: true
         });
         emit ContractScopeSet(
-            sender, target, params.allowed, params.requireDVTAlways, params.velocityLimit, params.velocityWindow
+            sender, target, params.allowed, params.requireDVTAlways, params.velocityWindow
         );
         uint256 len = params.selectorAllowlist.length;
         for (uint256 i; i < len; ++i) {
@@ -285,6 +304,17 @@ contract PolicyRegistry is IPolicyRegistry {
             _selectorAllowed[sender][target][sel] = true; // additive
             emit SelectorScopeSet(sender, target, sel, true);
         }
+    }
+
+    /// @inheritdoc IPolicyRegistry
+    function setTargetVelocity(address sender, address target, address asset, uint128 limit)
+        external
+        onlyTimelock
+    {
+        if (target == address(0)) revert ZeroAddress();
+        _requireValidAsset(asset);
+        _targetVelocity[sender][target][asset] = TargetVelocity({limit: limit, configured: true});
+        emit TargetVelocitySet(sender, target, asset, limit);
     }
 
     /// @inheritdoc IPolicyRegistry
@@ -334,7 +364,8 @@ contract PolicyRegistry is IPolicyRegistry {
         cur.dailyLimit = params.dailyLimit;
         // windowSeconds left unchanged: shrinking/growing a window is not monotone in safety.
         emit AssetPolicySet(
-            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit
+            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit,
+            _window(cur.windowSeconds)
         );
         emit PolicyTightened(sender, msg.sender);
     }
@@ -348,23 +379,14 @@ contract PolicyRegistry is IPolicyRegistry {
         onlyGuardianOrTimelock
     {
         if (target == address(0)) revert ZeroAddress();
-        ContractScope storage cur = _contractScope[sender][target];
+        TargetScope storage cur = _contractScope[sender][target];
         if (!cur.configured) revert NotStrictlyTighter();
         // Cannot newly allow a target via the immediate path.
         if (params.allowed && !cur.allowed) revert NotStrictlyTighter();
         // Cannot drop a requireDVTAlways flag via the immediate path.
         if (cur.requireDVTAlways && !params.requireDVTAlways) revert NotStrictlyTighter();
-        // velocityLimit has NO sentinel: checkPolicy enforces `targetSpent + amount >
-        // velocityLimit` only while the window is active, so 0 = STRICTEST (reject any non-zero
-        // amount) and larger = looser. Plain `params > cur` is the correct tighten ordering.
-        // (When the window is disabled this is conservative — raising the limit is a no-op in
-        // checkPolicy yet still reverts — but never unsafe, and the window cannot be re-enabled
-        // here anyway; see below.)
-        if (params.velocityLimit > cur.velocityLimit) revert NotStrictlyTighter();
-
         cur.allowed = params.allowed;
         cur.requireDVTAlways = params.requireDVTAlways;
-        cur.velocityLimit = params.velocityLimit;
         // velocityWindow is the one SENTINEL field here (checkPolicy gates the whole velocity
         // check on `velocityWindow != 0`, so 0 = velocity DISABLED = LOOSEST = +∞). It is
         // deliberately NOT mutated by this immediate path: `params.velocityWindow` is ignored
@@ -374,7 +396,7 @@ contract PolicyRegistry is IPolicyRegistry {
         // only); enabling/shrinking a window is not monotone in safety. Both must route through
         // the 2-day timelock via setContractScope, never the guardian.
         emit ContractScopeSet(
-            sender, target, params.allowed, params.requireDVTAlways, params.velocityLimit, cur.velocityWindow
+            sender, target, params.allowed, params.requireDVTAlways, cur.velocityWindow
         );
 
         // Selectors listed here are REMOVED (the tighten direction of the additive set).
@@ -384,6 +406,19 @@ contract PolicyRegistry is IPolicyRegistry {
             _selectorAllowed[sender][target][sel] = false;
             emit SelectorScopeSet(sender, target, sel, false);
         }
+        emit PolicyTightened(sender, msg.sender);
+    }
+
+    /// @inheritdoc IPolicyRegistry
+    function tightenTargetVelocity(address sender, address target, address asset, uint128 limit)
+        external
+        onlyGuardianOrTimelock
+    {
+        _requireValidAsset(asset);
+        TargetVelocity storage cur = _targetVelocity[sender][target][asset];
+        if (!cur.configured || limit > cur.limit) revert NotStrictlyTighter();
+        cur.limit = limit;
+        emit TargetVelocitySet(sender, target, asset, limit);
         emit PolicyTightened(sender, msg.sender);
     }
 
@@ -426,12 +461,28 @@ contract PolicyRegistry is IPolicyRegistry {
     }
 
     /// @inheritdoc IPolicyRegistry
-    function getContractScope(address sender, address target)
+    function getTargetScope(address sender, address target)
         external
         view
         returns (ContractScope memory)
     {
-        return _contractScope[sender][target];
+        TargetScope storage targetScope = _contractScope[sender][target];
+        return ContractScope({
+            allowed: targetScope.allowed,
+            requireDVTAlways: targetScope.requireDVTAlways,
+            velocityWindow: targetScope.velocityWindow,
+            configured: targetScope.configured
+        });
+    }
+
+    /// @inheritdoc IPolicyRegistry
+    function getTargetVelocity(address sender, address target, address asset)
+        external
+        view
+        returns (uint128 limit, bool configured)
+    {
+        TargetVelocity storage velocity = _targetVelocity[sender][target][asset];
+        return (velocity.limit, velocity.configured);
     }
 
     /// @inheritdoc IPolicyRegistry
@@ -447,7 +498,7 @@ contract PolicyRegistry is IPolicyRegistry {
     function getAssetSpend(address sender, address asset)
         external
         view
-        returns (uint128 spentInWindow, uint64 windowStart)
+        returns (uint256 spentInWindow, uint64 windowStart)
     {
         SpendCounter storage c = _assetSpend[sender][asset];
         return (c.spentInWindow, c.windowStart);
@@ -467,6 +518,6 @@ contract PolicyRegistry is IPolicyRegistry {
 
     /// @notice Contract version (see CLAUDE.md versioning convention).
     function version() external pure returns (string memory) {
-        return "PolicyRegistry-1.0.0";
+        return "PolicyRegistry-3.0.1";
     }
 }

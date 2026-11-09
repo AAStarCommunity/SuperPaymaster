@@ -13,7 +13,8 @@ pragma solidity 0.8.33;
 /// @dev DESIGN INVARIANTS (frozen by DVT coordination — non-negotiable):
 ///
 ///   1. PER-SENDER KEYED, NOT per-operator. Every cumulative counter (`spent` / velocity)
-///      and every policy entry is keyed by `sender` (the AA account address). This is the
+///      and every policy entry is keyed by `sender` (the AA account address). Target velocity
+///      limits are further keyed by asset so incomparable native units never mix. This is the
 ///      entire reason this is a *separate* registry: a consumer may read `spent[sender]`
 ///      during validation because it is **sender-associated storage** under ERC-7562, so the
 ///      bundler does not reject the UserOp for accessing storage the sender does not own.
@@ -111,14 +112,12 @@ interface IPolicyRegistry {
         uint64 windowSeconds; // 0 ⇒ DEFAULT_WINDOW (1 day)
     }
 
-    /// @notice Per-(sender, target-contract) scope. Mirrors `SessionKeyValidator.Session`
-    ///         (callTargets / selectorAllowlist / velocityLimit / velocityWindow).
+    /// @notice Per-(sender, target-contract) global scope.
     /// @dev Selector allow-list lives in a nested mapping in storage (see STORAGE SHAPE),
     ///      so this view struct returns scalars only; query selectors via {isSelectorAllowed}.
     struct ContractScope {
         bool allowed;             // target on this sender's call-target allowlist
         bool requireDVTAlways;    // this target always requires DVT co-sign regardless of amount
-        uint128 velocityLimit;    // max cumulative amount routed to this target per window
         uint64 velocityWindow;    // velocity window length, seconds (0 ⇒ no velocity limit)
         bool configured;          // false ⇒ no scope set for this (sender, target)
     }
@@ -127,7 +126,6 @@ interface IPolicyRegistry {
     struct ContractScopeInput {
         bool allowed;
         bool requireDVTAlways;
-        uint128 velocityLimit;
         uint64 velocityWindow;
         bytes4[] selectorAllowlist; // selectors to mark allowed for this target
     }
@@ -139,15 +137,18 @@ interface IPolicyRegistry {
     //
     //   // policy config (governance-gated)
     //   mapping(address sender => mapping(address asset  => AssetPolicy))     _assetPolicy;
-    //   mapping(address sender => mapping(address target => ContractScope))   _contractScope;
+    //   mapping(address sender => mapping(address target => TargetScope))      _contractScope;
     //   mapping(address sender => mapping(address target =>
-    //             mapping(bytes4 selector => bool)))                          _selectorAllowed;
+    //             mapping(bytes4 selector => bool)))                           _selectorAllowed;
+    //   mapping(address sender => mapping(address target => mapping(address asset =>
+    //             TargetVelocity)))                                            _targetVelocity;
     //   mapping(address sender => bool)                                       _frozen;
     //
     //   // sender-keyed cumulative spend / velocity counters ("todaySpent")
-    //   struct SpendCounter { uint128 spentInWindow; uint64 windowStart; }
+    //   struct SpendCounter { uint256 spentInWindow; uint64 windowStart; }
     //   mapping(address sender => mapping(address asset  => SpendCounter))    _assetSpend;
-    //   mapping(address sender => mapping(address target => SpendCounter))    _targetSpend;
+    //   mapping(address sender => mapping(address target =>
+    //             mapping(address asset => SpendCounter)))                    _targetSpend;
     //
     //   // governance machinery (Q5: delay provided by an EXTERNAL OZ TimelockController)
     //   mapping(address consumer => bool)                                    _authorizedConsumer;
@@ -166,8 +167,9 @@ interface IPolicyRegistry {
     ///      hard block, top priority). Otherwise each dimension is enforced ONLY when `configured`:
     ///      an unconfigured asset is UNRESTRICTED (no cap / daily / amount-DVT; `remainingDaily ==
     ///      type(uint256).max`) and an unconfigured target is UNRESTRICTED (no allow-list / selector
-    ///      / velocity / requireDVTAlways check). Combine: any configured dimension ⇒ REJECT wins;
-    ///      else any configured dimension ⇒ REQUIRE_DVT wins; else ALLOW. A sender with NOTHING
+    ///      / velocity / requireDVTAlways check). For a configured target with velocity enabled,
+    ///      a missing (target, asset) velocity limit fails closed. Combine: any configured
+    ///      dimension ⇒ REJECT wins; else any configured dimension ⇒ REQUIRE_DVT wins; else ALLOW. A sender with NOTHING
     ///      configured ⇒ ALLOW with `remainingDaily == type(uint256).max`.
     /// @param sender   the AA account address (the policy + counter key).
     /// @param target   the contract the op will call.
@@ -246,7 +248,7 @@ interface IPolicyRegistry {
         AssetPolicyInput calldata params
     ) external;
 
-    /// @notice Set a (sender, target) scope and ADD the listed selectors to the allow set
+    /// @notice Set a target-global (sender, target) scope and ADD selectors.
     ///         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
     /// @dev ADDITIVE semantics (Q3, by design — accepted carry-forward, PR #285 round-3):
     ///      re-calling UNIONS the new `selectorAllowlist` with whatever is already allowed; it
@@ -259,6 +261,9 @@ interface IPolicyRegistry {
         address target,
         ContractScopeInput calldata params
     ) external;
+
+    /// @notice Set one asset-specific target velocity. `onlyTimelock`.
+    function setTargetVelocity(address sender, address target, address asset, uint128 limit) external;
 
     /// @notice Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`.
     function unfreezeSender(address sender) external;
@@ -275,14 +280,16 @@ interface IPolicyRegistry {
         AssetPolicyInput calldata params
     ) external;
 
-    /// @notice Immediately tighten a (sender, target) scope (disallow target, remove the listed
-    ///         selectors, lower velocity, set requireDVTAlways). MUST revert unless tighter.
+    /// @notice Immediately tighten target-global scope fields.
     ///         `onlyGuardianOrTimelock`.
     function tightenContractScope(
         address sender,
         address target,
         ContractScopeInput calldata params
     ) external;
+
+    /// @notice Immediately lower an existing asset-specific target velocity.
+    function tightenTargetVelocity(address sender, address target, address asset, uint128 limit) external;
 
     /// @notice Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate
     ///         is the whole point — defense must not wait. `onlyGuardianOrTimelock` (guardian =
@@ -310,10 +317,15 @@ interface IPolicyRegistry {
         view
         returns (AssetPolicy memory);
 
-    function getContractScope(address sender, address target)
+    function getTargetScope(address sender, address target)
         external
         view
         returns (ContractScope memory);
+
+    function getTargetVelocity(address sender, address target, address asset)
+        external
+        view
+        returns (uint128 limit, bool configured);
 
     function isSelectorAllowed(address sender, address target, bytes4 selector)
         external
@@ -321,11 +333,13 @@ interface IPolicyRegistry {
         returns (bool);
 
     /// @return spentInWindow cumulative native-unit spend in the current window for this asset.
+    ///         It is `uint256` so every amount accepted by {checkPolicy} can be recorded without
+    ///         narrowing, including cumulative spend above `type(uint128).max`.
     /// @return windowStart unix timestamp the current window began.
     function getAssetSpend(address sender, address asset)
         external
         view
-        returns (uint128 spentInWindow, uint64 windowStart);
+        returns (uint256 spentInWindow, uint64 windowStart);
 
     function isFrozen(address sender) external view returns (bool);
 
@@ -351,15 +365,21 @@ interface IPolicyRegistry {
         address indexed asset,
         uint128 dvtTriggerAmount,
         uint128 perTxHardCap,
-        uint256 dailyLimit
+        uint256 dailyLimit,
+        uint64 effectiveWindow
     );
     event ContractScopeSet(
         address indexed sender,
         address indexed target,
         bool allowed,
         bool requireDVTAlways,
-        uint128 velocityLimit,
         uint64 velocityWindow
+    );
+    event TargetVelocitySet(
+        address indexed sender,
+        address indexed target,
+        address indexed asset,
+        uint128 limit
     );
     event SelectorScopeSet(
         address indexed sender,
