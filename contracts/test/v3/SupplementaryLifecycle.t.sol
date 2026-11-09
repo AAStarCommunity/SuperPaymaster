@@ -42,6 +42,10 @@ contract MockPriceFeedSL {
     function decimals() external pure returns (uint8) { return 8; }
 }
 
+contract RevertingMySBTSL {
+    fallback() external { revert(); }
+}
+
 // V2 for upgradeToAndCall + reinitializer testing
 contract RegistryV2Reinit is Registry {
     uint256 public migrationFlag;
@@ -72,6 +76,9 @@ contract SuperPaymasterV2Reinit is SuperPaymaster {
 // ============================================
 
 contract SupplementaryLifecycleTest is Test {
+    event MembershipDeactivationFailed(address indexed user);
+    event MembershipDeactivationReconciled(address indexed user);
+    event SBTBurnReconciled(address indexed user);
     Registry registry;
     GTokenStaking staking;
     MySBT sbt;
@@ -159,6 +166,17 @@ contract SupplementaryLifecycleTest is Test {
             })
         );
         registry.registerRole(ROLE_COMMUNITY, user, roleData);
+        vm.stopPrank();
+    }
+
+    function _registerEndUser(address user, address community) internal {
+        vm.startPrank(user);
+        gtoken.approve(address(staking), 1 ether);
+        registry.registerRole(
+            ROLE_ENDUSER,
+            user,
+            abi.encode(Registry.EndUserRoleData({community: community, stakeAmount: 0}))
+        );
         vm.stopPrank();
     }
 
@@ -455,6 +473,181 @@ contract SupplementaryLifecycleTest is Test {
         MySBT.CommunityMembership[] memory memberships = sbt.getMemberships(tokenId);
         assertTrue(memberships.length > 0, "Should have at least one membership");
         assertTrue(memberships[0].isActive, "First membership should be active");
+    }
+
+    function test_C302_EndUserExitDeactivatesMemberships() public {
+        _registerCommunity(communityUser, "EndUserExitDAO");
+        _registerEndUser(communityUser, communityUser);
+        assertTrue(sbt.verifyCommunityMembership(communityUser, communityUser));
+
+        vm.prank(communityUser);
+        registry.exitRole(ROLE_ENDUSER);
+
+        assertTrue(registry.hasRole(ROLE_COMMUNITY, communityUser));
+        assertFalse(sbt.verifyCommunityMembership(communityUser, communityUser));
+    }
+
+    function test_C302_DeactivationFailureIsNonFatalAndPermissionlessRetryWorks() public {
+        _registerCommunity(communityUser, "RetryMembershipDAO");
+        _registerEndUser(communityUser, communityUser);
+
+        RevertingMySBTSL revertingSBT = new RevertingMySBTSL();
+        vm.prank(owner);
+        registry.setMySBT(address(revertingSBT));
+        vm.expectEmit(true, false, false, false, address(registry));
+        emit MembershipDeactivationFailed(communityUser);
+        vm.prank(communityUser);
+        registry.exitRole(ROLE_ENDUSER);
+        assertFalse(registry.hasRole(ROLE_ENDUSER, communityUser));
+        assertTrue(registry.pendingMembershipCleanup(communityUser));
+
+        vm.prank(owner);
+        registry.setMySBT(address(sbt));
+        vm.expectEmit(true, false, false, false, address(registry));
+        emit MembershipDeactivationReconciled(communityUser);
+        vm.prank(makeAddr("reconciler"));
+        registry.reconcileMembershipDeactivation(communityUser);
+        assertFalse(registry.pendingMembershipCleanup(communityUser));
+        assertFalse(sbt.verifyCommunityMembership(communityUser, communityUser));
+    }
+
+    function test_C302_MembershipRetryRejectsCurrentEndUser() public {
+        _registerCommunity(communityUser, "RetryGateDAO");
+        _registerEndUser(endUser, communityUser);
+
+        bytes32 pendingSlot = keccak256(abi.encode(endUser, uint256(32)));
+        vm.store(address(registry), pendingSlot, bytes32(uint256(1)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Registry.RoleAlreadyGranted.selector, ROLE_ENDUSER, endUser)
+        );
+        registry.reconcileMembershipDeactivation(endUser);
+    }
+
+    function test_C302_MembershipReconcileRequiresPriorFailure() public {
+        _registerCommunity(communityUser, "NoFailureRetryDAO");
+        _registerEndUser(communityUser, communityUser);
+        vm.prank(communityUser);
+        registry.exitRole(ROLE_ENDUSER);
+
+        vm.expectRevert(Registry.InvalidParam.selector);
+        registry.reconcileMembershipDeactivation(communityUser);
+    }
+
+    function test_C303_PermissionlessFinalRoleBurnReconciliation() public {
+        _registerCommunity(communityUser, "RetryBurnDAO");
+        assertNotEq(sbt.userToSBT(communityUser), 0);
+
+        vm.prank(dao);
+        sbt.pause();
+        vm.prank(communityUser);
+        registry.exitRole(ROLE_COMMUNITY);
+        assertNotEq(sbt.userToSBT(communityUser), 0);
+        assertTrue(registry.pendingSBTBurn(communityUser));
+
+        vm.prank(dao);
+        sbt.unpause();
+        vm.expectEmit(true, false, false, false, address(registry));
+        emit SBTBurnReconciled(communityUser);
+        vm.prank(makeAddr("burnReconciler"));
+        registry.reconcileSBTBurn(communityUser);
+        assertFalse(registry.pendingSBTBurn(communityUser));
+        assertEq(sbt.userToSBT(communityUser), 0);
+    }
+
+    function test_C303_BurnReconciliationRequiresPriorFailureEvenWithZeroLegacyCount() public {
+        _registerCommunity(communityUser, "RetryBurnGateDAO");
+        bytes32 countSlot = keccak256(abi.encode(communityUser, uint256(16)));
+        vm.store(address(registry), countSlot, bytes32(0));
+
+        vm.expectRevert(Registry.InvalidParam.selector);
+        registry.reconcileSBTBurn(communityUser);
+        assertNotEq(sbt.userToSBT(communityUser), 0);
+    }
+
+    function _community(address user, string memory name) internal {
+        vm.prank(owner);
+        gtoken.mint(user, 100 ether);
+        _registerCommunity(user, name);
+    }
+
+    function _pendingTwoMemberships(address user, address communityA, address communityB) internal {
+        _registerEndUser(user, communityA);
+        _registerEndUser(user, communityB);
+
+        RevertingMySBTSL revertingSBT = new RevertingMySBTSL();
+        vm.prank(owner);
+        registry.setMySBT(address(revertingSBT));
+        vm.prank(user);
+        registry.exitRole(ROLE_ENDUSER);
+        assertTrue(registry.pendingMembershipCleanup(user));
+
+        vm.prank(owner);
+        registry.setMySBT(address(sbt));
+    }
+
+    function test_REG01_SelfRegistrationRequiresMembershipReconciliation() public {
+        address communityB = makeAddr("communityB");
+        address communityC = makeAddr("communityC");
+        _registerCommunity(communityUser, "CommunityA");
+        _community(communityB, "CommunityB");
+        _community(communityC, "CommunityC");
+        _pendingTwoMemberships(endUser, communityUser, communityB);
+
+        vm.startPrank(endUser);
+        gtoken.approve(address(staking), 1 ether);
+        vm.expectRevert(Registry.InvalidParam.selector);
+        registry.registerRole(
+            ROLE_ENDUSER,
+            endUser,
+            abi.encode(Registry.EndUserRoleData({community: communityC, stakeAmount: 0}))
+        );
+        vm.stopPrank();
+
+        registry.reconcileMembershipDeactivation(endUser);
+        _registerEndUser(endUser, communityC);
+        assertFalse(sbt.verifyCommunityMembership(endUser, communityUser));
+        assertFalse(sbt.verifyCommunityMembership(endUser, communityB));
+        assertTrue(sbt.verifyCommunityMembership(endUser, communityC));
+    }
+
+    function test_REG01_SafeMintRequiresMembershipReconciliation() public {
+        address communityB = makeAddr("safeCommunityB");
+        address communityC = makeAddr("safeCommunityC");
+        _registerCommunity(communityUser, "SafeCommunityA");
+        _community(communityB, "SafeCommunityB");
+        _community(communityC, "SafeCommunityC");
+        _pendingTwoMemberships(endUser, communityUser, communityB);
+
+        bytes memory data = abi.encode(
+            Registry.EndUserRoleData({community: communityC, stakeAmount: 0})
+        );
+        vm.prank(communityC);
+        vm.expectRevert(Registry.InvalidParam.selector);
+        registry.safeMintForRole(ROLE_ENDUSER, endUser, data);
+
+        registry.reconcileMembershipDeactivation(endUser);
+        vm.prank(communityC);
+        registry.safeMintForRole(ROLE_ENDUSER, endUser, data);
+        assertFalse(sbt.verifyCommunityMembership(endUser, communityUser));
+        assertFalse(sbt.verifyCommunityMembership(endUser, communityB));
+        assertTrue(sbt.verifyCommunityMembership(endUser, communityC));
+    }
+
+    function test_C303_ReRegistrationClearsPendingSBTBurn() public {
+        _registerCommunity(communityUser, "ReRegisterCleanupDAO");
+
+        RevertingMySBTSL revertingSBT = new RevertingMySBTSL();
+        vm.prank(owner);
+        registry.setMySBT(address(revertingSBT));
+        vm.prank(communityUser);
+        registry.exitRole(ROLE_COMMUNITY);
+        assertTrue(registry.pendingSBTBurn(communityUser));
+
+        vm.prank(owner);
+        registry.setMySBT(address(sbt));
+        _registerCommunity(communityUser, "ReRegisterCleanupDAO");
+        assertFalse(registry.pendingSBTBurn(communityUser));
     }
 
     // ====================================

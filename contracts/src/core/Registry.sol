@@ -27,7 +27,7 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.9.0";
+        return "Registry-5.10.0";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -189,6 +189,9 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
     ///      with a single lightweight signal: target = staking address for exit-fee
     ///      sync failures; role identifies which role was affected.
     event SyncFailed(address indexed target, bytes32 indexed role);
+    event MembershipDeactivationFailed(address indexed user);
+    event MembershipDeactivationReconciled(address indexed user);
+    event SBTBurnReconciled(address indexed user);
 
     /// @dev P0-3: push a role's exit fee to staking via a low-level call so a staking-side
     ///      revert cannot brick registration/config; emits SyncFailed for indexer alerting.
@@ -371,6 +374,16 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
         }
         _removeFromUserRoles(msg.sender, roleId);
 
+        if (roleId == ROLE_ENDUSER) {
+            (bool ok,) = address(MYSBT).call(
+                abi.encodeCall(IMySBT.deactivateAllMemberships, (msg.sender))
+            );
+            if (!ok) {
+                pendingMembershipCleanup[msg.sender] = true;
+                emit MembershipDeactivationFailed(msg.sender);
+            }
+        }
+
         if (roleId != ROLE_PAYMASTER_AOA && roleId != ROLE_PAYMASTER_SUPER) {
             if (roleId == ROLE_COMMUNITY) {
                 bytes memory meta = roleMetadata[roleId][msg.sender];
@@ -397,7 +410,10 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
             }
             // L-04: non-fatal burnSBT — failure emits SBTBurnFailed.
             (bool _burnOk,) = address(MYSBT).call(abi.encodeCall(IMySBT.burnSBT, (msg.sender)));
-            if (!_burnOk) emit SBTBurnFailed(msg.sender, roleId);
+            if (!_burnOk) {
+                pendingSBTBurn[msg.sender] = true;
+                emit SBTBurnFailed(msg.sender, roleId);
+            }
         }
 
         uint256 exitFee;
@@ -416,6 +432,24 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
         }
 
         emit RoleExited(roleId, msg.sender, exitFee, block.timestamp);
+    }
+
+    /// @notice Retry ENDUSER membership cleanup after a non-fatal exit synchronization failure.
+    function reconcileMembershipDeactivation(address user) external {
+        if (!pendingMembershipCleanup[user]) revert InvalidParam();
+        if (hasRole[ROLE_ENDUSER][user]) revert RoleAlreadyGranted(ROLE_ENDUSER, user);
+        pendingMembershipCleanup[user] = false;
+        MYSBT.deactivateAllMemberships(user);
+        emit MembershipDeactivationReconciled(user);
+    }
+
+    /// @notice Retry a failed final-role SBT burn.
+    function reconcileSBTBurn(address user) external {
+        if (!pendingSBTBurn[user]) revert InvalidParam();
+        if (userRoleCount[user] != 0) revert InvalidParam();
+        pendingSBTBurn[user] = false;
+        MYSBT.burnSBT(user);
+        emit SBTBurnReconciled(user);
     }
 
     function safeMintForRole(bytes32 roleId, address user, bytes calldata data) external nonReentrant returns (uint256 tokenId) {
@@ -448,6 +482,8 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
         roleMetadata[roleId][user] = roleData;
         userRoleCount[user]++;
         userRoles[user].push(roleId);
+        pendingSBTBurn[user] = false;
+        if (roleId == ROLE_ENDUSER && pendingMembershipCleanup[user]) revert InvalidParam();
 
         if (stakeAmount > 0) {
             roleStakes[roleId][user] = stakeAmount;
@@ -1063,5 +1099,8 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
     ///         reputation path is shut (fail-closed for an upgraded proxy).
     uint256 public creditPopulationSeededAt;
 
-    uint256[43] private __gap;
+    mapping(address => bool) public pendingSBTBurn;
+    mapping(address => bool) public pendingMembershipCleanup;
+
+    uint256[41] private __gap;
 }

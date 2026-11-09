@@ -130,7 +130,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_Registry_InitialState() public view {
         assertEq(registry.owner(), owner);
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.9.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"));
         assertEq(address(registry.GTOKEN_STAKING()), mockStaking);
         assertEq(address(registry.MYSBT()), mockSBT);
         assertTrue(registry.isReputationSource(owner));
@@ -369,7 +369,7 @@ contract UUPSUpgradeTest is Test {
         registry.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.9.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"));
 
         vm.stopPrank();
     }
