@@ -33,36 +33,41 @@ Offline only; fixtures are synthetic. Broadcasting remains disabled
    Never rewrite S inside an existing plan. Hashes establish consistency;
    the operator must archive the freeze before the first attempt.
 
-3. **TPM event charge and verified refund constant.** Amount and marked price
-   come from `UserOperationSponsored`, not a supplied summary
-   (`vendor/TokenPaymaster@661d058c.sol.txt:46,191`; `extract.mjs:135`).
-   Both archived RPCs must contain the exact `tokenPaymasterConfig()` and
-   `cachedPrice()` requests at receipt block hash with
-   `{blockHash,requireCanonical:true}`; raw ABI replies must agree
-   (`evidence.mjs:17`; `extract.mjs:205`). The config getter fields are defined
-   at `vendor/TokenPaymaster@661d058c.sol.txt:30-53`.
-   Require `actualTokenCharge = floor((actualGasCost + refundPostopCost*p_op)*10^26/markedPrice)`
-   exactly (`vendor/TokenPaymaster@661d058c.sol.txt:171-172`;
-   `vendor/UniswapHelper@661d058c.sol.txt:78-79`). A mismatch is
-   `collector_corruption`; disagreeing RPC replies are `rpc_mismatch`.
-   `refundPostopCost` is no longer UNVERIFIED (`export.py:19`).
+3. **TPM (decision C, 2026-11-09).** `window.mjs:36` validates an archived
+   window before per-row use (`extract.mjs:219`). `tpmWindow` binds `window_id`,
+   address, first/last block hashes, contiguous numbered parent-linked `blocks`,
+   `configFirst`, and `configLast`. Each block carries two distinct RPC archives
+   of `eth_getLogs({address,blockHash})`, without topic/range filters; replies must
+   agree and every log must match that address/hash. Every block is required,
+   including endpoints. Config reads are raw `eth_call` replies from both RPCs
+   with `{blockHash,requireCanonical:true}` at the window endpoints. The row's
+   receipt must belong to the window. These are archive assertions, not live reads.
 
-   **Pre-markup price is not always uniquely recoverable.** Let `U=10^26`,
-   logged price `m`, hash-bound markup `M`. From `m=floor(price*U/M)`, the
-   candidates are `[ceil(m*M/U), ceil((m+1)*M/U)-1]`
-   (`vendor/TokenPaymaster@661d058c.sol.txt:162-169`). Require the block-end
-   cache to reproduce the logged price exactly. Only a singleton interval
-   can verify `tokenChargeWei=floor(amount*price/U)`; otherwise this column stays
-   UNVERIFIED and exports empty by default (`extract.mjs:215-220`; `export.py:19`).
-   A later cache update can select another member of that interval; a block-end
-   read alone does not identify the earlier postOp value. Cache updates are
-   public and can replace the stored price
-   (`singleton-paymaster/lib/account-abstraction-v7/contracts/samples/utils/OracleHelper.sol:88,118-121`).
-   Integer scaling is exactly `vendor/UniswapHelper@661d058c.sol.txt:74-79`.
-   Verification additionally requires a single-transaction block and no config
-   setter call anywhere in its archived callTracer tree (`extract.mjs:219-224`).
-   Otherwise even a singleton remains UNVERIFIED: block-end markup alone
-   does not identify the markup used earlier in postOp.
+   Equal endpoint configs plus no `ConfigUpdated` verify `priceMarkup` and
+   `refundPostopCost` for the window. An event (even change-and-restore), or differing
+   endpoint configs, stops with `baseline_config_changed`. Missing/malformed
+   evidence is corruption; disagreeing RPCs give `rpc_mismatch`.
+   Source: `singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol:44,93-99`:
+   the only config assignment is in the setter, which emits the event, including
+   constructor initialization (`:87`). Canonical signature:
+   `ConfigUpdated((uint256,uint128,uint48,uint48))`.
+
+   No per-row isolation, setter-trace inference, refund-constant inversion, or
+   block-end `cachedPrice` read remains. `refundPostopCost` is read directly.
+   The event charge must equal
+   `floor((actualGasCost + refundPostopCost*p_op)*10^26/markedPrice)`.
+   `_postOp` updates the cached price (`TokenPaymaster.sol:167`), divides it by
+   markup (`:169`), and emits that marked price (`:191`). Conversion uses
+   `samples/utils/UniswapHelper.sol:74-79`; public cache changes are at
+   `samples/utils/OracleHelper.sol:88,118-121`.
+
+   **Protocol conversion:** for `U=10^26`, event price `m`, verified markup `M`,
+   the pre-markup price interval is `[ceil(m*M/U), ceil((m+1)*M/U)-1]`.
+   A singleton verifies `tokenChargeWei=floor(actualTokenCharge*price/U)`.
+   Otherwise it remains empty/UNVERIFIED with `pre_markup_price_ambiguous`.
+   Export the interval, `priceMarkup`, and the separate event-only conversion
+   `eventTokenChargeWei=floor(actualTokenCharge*m/U)`; never substitute that for
+   the protocol column. See **Open for DSR** below.
 
    **Baseline runtime binding.** `baseline.mjs:5` pins the SHA256 of the frozen
    v0.7 sample artifact. `runtimeFor` interprets only its straight-line runtime
@@ -96,50 +101,76 @@ Offline only; fixtures are synthetic. Broadcasting remains disabled
    `manifests.py:17`; `schedule.py:18`; `precheck.py:111`). These numbers are
    DSR's frozen protocol parameters, not measured chain-performance claims.
 
-6. **SP settlement reconciliation.** Exact source names:
-   `TransactionSponsored(operator,user,aPNTsCost,debtAPNTs)`
-   (`contracts/src/interfaces/ISuperPaymaster.sol:53`),
-   `LockCreated(user,opHash,locker,xLocked,aReserved)` and
-   `LockSettled(user,opHash,xBurned,aCharged)`
-   (`contracts/src/tokens/v2/xPNTsV2Base.sol:134-135`).
-   `extract.mjs:175-196` requires exactly one matching lock pair by user/opHash,
-   the paymaster as locker, and all of:
-   - `aPNTsCost=aGas`; `debtAPNTs=min(a0,c_hat)`
-     (`vendor/SuperPaymaster@8de39026.sol.txt:425-434,450`).
-   - `charge'=min(debtAPNTs,aReserved)`; `aCharged=charge'=debtAPNTs`.
-   - `xBurned = aReserved==0 ? 0 : ceil(charge'*xLocked/aReserved)`, clamped to
-     `xLocked` (`contracts/src/tokens/v2/xPNTsTokenV2.sol:258-268`).
-   - Operator reserve delta `=-debtAPNTs`: validation deducts `a0`; postOp
-     refunds `a0-charge` (`vendor/SuperPaymaster@8de39026.sol.txt:322,447`).
-     Read `operators(operator).aPNTsBalance` at parent and receipt hashes on
-     both RPCs. Getter field order: `contracts/src/interfaces/ISuperPaymaster.sol:13-36`.
+6. **SP settlement (decision A, 2026-11-09).** Verified with
+   `git show 8de39026:contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`:
+   `:349` passes exactly `a0` to `tryLockForGas`; `:434` caps charge at `a0`.
+   `extract.mjs:190` checks `aPNTsCost=aGas`, `debtAPNTs=min(a0,c_hat)`,
+   `LockCreated.aReserved=a0`, `aCharged=debtAPNTs`, and
+   `xBurned=min(xLocked,ceil(debtAPNTs*xLocked/a0))` (zero when `a0=0`).
+   Token rounding: pinned `contracts/src/tokens/v2/xPNTsTokenV2.sol:258-268`.
+   Every such mismatch is `WindowStop settlement_mismatch`, with row identity
+   and diagnostic, not `collector_corruption`. Missing/ambiguous or malformed
+   logs and wrong bindings remain evidence errors. `export.py:130` writes the
+   CSV before raising a stop carrying `rows`, `diagnostic`, and `stop_reason`;
+   stopped windows cannot reach the gate or accepted inventory.
 
-   Any failed reconciliation gives `collector_corruption` plus a diagnostic.
-   **DSR confirmation point:** `aReserved < debtAPNTs` is corruption under
-   DSR's extra equality, although the token contract itself caps the charge
-   (`contracts/src/tokens/v2/xPNTsTokenV2.sol:258`).
+## Open for DSR
+
+**B: reserve attribution stopped at the requested source audit (2026-11-09).**
+The complete balance-write search at `8de39026` found seven write sites (including
+storage alias `config`); no whole-operator replacement/deletion was found.
+Paths below are under `contracts/src/paymasters/superpaymaster/v3/`:
+
+| Writer | Emission / result |
+| --- | --- |
+| `SuperPaymaster.sol:172` deposit credit (deposit, depositFor, onTransferReceived) | `OperatorDeposited` at `:174` |
+| `SuperPaymaster.sol:204` withdrawal | `OperatorWithdrawn` at `:207` |
+| `SuperPaymaster.sol:322` validation debit | **No event**; interface `ISuperPaymaster.sol:56` explicitly notes validation cannot emit |
+| `SuperPaymaster.sol:447` postOp refund | **Unlisted** `TransactionSponsored` at `:450` |
+| `SuperPaymaster.sol:462` stale sponsorship release | `SponsorshipReleased` at `:463` |
+| `SuperPaymasterAdmin.sol:637` slash decrement | `OperatorSlashed` at `:655`; BLS caller also emits `SlashExecutedWithProof` at `:609` |
+| `SuperPaymasterAdmin.sol:641` slash zeroing | Same emissions as `:637` |
+
+Pinned ABI signatures: `OperatorDeposited(address,uint256)`,
+`OperatorWithdrawn(address,uint256)`, `OperatorSlashed(address,uint256,uint8)`
+(operator indexed; `contracts/src/interfaces/ISuperPaymaster.sol:49-54`);
+`SponsorshipReleased(bytes32,address,uint256)` (opHash/operator indexed;
+`SuperPaymasterStorage.sol:258`);
+`SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` (operator indexed;
+`SuperPaymasterStorage.sol:236-242`). The unlisted signature is
+`TransactionSponsored(address,address,uint256,uint256)` (operator/user indexed;
+`ISuperPaymaster.sol:53`). Admin `:599,601` are reads, not writers.
+
+Per B's explicit instruction, the unlogged/unlisted writers stop this part.
+No SP log attribution adapter was invented. The obsolete sole-transaction check
+is removed; rows say `reserveDeltaVerified=false` and
+`reserveDeltaDiagnostic=reserve_attribution_blocked_source_audit`.
+Inventory exports `reserve_delta_verified_count` (`export.py:103`), currently zero.
+Dedicated-operator and full dual-RPC SP/EntryPoint block-log attribution, and its
+reserve-mismatch stop, remain unimplemented pending a revised event coverage rule.
+
+**C: event-only conversion conflicts with the protocol definition.** The supplied
+`82453054 main.tex sec:gas` definition requires pre-markup price so markup appears
+in `s_c`; the event logs the price after markup. This definition was supplied in
+this task; no DSR repository/network access was used. The implementation follows
+that protocol definition when the pre-markup price is exactly recoverable.
+
+Fixture (`extract.test.mjs`, event-only conversion control): `U=10^26`,
+`actualGasCost=3000004`, refund `40000`, `p_op=7`, markup `1.1U`, price `3U`.
+The event logs `m=272727272727272727272727272` and amount `1202668`.
+Event-only conversion gives **3280003 wei**, approximately the native charge
+`3280004`, hiding markup. The protocol conversion gives **3608004 wei**.
+With verified markup `2U` and the same event, the pre-markup interval is
+`[545454545454545454545454544,545454545454545454545]`: two prices fit exactly.
+We do not invent which was used, even if rounding may make their converted wei
+coincide. The interval/diagnostic remains exported and `tokenChargeWei` stays
+UNVERIFIED. Thus C's unconditional “never UNVERIFIED from the event alone” is
+not implemented; its explicit protocol-conflict exception is applied.
 
 ## Remaining / evidence limits
 
-- SP operator-reserve delta (DSR ruling 6) is checked only when the op's transaction is the
-  sole transaction of its block (`extract.mjs:190-201`); a mismatch there is
-  `collector_corruption`. In a shared block the parent-to-block delta is not attributable to
-  the op, so the check is skipped and recorded as `reserveDeltaVerified=false` (exported),
-  never reported as corruption. On OP Mainnet most blocks are shared: DSR to decide whether
-  the reserve check must hold on every row (needs a transaction-level state adapter) or the
-  log-level checks (debtAPNTs == min(a0, c_hat) == aCharged, xBurned formula) suffice.
-- TPM general block-end reads cannot establish the postOp markup. Config can
-  change through `setTokenPaymasterConfig`
-  (`vendor/TokenPaymaster@661d058c.sol.txt:93-99`). Without block isolation and
-  the no-setter trace check, `tokenChargeWei` stays UNVERIFIED, even when the
-  inverse at the supplied markup is unique. In a shared block a later transaction may
-  also move `cachedPrice` (`OracleHelper.sol:88,118-121`), so a charge or price mismatch
-  there leaves `refundPostopCost`/`tokenChargeWei` empty and UNVERIFIED; only in an isolated
-  block is a mismatch `collector_corruption`. `refundPostopCost` is verified only in an isolated
-  block with no config write: integer division (`TokenPaymaster.sol:171-172`) lets several refund
-  constants reproduce one logged charge, so equality alone does not identify it.
 - Every successful arm, VPM included, needs its trace: the penalty inversion (ruling 1) applies
-  to all arms. A data check that fails yields a `collector_corruption` row, not an aborted run.
+  to all arms. Binding/decoding failures yield a `collector_corruption` row; A/C stops retain identity and diagnostics.
 - A finalised timeout (`finalTimeout`) must carry `timeoutDeclaredAt` at or after the frozen
   deadline; a flag alone cannot shorten the timeout.
 - This directory validates injected/archived evidence. It has no receipt polling,
@@ -168,6 +199,6 @@ node --test script/rq3/extract.test.mjs
 
 Tests cover positive cases and diagnostic-specific negative controls for penalty
 inversion, manifests, sender binding, timing, receipt depth/reorg, TPM reads and
-runtime, legacy stops, SP lock matching/burn/charge/reserve delta. Synthetic
+runtime, legacy stops, SP lock matching/burn/charge, reserve-audit blocking, config windows and stopped exports. Synthetic
 examples remain 52 consumed slots, 155 attempts, 49 complete blocks; the separate
 positive gate control reaches 50 (`test_rq3.py:285`).

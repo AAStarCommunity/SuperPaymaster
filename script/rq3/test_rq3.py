@@ -1,4 +1,5 @@
 import copy
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -343,6 +344,42 @@ class ExportTests(unittest.TestCase):
                 result=subprocess.run(['python3','-B',str(VENDOR),'--design','aoa','--csv',str(path)],capture_output=True,text=True)
                 self.assertEqual(result.returncode,2,result.stderr)
                 self.assertIn(gate_message,result.stderr)
+
+    def test_settlement_stop_keeps_export_and_identity(self):
+        path=self.directory/'stopped.csv'
+        export(path,self.records)
+        self.assertTrue(path.exists())
+        for reason in ('settlement_mismatch', 'baseline_config_changed'):
+            records=copy.deepcopy(self.records)
+            row=next(r for r in records if r['arm']=='SP')
+            row.update(success=False, stop_reason=reason, failure_reason=reason,
+                       diagnostic='SP lock reservation mismatch', exclusion_reason='')
+            with self.assertRaises(WindowStop) as caught:
+                export(path,records)
+            self.assertEqual(caught.exception.stop_reason,reason)
+            self.assertEqual(caught.exception.rows[0]['userOpHash'],row['userOpHash'])
+            self.assertEqual(caught.exception.diagnostic,'SP lock reservation mismatch')
+            self.assertIn(row['userOpHash'],str(caught.exception))
+            with path.open() as handle:
+                kept=list(csv.DictReader(handle))
+            self.assertEqual(len(kept),len(records))
+            self.assertEqual(next(r for r in kept if r['stop_reason'])['invalid_reason'],'')
+            with self.assertRaisesRegex(WindowStop,reason):
+                build_inventory([path])
+
+    def test_reserve_verified_count_and_ambiguous_price_flag(self):
+        path=self.directory/'verified-count.csv'
+        export(path,self.records)
+        self.assertEqual(build_inventory([path])['payload']['windows'][0]['reserve_delta_verified_count'],0)
+        records=copy.deepcopy(self.records)
+        next(r for r in records if r['arm']=='SP')['reserveDeltaVerified']=True
+        export(path,records)
+        self.assertEqual(build_inventory([path])['payload']['windows'][0]['reserve_delta_verified_count'],1)
+        row=next(r for r in records if r['arm']=='TokenPaymaster')
+        row.update(tokenChargeWei=None,tokenChargeWeiVerified=False,tokenChargeDiagnostic='pre_markup_price_ambiguous')
+        result=next(r for r in normalized(records) if r['arm']=='TokenPaymaster')
+        self.assertEqual(result['unverified_columns'],'tokenChargeWei')
+        self.assertEqual(result['tokenChargeWei'],'')
 
     def test_cross_window_inventory(self):
         first=[r for r in self.records if r['block_slot']<20]

@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extract, spFormula, invertPenalty } from './extract.mjs';
-import { encodeAbiParameters } from 'viem';
-import { fixture, address, reads } from './fixtures.mjs';
+import { encodeAbiParameters, encodeEventTopics } from 'viem';
+import { fixture, address, reads, hash, logReads } from './fixtures.mjs';
+
+import { CONFIG_ABI, validateTPMWindow } from './window.mjs';
 
 const corrupt=(a,re)=>{const r=extract(a);assert.equal(r.invalid_reason,'collector_corruption');assert.equal(r.success,false);assert.match(r.diagnostic,re);};
 
@@ -33,7 +35,8 @@ test('TPM integer conversion uses updated pre-markup cached price',()=>{
   assert.equal(row.actualTokenNeeded,1202668n);
   assert.equal(row.tokenChargeWei,3608004n);
   const a=fixture(0,'TokenPaymaster'); a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',1n);
-  assert.match(extract(a).diagnostic,/price mismatch/);
+  assert.equal(extract(a).tokenChargeDiagnostic,'pre_markup_price_exact');
+  assert.equal(extract(a).tokenChargeWei,3608004n);
 });
 test('refusal, timeout and unavailable trace retain rows with empty evidence',()=>{
   const a=fixture(); a.metadata.precheck_refused=true;
@@ -48,7 +51,7 @@ test('refusal, timeout and unavailable trace retain rows with empty evidence',()
 });
 test('bindings, changed context and wrong event charge fail closed',()=>{
   for(const mutate of [a=>a.trace.blockHash='0x00',a=>a.operation.nonce='1',
-    a=>a.validationContext='0x',a=>a.receipt.logs[2].data='0x'+'0'.repeat(128)]) {
+    a=>a.validationContext='0x']) {
     const a=fixture(); mutate(a);
     try {assert.equal(extract(a).invalid_reason,'collector_corruption');} catch(e) {if(e.code==='ERR_ASSERTION') throw e;}
   }
@@ -124,18 +127,18 @@ test('TPM verified refund uses both hash-bound raw config replies; ambiguity sta
   const a=fixture(0,'TokenPaymaster'), unit=10n**26n;
   assert.equal(extract(a).tokenChargeWeiVerified,true);
   const marked=extract(a).actualTokenPriceWithMarkup;
-  a.state.config=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[2n*unit,0n,40000,3600]);
+  a.tpmWindow.configFirst=a.tpmWindow.configLast=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[2n*unit,0n,40000,3600]);
   a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',2n*marked);
   assert.equal(extract(a).tokenChargeWeiVerified,false);
   assert.deepEqual(extract(a).unverified_columns,['tokenChargeWei']);
-  a.state.config=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[unit,0n,40000,3600]);
+  a.tpmWindow.configFirst=a.tpmWindow.configLast=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[unit,0n,40000,3600]);
   a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',marked);
   assert.equal(extract(a).tokenChargeWeiVerified,true);
   for(const [mutate,diagnostic,reason] of [
-    [a=>a.state.config[0].params[1]='latest',/hash-bound state read mismatch/,'collector_corruption'],
-    [a=>a.state.config.pop(),/two distinct RPC/,'collector_corruption'],
-    [a=>a.state.config[1].result='0x',/state replies disagree/,'rpc_mismatch'],
-    [a=>a.state.config=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[11n*10n**25n,0n,40001,3600]),/TPM token charge mismatch/,'collector_corruption'],
+    [a=>a.tpmWindow.configFirst[0].params[1]='latest',/hash-bound state read mismatch/,'collector_corruption'],
+    [a=>a.tpmWindow.configFirst.pop(),/two distinct RPC/,'collector_corruption'],
+    [a=>a.tpmWindow.configFirst[1].result='0x',/state replies disagree/,'rpc_mismatch'],
+    [a=>a.tpmWindow.configFirst=a.tpmWindow.configLast=reads(a.operation.paymaster,a.receipt.blockHash,'tokenPaymasterConfig',[11n*10n**25n,0n,40001,3600]),/TPM token charge mismatch/,'collector_corruption'],
     [a=>a.state.runtime[0].result='0x6000',/runtime codehash mismatch/,'collector_corruption'],
     [a=>a.baseline.frozen_build_sha256='bad',/frozen build binding mismatch/,'collector_corruption'],
     [a=>a.state.runtime[0].params[1]='latest',/hash-bound runtime read mismatch/,'collector_corruption'],
@@ -154,13 +157,15 @@ test('SP lock settlement and operator reserve checks fail with specific diagnost
     [a=>a.receipt.logs[3].topics[1]='0x'+'00'.repeat(12)+address(99).slice(2),/unique matching LockCreated\/LockSettled/],
     [a=>a.receipt.logs[4].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[1n,extract(a).chargeAPNTs]),/SP lock burn mismatch/],
     [a=>a.receipt.logs[4].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[1n,1n]),/SP lock charge mismatch/],
-    [a=>a.state.reserveAfter=a.state.reserveBefore,/hash-bound state read mismatch/],
-    [a=>{for(const r of a.state.reserveAfter) r.result=a.state.reserveBefore[0].result;},/SP operator reserve delta mismatch/],
     [a=>a.receipt.logs[2].data='0x'+'00'.repeat(64),/SP sponsored charge mismatch/],
-    [a=>a.receipt.logs[3].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[10n,1n]),/SP lock charge mismatch/],
+    [a=>a.receipt.logs[3].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[10n,1n]),/SP lock reservation mismatch/],
   ]) {
     const a=fixture();mutate(a);const result=extract(a);
-    assert.equal(result.invalid_reason,'collector_corruption');assert.match(result.diagnostic,diagnostic);
+    if (/SP (lock (burn|charge|reservation)|sponsored charge)/.test(diagnostic.source)) {
+      assert.equal(result.stop_reason,'settlement_mismatch');assert.equal(result.invalid_reason,'');
+      assert.equal(result.userOpHash,a.operation.userOpHash);
+    } else assert.equal(result.invalid_reason,'collector_corruption');
+    assert.match(result.diagnostic,diagnostic);
   }
 });
 
@@ -188,7 +193,8 @@ test('frozen receipt timeout, depth and canonical reread are enforced',()=>{
   // a shared block skips the reserve-delta check (recorded), it is not corruption
   const shared=fixture();shared.receiptBlock.transactions.push('another-tx');
   const sr=extract(shared);assert.equal(sr.success,true);assert.equal(sr.reserveDeltaVerified,false);
-  assert.equal(extract(fixture()).reserveDeltaVerified,true);
+  assert.equal(extract(fixture()).reserveDeltaVerified,false);
+  assert.equal(extract(fixture()).reserveDeltaDiagnostic,'reserve_attribution_blocked_source_audit');
   const late=fixture();late.confirmation.observedAt=120;
   const r=extract(late);assert.equal(r.success,false);assert.equal(r.failure_reason,'receipt_timeout');
   assert.equal(r.actualGasUsed,null);assert.equal(r.supplemental_only,true);
@@ -218,15 +224,15 @@ test('ambiguous G exports its interval and leaves the gate column empty',()=>{
   assert.equal(extract(legacy).stop_reason,'legacy_sp_context');
 });
 
-test('TPM singleton stays unverified without configuration-time isolation',async()=>{
+test('TPM singleton uses window config without per-row isolation',async()=>{
   const {toFunctionSelector}=await import('viem');
   for(const mutate of [
     a=>a.receiptBlock.transactions.push('other'),
     a=>a.trace.result.calls.push({to:a.operation.paymaster,input:toFunctionSelector('setTokenPaymasterConfig((uint256,uint128,uint48,uint48))')}),
   ]) {
     const a=fixture(0,'TokenPaymaster');assert.equal(extract(a).tokenChargeWeiVerified,true);
-    mutate(a);assert.equal(extract(a).tokenChargeWeiVerified,false);
-    assert.deepEqual(extract(a).unverified_columns,['refundPostopCost','tokenChargeWei']);
+    mutate(a);assert.equal(extract(a).tokenChargeWeiVerified,true);
+    assert.deepEqual(extract(a).unverified_columns,[]);
   }
 });
 
@@ -234,8 +240,8 @@ test('SP burn rounds upward for non-integral ratio and zero reservation charges 
   const {encodeFunctionData}=await import('viem');
   const {POSTOP_ABI}=await import('./extract.mjs');
   const a=fixture(), charge=extract(a).chargeAPNTs;
-  a.receipt.logs[3].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[3n,charge+1n]);
-  a.receipt.logs[4].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[3n,charge]);
+  a.receipt.logs[3].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[3n,extract(a).a0APNTs]);
+  a.receipt.logs[4].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],[1n,charge]);
   assert.equal(extract(a).success,true);
   const z=fixture(), old=extract(z);
   z.validationContext=z.validationContext.slice(0,2+2*64)+'0'.repeat(64)+z.validationContext.slice(2+3*64);
@@ -255,12 +261,12 @@ test('VPM with empty postOp context still exports the inverse penalty',()=>{
   assert.match(extract(b).diagnostic,/unique postOp call required/);
 });
 
-test('a later in-block price move leaves TPM columns unverified, not corrupt (review r4 #1)',()=>{
+test('a later in-block price move cannot change event-derived TPM conversion',()=>{
   const a=fixture(0,'TokenPaymaster'); a.receiptBlock.transactions.push('later-oracle-update');
   a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',1n);
   const r=extract(a);
   assert.equal(r.success,true); assert.ok(!r.invalid_reason);
-  assert.equal(r.tokenChargeWei,null); assert.deepEqual(r.unverified_columns,['refundPostopCost','tokenChargeWei']);
+  assert.equal(r.tokenChargeWei,3608004n); assert.deepEqual(r.unverified_columns,[]);
   assert.equal(r.actualTokenNeeded,1202668n);
 });
 
@@ -272,11 +278,11 @@ test('a final timeout needs proof the frozen deadline had elapsed (review r4 #3)
   assert.equal(r.failure_reason,'receipt_timeout'); assert.equal(r.supplemental_only,true);
 });
 
-test('refundPostopCost is verified only in an isolated block (review r5: division admits several constants)',()=>{
+test('refundPostopCost comes directly from window config in shared blocks',()=>{
   const a=fixture(0,'TokenPaymaster'); assert.equal(extract(a).refundPostopCost,40000n);
   a.receiptBlock.transactions.push('later-config-change');
-  const r=extract(a); assert.equal(r.refundPostopCost,null);
-  assert.ok(r.unverified_columns.includes('refundPostopCost'));
+  const r=extract(a); assert.equal(r.refundPostopCost,40000n);
+  assert.equal(r.tokenChargeDiagnostic,'pre_markup_price_exact');
 });
 
 test('malformed archived evidence is a corruption row, not an aborted batch (review r5 #4)',()=>{
@@ -311,4 +317,85 @@ test('a log with our event topic but malformed data is corruption, other events 
   corrupt(a,/malformed event log/);
   const b=fixture(); b.receipt.logs.push({...b.receipt.logs[2],topics:['0x'+'ab'.repeat(32)]});
   assert.equal(extract(b).success,true);
+});
+
+test('A reserves exactly a0; each reconciliation stop retains row identity',()=>{
+  const good=extract(fixture());
+  assert.equal(good.success,true);assert.equal(good.stop_reason,null);
+  for(const [index,values,diagnostic] of [
+    [2,[1n,1n],/SP sponsored charge mismatch/],
+    [3,[2n*good.a0APNTs,good.a0APNTs-1n],/SP lock reservation mismatch/],
+    [4,[2n*good.chargeAPNTs,good.chargeAPNTs-1n],/SP lock charge mismatch/],
+    [4,[2n*good.chargeAPNTs+1n,good.chargeAPNTs],/SP lock burn mismatch/],
+  ]) {
+    const a=fixture();a.receipt.logs[index].data=encodeAbiParameters([{type:'uint256'},{type:'uint256'}],values);
+    const r=extract(a);assert.equal(r.stop_reason,'settlement_mismatch');assert.equal(r.invalid_reason,'');
+    assert.equal(r.window_id,a.metadata.window_id);assert.equal(r.userOpHash,a.operation.userOpHash);
+    assert.match(r.diagnostic,diagnostic);
+  }
+});
+
+test('B source-audit stop never claims reserve verification even with a matching delta',()=>{
+  const a=fixture();assert.equal(extract(a).reserveDeltaVerified,false);
+  for(const r of a.state.reserveAfter) r.result=a.state.reserveBefore[0].result;
+  const row=extract(a);assert.equal(row.success,true);assert.equal(row.reserveDeltaVerified,false);
+  assert.equal(row.reserveDeltaDiagnostic,'reserve_attribution_blocked_source_audit');
+});
+
+function configEvent(a) {
+  return {address:a.operation.paymaster,blockHash:a.receipt.blockHash,
+    topics:encodeEventTopics({abi:CONFIG_ABI,eventName:'ConfigUpdated'}),
+    data:encodeAbiParameters([{type:'tuple',components:[{type:'uint256'},{type:'uint128'},{type:'uint48'},{type:'uint48'}]}],
+      [[11n*10n**25n,0n,40000,3600]])};
+}
+
+test('C window endpoints and every intervening block are hash-bound to both RPCs',()=>{
+  const a=fixture(0,'TokenPaymaster'), w=a.tpmWindow, pm=a.operation.paymaster;
+  w.lastBlockHash=hash(9001);
+  w.blocks.push({number:101,hash:hash(9001),parentHash:hash(9000),logs:logReads(pm,hash(9001))});
+  w.configLast=reads(pm,hash(9001),'tokenPaymasterConfig',[11n*10n**25n,0n,40000,3600]);
+  assert.equal(validateTPMWindow(w,pm,'fixture-1').refundPostopCost,40000n);
+  assert.equal(extract(a).tokenChargeDiagnostic,'pre_markup_price_exact');
+  for(const [mutate,diagnostic,reason='collector_corruption'] of [
+    [b=>b.tpmWindow.configLast[0].params[1]='latest',/hash-bound state read/],
+    [b=>b.tpmWindow.blocks.pop(),/complete TPM window/],
+    [b=>b.tpmWindow.blocks[1].parentHash=hash(1),/contiguous TPM window/],
+    [b=>b.tpmWindow.blocks[0].logs.pop(),/two distinct log RPC/],
+    [b=>b.tpmWindow.blocks[0].logs[0].params[0].blockHash='latest',/hash-bound complete log scan/],
+    [b=>b.tpmWindow.blocks[0].logs[0].params[0].topics=[],/hash-bound complete log scan/],
+    [b=>b.tpmWindow.blocks[0].logs[1].result.push(configEvent(b)),/log replies disagree/,'rpc_mismatch'],
+    [b=>{for(const r of b.tpmWindow.blocks[0].logs) r.result=[{...configEvent(b),blockHash:hash(1)}];},/log anchor mismatch/],
+    [b=>b.tpmWindow.window_id='another',/TPM window binding mismatch/],
+    [b=>{b.receipt.blockNumber=99;b.confirmation.rereadBlockNumber=99;},/receipt outside verified TPM window/],
+  ]) {
+    const b=structuredClone(a);mutate(b);const row=extract(b);
+    assert.equal(row.invalid_reason,reason);assert.match(row.diagnostic,diagnostic);
+  }
+});
+
+test('C ConfigUpdated stops even if endpoints agree (including change-and-restore)',()=>{
+  const a=fixture(0,'TokenPaymaster');assert.equal(extract(a).stop_reason,null);
+  for(const r of a.tpmWindow.blocks[0].logs) r.result=[configEvent(a),configEvent(a)];
+  const stopped=extract(a);assert.equal(stopped.stop_reason,'baseline_config_changed');
+  assert.match(stopped.diagnostic,/ConfigUpdated in block/);assert.equal(stopped.userOpHash,a.operation.userOpHash);
+  const b=fixture(0,'TokenPaymaster');
+  b.tpmWindow.configLast=reads(b.operation.paymaster,b.receipt.blockHash,'tokenPaymasterConfig',[10n**26n,0n,40001,3600]);
+  const changed=extract(b);assert.equal(changed.stop_reason,'baseline_config_changed');
+  assert.match(changed.diagnostic,/first\/last config differs/);
+});
+
+test('C event-only conversion cancels markup; protocol conversion requires unique pre-markup price',()=>{
+  const a=fixture(0,'TokenPaymaster'), row=extract(a);
+  assert.equal(row.eventTokenChargeWei,3280003n);assert.equal(row.tokenChargeWei,3608004n);
+  assert.equal(row.preMarkupPriceMin,3n*10n**26n);assert.equal(row.preMarkupPriceMax,row.preMarkupPriceMin);
+  assert.equal(row.tokenChargeDiagnostic,'pre_markup_price_exact');
+  a.tpmWindow.configFirst=a.tpmWindow.configLast=reads(a.operation.paymaster,a.receipt.blockHash,
+    'tokenPaymasterConfig',[2n*10n**26n,0n,40000,3600]);
+  const ambiguous=extract(a);
+  assert.equal(ambiguous.preMarkupPriceMin,545454545454545454545454544n);
+  assert.equal(ambiguous.preMarkupPriceMax,545454545454545454545454545n);
+  assert.equal(ambiguous.tokenChargeWei,null);assert.equal(ambiguous.tokenChargeWeiVerified,false);
+  assert.equal(ambiguous.eventTokenChargeWei,3280003n);
+  assert.equal(ambiguous.tokenChargeDiagnostic,'pre_markup_price_ambiguous');
+  assert.deepEqual(ambiguous.unverified_columns,['tokenChargeWei']);
 });

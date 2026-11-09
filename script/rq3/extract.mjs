@@ -2,7 +2,8 @@
 import { decodeAbiParameters, decodeEventLog, decodeFunctionData, parseAbi, toFunctionSelector } from 'viem';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { dualRead, checkRuntime, check, decodeExternal, invertPenalty, receiptReady } from './evidence.mjs';
+import { validateTPMWindow, settlementCheck } from './window.mjs';
+import { checkRuntime, check, decodeExternal, invertPenalty, receiptReady } from './evidence.mjs';
 export { invertPenalty } from './evidence.mjs';
 import { EP_EVENTS_ABI, SP_EVENTS_ABI } from '../a6-collector/gauge-lib.mjs';
 
@@ -14,8 +15,7 @@ const POSTOP = toFunctionSelector('postOp(uint8,bytes,uint256,uint256)');
 const INNER = '0x0042dc53';
 const lower = v => String(v).toLowerCase();
 const eq = (a, b) => lower(a) === lower(b);
-// Every data check classifies: a failed binding/settlement check is a collector_corruption row,
-// never an aborted extraction (DSR ruling 6). Programming errors still throw plain Errors.
+// Binding errors are corruption; settlement disagreements stop the window with row identity.
 const requireValue = (condition, reason) => check(condition, reason);
 const ceil = (n, d) => (n + d - 1n) / d;
 export const json = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2);
@@ -83,7 +83,8 @@ function extractChecked(archive) {
     aPNTsPerWeiNum: null, aPNTsPerWeiDen: null, feeBps: null,
     chargeAPNTs: null, chargeHatAPNTs: null, a0APNTs: null,
     refundPostopCost: null, actualTokenNeeded: null, actualTokenPriceWithMarkup: null, tokenChargeWei: null,
-    tokenChargeWeiVerified: false, unverified_columns: [], stop_reason: null };
+    tokenChargeWeiVerified: false, reserveDeltaVerified: false,
+    reserveDeltaDiagnostic: metadata.arm==='SP' ? 'reserve_attribution_blocked_source_audit' : null, unverified_columns: [], stop_reason: null };
   if (metadata.precheck_refused) {
     requireValue(metadata.arm === 'SP' && !receipt && !trace && !archive.validationContext,
       'refused attempt has broadcast evidence');
@@ -185,7 +186,8 @@ function extractChecked(archive) {
     if (sponsored.length) {
       requireValue(!inner[0].error && !post.error && sponsored.length === 1, 'ambiguous/reverted SP sponsorship');
       const args = sponsored[0].args;
-      check(eq(args.user, op.sender) && eq(args.operator, formula.operator) && args.aPNTsCost === formula.aGas &&
+      check(eq(args.user, op.sender) && eq(args.operator, formula.operator), 'SP operator binding mismatch');
+      settlementCheck(args.aPNTsCost === formula.aGas &&
         args.debtAPNTs === formula.expectedChargeAPNTs, 'SP sponsored charge mismatch');
       row.chargeAPNTs = args.debtAPNTs;
       const locks=events(receipt,formula.token,LOCK_ABI).filter(e=>
@@ -195,23 +197,16 @@ function extractChecked(archive) {
       check(created.length===1 && settled.length===1, 'unique matching LockCreated/LockSettled required');
       const c=created[0].args, t=settled[0].args;
       check(eq(c.locker,op.paymaster), 'lock locker mismatch');
-      const charge=args.debtAPNTs<c.aReserved?args.debtAPNTs:c.aReserved;
+      settlementCheck(c.aReserved===formula.a0APNTs, 'SP lock reservation mismatch');
+      const charge=args.debtAPNTs;
       let burned=c.aReserved===0n?0n:ceil(charge*c.xLocked,c.aReserved);
       if(burned>c.xLocked) burned=c.xLocked;
-      check(t.aCharged===charge && t.aCharged===args.debtAPNTs, 'SP lock charge mismatch');
-      check(t.xBurned===burned, 'SP lock burn mismatch');
-      check(archive.receiptBlock?.hash===receipt.blockHash && archive.receiptBlock?.parentHash,
-        'receipt parent block required');
-      // Parent-to-block delta is attributable to this op only when it is the block's sole
-      // transaction. Otherwise the check is recorded as not performed (never as corruption):
-      // other transactions in the block may move the same operator's balance.
-      row.reserveDeltaVerified=archive.receiptBlock.transactions?.length===1 &&
-        eq(archive.receiptBlock.transactions[0],receipt.transactionHash);
-      if (row.reserveDeltaVerified) {
-        const before=dualRead(state.reserveBefore,op.paymaster,archive.receiptBlock.parentHash,'operators',[formula.operator]);
-        const after=dualRead(state.reserveAfter,op.paymaster,receipt.blockHash,'operators',[formula.operator]);
-        check(after[0]-before[0]===-args.debtAPNTs, 'SP operator reserve delta mismatch');
-      }
+      settlementCheck(t.aCharged===charge && t.aCharged===args.debtAPNTs, 'SP lock charge mismatch');
+      settlementCheck(t.xBurned===burned, 'SP lock burn mismatch');
+      // Decision B explicitly stops implementation if any balance writer lacks a listed event.
+      // Pin: validation debit SP:322 has no event; refund SP:447 emits TransactionSponsored:450.
+      row.reserveDeltaVerified=false;
+      row.reserveDeltaDiagnostic='reserve_attribution_blocked_source_audit';
     }
   } else if (metadata.arm === 'TokenPaymaster') {
     // Pinned TPM.sol:167-191; UniswapHelper.sol:74-79. The snapshot must
@@ -221,36 +216,26 @@ function extractChecked(archive) {
       const args = sponsored[0].args;
       requireValue(eq(args.user, op.sender) && args.actualGasCost === cPre, 'TPM event mismatch');
       row.actualTokenNeeded = args.actualTokenCharge;
-      const config=dualRead(state.config,op.paymaster,receipt.blockHash,'tokenPaymasterConfig');
-      const price=dualRead(state.cachedPrice,op.paymaster,receipt.blockHash,'cachedPrice');
-      const [markup,,refund]=config, unit=10n**26n, marked=args.actualTokenPriceWithMarkup;
+      const config=validateTPMWindow(archive.tpmWindow,op.paymaster,metadata.window_id);
+      check(config.blocks.some(b=>b.hash===receipt.blockHash && b.number===receipt.blockNumber),
+        'receipt outside verified TPM window');
+      const markup=config.priceMarkup, refund=config.refundPostopCost;
+      const unit=10n**26n, marked=args.actualTokenPriceWithMarkup;
       check(markup>=unit && markup<=2n*unit && marked>0n, 'invalid TPM price configuration');
-      check((args.actualGasCost+BigInt(refund)*pOp)*unit < 2n**256n &&
-        price*unit < 2n**256n, 'TPM arithmetic overflow');
-      // Block-end reads equal the postOp state only when this is the block's sole transaction and
-      // the op itself wrote no config. In a shared block a later transaction may move cachedPrice
-      // (OracleHelper.sol:88,118-121) or the config: a mismatch there leaves the state-derived
-      // columns UNVERIFIED instead of discarding a valid settlement as corruption.
-      const configSetter=toFunctionSelector('setTokenPaymasterConfig((uint256,uint128,uint48,uint48))');
-      const isolated=archive.receiptBlock?.hash===receipt.blockHash &&
-        archive.receiptBlock.transactions?.length===1 && eq(archive.receiptBlock.transactions[0],receipt.transactionHash);
-      const configWrites=all.some(f=>eq(f.to,op.paymaster) && f.input?.startsWith(configSetter));
-      const exact=isolated && !configWrites;
-      const chargeOk=args.actualTokenCharge===(args.actualGasCost+BigInt(refund)*pOp)*unit/marked;
+      check((args.actualGasCost+refund*pOp)*unit < 2n**256n, 'TPM arithmetic overflow');
+      check(args.actualTokenCharge===(args.actualGasCost+refund*pOp)*unit/marked,
+        'TPM token charge mismatch');
       const low=ceil(marked*markup,unit), high=ceil((marked+1n)*markup,unit)-1n;
-      const priceOk=price>=low && price<=high && price*unit/markup===marked;
-      if (exact) {
-        check(chargeOk, 'TPM token charge mismatch');
-        check(priceOk, 'TPM updated price mismatch');
-      }
-      // Integer division means several refund constants can reproduce one charge (review r5), so
-      // the block-end constant is the postOp one only in an isolated block with no config write.
-      const refundOk=exact && chargeOk;
-      row.refundPostopCost=refundOk ? BigInt(refund) : null;
-      row.tokenChargeWei=priceOk ? args.actualTokenCharge*price/unit : null;
-      row.tokenChargeWeiVerified=exact && priceOk && low===high;
-      row.unverified_columns=[...(refundOk ? [] : ['refundPostopCost']),
-        ...(row.tokenChargeWeiVerified ? [] : ['tokenChargeWei'])];
+      check(low*unit < 2n**256n, 'TPM arithmetic overflow');
+      row.refundPostopCost=refund;
+      row.priceMarkup=markup;
+      row.preMarkupPriceMin=low;
+      row.preMarkupPriceMax=high;
+      row.eventTokenChargeWei=args.actualTokenCharge*marked/unit;
+      row.tokenChargeWei=low===high ? args.actualTokenCharge*low/unit : null;
+      row.tokenChargeWeiVerified=low===high;
+      row.unverified_columns=low===high ? [] : ['tokenChargeWei'];
+      row.tokenChargeDiagnostic=low===high ? 'pre_markup_price_exact' : 'pre_markup_price_ambiguous';
     }
   }
   return row;

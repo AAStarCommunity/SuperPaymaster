@@ -14,6 +14,10 @@ export function reads(address, blockHash, functionName, result, args=[]) {
     params:[{to:address,data:encodeFunctionData({abi:STATE_ABI,functionName,args})},{blockHash,requireCanonical:true}],
     result:encodeFunctionResult({abi:STATE_ABI,functionName,result})}));
 }
+export function logReads(address, blockHash, logs=[]) {
+  return ['rpc-a','rpc-b'].map(endpoint=>({endpoint,method:'eth_getLogs',
+    params:[{address,blockHash}],result:structuredClone(logs)}));
+}
 export function fixture(slot = 0, arm = 'SP', legacy = false) {
   const sender = address(2 + (slot + ['SP','VerifyingPaymaster','TokenPaymaster'].indexOf(arm)) % 3), ep = address(1), pm = address(10), token = address(12), operator = address(13);
   const call = 100001n, post = 480000n, cPre = 3000004n, pOp = 7n;
@@ -55,6 +59,9 @@ export function fixture(slot = 0, arm = 'SP', legacy = false) {
     qualification:qualificationFor('op-mainnet'),
     confirmation:{broadcastAt:0,observedAt:30,headNumber:110,rereadBlockNumber:100,rereadHeadNumber:110,rereadBlockHash:hash(9000+slot)},
     transactionHash:txHash,validationContext:context,state,task,baseline,
+    tpmWindow:{window_id:'fixture-1',address:pm,firstBlockHash:hash(9000+slot),lastBlockHash:hash(9000+slot),
+      configFirst:state.config,configLast:structuredClone(state.config),
+      blocks:[{hash:hash(9000+slot),number:100,parentHash:hash(8999+slot),logs:logReads(pm,hash(9000+slot))}]},
     receiptBlock:{hash:hash(9000+slot),parentHash:hash(8999+slot),transactions:[txHash]},
     receipt:{blockNumber:100,transactionHash:txHash,blockHash:hash(9000+slot),status:'0x1',gasUsed:'0x927c0',logs},
     trace:{transactionHash:txHash,blockHash:hash(9000+slot),tracer:'callTracer',result:{type:'CALL',to:ep,calls:[{type:'CALL',from:ep,to:ep,input:inner,calls:[{type:'CALL',from:ep,to:pm,input:encodeFunctionData({abi:POSTOP_ABI,functionName:'postOp',args:[0,context,cPre,pOp]})}]}]}}};
@@ -77,6 +84,21 @@ export function windowFixture() {
     }
     if(slot===51) a.metadata.retry_of='block-48';
     archives.push(a);
+  }
+  // One shared, complete window evidence envelope for all TPM rows.
+  const tpm=archives.find(a=>a.metadata.arm==='TokenPaymaster');
+  const w={window_id:'fixture-1',address:tpm.operation.paymaster,firstBlockHash:hash(9000),lastBlockHash:hash(9051),
+    configFirst:reads(tpm.operation.paymaster,hash(9000),'tokenPaymasterConfig',[11n*10n**25n,0n,40000,3600]),
+    configLast:reads(tpm.operation.paymaster,hash(9051),'tokenPaymasterConfig',[11n*10n**25n,0n,40000,3600]),
+    blocks:Array.from({length:52},(_,slot)=>({number:100+slot,hash:hash(9000+slot),parentHash:hash(8999+slot),
+      logs:logReads(tpm.operation.paymaster,hash(9000+slot),archives.filter(a=>a.metadata.block_slot===slot)
+        .flatMap(a=>a.receipt?.logs??[]).filter(l=>l.address===tpm.operation.paymaster)
+        .map(l=>({...l,blockHash:hash(9000+slot)})))}))};
+  for(const a of archives) {
+    const slot=a.metadata.block_slot;
+    if(a.receipt) a.receipt.blockNumber=100+slot;
+    Object.assign(a.confirmation,{headNumber:110+slot,rereadBlockNumber:100+slot,rereadHeadNumber:110+slot});
+    a.tpmWindow=w;
   }
   return archives;
 }

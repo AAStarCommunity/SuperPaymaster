@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 from schedule import digest
+from manifests import WindowStop
 
 VENDOR = Path(__file__).parent / 'vendor' / 'paired_stats@82453054.py'
 spec = importlib.util.spec_from_file_location('paired_stats_pinned', VENDOR)
@@ -15,10 +16,11 @@ COLUMNS = sorted(gate.REQUIRED_COLUMNS | set(gate.OPTIONAL_INT_COLUMNS) |
                   'C_POSTOP', 'C_WRAP', 'bufGas', 'feeSnap', 'price', 'decimals', 'aPriceUSD',
                   'unverified_columns', 'unusedGasPenaltyMin', 'unusedGasPenaltyMax',
                   'gasBeforePenaltyCandidates', 'actualTokenPriceWithMarkup', 'stop_reason', 'diagnostic',
-                  'tokenChargeWeiVerified', 'reserveDeltaVerified'})
+                  'tokenChargeWeiVerified', 'reserveDeltaVerified', 'reserveDeltaDiagnostic',
+                  'priceMarkup', 'preMarkupPriceMin', 'preMarkupPriceMax', 'eventTokenChargeWei', 'tokenChargeDiagnostic'})
 def unverified(row):
     if row['arm'] == 'TokenPaymaster' and row.get('tokenChargeWeiVerified') is not True:
-        return ['tokenChargeWei'] if row['tokenChargeWei'] not in ('', None) else []
+        return ['tokenChargeWei'] if row['tokenChargeWei'] not in ('', None) or row.get('tokenChargeDiagnostic') == 'pre_markup_price_ambiguous' else []
     return []
 
 
@@ -26,8 +28,6 @@ def normalized(records, include_unverified=False):
     rows = []
     for record in records:
         row = {key: record.get(key, '') for key in COLUMNS}
-        if row['stop_reason']:
-            raise ValueError('window_stop: ' + row['stop_reason'])
         if row['arm'] == 'SP' and str(row['feeSnap']) == '0':
             raise ValueError('window_stop: legacy_sp_context')
         # Always recomputed here; an incoming value is never trusted.
@@ -65,7 +65,19 @@ def write_csv(path, rows):
             writer.writerow({k: str(v).lower() if type(v) is bool else v for k, v in row.items()})
 
 
+def reject_stopped_rows(path):
+    with Path(path).open(newline='') as handle:
+        stopped = [r for r in csv.DictReader(handle) if r.get('stop_reason')]
+    if stopped:
+        error = WindowStop(stopped[0]['stop_reason'])
+        error.rows = stopped
+        error.diagnostic = stopped[0].get('diagnostic', '')
+        error.args = (f"{error}: {stopped[0]['window_id']}/{stopped[0]['userOpHash']}: {error.diagnostic}",)
+        raise error
+
+
 def validate_csv(path):
+    reject_stopped_rows(path)
     # Real gate parsing and row reconciliation, with cheap fixture statistics.
     # Official CLI uses its unchanged 10,000-resample constants.
     report = gate.analyse(Path(path), 'aoa', None, None, gate.BOOTSTRAP_SEED, 100)
@@ -88,6 +100,7 @@ def inventory_entry(path):
         raise ValueError('inventory requires every consumed slot, including incomplete slots')
     return dict(window_id=result['window_id'], experiment_id=result['experiment_id'], csv_sha256=sha,
                 prior_formal_slots=prior, slots=slots,
+                reserve_delta_verified_count=sum(r['arm'] == 'SP' and r.get('reserveDeltaVerified') == 'true' for r in rows),
                 attempts=[{k: r[k] for k in ('pair_id', 'block_slot', 'arm', 'attempt_index', 'userOpHash')}
                           for r in formal])
 
@@ -116,6 +129,7 @@ def build_inventory(paths):
 def export(path, records, include_unverified=False):
     rows = normalized(records, include_unverified)
     write_csv(path, rows)
+    reject_stopped_rows(path)  # Keep the evidence CSV; never feed a stopped window to the gate.
     try:
         validate_csv(path)
     except Exception:
