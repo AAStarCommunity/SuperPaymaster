@@ -7409,3 +7409,13 @@ line, extra blocked gate). On the 678e68b0 logs: bin and nightly `RPC_RESULT_MER
 blocked_equals_known_gaps=True faults=0`. Codex found no other issue: every REQUIRED (function, gate) pair
 exists once, every PHASE_FUNCTIONS name is a current top-level def, no top-level def added or removed since
 2acc71af, and no gate literal changed in the six declared files between d21042ad and 15885ce6.
+
+Round 2 (Codex Daybreak: 1 High, 2 Medium) — fixed:
+- High: direct rows now must equal the committed 88-gate set in gate_typed_inventory.json (trust root), so a
+  same-count foreign gate is rejected.
+- Medium: paired and producer rows must each fully match the driver's row schema, with exactly 11 / 2 rows
+  (duplicates rejected); the producer terminal line must fully match and name rebuild_artifacts_object_2.
+- The paired credit method is fixed per gate (address_2 three-level, test_gate_dsr2_rpc.py:74; others paired).
+Controls: test_rpc_result_merge.py `Ran 16 tests` / `OK`; 678e68b0 logs bin and nightly
+`RPC_RESULT_MERGE PASS blocked_equals_known_gaps=True faults=0`. Scope decision: this merge tool is now closed —
+its trust roots are the committed inventory, the drivers' own row schemas and SUMMARY rc lines.
