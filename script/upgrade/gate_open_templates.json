@@ -1,0 +1,249 @@
+[
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "b2_gate",
+    "line": 2691,
+    "template": "'B2_pending_slash_' + who",
+    "domain": "R",
+    "expression": "'B2_pending_slash_' + who",
+    "fixed_prefix": "B2_pending_slash_",
+    "why_not_enumerable": "who is an address from the chain-derived pin pauseList, not a fixed sender-label key.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "B2_pending_slash_0x1111111111111111111111111111111111111111",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "ConstantRTests",
+      "test_method": "test_r_2691_B2_pending_slash_0x1111111111111111111111111111111111111111"
+    },
+    "positive_test": "test_open_two_labels_manifest_exec_2691"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 491,
+    "template": "'old_owner_role_expression_' + label",
+    "domain": "R",
+    "expression": "'old_owner_role_expression_' + label",
+    "fixed_prefix": "old_owner_role_expression_",
+    "why_not_enumerable": "VariableDeclaration names are extracted from the reviewed Solidity AST; role identifiers are not a Python constant domain.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_role_expression_PROPOSER_ROLE",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_491_old_owner_role_expression_PROPOSER_ROLE"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_491"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 493,
+    "template": "'old_owner_getter_abi_' + name + '_' + label",
+    "domain": "R",
+    "expression": "'old_owner_getter_abi_' + name + '_' + label",
+    "fixed_prefix": "old_owner_getter_abi_",
+    "why_not_enumerable": "Contract-name component is bounded, but getter label comes from public variable/function identifiers in Solidity AST and ABI.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_getter_abi_GToken_owner",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_493_old_owner_getter_abi_GToken_owner"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_493"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 494,
+    "template": "'old_owner_getter_output_' + label",
+    "domain": "R",
+    "expression": "'old_owner_getter_output_' + label",
+    "fixed_prefix": "old_owner_getter_output_",
+    "why_not_enumerable": "Getter label comes from public variable/function identifiers in Solidity AST and ABI.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_getter_output_owner",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_494_old_owner_getter_output_owner"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_494"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 697,
+    "template": "gate",
+    "domain": "R",
+    "expression": "'old_owner_role_member_declared_' + name + '_' + role['name']",
+    "fixed_prefix": "old_owner_role_member_declared_",
+    "why_not_enumerable": "role[name] is extracted from the deployed/release Solidity AST, not an enumerated Python tuple.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_role_member_declared_TimelockController_PROPOSER_ROLE",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_697_old_owner_role_member_declared_TimelockController_PROPOSER_ROLE"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_697"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 699,
+    "template": "'old_owner_role_admin_declared_' + role['name']",
+    "domain": "R",
+    "expression": "'old_owner_role_admin_declared_' + role['name']",
+    "fixed_prefix": "old_owner_role_admin_declared_",
+    "why_not_enumerable": "Registry role[name] is extracted from the Solidity AST; the role-name suffix is open.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_role_admin_declared_ROLE_COMMUNITY",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_699_old_owner_role_admin_declared_ROLE_COMMUNITY"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_699"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 712,
+    "template": "gate",
+    "domain": "R",
+    "expression": "'old_owner_authority_member_' + name + '_' + row['name']",
+    "fixed_prefix": "old_owner_authority_member_",
+    "why_not_enumerable": "Authority row[name] is extracted from public address getters in Solidity AST/ABI.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_authority_member_SuperPaymaster_pendingOwner",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_712_old_owner_authority_member_SuperPaymaster_pendingOwner"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_712"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 717,
+    "template": "gate",
+    "domain": "R",
+    "expression": "'old_owner_mapping_member_' + name + '_' + row['name']",
+    "fixed_prefix": "old_owner_mapping_member_",
+    "why_not_enumerable": "Mapping row[name] is extracted from Solidity public mapping identifiers.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_mapping_member_Registry_authorized",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_717_old_owner_mapping_member_Registry_authorized"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_717"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 785,
+    "template": "'old_owner_role_member_configured_' + name + '_' + role",
+    "domain": "R",
+    "expression": "'old_owner_role_member_configured_' + name + '_' + role",
+    "fixed_prefix": "old_owner_role_member_configured_",
+    "why_not_enumerable": "Role IDs are collected from chain configuration and role history, beyond the constant standard-role subset.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_role_member_configured_Registry_0x7777777777777777777777777777777777777777777777777777777777777777",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_785_old_owner_role_member_configured_Registry_0x7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_785"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 787,
+    "template": "'old_owner_role_admin_configured_' + role",
+    "domain": "R",
+    "expression": "'old_owner_role_admin_configured_' + role",
+    "fixed_prefix": "old_owner_role_admin_configured_",
+    "why_not_enumerable": "Registry role IDs come from chain configuration and role history.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_role_admin_configured_0x7777777777777777777777777777777777777777777777777777777777777777",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_787_old_owner_role_admin_configured_0x7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_787"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 816,
+    "template": "'old_owner_operator_treasury_' + who",
+    "domain": "R",
+    "expression": "'old_owner_operator_treasury_' + who",
+    "fixed_prefix": "old_owner_operator_treasury_",
+    "why_not_enumerable": "who is an operator address from the chain-derived pin pauseList.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_816_old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_816"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 845,
+    "template": "gate",
+    "domain": "R",
+    "expression": "'old_owner_allowance_pair_' + token + '_' + who",
+    "fixed_prefix": "old_owner_allowance_pair_",
+    "why_not_enumerable": "token ranges over on-chain factory enumeration, operator tokens and legacy/clone addresses; who ranges over audited holders.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_allowance_pair_0x2222222222222222222222222222222222222222_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_845_old_owner_allowance_pair_0x2222222222222222222222222222222222222222_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_845"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "fork_probe",
+    "line": 1510,
+    "template": "'old_owner_fork_case_' + case['gate']",
+    "domain": "R",
+    "expression": "'old_owner_fork_case_' + case['gate']",
+    "fixed_prefix": "old_owner_fork_case_",
+    "why_not_enumerable": "case[gate] is produced by control cases containing AST-derived getter names and/or on-chain token/holder addresses.",
+    "probe": {
+      "file": "script/upgrade/probe_gate_r.py",
+      "function": "run_probes",
+      "gate": "old_owner_fork_case_old_owner_event_role_member_TimelockController",
+      "test_file": "script/upgrade/test_gate_r_controls.py",
+      "test_class": "OpenIsolationTests",
+      "test_method": "test_r_1510_old_owner_fork_case_old_owner_event_role_member_TimelockController"
+    },
+    "positive_test": "test_open_two_labels_old_owner_isolation_1510"
+  }
+]

@@ -1,0 +1,218 @@
+[
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 343,
+    "template": "'reproducible_bytes_' + name"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 345,
+    "template": "'rebuild_record_' + name"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 347,
+    "template": "'reproducible_executable_' + name"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 349,
+    "template": "'reproducible_full_' + name"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 379,
+    "template": "'fraud_schema_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 381,
+    "template": "'fraud_schema_enum_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 384,
+    "template": "'fraud_schema_type_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 388,
+    "template": "'fraud_schema_required_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 389,
+    "template": "'fraud_schema_properties_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 394,
+    "template": "'fraud_schema_fields_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 398,
+    "template": "'fraud_schema_length_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 403,
+    "template": "'fraud_schema_pattern_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 405,
+    "template": "'fraud_schema_range_' + path"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "runtime_bytes",
+    "line": 1993,
+    "template": "'immutable_supplied_' + entry['name']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "b2_gate",
+    "line": 2691,
+    "template": "'B2_pending_slash_' + who"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "check_predicate",
+    "line": 2841,
+    "template": "'readback_' + p.get('signature', kind)"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "budget",
+    "line": 2886,
+    "template": "'budget_' + label"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2897,
+    "template": "'manifest_' + key"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2910,
+    "template": "'manifest_step_' + key"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2913,
+    "template": "'manifest_tx_' + key"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2920,
+    "template": "'B4_variant_' + key"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 491,
+    "template": "'old_owner_role_expression_' + label"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 493,
+    "template": "'old_owner_getter_abi_' + name + '_' + label"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 494,
+    "template": "'old_owner_getter_output_' + label"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 525,
+    "template": "'old_owner_duplicate_source_' + name"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 530,
+    "template": "'old_owner_extraction_roles_' + name"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 697,
+    "template": "gate"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 699,
+    "template": "'old_owner_role_admin_' + role['name']"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 704,
+    "template": "'old_owner_event_role_' + name"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 712,
+    "template": "gate"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 717,
+    "template": "gate"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 785,
+    "template": "'old_owner_role_' + name + '_' + role"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 787,
+    "template": "'old_owner_role_admin_' + role"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 816,
+    "template": "'old_owner_operator_treasury_' + who"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 845,
+    "template": "gate"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "fork_probe",
+    "line": 1510,
+    "template": "case['gate']"
+  }
+]

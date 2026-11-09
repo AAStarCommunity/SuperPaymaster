@@ -1,0 +1,1732 @@
+[
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "evidence_file",
+    "line": 132,
+    "template": "'evidence_' + kind",
+    "labels": [
+      "conformance",
+      "mutation",
+      "slither",
+      "reproducible-build",
+      "dvt-ci",
+      "dvt-conformance-4.12"
+    ],
+    "scope_sha256": "f332f7ef66a2b12db12e560170ee70498aadd8684bb854095879ff1d8806e85e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "evidence_file",
+    "line": 132,
+    "template": "'evidence_' + kind + '_hash'",
+    "labels": [
+      "conformance",
+      "mutation",
+      "slither",
+      "reproducible-build",
+      "dvt-ci",
+      "dvt-conformance-4.12"
+    ],
+    "scope_sha256": "f332f7ef66a2b12db12e560170ee70498aadd8684bb854095879ff1d8806e85e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "evidence_file",
+    "line": 132,
+    "template": "'evidence_' + kind + '_path'",
+    "labels": [
+      "conformance",
+      "mutation",
+      "slither",
+      "reproducible-build",
+      "dvt-ci",
+      "dvt-conformance-4.12"
+    ],
+    "scope_sha256": "f332f7ef66a2b12db12e560170ee70498aadd8684bb854095879ff1d8806e85e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_evidence_details",
+    "line": 203,
+    "template": "'evidence_mutation_' + name",
+    "labels": [
+      "remove_B2",
+      "remove_AGGREGATOR_getter",
+      "remove_REGISTRY_getter",
+      "remove_bound_runtime_loop",
+      "remove_isEqualSet",
+      "subset_comparison",
+      "length_not_equal_to_less_than"
+    ],
+    "scope_sha256": "b9314267f4b20d07d360472825cbddef180e25cca84a15b8e884615c10624cbe",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_evidence_details",
+    "line": 211,
+    "template": "'evidence_suite_' + name",
+    "labels": [
+      "CC115CrossRepoConformance",
+      "CC115GenuinePragueCrossRepo",
+      "provenance"
+    ],
+    "scope_sha256": "b9314267f4b20d07d360472825cbddef180e25cca84a15b8e884615c10624cbe",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_evidence_details",
+    "line": 295,
+    "template": "'evidence_full_creation_' + name",
+    "labels": [
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "GlobalTierSource",
+      "AOAProtocolRegistry",
+      "xPNTsTokenV2Ext",
+      "xPNTsTokenV2",
+      "xPNTsFactoryV2",
+      "SuperPaymasterLens",
+      "Registry",
+      "BLSAggregator"
+    ],
+    "scope_sha256": "b9314267f4b20d07d360472825cbddef180e25cca84a15b8e884615c10624cbe",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 439,
+    "template": "'fraud_' + n['id'] + '_guardians'",
+    "labels": [
+      "N2",
+      "N3",
+      "N4"
+    ],
+    "scope_sha256": "59ca51c687c6f43db1d190856d4d18c8d2d8777a2c904008159b30583342b3d0",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 441,
+    "template": "'fraud_' + n['id'] + '_proof'",
+    "labels": [
+      "N1",
+      "N2",
+      "N4"
+    ],
+    "scope_sha256": "59ca51c687c6f43db1d190856d4d18c8d2d8777a2c904008159b30583342b3d0",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 460,
+    "template": "'fraud_uint_' + key",
+    "labels": [
+      "pid",
+      "fraudProofId",
+      "signerMask"
+    ],
+    "scope_sha256": "59ca51c687c6f43db1d190856d4d18c8d2d8777a2c904008159b30583342b3d0",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 494,
+    "template": "'fraud_token_zero_owner_' + str(offset)",
+    "labels": [
+      "130",
+      "210"
+    ],
+    "scope_sha256": "59ca51c687c6f43db1d190856d4d18c8d2d8777a2c904008159b30583342b3d0",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_rehearsal",
+    "line": 536,
+    "template": "'fraud_runtime_' + sid",
+    "labels": [
+      "A7",
+      "A12a"
+    ],
+    "scope_sha256": "7ee675e931d56e903545275ad017f52c68d2bd8eb3cdf8e7a332774b044298ca",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_rehearsal",
+    "line": 592,
+    "template": "'fraud_revert_' + name",
+    "labels": [
+      "N1",
+      "N2",
+      "N3"
+    ],
+    "scope_sha256": "7ee675e931d56e903545275ad017f52c68d2bd8eb3cdf8e7a332774b044298ca",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 640,
+    "template": "'verifier_' + key",
+    "labels": [
+      "ciSha256",
+      "buildSha256"
+    ],
+    "scope_sha256": "9570b4ff138ab52d104f15b33352ae56fcf7031cef233d093d6cd24d33fe1e71",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 644,
+    "template": "'canonical_' + key",
+    "labels": [
+      "anni",
+      "dvt",
+      "committee"
+    ],
+    "scope_sha256": "9570b4ff138ab52d104f15b33352ae56fcf7031cef233d093d6cd24d33fe1e71",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 645,
+    "template": "'nonzero_' + key",
+    "labels": [
+      "anni",
+      "dvt",
+      "committee"
+    ],
+    "scope_sha256": "9570b4ff138ab52d104f15b33352ae56fcf7031cef233d093d6cd24d33fe1e71",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 659,
+    "template": "'pop_unique_' + key",
+    "labels": [
+      "validator",
+      "slot"
+    ],
+    "scope_sha256": "9570b4ff138ab52d104f15b33352ae56fcf7031cef233d093d6cd24d33fe1e71",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "rebuild_baselines",
+    "line": 1330,
+    "template": "'baseline_immutables_' + name",
+    "labels": [
+      "F1TestToken",
+      "F1Oracle"
+    ],
+    "scope_sha256": "e8b171e7d7de9a56e79f29a028e026217098ed75c1206177924b7383c6326eec",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "rebuild_baselines",
+    "line": 1336,
+    "template": "'baseline_source_' + name",
+    "labels": [
+      "VerifyingPaymaster",
+      "TokenPaymaster"
+    ],
+    "scope_sha256": "e8b171e7d7de9a56e79f29a028e026217098ed75c1206177924b7383c6326eec",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "rebuild_baselines",
+    "line": 1338,
+    "template": "'baseline_constructor_count_' + name",
+    "labels": [
+      "VerifyingPaymaster",
+      "TokenPaymaster"
+    ],
+    "scope_sha256": "e8b171e7d7de9a56e79f29a028e026217098ed75c1206177924b7383c6326eec",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "collect_phase_c",
+    "line": 1438,
+    "template": "'phase_c_pending_nonce_' + label",
+    "labels": [
+      "owner",
+      "bundler",
+      "verifyingSigner"
+    ],
+    "scope_sha256": "e1fd0ab4f65bbde0f6bcec48c5c0f606289a674619fbc236afb60b8df20f6d47",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "check_governance",
+    "line": 1710,
+    "template": "'safe_gap_' + field",
+    "labels": [
+      "from",
+      "to",
+      "nonce",
+      "gas",
+      "maxFeePerGas",
+      "maxPriorityFeePerGas",
+      "value",
+      "chainId"
+    ],
+    "scope_sha256": "cc0db05c90f3ec4f7be43e4e6afe11bb54e52d34eb1e7282ad3fe887580ed985",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "nonce_expectations",
+    "line": 1824,
+    "template": "'a3a_last_' + label",
+    "labels": [
+      "deployer",
+      "approver",
+      "executor"
+    ],
+    "scope_sha256": "bf5b5eaa945a452739aa7e5d425c44d98de0f3bad4c94761b0f05bdf1bee8cd5",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "nonce_expectations",
+    "line": 1831,
+    "template": "'prepin_nonce_' + label",
+    "labels": [
+      "deployer",
+      "approver",
+      "executor"
+    ],
+    "scope_sha256": "bf5b5eaa945a452739aa7e5d425c44d98de0f3bad4c94761b0f05bdf1bee8cd5",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "nonce_expectations",
+    "line": 1832,
+    "template": "'prepin_nonce_floor_' + label",
+    "labels": [
+      "deployer",
+      "approver",
+      "executor"
+    ],
+    "scope_sha256": "bf5b5eaa945a452739aa7e5d425c44d98de0f3bad4c94761b0f05bdf1bee8cd5",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "history_steps",
+    "line": 1848,
+    "template": "'a3a_nonce_complete_' + label",
+    "labels": [
+      "deployer",
+      "approver",
+      "executor"
+    ],
+    "scope_sha256": "ac12317ffb4fa6ed16fa1a9c08ec05602a3d0360722eae43db4bc327d4b264c6",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_nonce_history",
+    "line": 1873,
+    "template": "'a3a_mined_history_' + step['id']",
+    "labels": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5a",
+      "S5b",
+      "S6a",
+      "S6b",
+      "S7"
+    ],
+    "scope_sha256": "21aaaa77e4c195092cf6608127258d3960488cc9cf34de2cdb5e8b9c9939fe73",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_nonce_history",
+    "line": 1876,
+    "template": "'a3a_status_' + step['id']",
+    "labels": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5a",
+      "S5b",
+      "S6a",
+      "S6b",
+      "S7"
+    ],
+    "scope_sha256": "21aaaa77e4c195092cf6608127258d3960488cc9cf34de2cdb5e8b9c9939fe73",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "reconcile_nonces",
+    "line": 1899,
+    "template": "'a3a_mined_reconcile_' + step['id']",
+    "labels": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5a",
+      "S5b",
+      "S6a",
+      "S6b",
+      "S7"
+    ],
+    "scope_sha256": "11f6350c6af4687034d50afa0c94c3da822801f23ebb45e188c1591402fcc9d4",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "build_plan",
+    "line": 2148,
+    "template": "'sender_fields_' + label",
+    "labels": [
+      "deployer",
+      "anni",
+      "approver",
+      "executor"
+    ],
+    "scope_sha256": "6b1d8a533f6c2abf8dbacb404111860a7207da2877a71d8938d413223bc7fd78",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "build_plan",
+    "line": 2155,
+    "template": "'sender_' + label",
+    "labels": [
+      "deployer",
+      "approver",
+      "executor"
+    ],
+    "scope_sha256": "6b1d8a533f6c2abf8dbacb404111860a7207da2877a71d8938d413223bc7fd78",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "deploy",
+    "line": 2211,
+    "template": "'nonempty_runtime_' + name",
+    "labels": [
+      "SuperPaymaster",
+      "GlobalTierSource",
+      "AOAProtocolRegistry",
+      "xPNTsTokenV2Ext",
+      "xPNTsTokenV2",
+      "xPNTsFactoryV2",
+      "SuperPaymasterLens",
+      "Registry",
+      "BLSAggregator",
+      "OverIssueFraudProofVerifier"
+    ],
+    "scope_sha256": "3cc6cadd6bf9eb770c99cf0002c942b227013ccca2387c19e640e637dabebaf5",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "build_plan",
+    "line": 2300,
+    "template": "'drain_operator_present_' + label",
+    "labels": [
+      "deployer",
+      "anni"
+    ],
+    "scope_sha256": "6b1d8a533f6c2abf8dbacb404111860a7207da2877a71d8938d413223bc7fd78",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "build_plan",
+    "line": 2366,
+    "template": "'C_baseline_commit_' + name",
+    "labels": [
+      "F1TestToken",
+      "F1Oracle",
+      "VerifyingPaymaster",
+      "TokenPaymaster"
+    ],
+    "scope_sha256": "6b1d8a533f6c2abf8dbacb404111860a7207da2877a71d8938d413223bc7fd78",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "handover_trace",
+    "line": 2597,
+    "template": "'handover_trace_' + key",
+    "labels": [
+      "from",
+      "to",
+      "input"
+    ],
+    "scope_sha256": "edea077b9214709d79e20ace547e04766b1aac21e827847cf6fc74fcf8570fdb",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "handover_controls",
+    "line": 2661,
+    "template": "label + '_status'",
+    "labels": [
+      "handover_sp_setProtocolFee",
+      "handover_aggregator_setSlashThreshold",
+      "handover_aggregator_setGuardianSlashBps",
+      "handover_old_aggregator_setSlashThreshold",
+      "handover_old_aggregator_setGuardianSlashBps"
+    ],
+    "scope_sha256": "92c24ab467104780c6e68d7972f08f1e836d6af98e1a41a82cf1798dde52f8bc",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "phase_c_state",
+    "line": 2965,
+    "template": "'C_sampled_unpaused' if who in sampled else 'C_unsampled_paused'",
+    "labels": [
+      "C_sampled_unpaused",
+      "C_unsampled_paused"
+    ],
+    "scope_sha256": "3767abf6ce7898e4fc19a48cfbf352678e06a15c6666e9f2715dae41381d9466",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "phase_c_pre_send",
+    "line": 3039,
+    "template": "sid + '_recipient_balance'",
+    "labels": [
+      "C19",
+      "C20"
+    ],
+    "scope_sha256": "c3508c5872410423885d180cfe6cb1a9d16cf6d423b18e1ea709bdffba0aee00",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "phase_c_pre_send",
+    "line": 3040,
+    "template": "sid + '_recipient_eoa'",
+    "labels": [
+      "C19",
+      "C20"
+    ],
+    "scope_sha256": "c3508c5872410423885d180cfe6cb1a9d16cf6d423b18e1ea709bdffba0aee00",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "layout_slot",
+    "line": 3104,
+    "template": "'C_control_layout_' + label",
+    "labels": [
+      "cachedPrice",
+      "_auto",
+      "_budget"
+    ],
+    "scope_sha256": "decaa264609a953a984021af2113225536ebf09b922188973ed4d222fbbe2a98",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "phase_c_controls",
+    "line": 3202,
+    "template": "name + '_gate'",
+    "labels": [
+      "C_allowance_exhausted",
+      "C_total_exhausted"
+    ],
+    "scope_sha256": "a65ad68613d98d42a12bba1454324a4e177567ecd829b361712d66c04d8acd02",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "phase_c_controls",
+    "line": 3202,
+    "template": "name + '_restore'",
+    "labels": [
+      "C_allowance_exhausted",
+      "C_total_exhausted"
+    ],
+    "scope_sha256": "a65ad68613d98d42a12bba1454324a4e177567ecd829b361712d66c04d8acd02",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 648,
+    "template": "'old_owner_target_' + name",
+    "labels": [
+      "GTokenStaking",
+      "GToken",
+      "xPNTsFactory",
+      "MySBT",
+      "PaymasterFactory"
+    ],
+    "scope_sha256": "3900253bffcc58362e85e40d18e8a2c2ac12e45a1ba29d620d60b9b26fa1fb05",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 733,
+    "template": "'old_owner_control_' + name",
+    "labels": [
+      "GTokenStaking",
+      "GToken",
+      "xPNTsFactory",
+      "MySBT",
+      "PaymasterFactory"
+    ],
+    "scope_sha256": "3900253bffcc58362e85e40d18e8a2c2ac12e45a1ba29d620d60b9b26fa1fb05",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 868,
+    "template": "'old_owner_safe_' + label",
+    "labels": [
+      "guard",
+      "fallback"
+    ],
+    "scope_sha256": "3900253bffcc58362e85e40d18e8a2c2ac12e45a1ba29d620d60b9b26fa1fb05",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "validate",
+    "line": 916,
+    "template": "'old_owner_revalidated_' + endpoint",
+    "labels": [
+      "primary",
+      "secondary"
+    ],
+    "scope_sha256": "2677052a1e5dd29b2245568e87d8ac9a1205f2f94cfaf0b8bf664b570d79e695",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 343,
+    "template": "'reproducible_bytes_' + name",
+    "labels": [
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "GlobalTierSource",
+      "AOAProtocolRegistry",
+      "xPNTsTokenV2Ext",
+      "xPNTsTokenV2",
+      "xPNTsFactoryV2",
+      "SuperPaymasterLens",
+      "Registry",
+      "BLSAggregator",
+      "OverIssueFraudProofVerifier"
+    ],
+    "scope_sha256": "4df5f986d7f2269e6f8774fdf164b7354df112466584c04a39196614589e986e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 345,
+    "template": "'rebuild_record_' + name",
+    "labels": [
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "GlobalTierSource",
+      "AOAProtocolRegistry",
+      "xPNTsTokenV2Ext",
+      "xPNTsTokenV2",
+      "xPNTsFactoryV2",
+      "SuperPaymasterLens",
+      "Registry",
+      "BLSAggregator",
+      "OverIssueFraudProofVerifier"
+    ],
+    "scope_sha256": "4df5f986d7f2269e6f8774fdf164b7354df112466584c04a39196614589e986e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 347,
+    "template": "'reproducible_executable_' + name",
+    "labels": [
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "GlobalTierSource",
+      "AOAProtocolRegistry",
+      "xPNTsTokenV2Ext",
+      "xPNTsTokenV2",
+      "xPNTsFactoryV2",
+      "SuperPaymasterLens",
+      "Registry",
+      "BLSAggregator",
+      "OverIssueFraudProofVerifier"
+    ],
+    "scope_sha256": "4df5f986d7f2269e6f8774fdf164b7354df112466584c04a39196614589e986e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "compare_build_evidence",
+    "line": 349,
+    "template": "'reproducible_full_' + name",
+    "labels": [
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "GlobalTierSource",
+      "AOAProtocolRegistry",
+      "xPNTsTokenV2Ext",
+      "xPNTsTokenV2",
+      "xPNTsFactoryV2",
+      "SuperPaymasterLens",
+      "Registry",
+      "BLSAggregator"
+    ],
+    "scope_sha256": "4df5f986d7f2269e6f8774fdf164b7354df112466584c04a39196614589e986e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 379,
+    "template": "'fraud_schema_' + path",
+    "labels": [
+      "export.chainId",
+      "export.forkState.commitment.check",
+      "export.forkState.commitment.mapping",
+      "export.forkState.token.overIssuedStorageSlot",
+      "export.mustReject.0.change",
+      "export.mustReject.0.expect",
+      "export.mustReject.0.id",
+      "export.mustReject.1.change",
+      "export.mustReject.1.expect",
+      "export.mustReject.1.id",
+      "export.mustReject.2.change",
+      "export.mustReject.2.expect",
+      "export.mustReject.2.id",
+      "export.mustReject.3.call",
+      "export.mustReject.3.change",
+      "export.mustReject.3.expect",
+      "export.mustReject.3.id",
+      "export.purpose",
+      "export.valid.call",
+      "export.valid.expect",
+      "fixture.export.chainId",
+      "fixture.export.forkState.commitment.check",
+      "fixture.export.forkState.commitment.mapping",
+      "fixture.export.forkState.token.overIssuedStorageSlot",
+      "fixture.export.mustReject.0.change",
+      "fixture.export.mustReject.0.expect",
+      "fixture.export.mustReject.0.id",
+      "fixture.export.mustReject.1.change",
+      "fixture.export.mustReject.1.expect",
+      "fixture.export.mustReject.1.id",
+      "fixture.export.mustReject.2.change",
+      "fixture.export.mustReject.2.expect",
+      "fixture.export.mustReject.2.id",
+      "fixture.export.mustReject.3.call",
+      "fixture.export.mustReject.3.change",
+      "fixture.export.mustReject.3.expect",
+      "fixture.export.mustReject.3.id",
+      "fixture.export.purpose",
+      "fixture.export.valid.call",
+      "fixture.export.valid.expect",
+      "fixture.export.version",
+      "fixture.verifierCommit"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 381,
+    "template": "'fraud_schema_enum_' + path",
+    "labels": [],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 384,
+    "template": "'fraud_schema_type_' + path",
+    "labels": [
+      "export",
+      "export.aggregator",
+      "export.block",
+      "export.domainSeparator",
+      "export.forkState",
+      "export.forkState.commitment",
+      "export.forkState.commitment.key",
+      "export.forkState.commitment.value",
+      "export.forkState.token",
+      "export.forkState.token.address",
+      "export.forkState.token.runtimeBytecode",
+      "export.mustReject",
+      "export.mustReject.0",
+      "export.mustReject.0.fraudProof",
+      "export.mustReject.0.guiltyGuardians",
+      "export.mustReject.0.guiltyGuardians.0",
+      "export.mustReject.0.guiltyGuardians.1",
+      "export.mustReject.1",
+      "export.mustReject.1.fraudProof",
+      "export.mustReject.1.guiltyGuardians",
+      "export.mustReject.1.guiltyGuardians.0",
+      "export.mustReject.1.guiltyGuardians.1",
+      "export.mustReject.1.guiltyGuardians.2",
+      "export.mustReject.2",
+      "export.mustReject.2.fraudProof",
+      "export.mustReject.2.guiltyGuardians",
+      "export.mustReject.2.guiltyGuardians.0",
+      "export.mustReject.2.guiltyGuardians.1",
+      "export.mustReject.2.guiltyGuardians.2",
+      "export.mustReject.3",
+      "export.mustReject.3.domainDigest",
+      "export.mustReject.3.fraudProof",
+      "export.mustReject.3.guiltyGuardians",
+      "export.mustReject.3.guiltyGuardians.0",
+      "export.mustReject.3.guiltyGuardians.1",
+      "export.mustReject.3.guiltyGuardians.2",
+      "export.owner",
+      "export.registry",
+      "export.valid",
+      "export.valid.domainDigest",
+      "export.valid.epoch",
+      "export.valid.fraudProof",
+      "export.valid.fraudProofId",
+      "export.valid.guiltyGuardians",
+      "export.valid.guiltyGuardians.0",
+      "export.valid.guiltyGuardians.1",
+      "export.valid.guiltyGuardians.2",
+      "export.valid.operator",
+      "export.valid.proposalId",
+      "export.valid.signerMask",
+      "export.valid.slashLevel",
+      "export.verifier",
+      "export.version",
+      "fixture",
+      "fixture.export",
+      "fixture.export.aggregator",
+      "fixture.export.block",
+      "fixture.export.domainSeparator",
+      "fixture.export.forkState",
+      "fixture.export.forkState.commitment",
+      "fixture.export.forkState.commitment.key",
+      "fixture.export.forkState.commitment.value",
+      "fixture.export.forkState.token",
+      "fixture.export.forkState.token.address",
+      "fixture.export.forkState.token.runtimeBytecode",
+      "fixture.export.mustReject",
+      "fixture.export.mustReject.0",
+      "fixture.export.mustReject.0.fraudProof",
+      "fixture.export.mustReject.0.guiltyGuardians",
+      "fixture.export.mustReject.0.guiltyGuardians.0",
+      "fixture.export.mustReject.0.guiltyGuardians.1",
+      "fixture.export.mustReject.1",
+      "fixture.export.mustReject.1.fraudProof",
+      "fixture.export.mustReject.1.guiltyGuardians",
+      "fixture.export.mustReject.1.guiltyGuardians.0",
+      "fixture.export.mustReject.1.guiltyGuardians.1",
+      "fixture.export.mustReject.1.guiltyGuardians.2",
+      "fixture.export.mustReject.2",
+      "fixture.export.mustReject.2.fraudProof",
+      "fixture.export.mustReject.2.guiltyGuardians",
+      "fixture.export.mustReject.2.guiltyGuardians.0",
+      "fixture.export.mustReject.2.guiltyGuardians.1",
+      "fixture.export.mustReject.2.guiltyGuardians.2",
+      "fixture.export.mustReject.3",
+      "fixture.export.mustReject.3.domainDigest",
+      "fixture.export.mustReject.3.fraudProof",
+      "fixture.export.mustReject.3.guiltyGuardians",
+      "fixture.export.mustReject.3.guiltyGuardians.0",
+      "fixture.export.mustReject.3.guiltyGuardians.1",
+      "fixture.export.mustReject.3.guiltyGuardians.2",
+      "fixture.export.owner",
+      "fixture.export.registry",
+      "fixture.export.valid",
+      "fixture.export.valid.domainDigest",
+      "fixture.export.valid.epoch",
+      "fixture.export.valid.fraudProof",
+      "fixture.export.valid.fraudProofId",
+      "fixture.export.valid.guiltyGuardians",
+      "fixture.export.valid.guiltyGuardians.0",
+      "fixture.export.valid.guiltyGuardians.1",
+      "fixture.export.valid.guiltyGuardians.2",
+      "fixture.export.valid.operator",
+      "fixture.export.valid.proposalId",
+      "fixture.export.valid.signerMask",
+      "fixture.export.valid.slashLevel",
+      "fixture.export.verifier",
+      "fixture.toolCommit"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 388,
+    "template": "'fraud_schema_required_' + path",
+    "labels": [
+      "export",
+      "export.forkState",
+      "export.forkState.commitment",
+      "export.forkState.token",
+      "export.mustReject.0",
+      "export.mustReject.1",
+      "export.mustReject.2",
+      "export.mustReject.3",
+      "export.valid",
+      "fixture",
+      "fixture.export",
+      "fixture.export.forkState",
+      "fixture.export.forkState.commitment",
+      "fixture.export.forkState.token",
+      "fixture.export.mustReject.0",
+      "fixture.export.mustReject.1",
+      "fixture.export.mustReject.2",
+      "fixture.export.mustReject.3",
+      "fixture.export.valid"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 389,
+    "template": "'fraud_schema_properties_' + path",
+    "labels": [
+      "export",
+      "export.forkState",
+      "export.forkState.commitment",
+      "export.forkState.token",
+      "export.mustReject.0",
+      "export.mustReject.1",
+      "export.mustReject.2",
+      "export.mustReject.3",
+      "export.valid",
+      "fixture",
+      "fixture.export",
+      "fixture.export.forkState",
+      "fixture.export.forkState.commitment",
+      "fixture.export.forkState.token",
+      "fixture.export.mustReject.0",
+      "fixture.export.mustReject.1",
+      "fixture.export.mustReject.2",
+      "fixture.export.mustReject.3",
+      "fixture.export.valid"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 394,
+    "template": "'fraud_schema_fields_' + path",
+    "labels": [
+      "export",
+      "export.forkState",
+      "export.forkState.commitment",
+      "export.forkState.token",
+      "export.mustReject.0",
+      "export.mustReject.1",
+      "export.mustReject.2",
+      "export.mustReject.3",
+      "export.valid",
+      "fixture",
+      "fixture.export",
+      "fixture.export.forkState",
+      "fixture.export.forkState.commitment",
+      "fixture.export.forkState.token",
+      "fixture.export.mustReject.0",
+      "fixture.export.mustReject.1",
+      "fixture.export.mustReject.2",
+      "fixture.export.mustReject.3",
+      "fixture.export.valid"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 398,
+    "template": "'fraud_schema_length_' + path",
+    "labels": [
+      "export.mustReject",
+      "export.mustReject.0.guiltyGuardians",
+      "export.mustReject.1.guiltyGuardians",
+      "export.mustReject.2.guiltyGuardians",
+      "export.mustReject.3.guiltyGuardians",
+      "export.valid.guiltyGuardians",
+      "fixture.export.mustReject",
+      "fixture.export.mustReject.0.guiltyGuardians",
+      "fixture.export.mustReject.1.guiltyGuardians",
+      "fixture.export.mustReject.2.guiltyGuardians",
+      "fixture.export.mustReject.3.guiltyGuardians",
+      "fixture.export.valid.guiltyGuardians"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 403,
+    "template": "'fraud_schema_pattern_' + path",
+    "labels": [
+      "export.aggregator",
+      "export.domainSeparator",
+      "export.forkState.commitment.key",
+      "export.forkState.commitment.value",
+      "export.forkState.token.address",
+      "export.forkState.token.runtimeBytecode",
+      "export.mustReject.0.fraudProof",
+      "export.mustReject.0.guiltyGuardians.0",
+      "export.mustReject.0.guiltyGuardians.1",
+      "export.mustReject.1.fraudProof",
+      "export.mustReject.1.guiltyGuardians.0",
+      "export.mustReject.1.guiltyGuardians.1",
+      "export.mustReject.1.guiltyGuardians.2",
+      "export.mustReject.2.fraudProof",
+      "export.mustReject.2.guiltyGuardians.0",
+      "export.mustReject.2.guiltyGuardians.1",
+      "export.mustReject.2.guiltyGuardians.2",
+      "export.mustReject.3.domainDigest",
+      "export.mustReject.3.fraudProof",
+      "export.mustReject.3.guiltyGuardians.0",
+      "export.mustReject.3.guiltyGuardians.1",
+      "export.mustReject.3.guiltyGuardians.2",
+      "export.owner",
+      "export.registry",
+      "export.valid.domainDigest",
+      "export.valid.epoch",
+      "export.valid.fraudProof",
+      "export.valid.fraudProofId",
+      "export.valid.guiltyGuardians.0",
+      "export.valid.guiltyGuardians.1",
+      "export.valid.guiltyGuardians.2",
+      "export.valid.operator",
+      "export.valid.proposalId",
+      "export.valid.signerMask",
+      "export.verifier",
+      "export.version",
+      "fixture.export.aggregator",
+      "fixture.export.domainSeparator",
+      "fixture.export.forkState.commitment.key",
+      "fixture.export.forkState.commitment.value",
+      "fixture.export.forkState.token.address",
+      "fixture.export.forkState.token.runtimeBytecode",
+      "fixture.export.mustReject.0.fraudProof",
+      "fixture.export.mustReject.0.guiltyGuardians.0",
+      "fixture.export.mustReject.0.guiltyGuardians.1",
+      "fixture.export.mustReject.1.fraudProof",
+      "fixture.export.mustReject.1.guiltyGuardians.0",
+      "fixture.export.mustReject.1.guiltyGuardians.1",
+      "fixture.export.mustReject.1.guiltyGuardians.2",
+      "fixture.export.mustReject.2.fraudProof",
+      "fixture.export.mustReject.2.guiltyGuardians.0",
+      "fixture.export.mustReject.2.guiltyGuardians.1",
+      "fixture.export.mustReject.2.guiltyGuardians.2",
+      "fixture.export.mustReject.3.domainDigest",
+      "fixture.export.mustReject.3.fraudProof",
+      "fixture.export.mustReject.3.guiltyGuardians.0",
+      "fixture.export.mustReject.3.guiltyGuardians.1",
+      "fixture.export.mustReject.3.guiltyGuardians.2",
+      "fixture.export.owner",
+      "fixture.export.registry",
+      "fixture.export.valid.domainDigest",
+      "fixture.export.valid.epoch",
+      "fixture.export.valid.fraudProof",
+      "fixture.export.valid.fraudProofId",
+      "fixture.export.valid.guiltyGuardians.0",
+      "fixture.export.valid.guiltyGuardians.1",
+      "fixture.export.valid.guiltyGuardians.2",
+      "fixture.export.valid.operator",
+      "fixture.export.valid.proposalId",
+      "fixture.export.valid.signerMask",
+      "fixture.export.verifier",
+      "fixture.toolCommit"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "_fraud_schema",
+    "line": 405,
+    "template": "'fraud_schema_range_' + path",
+    "labels": [
+      "export.block",
+      "export.valid.slashLevel",
+      "fixture.export.block",
+      "fixture.export.valid.slashLevel"
+    ],
+    "scope_sha256": "5191b96acfb3c9d207a1f1fe829665050bc0e23142d74cfe1bd20b75f0b258df",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "runtime_bytes",
+    "line": 1993,
+    "template": "'immutable_supplied_' + entry['name']",
+    "labels": [
+      "AGGREGATOR",
+      "ETH_USD_PRICE_FEED",
+      "EXTENSION",
+      "MINTER",
+      "PROTOCOL_REGISTRY",
+      "REGISTRY",
+      "__self",
+      "_cachedChainId",
+      "_cachedDomainSeparator",
+      "_cachedThis",
+      "_hashedName",
+      "_hashedVersion",
+      "_name",
+      "_version",
+      "entryPoint",
+      "extensionCodehash",
+      "implementation",
+      "implementationCodehash"
+    ],
+    "scope_sha256": "9032c4e27969e4409ac485315d728b4aa68ccef89e890b858f0b245e70c3abff",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "check_predicate",
+    "line": 2841,
+    "template": "'readback_value_' + p.get('signature', kind)",
+    "labels": [
+      "AGGREGATOR()",
+      "APNTS_TOKEN()",
+      "BALANCE_MODE_VERSION()",
+      "BLS_AGGREGATOR()",
+      "DVT_VALIDATOR()",
+      "EXTENSION()",
+      "FACTORY()",
+      "MINTER()",
+      "REGISTRY()",
+      "SUPERPAYMASTER()",
+      "SUPERPAYMASTER_ADDRESS()",
+      "allowance(address,address)",
+      "approved(uint8,bytes32)",
+      "approvedHashes(address,bytes32)",
+      "autoAllowance(address,address)",
+      "autoRenewUsed(address)",
+      "balance",
+      "balanceOf(address)",
+      "blsAggregator()",
+      "cachedPrice()",
+      "cap()",
+      "code",
+      "codeHash",
+      "community()",
+      "communityENS()",
+      "communityName()",
+      "communityOwner()",
+      "creditPolicy()",
+      "creditTierSource()",
+      "debts(address)",
+      "decimals()",
+      "defaultThreshold()",
+      "defaultTierSource()",
+      "domainSeparator()",
+      "entryPoint()",
+      "exchangeRate()",
+      "fraudProofVerifier()",
+      "getBLSPublicKey(address)",
+      "getDeployedCount()",
+      "getDepositInfo(address)",
+      "getOperationState(bytes32)",
+      "getRoleConfig(bytes32)",
+      "getRoleStake(bytes32,address)",
+      "getTokenAddress(address)",
+      "guardianSlashBps()",
+      "hasRole(bytes32,address)",
+      "isEligibleForSponsorship(address)",
+      "isReputationSource(address)",
+      "isXPNTs(address)",
+      "latestRoundData()",
+      "maxSingleTxLimit()",
+      "minThreshold()",
+      "minter()",
+      "name()",
+      "operators(address)",
+      "owner()",
+      "paused()",
+      "pendingAPNTsToken()",
+      "pendingAPNTsTokenEta()",
+      "pendingBLSAgg()",
+      "pendingBLSAggEta()",
+      "pendingFraudProofVerifier()",
+      "pendingFraudProofVerifierReadyAt()",
+      "pendingOwner()",
+      "pendingPolicyEta()",
+      "protocolFeeBPS()",
+      "protocolRevenue()",
+      "renewalMode(address)",
+      "sbtHolders(address)",
+      "sealed_()",
+      "slashPolicyAdmin()",
+      "slashThresholds(uint8)",
+      "storage",
+      "symbol()",
+      "token()",
+      "tokenPaymasterConfig()",
+      "totalSupply()",
+      "totalTrackedBalance()",
+      "uniswap()",
+      "userTotal(address)",
+      "validatorAtSlot(uint8)",
+      "verifyCommunityMembership(address,address)",
+      "verifyingSigner()",
+      "version()",
+      "wrappedNative()",
+      "xpntsFactory()"
+    ],
+    "scope_sha256": "914bbfb53c9b130ea8febd75e8f7c79918d77cfb97d5d71737908e05619e6605",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "budget",
+    "line": 2886,
+    "template": "'budget_' + label",
+    "labels": [
+      "deployer",
+      "anni",
+      "approver",
+      "executor",
+      "owner"
+    ],
+    "scope_sha256": "8030ad1d4045b73c9b8b933da41eaa1588e556e388a0ef78ff80898909dafbf7",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2897,
+    "template": "'manifest_plan_key_' + key",
+    "labels": [
+      "activationScheduleNotBefore",
+      "addresses",
+      "b4Disclosure",
+      "controls",
+      "creationMetadataLayouts",
+      "expectedDiscoveryAfter",
+      "expectedDomainSeparator",
+      "extension",
+      "externalInputs",
+      "final",
+      "gasParams",
+      "gasPolicy",
+      "implementation",
+      "operations",
+      "phaseC",
+      "pin",
+      "prefixDigest",
+      "rebuild",
+      "route",
+      "schema",
+      "stage",
+      "stageSources",
+      "timelockRuntimeIdentity"
+    ],
+    "scope_sha256": "853437d0b34167b916b69a39358020780dbc34b0f87f5a20f069f03d8e10883e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2910,
+    "template": "'manifest_step_key_' + key",
+    "labels": [
+      "constructor",
+      "creates",
+      "executionTimestamp",
+      "gasBound",
+      "id",
+      "inner",
+      "operation",
+      "phase",
+      "readbacks",
+      "safeHash",
+      "safeNonce",
+      "safeTarget",
+      "sender",
+      "warpTarget"
+    ],
+    "scope_sha256": "853437d0b34167b916b69a39358020780dbc34b0f87f5a20f069f03d8e10883e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2913,
+    "template": "'manifest_tx_field_' + key",
+    "labels": [
+      "chainId",
+      "data",
+      "from",
+      "maxFeePerGas",
+      "maxPriorityFeePerGas",
+      "nonce",
+      "to",
+      "value"
+    ],
+    "scope_sha256": "853437d0b34167b916b69a39358020780dbc34b0f87f5a20f069f03d8e10883e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_plan",
+    "line": 2920,
+    "template": "'B4_variant_' + key",
+    "labels": [
+      "chainId",
+      "data",
+      "from",
+      "maxFeePerGas",
+      "maxPriorityFeePerGas",
+      "nonce",
+      "to",
+      "value"
+    ],
+    "scope_sha256": "853437d0b34167b916b69a39358020780dbc34b0f87f5a20f069f03d8e10883e",
+    "source_sha256": {
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/fraud-proof-fixture.schema.json": "ac83dc4c37408bc498fea2fc876e4a61b5c6c81be749189b5730c633757511ff",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 525,
+    "template": "'old_owner_duplicate_source_' + name",
+    "labels": [
+      "AOAProtocolRegistry",
+      "APNTsCapped",
+      "BLSAggregator",
+      "GToken",
+      "GTokenAuthorization",
+      "GTokenStaking",
+      "GlobalTierSource",
+      "MySBT",
+      "PaymasterFactory",
+      "Registry",
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "SuperPaymasterLens",
+      "TimelockController",
+      "xPNTsFactory",
+      "xPNTsFactoryV2",
+      "xPNTsToken",
+      "xPNTsTokenV2",
+      "xPNTsTokenV2Ext"
+    ],
+    "scope_sha256": "fc2af33198613c20e0e1b951199ccdd6b512772659177458ff076e72aac26a3f",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 530,
+    "template": "'old_owner_extraction_roles_' + name",
+    "labels": [
+      "AOAProtocolRegistry",
+      "APNTsCapped",
+      "BLSAggregator",
+      "GToken",
+      "GTokenAuthorization",
+      "GTokenStaking",
+      "GlobalTierSource",
+      "MySBT",
+      "PaymasterFactory",
+      "Registry",
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "SuperPaymasterLens",
+      "TimelockController",
+      "xPNTsFactory",
+      "xPNTsFactoryV2",
+      "xPNTsToken",
+      "xPNTsTokenV2",
+      "xPNTsTokenV2Ext"
+    ],
+    "scope_sha256": "fc2af33198613c20e0e1b951199ccdd6b512772659177458ff076e72aac26a3f",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "check_target",
+    "line": 704,
+    "template": "'old_owner_event_role_member_' + name",
+    "labels": [
+      "AOAProtocolRegistry",
+      "APNTsCapped",
+      "BLSAggregator",
+      "GToken",
+      "GTokenStaking",
+      "GlobalTierSource",
+      "MySBT",
+      "PaymasterFactory",
+      "Registry",
+      "SuperPaymaster",
+      "SuperPaymasterAdmin",
+      "SuperPaymasterLens",
+      "TimelockController",
+      "xPNTsFactory",
+      "xPNTsFactoryV2",
+      "xPNTsToken",
+      "xPNTsTokenV2",
+      "xPNTsTokenV2Ext"
+    ],
+    "scope_sha256": "510b0075850132edf8daf5e7ea2561149f7348c1fecc6c9f0db36a65601df7f7",
+    "source_sha256": {
+      "script/upgrade/old_owner_isolation.py": "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6",
+      "script/upgrade/manifest_exec.py": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+      "script/upgrade/gate_r_domains.py": "bb54b8d5c2daac8e649ef0bf8c906027c850cd9dbb39cfd56d580aa1941d5e9b",
+      "script/upgrade/sp_upgrade_exec.py": "77791c5537ace0c8648f8807ee89abcbe4de39e09430ee075bcbd6d3775085a1",
+      "script/a3a/a3a_exec.py": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989"
+    }
+  }
+]
