@@ -126,8 +126,9 @@ more trigger bisection. A full-range result must agree with a disjoint two-range
 cover, and the OLD-filtered result must agree with the unfiltered history.
 Event address, topics, block bounds/hash/number, removed flags, transaction/log
 identity and duplicates are checked. Canonical blocks are cached per event block;
-there is no block-by-block scan. Standard source roles must have event coverage
-for `hasRole` contracts. Missing coverage stops; it is never silently excused.
+there is no block-by-block scan. Each `hasRole` contract must have a grant for at
+least one standard source role. Zero-event roles must match the fixed ANODE/KMS
+exception described below; any other zero-event role stops.
 Range-cover comparisons detect inconsistent truncation, not a provider that
 consistently fabricates or omits the same history on every query.
 
@@ -283,3 +284,48 @@ cancel it. The address-exact exemption requires absence from all 13 old
 aggregator slots at the pin on both endpoints and at every pre-send, alongside
 expiry, zero pending slash and A7 PoP exclusion. It does not erase the residual
 role/stake. See the [A7 evidence notes](../../docs/release/sp-upgrade-a6e/MANIFEST-DESIGN.md#a7-evidence-notes--dsr-2026-11-04-exit-exemption).
+
+## Declared never-granted roles and residual COMMUNITY exposure
+
+The DSR exception is fixed to Registry ANODE and KMS. Every target with `hasRole`
+must still have a grant for at least one source-declared standard role in the
+creation-to-pin range. No role is removed from that standard set. Zero-event
+standard roles are recorded as sorted `declaredNeverGranted` lists and must match
+`NEVER_GRANTED` exactly. Their pin reads cover OLD and every audit control holder;
+all must be false. Pre-send and closing re-read those same rows at one block and
+STOP on change.
+
+The alternative role control path is limited to `MAPPING_CONTROL_ROLES` (ANODE
+and KMS), requires a compiler AST public mapping getter, and checks COMMUNITY for
+DEPLOYER (true) and OLD (false) on the same contract at the same block. A function
+getter still requires the existing control-holder or verified fork-case path.
+ROLE_ENDUSER is not included; DSR must first see the pin pauseList.
+
+Registry `safeMintForRole` (`a839347e:416-440`) lets any COMMUNITY holder grant any
+active role to any user, including OLD, subject to the role's registration checks.
+The DSR-provided history contains 9 COMMUNITY grants; not all holders are
+controlled. This exposure cannot be excluded in advance and is detected by the
+pre-send/closing re-read (STOP). Within `contracts/src`, ROLE_ANODE and ROLE_KMS
+gate no access control: apart from their constant declarations, they appear only
+in Registry.sol role arrays and `_syncExitFeeForRole` calls. These observations do
+not establish exclusive control of COMMUNITY holders.
+
+What each re-read covers (pre-send vs closing):
+
+- Every `hasRole(role, OLD)` read at the pin (`oldRoleReads`) is re-read in one
+  block before every send and at closing (`old_owner_role_recheck`), so a post-pin
+  grant of any inventoried role to OLD stops before the next transaction.
+- Declared-never-granted rows (`neverGrantedReads`: OLD and every control holder)
+  are re-read the same way (`old_owner_never_granted_recheck`). A first ANODE/KMS
+  grant to an address outside that set, or a grant later revoked, is not seen
+  before sending; closing refreshes the role history and stops on it
+  (`old_owner_never_granted_set`). Such an address gains no permission in
+  `contracts/src`.
+- The orphaned timelock is re-checked before every send against the pin's
+  Approval owners (no log scan) plus the fixed principals: TL roles, authorities,
+  allowances and the Safe. Pre-send uses the pin's target, token and role
+  inventory. Found only at closing (which rediscovers the inventory and the
+  Approval owners and requires the inventory to equal the pin's): an allowance
+  granted after the pin by an owner that had never approved the orphan, and a
+  token, target or role ID that appeared after the pin, including any orphan
+  authority on it.

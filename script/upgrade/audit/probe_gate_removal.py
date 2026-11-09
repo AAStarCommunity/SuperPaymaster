@@ -48,6 +48,7 @@ TESTS = 'test_manifest_exec'
 # purpose: release-evidence parsing, fraud-fixture parsing, Safe governance gaps and
 # A3a nonce history (section-2 release/history preconditions, audited separately).
 PHASE_FUNCTIONS = (
+    'old_timelock_holds_nothing', 'validate_old_timelock', 'closing_timelock_inventory',
     'validate_external', 'collect_pair', 'old_pointers', 'dvt_closing', 'old_activity', 'dvt_activity', 'balances', 'drain_gate', 'collect',
     'runtime_bytes', 'verify_prefix', 'stage_readback', 'build_plan',
     'handover_gate', 'handover_trace', 'handover_controls', 'activation_eta_gate',
@@ -68,7 +69,7 @@ def sites(tree=None):
     tree = tree or ast.parse(TARGET.read_text(), str(TARGET))
     found = []
     for fn in tree.body:
-        if isinstance(fn, ast.FunctionDef) and fn.name in PHASE_FUNCTIONS:
+        if isinstance(fn, ast.FunctionDef) and (TARGET.stem == 'old_owner_isolation' or fn.name in PHASE_FUNCTIONS):
             for node in ast.walk(fn):
                 if is_need(node):
                     gate = node.value.args[0]
@@ -103,16 +104,18 @@ class Record(ast.NodeTransformer):
 def install(tree, extra=None):
     ast.fix_missing_locations(tree)
     sys.path[:0] = [str(UPGRADE), str(ROOT/'script/a3a')]
-    module = types.ModuleType('manifest_exec')
+    module = types.ModuleType(TARGET.stem)
     module.__file__ = str(TARGET)
     module.__dict__.update(extra or {})
-    sys.modules['manifest_exec'] = module
+    sys.modules[TARGET.stem] = module
     exec(compile(tree, str(TARGET), 'exec'), module.__dict__)
     # Performance only. validate_evidence_details (manifest_exec.py, the module's only
     # ast.walk/ast.parse call site, asserted below) re-parses the same unchanged test
     # sources on every evidence check and keeps only FunctionDef/AsyncFunctionDef names.
     # The memo returns exactly those nodes for the same source text, so every gate
     # decision is unchanged; it cuts suite time several-fold.
+    if TARGET.stem != 'manifest_exec':
+        return module
     source = TARGET.read_text()
     assert source.count('ast.walk(') == 1 and source.count('ast.parse(') == 1
     module.__dict__['ast'] = MemoAst()
@@ -204,7 +207,7 @@ def run_one(site, out, env):
         return dict(site, status=status, firstFailingTest=first, log=str(log.relative_to(ROOT)))
     started = time.time()
     # Try failfast first; a green failfast run already executed the full suite.
-    proc = subprocess.run([sys.executable, '-B', str(Path(__file__)), '--site', str(site['line']), '--failfast'],
+    proc = subprocess.run([sys.executable, '-B', str(Path(__file__)), '--module', TARGET.stem, '--tests', TESTS, '--site', str(site['line']), '--failfast'],
                           cwd=ROOT, env=env, capture_output=True, text=True)
     text = proc.stdout + proc.stderr
     log.write_text(f'# gate={site["gate"]} function={site["function"]} line={site["line"]}\n'
@@ -226,7 +229,7 @@ def run_all(out, jobs):
         for r in pool.map(lambda s: run_one(s, out, env), probe):
             results.append(r)
             print(f'L{r["line"]:04d} {r["status"]:8s} {r["function"]}:{r["gate"]}', flush=True)
-    summary = dict(target='script/upgrade/manifest_exec.py', suite='script/upgrade/test_manifest_exec.py',
+    summary = dict(target=str(TARGET.relative_to(ROOT)), suite='script/upgrade/'+TESTS+'.py',
                    functions=list(PHASE_FUNCTIONS), total=len(results),
                    killed=sum(r['status'] == 'killed' for r in results),
                    survived=[r for r in results if r['status'] == 'survived'],
@@ -239,7 +242,10 @@ def run_all(out, jobs):
 
 
 def main():
+    global TARGET, TESTS
     p = argparse.ArgumentParser()
+    p.add_argument('--module', choices=('manifest_exec','old_owner_isolation'), default='manifest_exec')
+    p.add_argument('--tests', choices=('test_manifest_exec','test_old_owner_isolation'), default='test_manifest_exec')
     p.add_argument('--list', action='store_true')
     p.add_argument('--coverage', action='store_true')
     p.add_argument('--all', action='store_true')
@@ -250,6 +256,7 @@ def main():
     p.add_argument('--jobs', type=int, default=4)
     p.add_argument('--out', type=Path)
     args = p.parse_args()
+    TARGET, TESTS = UPGRADE/(args.module+'.py'), args.tests
     if args.list:
         for s in sites():
             print(f'{s["line"]:5d} {s["function"]:22s} {s["gate"]}')

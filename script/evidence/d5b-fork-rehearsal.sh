@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LEGACY: historical pre-A3a fork rehearsal; old timelock reads use the legacy config key.
 # D5b (GOV-2 core+extension split, two-step ownership, guardian/pause, GOV-5 gas params) upgrade-flow
 # rehearsal against a REAL Sepolia-FORK state (LOCAL anvil fork only; nothing is sent to any public
 # network — every forge/cast call below targets http://127.0.0.1:<port>). This is the "small stage,
@@ -49,7 +50,7 @@ ANNI=0xEcAACb915f7D92e9916f449F7ad42BD0408733c9    # live operator (community: M
 GOV_MULTISIG=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114   # Mycelium governance multisig (APNTsCapped minter/capGuardian/timelock proposer)
 SP=0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
 REG=0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
-TL=0x86C86c789EDc099801cc6a5F48334F1D67dC9564
+TL=$(jq -er '.timelockControllerLegacy | select(type == "string") | select(test("^0x[0-9a-fA-F]{40}$"))' deployments/config.sepolia.json) || { echo 'timelockControllerLegacy missing or invalid' >&2; exit 2; }
 EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 OLD_APNTS=0x696A73701b104c6cCBbAadDD2216788ea08EaB89   # SP.APNTS_TOKEN() pre-switch (OWNER's balance is in this)
 PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306   # ETH/USD Chainlink proxy (deployments/config.sepolia.json .priceFeed)
@@ -204,7 +205,7 @@ fscript_tl() { # <contract> <sender> [env...]
   local attempt out rc
   for attempt in 1 2 3; do
     rm -f cache/solidity-files-cache.json
-    out="$(env ENV="$ENVNAME" "$@" forge script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \
+    out="$(env ENV="$ENVNAME" TIMELOCK="$TL" "$@" forge script "contracts/script/v3/UpgradeViaTimelock.s.sol:$c" \
       --rpc-url "$RPC" --unlocked --sender "$s" --broadcast --slow 2>&1)"
     rc=$?
     echo "$out"

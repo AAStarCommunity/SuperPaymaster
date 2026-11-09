@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LEGACY: historical pre-A3a fork rehearsal; old timelock reads use the legacy config key.
 # A2 (rc1 gate) COMPLETE fork rehearsal — CC-122 / DSR directive v4, audit finding #3.
 #
 # Supersedes the coverage of script/evidence/d5b-fork-rehearsal.sh (archive
@@ -59,7 +60,7 @@ SAFE_O2=0x8c3499252232105A1615767C459DB9BBbf1273D6
 SAFE_O3=0xBB05d2E9890BceC6141e40A1066bf8927169b75E # not used to sign (2-of-3)
 SP=0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9
 REG=0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71
-OLD_TL=0x86C86c789EDc099801cc6a5F48334F1D67dC9564  # live Sepolia timelock: NOT used (deployer holds every role)
+OLD_TL=$(jq -er '.timelockControllerLegacy | select(type == "string") | select(test("^0x[0-9a-fA-F]{40}$"))' deployments/config.sepolia.json) || { echo 'timelockControllerLegacy missing or invalid' >&2; exit 2; }
 EP=0x0000000071727De22E5E9d8BAf0edAc6f37da032
 OLD_APNTS=0x696A73701b104c6cCBbAadDD2216788ea08EaB89
 PRICE_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306

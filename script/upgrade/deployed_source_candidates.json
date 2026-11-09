@@ -2721,8 +2721,8 @@
     {
       "contract": "TimelockController",
       "status": "PASS",
-      "implementationCandidate": "0x86c86c789edc099801cc6a5f48334f1d67dc9564",
-      "addressEvidence": "supplied dual-endpoint finalized runtime snapshot at block 12061284",
+      "implementationCandidate": "0xccdf8e0d29fb2c3061910d79484a2b653757c34b",
+      "addressEvidence": "A3a S2; block 12032424; deployer 0xb5600060e6de5e11d3636731964218e53caadf0e; docs/release/a3a-testsafe-12025632/a3a-plan/plan.json (sha256 0bb821d18f60495d9b576763923d456a8e5f64277be40549da24643de5083151, verified offline).",
       "parity": "verified",
       "sourcePath": null,
       "attempts": [
@@ -3309,7 +3309,7 @@
           "disposition": "superseded: not from a deployment record"
         }
       ],
-      "candidate": "cf26915e032ccc9e8e02f9aaf3769afd4335027e",
+      "candidate": "cd9aa1c410ac926a6007b0dc0b7e95b0b3effad2",
       "deploymentRecord": {
         "path": "broadcast/DeployLive.s.sol/11155111/run-1782562837353.json",
         "sha256": "866e22cc5ea06ba3c11f7f8aa0d52d29304270efca3eb3960550a8fedf917b1b",
@@ -3328,9 +3328,10 @@
         "verifiedBlockRange": [
           11151003,
           11151057
-        ]
+        ],
+        "addressBinding": "legacy 0x86c86c789edc099801cc6a5f48334f1d67dc9564 only"
       },
-      "fixtureDisposition": "Included: exact runtime PASS with recorded direct CREATE boundary.",
+      "fixtureDisposition": "Canonical A3a S2 target; retained parity evidence is legacy-address evidence.",
       "comparisonType": "immutable-only masking; metadata UNMASKED and byte-for-byte equal",
       "cbor": {
         "solc": "0.8.33",
@@ -3411,7 +3412,10 @@
           "contracts/src/paymasters/v4/core/PaymasterFactory.sol"
         ]
       },
-      "recordBindingStatus": "No committed deployment record binding; behavioral-equivalence only"
+      "recordBindingStatus": "Canonical address corrected per DSR 2026-11-05. onchainEvidence, deploymentRecord, attempts and reRulingBuild retain evidence for legacy 0x86c86c789edc099801cc6a5f48334f1d67dc9564, not a new measurement. Identical runtimes cannot establish address binding; discover_targets does.",
+      "commit": "cd9aa1c410ac926a6007b0dc0b7e95b0b3effad2",
+      "creationBlock": 12032424,
+      "txHash": "0xe2c6b4276e8be5ea26057499b924c2550d29ff983fccac790784d715c117d48c"
     },
     {
       "contract": "GTokenStaking",

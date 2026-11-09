@@ -18,7 +18,7 @@ import q5_snapshot_timestamp as q5  # noqa: E402
 
 T0 = 1793816148
 # Faults in how evm_revert restores the clock offset; every other fault restores it correctly.
-OFFSET_FAULTS = ('all', 'nested', 'outer', 'low', 'lost_inner')
+OFFSET_FAULTS = ('all', 'nested', 'outer', 'low', 'lost_inner', 'nested_day')
 
 
 class Chain:
@@ -26,7 +26,8 @@ class Chain:
         # lag: how far wall time is ahead of the pin block (an old fork pin).
         self.fault, self.wall, self.offset, self.pending, self.step = fault, T0 + lag, 0, None, step
         self.blocks, self.snaps, self.stack, self.receipts = [T0], {}, [], {}
-        self.tx_offset = 0  # fault 'tx': the offset tx-mined blocks use, never restored by a revert
+        self.tx_offset = 0
+        self.had_inner = {}  # fault 'tx': the offset tx-mined blocks use, never restored by a revert
         self.high = T0  # highest timestamp ever mined, kept until the outermost revert (fault 'high_water')
 
     def mine(self, tx=False):
@@ -64,8 +65,11 @@ class Chain:
             return '0x0'
         if method == 'evm_snapshot':
             sid = hex(len(self.snaps) + 1)
+            self.had_inner.pop(sid, None)  # snapshot ids are reused after a revert
             if not self.stack:
                 self.snaps_base = self.offset
+            else:
+                self.had_inner[self.stack[0]] = True
             self.snaps[sid] = (copy.copy(self.blocks), self.offset, len(self.stack))
             self.stack.append(sid)
             return sid
@@ -78,6 +82,10 @@ class Chain:
                 self.high = blocks[-1]
             if self.fault not in OFFSET_FAULTS or (self.fault == 'nested' and depth == 0) or (self.fault == 'outer' and depth > 0):
                 self.offset = offset
+            elif self.fault == 'nested_day':
+                # Only an outer snapshot that had an inner one keeps the offset (the outer jump: exactly one day).
+                if depth > 0 or not self.had_inner.get(params[0]):
+                    self.offset = offset
             elif self.fault == 'low':
                 # Restored, but a day too low: only the parent + 1 clamp keeps later blocks moving.
                 self.offset = offset - q5.DAY
@@ -156,9 +164,27 @@ class Q5Controls(unittest.TestCase):
 
     def test_offset_not_restored_for_outer_snapshots_fails(self):
         # Codex round 2: with an old pin the post-revert block is far *behind* the baseline, not ahead of it.
+        # DSR #607 Low: the nested segment's day-scale leak must be caught on its own, not only via single.
         for lag, step in CASES:
             with self.subTest(lag=lag, step=step):
-                self.assertIn('single_next_block_not_jumped', self.failed('outer', lag, step))
+                chain = Chain('outer', lag, step)
+                checks = {c['name']: c for c in q5.run(chain, clock=chain.clock, sleep=chain.sleep)['checks']}
+                self.assertFalse(checks['single_next_block_not_jumped']['ok'])
+                self.assertFalse(checks['nested_next_block_not_jumped']['ok'])
+                self.assertGreaterEqual(abs(checks['nested_next_block_not_jumped']['gap']), q5.DAY)
+
+    def test_nested_segment_leaks_exactly_one_day_fails(self):
+        # DSR #607 Low: only the nested segment leaks, by exactly the outer jump (one day); single stays clean.
+        for lag, step in CASES:
+            with self.subTest(lag=lag, step=step):
+                chain = Chain('nested_day', lag, step)
+                checks = {c['name']: c for c in q5.run(chain, clock=chain.clock, sleep=chain.sleep)['checks']}
+                self.assertTrue(checks['single_next_block_not_jumped']['ok'])
+                nested = checks['nested_next_block_not_jumped']
+                self.assertFalse(nested['ok'])
+                # The leak is the outer jump to t0 + DAY: about +1 day on a fresh pin (less the wall time since the
+                # baseline), about -29 days on a 30-day-old pin. Day-scale either way, beyond the widened window.
+                self.assertGreater(abs(nested['gap']), q5.DAY // 2)
 
     def test_offset_restored_too_low_fails(self):
         # Codex Q5 challenge P1: the parent + 1 clamp hides a low offset unless the compared blocks are SEPARATION apart.

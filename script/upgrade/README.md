@@ -475,3 +475,18 @@ Deployment-record gates require recorded source commits to be present locally: u
 full Git history (CI uses `fetch-depth: 0`). Missing commits fail closed. The
 old-owner endpoint-distinct check proves distinct hostname strings, not independent
 providers. See [OLD_OWNER_ISOLATION.md](OLD_OWNER_ISOLATION.md).
+
+### Earlier timelock isolation
+
+The canonical timelock is `0xccdf8e0d29fb2c3061910d79484a2b653757c34b` (A3a S2).
+The earlier 48h timelock `0x86c86c789edc099801cc6a5f48334f1d67dc9564` is retained
+as `timelockControllerLegacy` in the Sepolia config. Identical runtimes do not
+bind an address: `discover_targets` enforces the deployed-source address set.
+
+`old_timelock_holds_nothing` checks the legacy address at the pin and closing,
+with all reads at the respective single block. Its sub-gates check new-timelock
+roles, every pinned isolation authority row, and Safe owners/modules. Reads are
+stored in `pin.oldTimelock` and `closing.oldTimelock`. The legacy timelock remains
+a known residual outside this authority scope. See
+[reader compatibility](../../docs/release/sp-upgrade-a6e/OLD_TIMELOCK_CORRECTION.md),
+including the unchanged CheckDefaultArtifacts unknown-key blocker.

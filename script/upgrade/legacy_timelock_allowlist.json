@@ -1,0 +1,23 @@
+{
+  "script/upgrade/DEPLOYED_SOURCE_PARITY_RESULTS.md": "Historical parity result: preserves correction of old address binding.",
+  "script/upgrade/OLD_OWNER_ISOLATION_RESULTS.md": "Historical isolation result: records the earlier timelock explicitly.",
+  "script/upgrade/README.md": "Explains historical address correction and legacy config field.",
+  "script/upgrade/deployed_source_candidates.json": "Retained historical deployment/runtime evidence; address binding is explicitly legacy.",
+  "script/upgrade/fixtures/old-owner/broadcast-provenance.json": "Offline historical deployment provenance fixture.",
+  "script/upgrade/fixtures/old-owner/deployed-sources.json": "Offline old-owner source isolation fixture.",
+  "docs/release/sp-upgrade-a6e/MANIFEST-DESIGN.md": "Historical old-timelock isolation evidence and address identity.",
+  "docs/release/a3a-precheck-v2/a3a-precheck.json": "Historical A3a precheck record with old role-holder exclusions.",
+  "docs/release/a3a-precheck-v2/fork-sim/S2-roles.json": "Historical S2 fork role evidence.",
+  "docs/release/a3a-precheck-v2/fork-sim/final-roles.json": "Historical final fork role evidence.",
+  "docs/release/a3a-precheck-v2/snapshot.json": "Historical pre-A3a snapshot of the old timelock.",
+  "docs/release/a3a-precheck/snapshot.json": "Historical first A3a precheck snapshot.",
+  "docs/release/a3a-precheck-v3/a3a-precheck.json": "Historical A3a precheck record with old role-holder exclusions.",
+  "docs/release/a3a-precheck-v3/fork-sim/S2-roles.json": "Historical S2 fork role evidence.",
+  "docs/release/a3a-precheck-v3/fork-sim/final-roles.json": "Historical final fork role evidence.",
+  "docs/release/a3a-precheck-v3/snapshot.json": "Historical pre-A3a snapshot of the old timelock.",
+  "docs/release/a3a-precheck-v4/a3a-precheck.json": "Historical A3a precheck record with old role-holder exclusions.",
+  "docs/release/a3a-precheck-v4/fork-sim/S2-roles.json": "Historical S2 fork role evidence.",
+  "docs/release/a3a-precheck-v4/fork-sim/final-roles.json": "Historical final fork role evidence.",
+  "docs/release/a3a-precheck-v4/snapshot.json": "Historical pre-A3a snapshot of the old timelock.",
+  "docs/release/v5.4.1-beta.1-release-log.md": "Historical v5.4.1 deployment release log."
+}

@@ -88,6 +88,13 @@ contract CheckDefaultArtifacts is DefaultArtifacts {
             _row(key, address(0), "metadata (not an address) - excluded by review", true);
             return;
         }
+        // Historical address inventory only: never a canonical governance target or artifact claim.
+        if (k == keccak256("timelockControllerLegacy")) {
+            address legacy = _cfgAddr(key);
+            _row(key, legacy, "historical timelock reference only (not current artifact)",
+                legacy != address(0) && legacy != _cfgAddr("timelockController"));
+            return;
+        }
         // Guardian / deployer keys are EOAs by design (they sign; they are never called as
         // contracts). Excluded from the artifact check, but they must really be code-less: a
         // key that turned into a contract would be an unreviewed contract and fails.

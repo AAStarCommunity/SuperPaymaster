@@ -885,11 +885,125 @@ def old_pointers(rpc, d, old, block):
     return bindings
 
 
+def validate_old_timelock(pin):
+    a.need('old_timelock_required', 'oldTimelock' in pin, True)
+    section = pin['oldTimelock']
+    a.need('old_timelock_schema', isinstance(section, dict) and set(section) == {'block', 'reads', 'approvalOwners'}
+           and isinstance(section.get('approvalOwners'), dict)
+           and isinstance(section.get('reads'), list) and all(isinstance(r, dict) and
+           ((set(r) == {'method', 'params', 'block', 'result'} and
+             r['method'] == 'eth_getLogs' and isinstance(r['params'], list) and
+             isinstance(r['block'], str) and isinstance(r['result'], list)) or
+           (set(r) == {'target', 'signature', 'args', 'block', 'result'} and
+           isinstance(r['target'], str) and isinstance(r['signature'], str) and
+           isinstance(r['args'], list) and isinstance(r['block'], str) and
+           isinstance(r['result'], str))) for r in section['reads']), True)
+    a.need('old_timelock_block', section['block'] == pin['stateBlock'] and
+           all(r['block'] == pin['stateBlock'] for r in section['reads']), True)
+    reads = iter(section['reads'])
+    def replay(method, params):
+        row = next(reads, None)
+        a.need('old_timelock_replay', row is not None and
+               ((row.get('method') == method == 'eth_getLogs' and params == row['params']) or
+                ('target' in row and method == 'eth_call' and
+                 params == [dict(to=row['target'], data=a.calldata(row['signature'], *row['args'])), row['block']])), True)
+        return copy.deepcopy(row['result'])
+    actual = old_timelock_holds_nothing(replay, pin, pin['stateBlock'])
+    a.need('old_timelock_replay', actual['approvalOwners'], section['approvalOwners'])
+    a.need('old_timelock_unused', next(reads, None), None)
+
+
+def closing_timelock_inventory(rpc, pin, block):
+    current = dict(pin, stateBlock=block)
+    section = copy.deepcopy(pin['oldOwnerIsolation'])
+    found = isolation.discover_targets(rpc, current)
+    section['xpnts'] = sorted(set(found.pop('xPNTsToken')) | set(pin.get('isolationLegacyTokens', [])))
+    section['targets'] = {name: group[0] for name, group in found.items()}
+    section['tokens'] = sorted({pin['capped'], isolation.OLD_TOKEN, section['targets']['GToken'], *section['xpnts']})
+    inventory = section['inventory']
+    deployments = {r['target']: r['creationBlock'] for r in inventory.get('deployedSources', [])}
+    section['roleHistory'] = {}
+    for name, target in [*section['targets'].items(), *(('xPNTsToken', t) for t in section['xpnts'])]:
+        spec = inventory.get('targetInventories', {}).get(target, inventory[name])
+        # Scan from genesis for newly discovered contracts, before rejecting inventory drift.
+        creation = deployments.get(target, pin.get('isolationDeployments', {}).get(target, 1))
+        section['roleHistory'][target] = isolation.role_history(rpc, current, target, spec, creation)
+    spec = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
+    logs = isolation.bounded_history_logs(rpc, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
+        toBlock=block, topics=[spec['roleEventTopic']]))
+    section['configuredRoles'] = sorted({log['topics'][1] for log in logs} | set(section['roleHistory'].get(u.REG, [])))
+    fields = ('targets', 'xpnts', 'tokens', 'roleHistory', 'configuredRoles')
+    a.need('old_timelock_inventory', {k: section[k] for k in fields},
+           {k: pin['oldOwnerIsolation'][k] for k in fields})
+    return dict(pin, oldOwnerIsolation=section)
+
+
+def old_timelock_holds_nothing(rpc, pin, block, owners=None):
+    # owners: the pin's discovered Approval owners per token. pre_send passes them to skip the log scan (every
+    # other read and predicate runs live at `block`); closing and the pin rediscover them.
+    section = pin['oldOwnerIsolation']
+    reads = []
+    def call(target, sig, *args):
+        raw = a.typed(rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block]), a.HEXDATA)
+        reads.append(dict(target=target, signature=sig, args=list(args), block=block, result=raw))
+        return raw
+    roles = [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]
+    values = [u.uints(call(u.TL, 'hasRole(bytes32,address)', r, isolation.OLD_TIMELOCK)) for r in roles]
+    a.need('old_timelock_tl_roles', values, [[0]]*4)
+    rows = isolation.authority_rows(section)
+    authority = []
+    for target, sig, args, kind in rows:
+        raw = call(target, sig, *args)
+        if kind == 'config':
+            clean = u.config(raw)['owner'] != isolation.OLD_TIMELOCK
+        elif kind == 'address':
+            words = u.uints(raw)
+            clean = len(words) == 1 and u.addr_word(words[0]) != isolation.OLD_TIMELOCK
+        else:
+            clean = u.uints(raw) == [0]
+        authority.append(clean)
+    a.need('old_timelock_authority', all(authority), True)
+    approval_owners = {}
+    deployments = {r['target']: r['creationBlock'] for r in section['inventory'].get('deployedSources', [])}
+    approval = a.keccak('Approval(address,address,uint256)')
+    spender = '0x'+isolation.OLD_TIMELOCK[2:].zfill(64)
+    def recorded_logs(method, params):
+        result = rpc(method, params)
+        reads.append(dict(method=method, params=copy.deepcopy(params), block=block, result=copy.deepcopy(result)))
+        return result
+    for token in section['tokens']:
+        if owners is not None:
+            holders = set(owners.get(token, []))
+        else:
+            creation = deployments.get(token, pin.get('isolationDeployments', {}).get(token, 1))
+            a.need('old_timelock_approval_history', type(creation) is int and 0 < creation <= a.qty(block), True)
+            logs = isolation.bounded_history_logs(recorded_logs, dict(address=token,
+                fromBlock=hex(creation), toBlock=block, topics=[approval, None, spender]))
+            holders = set()
+            for log in logs:
+                topics = log.get('topics', [])
+                a.need('old_timelock_approval_history', log.get('address') == token and
+                       not log.get('removed', False) and len(topics) == 3 and
+                       topics[0] == approval and topics[2] == spender and
+                       creation <= a.qty(log.get('blockNumber', '0x0')) <= a.qty(block), True)
+                holders.add(u.addr_word(int(a.typed(topics[1], a.HASH32), 16)))
+        approval_owners[token] = sorted(holders)
+        for holder in sorted(holders | set(isolation.allowance_holders())):
+            a.need('old_timelock_allowance', u.uints(call(token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK)), [0])
+    owners = u.addr_array(call(u.SAFE, 'getOwners()'))
+    module = u.uints(call(u.SAFE, 'isModuleEnabled(address)', isolation.OLD_TIMELOCK))
+    a.need('old_timelock_safe', isolation.OLD_TIMELOCK not in owners and module == [0], True)
+    wanted = set(section['targets'].values()) | set(section['xpnts'])
+    a.need('old_timelock_holds_nothing', bool(wanted) and {r[0] for r in rows} == wanted, True)
+    return dict(block=block, reads=reads, approvalOwners=approval_owners)
+
+
 def dvt_closing(rpc, plan):
     # After the last step: per-step pre_send reads cannot see anything that lands after it.
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
+    never_granted = isolation.never_granted_recheck(rpc,plan['pin'],block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
     pointers = dict(registry=a.address(rpc, u.REG, 'blsAggregator()', block), dvt=a.address(rpc, dvt, 'BLS_AGGREGATOR()', block),
                     committee=a.address(rpc, d['committee'], 'blsAggregator()', block))
@@ -900,7 +1014,8 @@ def dvt_closing(rpc, plan):
     a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
         a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))[3]), (proposal, 0))
-    return dict(block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
+    return dict(neverGranted=never_granted, block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS),
+                oldTimelock=old_timelock_holds_nothing(rpc, closing_timelock_inventory(rpc, plan['pin'], block), block))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1625,6 +1740,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     # Isolation records discovery calls, bounded role-event history and canonical blocks
     # so build_plan can replay every new inventory gate on both endpoint transcripts.
     pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    pin['oldTimelock'] = old_timelock_holds_nothing(rpc, pin, block)
     if stage in PC_STAGES:
         pin['phaseC'] = collect_phase_c(rpc, block, inputs, pin)
     return pin
@@ -1824,6 +1940,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     arts = copy.deepcopy(rebuild())
     a.need('old_owner_control_cases_binding',pin.get('isolationControlCases',{}),d.get('isolationControlCases',{}))
     isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'), pending=d.get('pendingDsrRuling'))
+    validate_old_timelock(pin)
     release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     sender_of = {label: x['address'] for label, x in pin['senders'].items()}
@@ -2883,6 +3000,12 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
+    block = a.block_data(rpc,'latest')['number']
+    isolation.never_granted_recheck(rpc,plan['pin'],block)
+    # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
+    # Without the pin's owner set (never for a valid plan) fall back to full rediscovery.
+    owners = (plan['pin'].get('oldTimelock') or {}).get('approvalOwners')
+    old_timelock_holds_nothing(rpc, plan['pin'], block, owners if isinstance(owners, dict) else None)
     handover_gate(rpc, plan, step, context)
     if step.get('phase') == 'C':
         phase_c_pre_send(rpc, plan, step, context)
