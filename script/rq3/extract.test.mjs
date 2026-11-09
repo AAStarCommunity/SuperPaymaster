@@ -4,6 +4,8 @@ import { extract, spFormula, invertPenalty } from './extract.mjs';
 import { encodeAbiParameters } from 'viem';
 import { fixture, address, reads } from './fixtures.mjs';
 
+const corrupt=(a,re)=>{const r=extract(a);assert.equal(r.invalid_reason,'collector_corruption');assert.equal(r.success,false);assert.match(r.diagnostic,re);};
+
 test('raw trace cPre and preOpGas; unique G is exported',()=>{
   const row=extract(fixture());
   assert.equal(row.cPreWei,3000004n);
@@ -35,14 +37,14 @@ test('TPM integer conversion uses updated pre-markup cached price',()=>{
 });
 test('refusal, timeout and unavailable trace retain rows with empty evidence',()=>{
   const a=fixture(); a.metadata.precheck_refused=true;
-  assert.throws(()=>extract(a),/broadcast evidence/);
+  corrupt(a,/broadcast evidence/);
   delete a.receipt; delete a.trace; delete a.validationContext;
   assert.equal(extract(a).cPreWei,null);
   a.metadata.precheck_refused=false;
   a.confirmation.observedAt=120;
   assert.equal(extract(a).failure_reason,'receipt_timeout');
   const b=fixture(); delete b.trace;
-  assert.match(extract(b).diagnostic,/settlement trace required/);
+  assert.match(extract(b).diagnostic,/trace required to invert the penalty/);
 });
 test('bindings, changed context and wrong event charge fail closed',()=>{
   for(const mutate of [a=>a.trace.blockHash='0x00',a=>a.operation.nonce='1',
@@ -53,8 +55,8 @@ test('bindings, changed context and wrong event charge fail closed',()=>{
 });
 
 test('real transfer task rejects wrong amount and missing Transfer log',()=>{
-  const a=fixture(); a.task.amount='18'; assert.throws(()=>extract(a),/calldata mismatch/);
-  const b=fixture(); b.receipt.logs.splice(1,1); assert.throws(()=>extract(b),/Transfer event/);
+  const a=fixture(); a.task.amount='18'; corrupt(a,/calldata mismatch/);
+  const b=fixture(); b.receipt.logs.splice(1,1); corrupt(b,/Transfer event/);
 });
 
 test('small source-formula vector distinguishes nested ceilings and cap',()=>{
@@ -68,31 +70,32 @@ test('small source-formula vector distinguishes nested ceilings and cap',()=>{
   assert.equal(result.expectedChargeAPNTs,10n);
 });
 
-test('settlement is required with or without a trace; VPM needs none',()=>{
+test('settlement is required with or without a trace; every successful arm needs a trace',()=>{
   for (const arm of ['SP','TokenPaymaster']) for (const traced of [true,false]) {
     const a=fixture(0,arm);
     if (!traced) delete a.trace;
     if(traced) assert.equal(extract(a).success,true);
-    else assert.match(extract(a).diagnostic,/settlement trace required/);
+    else assert.match(extract(a).diagnostic,/trace required to invert the penalty/);
     a.receipt.logs.splice(2,1);
     const row=extract(a);
     assert.equal(row.success,false);
     assert.equal(row.failure_reason,'missing_settlement_event');
     for (const field of ['chargeAPNTs','actualTokenNeeded','tokenChargeWei']) assert.equal(row[field],null);
   }
+  // ruling 1 covers every arm: a successful VPM row without a trace cannot invert the penalty
   const vpm=fixture(0,'VerifyingPaymaster'); delete vpm.trace;
-  assert.equal(extract(vpm).success,true);
+  corrupt(vpm,/trace required to invert the penalty/);
 });
 test('receipt settlement binds paymaster and sender and must be unique',()=>{
   for (const arm of ['SP','TokenPaymaster']) {
     const a=fixture(0,arm); delete a.trace;
     a.receipt.logs.push(a.receipt.logs[2]);
-    assert.throws(()=>extract(a),/ambiguous settlement/);
+    corrupt(a,/ambiguous settlement/);
     a.receipt.logs.pop();
     a.receipt.logs[2].address=address(99);
     assert.equal(extract(a).success,false);
     a.receipt.logs[2]=fixture(1,arm).receipt.logs[2];
-    assert.throws(()=>extract(a),/settlement operation mismatch/);
+    corrupt(a,/settlement operation mismatch/);
     const b=fixture(0,arm); delete b.trace; b.receipt.status='0x0';
     assert.equal(extract(b).success,false);
   }
@@ -250,4 +253,21 @@ test('VPM with empty postOp context still exports the inverse penalty',()=>{
   const row=extract(a);assert.equal(row.success,true);assert.equal(row.gasBeforePenalty,550000n);
   const b=fixture();b.trace.result.calls[0].calls=[];
   assert.match(extract(b).diagnostic,/unique postOp call required/);
+});
+
+test('a later in-block price move leaves TPM columns unverified, not corrupt (review r4 #1)',()=>{
+  const a=fixture(0,'TokenPaymaster'); a.receiptBlock.transactions.push('later-oracle-update');
+  a.state.cachedPrice=reads(a.operation.paymaster,a.receipt.blockHash,'cachedPrice',1n);
+  const r=extract(a);
+  assert.equal(r.success,true); assert.ok(!r.invalid_reason);
+  assert.equal(r.tokenChargeWei,null); assert.deepEqual(r.unverified_columns,['tokenChargeWei']);
+  assert.equal(r.actualTokenNeeded,1202668n);
+});
+
+test('a final timeout needs proof the frozen deadline had elapsed (review r4 #3)',()=>{
+  const a=fixture(); a.finalTimeout=true; a.confirmation.broadcastAt=0; a.confirmation.observedAt=1;
+  corrupt(a,/final timeout declared before frozen deadline/);
+  a.confirmation.timeoutDeclaredAt=119; corrupt(a,/final timeout declared before frozen deadline/);
+  a.confirmation.timeoutDeclaredAt=120; const r=extract(a);
+  assert.equal(r.failure_reason,'receipt_timeout'); assert.equal(r.supplemental_only,true);
 });

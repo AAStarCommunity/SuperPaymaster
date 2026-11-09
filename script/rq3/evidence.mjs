@@ -79,6 +79,9 @@ export function receiptReady(archive) {
     canonical(q.payload)===canonical(qualificationFor(q.payload.chain).payload), 'qualification manifest mismatch');
   check(c && Number.isFinite(c.broadcastAt) && Number.isFinite(c.observedAt) && c.observedAt>=c.broadcastAt,
     'receipt timing evidence required');
+  // A finalised timeout must show that the frozen deadline had elapsed when it was declared.
+  if(archive.finalTimeout) check(Number.isFinite(c.timeoutDeclaredAt) &&
+    c.timeoutDeclaredAt-c.broadcastAt>=q.payload.receipt_timeout_seconds, 'final timeout declared before frozen deadline');
   if(c.observedAt-c.broadcastAt>=q.payload.receipt_timeout_seconds || archive.finalTimeout)
     return {success:false,failure_reason:'receipt_timeout',supplemental_only:!!receipt};
   check(receipt, 'receipt_timeout before frozen deadline');

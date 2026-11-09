@@ -63,8 +63,11 @@ def check_plan(manifest, sender, plan):
 
 
 def receipt_status(qualification_manifest, broadcast_at, observed_at, receipt=None,
-                   head_number=None, reread_hash=None, finalized_timeout=False):
+                   head_number=None, reread_hash=None, finalized_timeout=False, timeout_declared_at=None):
     p = validate_qualification(qualification_manifest)
+    if finalized_timeout and (timeout_declared_at is None or
+                              timeout_declared_at - broadcast_at < p['receipt_timeout_seconds']):
+        raise ValueError('final timeout declared before frozen deadline')
     timeout = finalized_timeout or observed_at - broadcast_at >= p['receipt_timeout_seconds']
     if timeout:
         return dict(success=False, failure_reason='receipt_timeout',

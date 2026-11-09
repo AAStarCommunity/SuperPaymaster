@@ -81,6 +81,9 @@ class ManifestTests(unittest.TestCase):
             receipt=dict(blockNumber=5,blockHash='h')
             self.assertEqual(receipt_status(q,0,timeout),dict(success=False,failure_reason='receipt_timeout',supplemental_only=False))
             self.assertTrue(receipt_status(q,0,timeout+1,receipt)['supplemental_only'])
+            with self.assertRaisesRegex(ValueError,'declared before frozen deadline'):
+                receipt_status(q,0,1,receipt,finalized_timeout=True,timeout_declared_at=timeout-1)
+            self.assertEqual(receipt_status(q,0,1,receipt,finalized_timeout=True,timeout_declared_at=timeout)['failure_reason'],'receipt_timeout')
             self.assertTrue(receipt_status(q,0,10,receipt,5+depth-1)['pending'])
             self.assertTrue(receipt_status(q,0,10,receipt,5+depth,'h')['ready'])
             self.assertEqual(receipt_status(q,0,10,receipt,5+depth,'changed')['invalid_reason'],'chain_reorg')

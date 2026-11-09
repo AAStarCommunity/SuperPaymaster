@@ -14,7 +14,9 @@ const POSTOP = toFunctionSelector('postOp(uint8,bytes,uint256,uint256)');
 const INNER = '0x0042dc53';
 const lower = v => String(v).toLowerCase();
 const eq = (a, b) => lower(a) === lower(b);
-const requireValue = (condition, reason) => { if (!condition) throw new Error(reason); };
+// Every data check classifies: a failed binding/settlement check is a collector_corruption row,
+// never an aborted extraction (DSR ruling 6). Programming errors still throw plain Errors.
+const requireValue = (condition, reason) => check(condition, reason);
 const ceil = (n, d) => (n + d - 1n) / d;
 export const json = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2);
 
@@ -139,7 +141,8 @@ function extractChecked(archive) {
     checkRuntime(archive.baseline, state.runtime, op.paymaster, receipt.blockHash);
   }
   if (!trace) {
-    check(!row.success || metadata.arm === 'VerifyingPaymaster', 'settlement trace required');
+    // Ruling 1 applies to every arm (EntryPoint.sol:720-726): a successful row needs the trace.
+    check(!row.success, 'trace required to invert the penalty');
     return row;
   }
   requireValue(eq(trace.transactionHash, receipt.transactionHash) && eq(trace.blockHash, receipt.blockHash), 'trace anchor mismatch');
@@ -212,21 +215,30 @@ function extractChecked(archive) {
       const price=dualRead(state.cachedPrice,op.paymaster,receipt.blockHash,'cachedPrice');
       const [markup,,refund]=config, unit=10n**26n, marked=args.actualTokenPriceWithMarkup;
       check(markup>=unit && markup<=2n*unit && marked>0n, 'invalid TPM price configuration');
-      row.refundPostopCost=BigInt(refund);
-      check((args.actualGasCost+row.refundPostopCost*pOp)*unit < 2n**256n &&
+      check((args.actualGasCost+BigInt(refund)*pOp)*unit < 2n**256n &&
         price*unit < 2n**256n, 'TPM arithmetic overflow');
-      check(args.actualTokenCharge===(args.actualGasCost+row.refundPostopCost*pOp)*unit/marked,
-        'TPM token charge mismatch');
-      const low=ceil(marked*markup,unit), high=ceil((marked+1n)*markup,unit)-1n;
-      check(price>=low && price<=high && price*unit/markup===marked, 'TPM updated price mismatch');
-      row.tokenChargeWei=args.actualTokenCharge*price/unit;
-      // Block-end cache cannot select between two possible postOp prices.
+      // Block-end reads equal the postOp state only when this is the block's sole transaction and
+      // the op itself wrote no config. In a shared block a later transaction may move cachedPrice
+      // (OracleHelper.sol:88,118-121) or the config: a mismatch there leaves the state-derived
+      // columns UNVERIFIED instead of discarding a valid settlement as corruption.
       const configSetter=toFunctionSelector('setTokenPaymasterConfig((uint256,uint128,uint48,uint48))');
       const isolated=archive.receiptBlock?.hash===receipt.blockHash &&
         archive.receiptBlock.transactions?.length===1 && eq(archive.receiptBlock.transactions[0],receipt.transactionHash);
       const configWrites=all.some(f=>eq(f.to,op.paymaster) && f.input?.startsWith(configSetter));
-      row.tokenChargeWeiVerified=low===high && isolated && !configWrites;
-      if(!row.tokenChargeWeiVerified) row.unverified_columns=['tokenChargeWei'];
+      const exact=isolated && !configWrites;
+      const chargeOk=args.actualTokenCharge===(args.actualGasCost+BigInt(refund)*pOp)*unit/marked;
+      const low=ceil(marked*markup,unit), high=ceil((marked+1n)*markup,unit)-1n;
+      const priceOk=price>=low && price<=high && price*unit/markup===marked;
+      if (exact) {
+        check(chargeOk, 'TPM token charge mismatch');
+        check(priceOk, 'TPM updated price mismatch');
+      }
+      row.refundPostopCost=chargeOk ? BigInt(refund) : null;
+      row.tokenChargeWei=priceOk ? args.actualTokenCharge*price/unit : null;
+      row.tokenChargeWeiVerified=exact && priceOk && low===high;
+      // The exact integer charge equation is itself the proof of refundPostopCost.
+      row.unverified_columns=[...(chargeOk ? [] : ['refundPostopCost']),
+        ...(row.tokenChargeWeiVerified ? [] : ['tokenChargeWei'])];
     }
   }
   return row;
