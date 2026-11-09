@@ -25,14 +25,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PROBE = ROOT/'script/upgrade/audit/probe_gate_removal.py'
 SUITE = ROOT/'script/upgrade/test_manifest_exec.py'
-F05_CLASS = dict(pre_send='F05PreSendGates', run_manifest='F05RunManifestGates', execute_b4='F05ExecuteB4Gates',
+F05_CLASS = dict(pre_send='F05PreSendGates', _run_manifest='F05RunManifestGates', execute_b4='F05ExecuteB4Gates',
                  collect='F05CollectGates', build_plan='F05BuildPlanGates', collect_pair='F05MainGates',
                  main='F05MainGates', b4_controls='F05Q3ForkControls', unbacked_swap_control='F05Q3ForkControls',
                  mint_trace='F05Q3ForkControls')
 F05 = {
     'pre_send': ['sender_nonce', 'pending_nonce', 'safe_nonce', 'safe_state', 'dvt_activity_unchanged', 'SP_owner',
                  'pending_token', 'pending_token_eta', 'onchain_safe_hash', 'fresh_estimate', 'block_gas_limit'],
-    'run_manifest': ['post_nonce', 'post_safe_nonce', 'manifest_receipt_gas', 'steps_complete', 'controls_complete',
+    '_run_manifest': ['post_nonce', 'post_safe_nonce', 'manifest_receipt_gas', 'steps_complete', 'controls_complete',
                      'post_swap_tracked', 'post_swap_revenue', 'post_swap_capped_balance', 'post_swap_solvency'],
     'execute_b4': ['B4_timestamp', 'B4_nonce_consumed', 'B4_safe_nonce'],
     'collect': ['old_aggregator_owner', 'anni_eoa', 'stake_not_unlocking_collect'],

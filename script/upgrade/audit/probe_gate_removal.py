@@ -54,7 +54,7 @@ PHASE_FUNCTIONS = (
     'handover_gate', 'handover_trace', 'handover_controls', 'activation_eta_gate',
     'b2_gate', 'b4_post_state', 'execute_b4', 'b4_controls', 'check_predicate',
     'batch_readback', 'budget', 'validate_plan', 'pre_send', 'mint_trace',
-    'unbacked_swap_control', 'early_swap_control', 'controls_at', 'run_manifest',
+    'unbacked_swap_control', 'early_swap_control', 'controls_at', 'run_manifest', '_run_manifest',
     'solvency_probe', 'save_artifact', 'load_artifact', 'main',
 )
 

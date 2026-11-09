@@ -2,7 +2,9 @@
 # Usage: run-all-6j.sh <worktree> <outdir>  — all suites + probe drivers, both engines.
 # Changes vs run-all-6e.sh (d21042ad triage, TRIAGE.md):
 #  - every driver runs from the repo root (fixture paths are repo-root relative)
-#  - probe_typed_gates runs --discover before --probes (expected: passed=82 total=88 blocked=6, rc=1)
+#  - probe_typed_gates runs --discover before --probes. Alone it is passed=69 total=88 blocked=19, rc=1 by design;
+#    rpc_result_merge.py unions it with probe_gate_dsr2_rpc (paired) and probe_gate_producer_controls:
+#    expected RPC_RESULT_MERGED passed=82 total=88 blocked=6 (the 6e known gaps)
 #  - probe_phase_c_gates base 645ff3a1 (the base recorded in COMMIT6_RESULTS.md)
 #  - probe_finite_gate_blockers / probe_finite_gate_labels are superseded helpers: run, tagged INFO
 wt=$1; out=$2; mkdir -p $out; cd $wt
@@ -32,6 +34,7 @@ for e in bin nightly; do
   done
   python3 -B script/upgrade/probe_gate_dsr2.py --remaining > $out/$e-probe_gate_dsr2-remaining.log 2>&1 </dev/null; echo "[$e] probe_gate_dsr2 --remaining rc=$? :: $(tail -1 $out/$e-probe_gate_dsr2-remaining.log)" >> $S
   python3 -B script/evidence/stale_proposal_probes.py > $out/$e-stale.log 2>&1 </dev/null; echo "[$e] stale rc=$? :: $(tail -1 $out/$e-stale.log)" >> $S
+  python3 -B script/evidence/rpc_result_merge.py $out $e > $out/$e-rpc_result_merge.log 2>&1 </dev/null; echo "[$e] rpc_result_merge rc=$? :: $(tail -1 $out/$e-rpc_result_merge.log)" >> $S
   python3 -B script/evidence/audit605_probes.py --jobs 2 > $out/$e-audit605.log 2>&1 </dev/null; echo "[$e] audit605 rc=$? :: $(tail -1 $out/$e-audit605.log)" >> $S
 done
 unset A3A_ENGINE_DIR

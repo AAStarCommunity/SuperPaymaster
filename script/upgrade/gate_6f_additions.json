@@ -149,5 +149,71 @@
     "reason": "6h: isolate existing checkout gate fixtures at public wrapper; real bootstrap loader exercised by BootstrapTests",
     "after_sha256": "9284518524909c46cc270f1f9eb7a13546d96158d4fa8477cebab11737763b1e",
     "ast_sha256": "fefbec7df9b5e14ebbe3d349ec772068c4bdb636f7270578ea068d5840bcff40"
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "baseline": "d21042ad",
+    "before_sha256": "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6j: D/M7 substitution controls (DiscoveryCallTests); 6k: source-only test_call_* moved to DiscoveryCallSourceTests without setUpClass; test-only, no gate literal changed",
+    "after_sha256": "cc73935b5998155bef1626d2ed46802536d97d62ac1ed0278ed5f3070118d352",
+    "ast_sha256": "3684038ac2b17c67874269dc01bda7ac485dae4c5a43871b0228be3a95d9d3c9"
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "baseline": "d21042ad",
+    "before_sha256": "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6k: new_gates() applies gate_rename_map.json; COVERED_ELSEWHERE requires the gate literal in the covering driver; list rows shifted by inserted entries, not renames",
+    "after_sha256": "ececf671c41b07f7a2d4da0958f6526c0649407799087c562908f1b6e346fba7",
+    "ast_sha256": "c047e30ccff1b7f141e5f7731c9f2bbe182230e8745baa88e300463dce6835c0"
+  },
+  {
+    "file": "script/evidence/enduser_mapping_probes.py",
+    "baseline": "d21042ad",
+    "before_sha256": "7ee87a6c9c28e295849a22ee1f50ffa0833d2bdaad055bc4bc12d089c0d3dd88",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6k: probe class chosen by AST (DiscoveryCallSourceTests); summary label split DELTA_/MANIFEST_DELETION_PROBES; probe driver only",
+    "after_sha256": "6583d6b3c6ebd8bbe97d292035685f3980fbd3242b7e44e58161dd3d61396937",
+    "ast_sha256": "37ff39e0ffa40f010bf668e24d0a53fbec6b8114e34dc6548dae2b6f080dc71f"
+  },
+  {
+    "file": "script/upgrade/probe_execution_head.py",
+    "baseline": "d21042ad",
+    "before_sha256": "f44ba76bb7626fd239729643eddf3ad27b23a5919ebf89f25c95f8553ef7af7a",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6k: probe module retargeted t.m -> t.integrity after 6f moved the gates; probe driver only",
+    "after_sha256": "a50c5c503ea6e55c2f56d2d9bbf79b8df02482a1e2b2efa65398094c037906ff",
+    "ast_sha256": "bc0c1aa20f2a5297ca8849c96a5517e0680d0c73746e396bb67b989f00bbc993"
+  },
+  {
+    "file": "script/evidence/audit605_probes.py",
+    "baseline": "d21042ad",
+    "before_sha256": "230680475effa71bc34fde2282b40bbd349012513b4f20b9ce5f9acb2d7e4a1c",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6l: F05 key run_manifest -> _run_manifest (gates moved into _run_manifest by 2acc71af); probe driver only, gate names unchanged",
+    "after_sha256": "646bae40997fbc5b8db9afb8b0d5af30e988f1eecc68c81bc775be6d19c3b6bc",
+    "ast_sha256": "a71f9ac082ab207b910a61174ab989a9fe5373fad5428ef963b1f47afaf971c0"
+  },
+  {
+    "file": "script/upgrade/audit/probe_gate_removal.py",
+    "baseline": "d21042ad",
+    "before_sha256": "40df18f52a5dc6b1e3789e37a025fa7831cf8e3b0ccb9cccb26fc79ac5731dc4",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6l: PHASE_FUNCTIONS += _run_manifest so its gate sites are listed; probe driver only",
+    "after_sha256": "00524d4136de9d77883bf42353a5c10d308c14a3b512eac855f2eb83f61be364",
+    "ast_sha256": "044f3f6f55abf039ab788e92b4c9cb52f7bbc1d8bea0e7b28c98096e1658d143"
   }
 ]

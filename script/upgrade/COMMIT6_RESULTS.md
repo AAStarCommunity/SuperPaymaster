@@ -7369,3 +7369,28 @@ rename itself is proven name-only by `gate_rename_ast_diff.py`. Recorded, not wa
 aggregate credits them. Not addressed in this release.
 
 `C_control_slot_allowance_used`, `C_operator_before_approve`, `a3a_gap_mined_before_pin_recording`, `a3a_gap_mined_before_pin_replay`, `a3a_mined_history_`, `a3a_mined_reconcile_`, `built_aggregator_version_rebuild_commit`, `built_aggregator_version_release_gate`, `evidence_scope_recomputed_validate_evidence_details`, `evidence_slither_rederived_filename`, `evidence_slither_rederived_findings`, `evidence_slither_rederived_path_containment`, `evidence_slither_rederived_path_syntax`, `evidence_slither_rederived_reference_fields`, `evidence_slither_rederived_success`, `evidence_unique_findings_all_scope`, `evidence_unique_findings_in_scope`, `fixed_old_aggregator_build_plan`, `fixed_old_aggregator_collect`, `fraud_token_fields_arm`, `fraud_token_fields_mock`, `manifest_local_only_pre_send`, `manifest_local_only_run_manifest`, `manifest_plan_key_`, `manifest_step_key_`, `manifest_tx_field_`, `prefix_boundary_prior_stage`, `readback_value_`, `safe_gap_endpoints_check_governance`, `safe_gap_endpoints_governance_evidence`, `safe_gap_hash_check_governance`, `safe_gap_log_data_approval`, `safe_gap_log_data_swap_execution`, `safe_gap_log_data_swap_tail`, `safe_gap_log_logIndex_sequence`, `safe_gap_miner_balance_delta`, `safe_gap_owner_eoa_live`, `safe_gap_owner_eoa_pin`, `safe_gap_pin_nonce_live`, `safe_gap_pin_nonce_pin`, `safe_gap_pin_owners_live`, `safe_gap_pin_owners_pin`, `safe_gap_pin_threshold_live`, `safe_gap_pin_threshold_pin`, `safe_gap_receipt_identity_fields`, `safe_gap_trace_storage_mapping`, `stage_not_final_load_artifact`, `stage_not_final_save_artifact`, `stake_not_unlocking_build_plan`, `stake_not_unlocking_collect`, `verifier_commit_validate_external`, `verifier_commit_verifier_artifact`
+
+## 6l — 678e68b0 full-run triage (evidence/probe scripts only; no production module changed)
+
+Full run 678e68b0 (run_all_6j.sh, bin = forge 1.7.1, nightly = 1.8.7-nightly). Every suite rc=0 on both engines
+(e.g. test_manifest_exec `Ran 544 tests` / `OK (skipped=2)`). Three findings, none in product code:
+
+| # | Item | Class | Fix |
+|---|------|-------|-----|
+| T1 | probe_typed_gates `passed=69 total=88 blocked=19` (both engines) | expectation error: the 6e `82/88/6` is the union of three drivers | `script/evidence/rpc_result_merge.py` (union; exit 0 iff remaining blocked == the 6 known gaps and 88 sites); run_all_6j.sh calls it per engine |
+| T2 | audit605 `PROBED 85 OK 85 MISSING [9 × ('run_manifest', …)]` | probe stale since 2acc71af split run_manifest into a wrapper + `_run_manifest`; the 9 gates were silently absent from the deletion probes | probe_gate_removal.py PHASE_FUNCTIONS += `_run_manifest`; audit605 F05 key → `_run_manifest` |
+| T3 | ast-diff `GATE_RENAME_AST_DIFF FAIL n_changes=310` (first red at f745c729/6j; d21042ad PASS 366) | 6j/6k test/probe edits never declared | 6 rows in gate_6f_additions.json, baseline d21042ad, pinned before/after/AST sha256, gates=[] |
+
+Checks (scan scope: the named files):
+- No `a.need/a.typed/a.exact_keys/a.address` call added in the 6 declared files since d21042ad; no production
+  file (a3a_exec, a3a_send, manifest_exec, old_owner_isolation, sp_upgrade_exec, execution_integrity,
+  execution_reads) changed since d21042ad. The 10 `'x' -> 'y'` REJECTED rows in probe_phase_c_gates.py are
+  list-position shifts from inserted rows, not gate renames.
+- `GATE_RENAME_AST_DIFF PASS n_changes=372`; control: one appended byte in test_manifest_exec.py →
+  `REJECTED 6f after fingerprint mismatch: script/upgrade/test_manifest_exec.py`.
+- rpc_result_merge on 678e68b0 logs: `RPC_RESULT_MERGED [bin] passed=82 total=88 blocked=6` and
+  `[nightly]` identical, `RPC_RESULT_MERGE PASS blocked_equals_known_gaps=True`; control with the
+  scheduled_eta producer PASS removed → `passed=81 … blocked=7`, `RPC_RESULT_MERGE FAIL`, rc=1.
+- T2 targeted (9 `_run_manifest` rows, same criterion as audit605): `RUN_MANIFEST_PROBES PASS 9/9` on bin and nightly.
+- test_execution_integrity now asserts the exact 14 declared files: bin/nightly `Ran 20 tests` / `OK`;
+  probe_execution_integrity bin/nightly `PASS … passed=9 total=9`.
