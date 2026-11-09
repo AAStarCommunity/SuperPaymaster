@@ -603,14 +603,14 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
         bytes32 proofHash = keccak256(proof);
 
-        _slash(operator, level, penalty, "DVT BLS Slash", true);
+        penalty = _slash(operator, level, penalty, "DVT BLS Slash", true);
         _pendingSlash[operator] = false;
 
         emit SlashExecutedWithProof(operator, level, penalty, proofHash, block.timestamp);
     }
 
     /// @param applyCap If true, enforce 30% slash hardcap.
-    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bool applyCap) internal {
+    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bool applyCap) internal returns (uint256) {
         ISuperPaymaster.OperatorConfig storage config = operators[operator];
 
         uint256 reputationLoss = level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
@@ -654,6 +654,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
         emit ISuperPaymaster.OperatorSlashed(operator, penaltyAmount, level);
         emit ISuperPaymaster.ReputationUpdated(operator, config.reputation);
+        return penaltyAmount;
     }
 
     // P0-3 (initial-deploy path): one-time setter when BLS_AGGREGATOR == address(0).

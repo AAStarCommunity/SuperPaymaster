@@ -14,6 +14,8 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 /// @dev BLSAggregator rejects a zero DVT_VALIDATOR and makes a typed call into it
 ///      after execution, so the address must hold code.
 contract PragueStateMachineDVTStub {
+
+
     function markProposalExecuted(uint256) external {}
 }
 
@@ -170,6 +172,31 @@ contract CC48PragueStateMachine is Test {
         agg.applyFraudProofVerifier();
     }
 
+    bytes32 internal observedGenericCommitment;
+
+    function observeGenericCommitment(uint256 proposalId) external {
+        require(msg.sender == address(agg));
+        observedGenericCommitment = agg.proposalSignersCommitment(proposalId);
+    }
+
+    function test_Prague_GenericProposalRecordsSigners() public {
+        _skipWithoutPrague();
+        uint256 id = 7191;
+        bytes memory callData = abi.encodeCall(this.observeGenericCommitment, (id));
+        bytes32 h = keccak256(abi.encode(
+            agg.domainSeparator(), agg.TAG_PROPOSAL(), id, address(this), keccak256(callData), uint256(3)
+        ));
+        address[] memory signers = new address[](3);
+        for (uint256 i; i < 3; ++i) signers[i] = validators[i];
+        bytes32 expected = keccak256(abi.encode(
+            agg.domainSeparator(), agg.TAG_SIGNERS_COMMITMENT(), id, h, uint256(7), signers
+        ));
+        agg.executeProposal(id, address(this), callData, 3, _proof(h, 3));
+        assertEq(observedGenericCommitment, expected);
+        assertEq(agg.proposalSignersCommitment(id), expected);
+        assertTrue(agg.executedProposals(id));
+    }
+
     // =================================================================
     // BLOCKER-1 — exit notice, on real pairings
     // =================================================================
@@ -206,6 +233,43 @@ contract CC48PragueStateMachine is Test {
             abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), validators[2])
         );
         agg.verifyAndExecute(7103, address(0), 0, users, scores, 3, bytes32(0), proof3);
+    }
+
+    function test_Prague_LastSecondSignerCannotEscapeFraudChallenge() public {
+        _skipWithoutPrague();
+        address guardian = validators[2];
+        vm.prank(guardian);
+        agg.requestGuardianExit();
+        (uint64 readyAt,) = agg.guardianExitRequests(guardian);
+        uint256 withdrawAt = uint256(readyAt) + agg.GUARDIAN_FRAUD_CHALLENGE();
+        vm.warp(uint256(readyAt) - 1);
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCA18), 40);
+        bytes32 h = _reputationHash(7190, users, scores, 1);
+        agg.verifyAndExecute(7190, address(0), 0, users, scores, 1, bytes32(0), _proof(h, 3));
+        assertEq(registry.globalReputation(address(0xCA18)), 40);
+
+        vm.warp(readyAt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitNotReady.selector, guardian, withdrawAt));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+        vm.warp(withdrawAt - 1);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitNotReady.selector, guardian, withdrawAt));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+
+        address[] memory accused = new address[](1);
+        accused[0] = guardian;
+        agg.queueGuardianSlash(7190, accused, hex"01");
+        vm.warp(withdrawAt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitBlockedBySlash.selector, guardian, 1));
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+        assertEq(staking.getLockedStake(guardian, ROLE_DVT), DVT_STAKE);
+        agg.executeGuardianSlash(7190, accused, hex"01");
+        assertLt(staking.getLockedStake(guardian, ROLE_DVT), DVT_STAKE);
+        vm.prank(guardian);
+        registry.exitRole(ROLE_DVT);
+        assertFalse(registry.hasRole(ROLE_DVT, guardian));
     }
 
     /// Cancelling re-enters the signer set but costs a cooldown, so request/cancel

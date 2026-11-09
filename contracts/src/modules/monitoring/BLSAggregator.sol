@@ -430,12 +430,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint64 public pendingFraudProofVerifierReadyAt;
 
     /// @dev CC-48 HIGH-2: the case window MUST strictly dominate a full exit notice
-    ///      (delay + consumption window). At 2 days each, an accused guardian could
-    ///      line up `readyAt` with the case deadline and walk the moment the case
-    ///      expired. 4 > 2 + 1 leaves no such alignment: an exit notice opened at or
-    ///      after the queueing block always expires before the case does.
-    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 4 days;
+    ///      (delay + challenge + consumption window). 5 > 2 + 1 + 1 ensures a
+    ///      notice open when a case is queued expires before that case does.
+    ///      Pending cases block new notices and cancellation.
+    uint256 public constant GUARDIAN_SLASH_CASE_WINDOW = 5 days;
     uint256 public constant GUARDIAN_EXIT_DELAY = 2 days;
+    uint256 public constant GUARDIAN_FRAUD_CHALLENGE = 1 days;
     uint256 public constant GUARDIAN_EXIT_WINDOW = 1 days;
     /// @notice Quiet period imposed after cancelling an exit notice (BLOCKER-1).
     uint256 public constant GUARDIAN_EXIT_COOLDOWN = 1 days;
@@ -445,7 +445,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.12.0";
+        return "BLSAggregator-4.13.0";
     }
 
     // ====================================
@@ -1126,6 +1126,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 3. Verify BLS Signatures with custom threshold
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
+        proposalSignersCommitment[proposalId] = _computeSignersCommitment(proof, proposalId, expectedMessageHash);
 
         // 4. Execute Call
         (bool success, bytes memory returnData) = target.call(callData);
@@ -1593,14 +1594,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         structurally instead (execution never calls a verifier at all, see
     ///         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay
     ///         still buys is the direction that matters: ARMING or REPLACING the
-    ///         authority behind a 100%-of-lock slash is publicly visible for four days
+    ///         authority behind a 100%-of-lock slash is publicly visible for five days
     ///         before it can act. It is deliberately NOT applied to disarming — see
     ///         `emergencyDisarmFraudProofVerifier`, which is immediate because it only
     ///         ever removes power (CC-48 round-5 MEDIUM-2).
     /// @dev    ROLE_DVT exit is now gated by requestGuardianExit + a bounded
-    ///         unbonding delay. The request immediately removes the guardian from
-    ///         valid signer masks; a verifier-approved queued case increments the
-    ///         pending counter and Registry cannot consume the exit until all cases
+    ///         unbonding delay. The guardian leaves valid signer masks at readyAt and can
+    ///         withdraw only after a further GUARDIAN_FRAUD_CHALLENGE; a verifier-approved
+    ///         queued case increments the pending counter and Registry cannot consume the exit until all cases
     ///         resolve. Governance must wire this aggregator into Registry before
     ///         arming the verifier.
     function proposeFraudProofVerifier(address verifier) external onlyOwner {
@@ -1638,9 +1639,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         guardian-slash case can be opened from this block onwards.
     /// @dev    CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a
     ///         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +
-    ///         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A
+    ///         `VERIFIER_ROTATION_DELAY` (5 days) + `applyFraudProofVerifier`. A
     ///         compromised verifier can open a case and have it executed for 100% of
-    ///         every accused guardian's lock within a SINGLE block, so a four-day
+    ///         every accused guardian's lock within a SINGLE block, so a five-day
     ///         remedy was not a remedy. This call is the answer to "the verifier is
     ///         lying, stop it now".
     ///
@@ -1654,7 +1655,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///
     ///         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier
     ///         revisions of this comment claimed a stolen `owner` "gains nothing new"
-    ///         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal
+    ///         because `proposeFraudProofVerifier(0)` + 5 days reached the same terminal
     ///         state. That is FALSE in the only dimension that matters here — TIME — and
     ///         it is retracted:
     ///           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in
@@ -1673,7 +1674,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could
     ///             still open cases that round-4's frozen verdict then protected.
     ///           • This power is accepted deliberately: a compromised verifier can slash
-    ///             100% of every accused guardian's lock inside ONE block, so a four-day
+    ///             100% of every accused guardian's lock inside ONE block, so a five-day
     ///             remedy is not a remedy, and censoring future accusations is strictly
     ///             less damaging than that. It is a trade, not a free win.
     ///           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and
@@ -1681,9 +1682,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///             timelocked emergency stop is not an emergency stop — so for the DISARM
     ///             path the Safe-compatible M-of-N owner is the ONLY governance defence,
     ///             not defence in depth.
-    ///             The in-contract 4-day delay still governs RE-ARMING: there is no
+    ///             The in-contract 5-day delay still governs RE-ARMING: there is no
     ///             counterpart that sets a non-zero verifier, so coming back on-line
-    ///             remains propose -> 4 days -> apply, and disarm is not a fast path to a
+    ///             remains propose -> 5 days -> apply, and disarm is not a fast path to a
     ///             verifier of the owner's choosing.
     ///           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8
     ///             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns
@@ -1717,9 +1718,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         emit FraudProofVerifierEmergencyDisarmed(current, pending);
     }
 
-    /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with an
-    ///         active request is excluded from BLS verification immediately,
-    ///         giving watchers the full delay to queue a fraud proof.
+    /// @notice Start a bounded ROLE_DVT unbonding notice. A guardian with a
+    ///         notice remains eligible until readyAt, then stops signing for a
+    ///         full fraud-challenge period before withdrawal opens.
     function requestGuardianExit() external {
         if (!REGISTRY.hasRole(keccak256("DVT"), msg.sender)) {
             revert SlotValidatorRoleRevoked(0, msg.sender);
@@ -1734,7 +1735,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         }
         _requireCommitteeSurvivesExit(msg.sender);
         uint64 readyAt = uint64(block.timestamp + GUARDIAN_EXIT_DELAY);
-        uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_EXIT_WINDOW);
+        uint64 expiresAt = uint64(uint256(readyAt) + GUARDIAN_FRAUD_CHALLENGE + GUARDIAN_EXIT_WINDOW);
         guardianExitRequests[msg.sender] = GuardianExitRequest(readyAt, expiresAt);
         emit GuardianExitRequested(msg.sender, readyAt, expiresAt);
     }
@@ -1866,7 +1867,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (pendingGuardianSlashCount[guardian] != 0) {
             revert GuardianExitBlockedBySlash(guardian, pendingGuardianSlashCount[guardian]);
         }
-        if (block.timestamp < request.readyAt) revert GuardianExitNotReady(guardian, request.readyAt);
+        uint256 withdrawAt = uint256(request.readyAt) + GUARDIAN_FRAUD_CHALLENGE;
+        if (block.timestamp < withdrawAt) revert GuardianExitNotReady(guardian, withdrawAt);
         if (block.timestamp > request.expiresAt) revert GuardianExitRequestExpired(guardian, request.expiresAt);
         delete guardianExitRequests[guardian];
         emit GuardianExitConsumed(guardian);
@@ -1875,7 +1877,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     /// @notice Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
     /// @dev The full proof is checked before any freeze is installed, so arbitrary
     ///      callers cannot lock honest guardians. A bounded window
-    ///      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full
+    ///      (`GUARDIAN_SLASH_CASE_WINDOW`, 5 days — it must strictly dominate a full
     ///      exit notice, see the constant's own comment) prevents an abandoned case
     ///      from becoming a permanent withdrawal denial.
     /// @dev `fraudProofId` is consumed for ever by this call, whatever the case's
@@ -1981,8 +1983,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed
     ///           address's lock is independent of whether it still holds a slot).
     ///           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian
-    ///           must first publish a bounded exit notice and is immediately excluded
-    ///           from BLS signer masks; any queued slash case freezes consumption.
+    ///           must first publish a bounded exit notice, is excluded from BLS signer
+    ///           masks from readyAt and can withdraw only after GUARDIAN_FRAUD_CHALLENGE;
+    ///           any queued slash case freezes consumption.
     ///           GuardianSlashSkipped remains for legacy/direct staking drift, but
     ///           the coordinated Registry path cannot release a queued guardian.
     ///         - Permissionless CALL, gated by the verdict frozen at queue time: fraud

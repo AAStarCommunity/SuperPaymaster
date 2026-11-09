@@ -69,8 +69,8 @@ interface ISPV55Script {
  */
 abstract contract V55Bootstrap is DefaultArtifacts {
     string internal constant SP_V55_VERSION = SPReleaseVersion.SP;
-    string internal constant XPNTS_V2_VERSION = "XPNTs-4.0.0";
-    string internal constant FACTORY_V2_VERSION = "xPNTsFactory-3.0.0-v2";
+    string internal constant XPNTS_V2_VERSION = "XPNTs-4.0.1";
+    string internal constant FACTORY_V2_VERSION = "xPNTsFactory-3.0.1-v2";
     string internal constant AOA_REG_VERSION = "AOAProtocolRegistry-1.0.0";
     string internal constant TIER_SOURCE_VERSION = "GlobalTierSource-1.0.0";
     string internal constant LENS_VERSION = SPReleaseVersion.LENS;

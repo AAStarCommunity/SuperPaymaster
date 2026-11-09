@@ -292,6 +292,7 @@ contract xPNTsTokenV2Ext is xPNTsV2Base {
         address s = pendingStandby;
         if (s == address(0)) revert NothingPending();
         if (block.timestamp < pendingStandbyEta) revert TimelockActive(pendingStandbyEta);
+        if (s == SUPERPAYMASTER_ADDRESS || s == emergencyRevokedAddress) revert InvalidAddress(s);
         if (!PROTOCOL_REGISTRY.isApprovedSP(s)) revert NotApproved(s);
         standbySP = s;
         pendingStandby = address(0);
@@ -321,6 +322,15 @@ contract xPNTsTokenV2Ext is xPNTsV2Base {
         address old = SUPERPAYMASTER_ADDRESS;
         SUPERPAYMASTER_ADDRESS = sp;
         historicalSP[sp] = true;
+        if (standbySP == sp) {
+            standbySP = address(0);
+            emit StandbyInvalidated(sp);
+        }
+        if (pendingStandby == sp) {
+            pendingStandby = address(0);
+            pendingStandbyEta = 0;
+            emit StandbyProposalCancelled(sp);
+        }
         if (autoApprovedSpenders[sp]) {
             autoApprovedSpenders[sp] = false;
             emit AutoApprovedSpenderRemoved(sp);

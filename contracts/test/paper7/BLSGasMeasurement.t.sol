@@ -177,7 +177,7 @@ contract RepCreditPragueE2E is Test {
         vm.warp(block.timestamp + 31 days);
         vm.prank(validators[0]);
         aggregator.requestGuardianExit();
-        vm.warp(block.timestamp + aggregator.GUARDIAN_EXIT_DELAY());
+        vm.warp(block.timestamp + aggregator.GUARDIAN_EXIT_DELAY() + aggregator.GUARDIAN_FRAUD_CHALLENGE());
         vm.prank(validators[0]);
         registry.exitRole(ROLE_DVT);
 

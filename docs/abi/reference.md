@@ -5199,7 +5199,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BLSAggregator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 76 · **Events:** 32 · **Errors:** 56
+- **Functions:** 77 · **Events:** 32 · **Errors:** 56
 - **Title:** BLSAggregator
 - BLS signature aggregation and verification for DVT slash consensus (V3)
 
@@ -5228,6 +5228,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa69dfb5e` | `GUARDIAN_EXIT_COOLDOWN()` | view | — | Quiet period imposed after cancelling an exit notice (BLOCKER-1). |
 | `0xb89c7362` | `GUARDIAN_EXIT_DELAY()` | view | — |  |
 | `0x12e360b4` | `GUARDIAN_EXIT_WINDOW()` | view | — |  |
+| `0xc8f66d24` | `GUARDIAN_FRAUD_CHALLENGE()` | view | — |  |
 | `0x95702d76` | `GUARDIAN_SLASH_BPS_MAX()` | view | — |  |
 | `0x019969d7` | `GUARDIAN_SLASH_BPS_MIN()` | view | — |  |
 | `0x570e530f` | `GUARDIAN_SLASH_CASE_WINDOW()` | view | — |  |
@@ -5255,7 +5256,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x25cad7a4` | `releaseKeyBinding(bytes32)` | nonpayable | onlyOwner | CC-48 round-3 recovery: release a `blsKeyOwner` binding that no ACTIVE         slot is using. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x79cada55` | `reputationMessageHash(uint256,address[],uint256[],uint256)` | view | — | Canonical reputation-batch pre-image. MUST stay byte-identical to         `Registry._reputationMessageHash` — Registry independently re-verifies         the same signature, and any divergence turns every reputation proposal         into an unexplained `BLSFailed`. |
-| `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with an         active request is excluded from BLS verification immediately,         giving watchers the full delay to queue a fraud proof. |
+| `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens. |
 | `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | onlyOwner | Revoke a previously registered BLS validator key. |
 | `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set default threshold for legacy calls (verifyAndExecute) |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner |  |
@@ -5391,7 +5392,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > EMERGENCY: disarm the fraud-proof verifier immediately — no delay.         Clears the active verifier AND any in-flight rotation, so no new         guardian-slash case can be opened from this block onwards.
 
-*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (4 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have it executed for 100% of         every accused guardian's lock within a SINGLE block, so a four-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 4 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             100% of every accused guardian's lock inside ONE block, so a four-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 4-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 4 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
+*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (5 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have it executed for 100% of         every accused guardian's lock within a SINGLE block, so a five-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 5 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             100% of every accused guardian's lock inside ONE block, so a five-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 5-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 5 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
 
 #### `executedProposals(uint256 arg0)`
 
@@ -5411,7 +5412,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Slash the FULL ROLE_DVT stake of guardians proven (by the external         fraud-proof verifier) to have co-signed a fraudulent proposal. This         is the thin SP execution entry for the paper's ρ·S_op collusion         deterrent (Protocol B stage 1). It complements _executeSlash, which         targets the operator's aPNTs — a DIFFERENT asset (guardian ROLE_DVT         stake ≠ operator aPNTs, even if the addresses coincide).
 
-*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice and is immediately excluded           from BLS signer masks; any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg           auto-ejects the guardian on the next verify. No 30% cap: proven           collusion must lose eligibility, not merely pay a fee — but this           holds for a guardian whose case is queued inside the configured           exit-notice window. The operator-path cap protects honest operators           from one bad epoch — a different threat model.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
+*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice, is excluded from BLS signer           masks from readyAt and can withdraw only after GUARDIAN_FRAUD_CHALLENGE;           any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg           auto-ejects the guardian on the next verify. No 30% cap: proven           collusion must lose eligibility, not merely pay a fee — but this           holds for a guardian whose case is queued inside the configured           exit-notice window. The operator-path cap protects honest operators           from one bad epoch — a different threat model.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
 
 | param | type | description |
 |---|---|---|
@@ -5510,6 +5511,14 @@ Authoritative, auto-generated reference for every external/public function, even
 #### `GUARDIAN_EXIT_WINDOW()`
 
 `0x12e360b4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `GUARDIAN_FRAUD_CHALLENGE()`
+
+`0xc8f66d24` · view · access: —
 
 | returns | type | description |
 |---|---|---|
@@ -5742,7 +5751,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`.
 
-*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a 100%-of-lock slash is publicly visible for four days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The request immediately removes the guardian from         valid signer masks; a verifier-approved queued case increments the         pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
+*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a 100%-of-lock slash is publicly visible for five days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The guardian leaves valid signer masks at readyAt and can         withdraw only after a further GUARDIAN_FRAUD_CHALLENGE; a verifier-approved         queued case increments the pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
 
 | param | type | description |
 |---|---|---|
@@ -5754,7 +5763,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Queue a verifier-approved guardian slash and freeze ROLE_DVT exits.
 
-*@dev* The full proof is checked before any freeze is installed, so arbitrary      callers cannot lock honest guardians. A bounded window      (`GUARDIAN_SLASH_CASE_WINDOW`, 4 days — it must strictly dominate a full      exit notice, see the constant's own comment) prevents an abandoned case      from becoming a permanent withdrawal denial.`fraudProofId` is consumed for ever by this call, whatever the case's      eventual outcome, and the accused set is chosen by the CALLER. Verifiers      therefore MUST reject any set that is not exactly the one the evidence      commits to — otherwise a front-runner can open the case on a subset and      burn the id for everyone else. See `IFraudProofVerifier` above and      `FraudProofVerifierConformance.assertSetBound`.
+*@dev* The full proof is checked before any freeze is installed, so arbitrary      callers cannot lock honest guardians. A bounded window      (`GUARDIAN_SLASH_CASE_WINDOW`, 5 days — it must strictly dominate a full      exit notice, see the constant's own comment) prevents an abandoned case      from becoming a permanent withdrawal denial.`fraudProofId` is consumed for ever by this call, whatever the case's      eventual outcome, and the accused set is chosen by the CALLER. Verifiers      therefore MUST reject any set that is not exactly the one the evidence      commits to — otherwise a front-runner can open the case on a subset and      burn the id for everyone else. See `IFraudProofVerifier` above and      `FraudProofVerifierConformance.assertSetBound`.
 
 | param | type | description |
 |---|---|---|
@@ -5841,7 +5850,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xf7664c8d` · nonpayable · access: —
 
-> Start a bounded ROLE_DVT unbonding notice. A guardian with an         active request is excluded from BLS verification immediately,         giving watchers the full delay to queue a fraud proof.
+> Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens.
 
 #### `revokeBLSPublicKey(address validator)`
 
@@ -14455,7 +14464,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - **Source:** `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
 - **Functions:** 46 · **Events:** 11 · **Errors:** 15
 - **Title:** xPNTsFactoryV2
-- xPNTs v2 (XPNTs-4.0.0) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
+- xPNTs v2 (XPNTs-4.0.1) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
 
 ### Function selector index
 
@@ -15089,7 +15098,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsTokenV2
 
 - **Source:** `contracts/src/tokens/v2/xPNTsTokenV2.sol`
-- **Functions:** 89 · **Events:** 42 · **Errors:** 49
+- **Functions:** 89 · **Events:** 44 · **Errors:** 49
 - **Title:** xPNTsTokenV2 (CORE)
 - Community gas token with a BOUNDED auto-allowance and validation-time escrow.
 
@@ -16167,6 +16176,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
 | `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` |
 | `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
@@ -16329,7 +16340,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsTokenV2Ext
 
 - **Source:** `contracts/src/tokens/v2/xPNTsTokenV2Ext.sol`
-- **Functions:** 128 · **Events:** 42 · **Errors:** 49
+- **Functions:** 128 · **Events:** 44 · **Errors:** 49
 - **Title:** xPNTsTokenV2Ext (EXTENSION)
 - Administration, user settings, relayed actions and CC-28 views of xPNTs v2.
 
@@ -17682,6 +17693,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
 | `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` |
 | `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |
@@ -17746,7 +17759,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## xPNTsV2Base
 
 - **Source:** `contracts/src/tokens/v2/xPNTsV2Base.sol`
-- **Functions:** 69 · **Events:** 42 · **Errors:** 48
+- **Functions:** 69 · **Events:** 44 · **Errors:** 48
 - **Title:** xPNTsV2Base
 - Shared storage, constants, events, errors and internal logic of xPNTs v2.
 
@@ -18552,6 +18565,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x7409e1fad3bcbf43d8b755988cc1703e481c3ed992a9354efad9065c941beb39` | `SPProposalCancelled(address)` |
 | `0x60e6d9531dcd90fe9134e4e89a6e552ec48279ac4a55f4183daa20ad797f9b8d` | `SPProposed(address,uint64,bool)` |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` |
 | `0x77bd14a8ad588614056ff05d5ab74e4447435278382db5374a33308793d68e2b` | `StandbyProposed(address,uint64)` |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` |
 | `0x4168d48d23a7c80bcdb847509f7df60e0f3f3c83e0d7788670ae6a55dbd5e18e` | `TierSourceExecuted(address,uint32)` |

@@ -1219,6 +1219,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xc87b56dd` | `tokenURI(uint256)` | MyNFT |
 | `0xc87b56dd` | `tokenURI(uint256)` | TestSBT |
 | `0xc87b56dd` | `tokenURI(uint256)` | MySBT |
+| `0xc8f66d24` | `GUARDIAN_FRAUD_CHALLENGE()` | BLSAggregator |
 | `0xc9929dad` | `setMaxGasCostCap(uint256)` | Paymaster |
 | `0xc9929dad` | `setMaxGasCostCap(uint256)` | PaymasterBase |
 | `0xc9e4b4e3` | `blsKeyOwner(bytes32)` | BLSAggregator |
@@ -1981,6 +1982,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xc47a1536197401b36a117101725a5dfa1495e2643f664e4a10289c7bba944447` | `ProposalSigned(uint256,address)` | DVTValidator |
 | `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` | SuperPaymaster |
 | `0xc595e3a7c1fbcc886e9c956e668629b0e3c0c60f7e6d4c1bd98e04b3a1a89d20` | `SpenderProposed(address,uint64)` | xPNTsTokenV2 |
+| `0xc5d29e749b9586ea8fe47b21c0cd8e822f5947caaa3acea959ea82d9ee0500de` | `StandbyInvalidated(address)` | xPNTsTokenV2 |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` | Registry |
 | `0xc80e6b66eb58558814d2cbd504bae3d3ed4eb316287800124c793081728599ad` | `RoleExitFeeUpdated(bytes32,uint256,uint256)` | GTokenStaking |
 | `0xc8d1043f24843c0a1c9251fdc30017d84e87498fbcf232af9f86816b5e182bde` | `ExchangeRateUpdated(uint256,uint256)` | xPNTsTokenV2 |
@@ -2039,6 +2041,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xf75669458e39b3e450bebdf8e3f8396a4ca0b4057017be244aa5af43321b2807` | `ProposalExecuted(uint256,address,bytes32)` | BLSAggregator |
 | `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` | SuperPaymaster |
 | `0xf7f40a997298b1493301c9a89fab16693fe74ed97ec8abb07a500b1f2b7ec251` | `FraudProofVerifierRotationCancelled(address)` | BLSAggregator |
+| `0xf8b4b5ece416b8a482fcfc0208fa878c62254da61e47c480f418b5596a1213bf` | `StandbyProposalCancelled(address)` | xPNTsTokenV2 |
 | `0xfabe53bf01983df9c24aab2e57a83e6f8a69975380cf9bd0811dd2f431ac4d46` | `MaxSingleTxLimitUpdated(uint256,uint256)` | xPNTsTokenV2 |
 | `0xfb0ded6c5884b8003728a994ad07cde0f4fb2e33757a0a67ec1af863368dfbd2` | `GuardianSlashed(uint256,address,uint256)` | BLSAggregator |
 | `0xfb96594f297e98363f469f68dba1862f6b4e6dbe060a9fd971f41087b2bb2106` | `EmergencyPriceExecuted(int256)` | SuperPaymaster |

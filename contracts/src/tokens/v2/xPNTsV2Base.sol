@@ -158,6 +158,8 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
     event SuperPaymasterAddressUpdated(address indexed oldSP, address indexed newSP);
     event StandbyProposed(address indexed sp, uint64 eta);
     event StandbyDesignated(address indexed sp);
+    event StandbyInvalidated(address indexed sp);
+    event StandbyProposalCancelled(address indexed sp);
     event EmergencyDisabledSet(address indexed by);
     event EmergencyDisabledCleared(address indexed by);
     event CommunityOwnerUpdated(address indexed oldOwner, address indexed newOwner);

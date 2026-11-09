@@ -14,6 +14,7 @@ import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
 import { MockRegistryV2, DummySpender, IExt } from "../helpers/V2TestFixtures.sol";
 
 contract xPNTsTokenV2Test is Test {
+    using stdStorage for StdStorage;
     AOAProtocolRegistry reg;
     MockRegistryV2 registry;
     GlobalTierSource tier;
@@ -66,7 +67,7 @@ contract xPNTsTokenV2Test is Test {
     // ------------------------------------------------------------------
 
     function test_version_and_genesis() public view {
-        assertEq(t.version(), "XPNTs-4.0.0");
+        assertEq(t.version(), "XPNTs-4.0.1");
         assertEq(t.SUPERPAYMASTER_ADDRESS(), sp);
         assertTrue(t.historicalSP(sp), "S-0 marks genesis SP historical");
         assertFalse(t.autoApprovedSpenders(sp), "A-3: SP is never a spender");
@@ -479,6 +480,86 @@ contract xPNTsTokenV2Test is Test {
         vm.prank(address(factory));
         vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.Unauthorized.selector, address(factory)));
         _ext().proposeSP(sp2);
+    }
+
+    function test_RotationInvalidatesDesignatedStandby() public {
+        vm.prank(community);
+        _ext().proposeStandby(sp2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        _ext().activateStandbyDesignation();
+        vm.prank(community);
+        _ext().proposeSP(sp2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        vm.expectEmit(true, false, false, true, address(t));
+        emit xPNTsV2Base.StandbyInvalidated(sp2);
+        _ext().activateSP();
+        assertEq(t.SUPERPAYMASTER_ADDRESS(), sp2);
+        assertEq(t.standbySP(), address(0));
+    }
+
+    /// DSR rc.8 (C2-01 end to end): a standby promoted to current SP, later compromised, must not
+    /// brick the emergency switch. Before the fix standbySP stayed == the revoked SP and the switch reverted.
+    function test_EmergencySwitchWorksAfterStandbyWasPromoted() public {
+        vm.prank(community);
+        _ext().proposeStandby(sp2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        _ext().activateStandbyDesignation();
+        vm.prank(community);
+        _ext().proposeSP(sp2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        _ext().activateSP();
+        assertEq(t.SUPERPAYMASTER_ADDRESS(), sp2);
+        assertEq(t.standbySP(), address(0));
+        // designate the old SP as the new standby, then sp2 is compromised and revoked
+        vm.prank(community);
+        _ext().proposeStandby(sp);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        _ext().activateStandbyDesignation();
+        vm.startPrank(community);
+        _ext().emergencyRevokePaymaster();
+        _ext().emergencySwitchToStandby();
+        vm.stopPrank();
+        assertEq(t.SUPERPAYMASTER_ADDRESS(), sp);
+        assertEq(t.standbySP(), address(0));
+    }
+
+    function test_RotationCancelsPendingStandbyAndEta() public {
+        vm.startPrank(community);
+        _ext().proposeStandby(sp2);
+        _ext().proposeSP(sp2);
+        vm.stopPrank();
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        vm.expectEmit(true, false, false, true, address(t));
+        emit xPNTsV2Base.StandbyProposalCancelled(sp2);
+        _ext().activateSP();
+        assertEq(t.pendingStandby(), address(0));
+        assertEq(t.pendingStandbyEta(), 0);
+        vm.expectRevert(xPNTsV2Base.NothingPending.selector);
+        _ext().activateStandbyDesignation();
+    }
+
+    function test_DesignationRejectsStaleCurrentCandidate() public {
+        vm.prank(community);
+        _ext().proposeStandby(sp2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        // Seed a stale state to exercise the activation-time guard independently.
+        stdstore.target(address(t)).sig("SUPERPAYMASTER_ADDRESS()").checked_write(sp2);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.InvalidAddress.selector, sp2));
+        _ext().activateStandbyDesignation();
+        assertEq(t.standbySP(), address(0));
+        assertEq(t.pendingStandby(), sp2);
+    }
+
+    function test_DesignationRejectsStaleRevokedCandidate() public {
+        vm.prank(community);
+        _ext().proposeStandby(sp2);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        // Seed a stale state; normal rotation now cancels this proposal first.
+        stdstore.target(address(t)).sig("emergencyRevokedAddress()").checked_write(sp2);
+        vm.expectRevert(abi.encodeWithSelector(xPNTsV2Base.InvalidAddress.selector, sp2));
+        _ext().activateStandbyDesignation();
+        assertEq(t.standbySP(), address(0));
+        assertEq(t.pendingStandby(), sp2);
     }
 
     function test_S6_S7_standby_recovery() public {

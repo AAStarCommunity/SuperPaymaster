@@ -6,6 +6,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [v5.5.0-rc.8] — Unreleased (Daybreak security fix set, in progress)
+
+Fixes from the Daybreak Blue review of `8de39026` (`docs/security/rc8-daybreak-fixes.md`):
+- **BLSAggregator-4.13.0** (C4-H-01, High): a guardian stops signing at `readyAt` and can withdraw only after
+  `GUARDIAN_FRAUD_CHALLENGE` (1 day); `GUARDIAN_SLASH_CASE_WINDOW` and `VERIFIER_ROTATION_DELAY` 4 → 5 days, so arming a
+  verifier takes one day longer. Generic `executeProposal` records `proposalSignersCommitment` before the target call (C4-L-02).
+- **XPNTs-4.0.1 / xPNTsFactory-3.0.1-v2** (C2-01): promoting an SP clears it as standby; tokens cloned from XPNTs-4.0.0 keep the old
+  behaviour, so both the template and the factory are redeployed.
+- **SuperPaymaster-5.5.0** (C1-L-01): `SlashExecutedWithProof` reports the penalty actually taken. ABI unchanged; the bytecode differs
+  from rc.7 (identity = commit + runtime codehash).
+Downstream (DVT, SDK): new `GUARDIAN_FRAUD_CHALLENGE()` getter, exit withdrawal at `readyAt + 1 day`, new standby events.
+
 ## [v5.5.0] — Unreleased (release candidate `v5.5.0-rc.4`, 2026-10-21)
 
 AOA balance mode. Contract versions: `SuperPaymaster-5.5.0`, `SuperPaymasterLens-1.2.0`,
@@ -89,7 +101,7 @@ small proposals bypassed it entirely. Three layers now stand between reputation 
   `guardiansHash` + `fraudProofHash` and never calls the verifier again. Verifier rotation,
   proxy upgrade and selfdestruct can no longer kill an already-queued case
   (`FraudProofMismatch`, `GuardianSlashJudgmentFrozen`).
-- **Case state machine**: `queueGuardianSlash` → 4-day window (`GUARDIAN_SLASH_CASE_WINDOW`) →
+- **Case state machine**: `queueGuardianSlash` → 4-day window (5 days since BLSAggregator-4.13.0, rc.8) (`GUARDIAN_SLASH_CASE_WINDOW`) →
   `executeGuardianSlash` (per-guardian, resumable, partial-progress via `guardianCaseResolved`)
   or `expireGuardianSlashCase`.
 - **Versioned domain separation across every BLS path**:
