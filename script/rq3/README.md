@@ -1,0 +1,187 @@
+# RQ3 offline sampler/collector draft
+
+This directory has no RPC transport, signer, deployment, or send implementation.
+It does not import the executable A6 collector or upgrade executor. Existing A6
+behavior and contracts are unchanged. All fixtures are synthetic, not measurements.
+
+## Implemented
+
+- `schedule.py:18`: public-seed SHA256-ranked batches of all six permutations;
+  60 slots, permutation counts 8/9 in the first 50; cyclic three-account exposure
+  17/17/16. JSON includes SHA256 of canonical UTF-8 `payload` (sorted keys, compact
+  separators). Defaults are illustrative: 30-second period, 20-second maximum
+  elapsed bound. The conservative spacing check is `3*period-maxElapsed >= 60`.
+  `precheck.py:77` checks observed timing/order against that bound.
+- `precheck.py:5`: invoke an injected `sp_attempt_precheck` once on each of two
+  injected RPCs, even after the first refuses. Archive each block number/hash,
+  flags, outcome, and accepted helper evidence. A refusal with a readable head
+  retains that head. Transport failure leaves the missing head explicit. Exception
+  messages are not archived because they could expose endpoint credentials.
+  Disagreement refuses and sets `invalid_reason=rpc_mismatch`. The second endpoint is
+  pinned to the block number the first endpoint read as `latest`, so the two records
+  describe the same state, not two heads. Only `refusal_types` (the executor's `Gate`)
+  count as a refusal; any other exception is a sampler or transport defect and
+  propagates, so the window stops instead of logging a refusal.
+- `extract.mjs:56`: raw receipt log decoding, unique UserOperationEvent binding,
+  ERC20 transfer calldata/event checks, callTracer postOp calldata decoding,
+  context decoding, SP charge reconciliation, and TPM integer conversion. Receipt
+  and trace bind to one transaction/block; innerHandleOp binds sender, nonce,
+  paymaster, hash and limits. Missing evidence stays null, exported as empty cells.
+- `export.py:18`: every pinned REQUIRED_COLUMN plus schedule/prior, feeBps,
+  sender, refusal and optional metrics. Unsuccessful attempts require a separate
+  `failure_reason`; timeout is **not** an invented invalid code. Gate invalid codes
+  remain only `rpc_mismatch|chain_reorg|collector_corruption`. Exclusion reasons
+  use the actual gate's `expected_exclusion`. SP postOp limit must be >=480000.
+  Each block/arm has at most one formal attempt. A retry needs an earlier
+  incomplete block and a fresh slot/pair/hash; same-window retry references are
+  checked. Cross-window retry annotations are currently rejected (see below).
+- `export.py:78`: cross-window inventory includes CSV SHA256, window and experiment
+  IDs, all consumed slots and per-arm attempt identities. Rebuild it from the
+  ordered original CSVs to verify declared prior counts; gaps, reused pair/hash,
+  duplicate windows, and mixed experiments fail. An incomplete consumed slot
+  needs at least one row. First window has prior=0; consumed slots are cumulative.
+  The inventory has its own canonical payload hash. Hashes establish consistency,
+  not independent proof that an earlier window was never omitted.
+- `precheck.py:59`: stop after three consecutive infrastructure failures, or >5%
+  cumulative failures from attempt 20 onward. All formal attempts, including
+  refusals, enter the denominator; failure classification must be explicit.
+  Other protocol stops are injected as `stop_reason`. `account_available` keeps a
+  timed-out account locked until late inclusion or proven drop. Late receipts
+  cannot replace the timeout row; keep their costs in a supplemental archive.
+
+## Archive interface and limitations
+
+`extract.mjs` accepts an array of archives as demonstrated by `fixtures.mjs:10`:
+`metadata`, `operation`, `transactionHash`, raw `receipt`, optional `trace`,
+`validationContext`, `task`, and `state`. `trace` is a callTracer result wrapped
+with its transactionHash/blockHash. `operation` contains the expected sender,
+nonce, paymaster, EntryPoint, UserOperation hash, calldata and frozen gas limits.
+`task` names token, amount, recipient and archived pre-window recipient balance.
+State values are normalized archived snapshots with phase=`postOp`, transaction
+and block anchors. No latest-state read is substituted. An archive adapter must
+supply and retain the raw state evidence proving those snapshots; this draft
+checks anchors and event arithmetic, not a storage proof or full source-map replay.
+The exporter does not certify schedule execution, passport invariants, funding,
+confirmation depth, or dual-RPC receipt consensus. Those remain sampler duties.
+
+`cPreWei` comes only from the actual postOp call input, not receipt costs or a
+formula. `preOpGas` comes from innerHandleOp's UserOpInfo word 14. **G remains
+empty for callTracer archives**, because this trace does not expose EntryPoint's
+internal actualGas after postOp and before penalty. No inverse estimate from
+actualGasUsed is accepted. This intentionally differs from A6's inverse/bounded
+analysis (`../a6-collector/gas-decomposition.mjs:46`), which remains unchanged.
+A qualified opcode/source-map extractor for G is not implemented. The gate checks
+`actualGasUsed-G = floor(10*max(0,Lcall+LpostOp-(G-GpreOp))/100)` whenever all values
+exist; the negative controls deliberately inject a wrong G to exercise that check.
+
+Raw receipt logs, including PostOpRevertReason, remain in the archive. SP charges
+come from TransactionSponsored, TPM amounts from UserOperationSponsored. A
+missing sponsorship event leaves charge fields empty rather than asserting the
+predicted charge was actually collected. Full token settlement reconciliation
+and automatic A6 journal-to-archive adaptation are not implemented here.
+
+## Formula/source audit
+
+Exact source fixtures and hashes are in `vendor/SHA256SUMS.json`. The DSR gate
+is byte-for-byte `82453054:scripts/gate/paired_stats.py`; SHA256 is
+`af4ef5d3b7dc34861b5c211e195f359f4fd9a629ed4a6f598ec419aa370d8fe6`.
+No constants or gate validation rules were changed.
+
+SP source below is `8de39026:contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`,
+vendored as `vendor/SuperPaymaster@8de39026.sol.txt` with original line numbers:
+
+| Quantity | Source lines | Implemented calculation |
+|---|---|---|
+| Context layout | 40–82, 393–407 | 11 words / 352 B; optional 12th word / CTX_LEN=384 |
+| Snapshot gas | 56–59, 422–424 | C_POSTOP bits 96..127 + C_WRAP bits 64..95 |
+| Legacy buffer | 86, 422–424 | postOpGasLimit + 30000 when snap is zero; C_POSTOP left empty |
+| Fee snapshot | 82, 340, 431–432 | snap >> 128; zero uses postOp-live fee, else feeSnap-1 |
+| bufWei | 425 | (bufGas + ceil((Lcall+LpostOp)*10/100))*p_op |
+| P | 426–427 | exact rational price*10^18 / (10^decimals*aPriceUSD) |
+| aGas | 426–428 | ceil((C_pre+bufWei)*P) |
+| c_hat | 433 | ceil(aGas*(10000+feeBps)/10000) |
+| charge | 434, 450 | min(a0,c_hat); compare TransactionSponsored's debtAPNTs |
+
+`extract.test.mjs` checks a literal large-number vector plus a small vector where
+nested ceilings matter: C_pre=3, buffer gas=2, limits total=11, p_op=7, P=1/3,
+fee=250 bps gives bufWei=28, aGas=11, c_hat=12, capped charge=10 for a0=10.
+
+TPM is the repository-pinned eth-infinitism v0.7 source at `661d058c`, not a
+network fetch: `singleton-paymaster/lib/account-abstraction-v7/contracts/samples/TokenPaymaster.sol`.
+Its SHA256 matches `script/a6-collector/artifacts/TokenPaymaster.json:3`.
+`vendor/TokenPaymaster@661d058c.sol.txt:167–172` updates cachedPrice, divides it by
+markup using scale 10^26, then charges `(C_pre + refundPostopCost*p_op)` at that
+marked price. Line 191 emits the token amount. `vendor/UniswapHelper@661d058c.sol.txt:74–79`
+defines `tokenToWei(amount,price)=floor(amount*price/10^26)` and the inverse
+integer conversion. `tokenChargeWei` uses the **updated pre-markup** cached price;
+it is left empty if that snapshot is absent. The event's marked price alone
+cannot be inverted exactly to recover the original price.
+
+EntryPoint source at the same repository pin:
+`singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol:703–707`
+passes C_pre and p_op; lines 716–726 add postOp execution gas then the floored
+unused-gas penalty. C_pre/p_op is therefore not G.
+
+## Offline commands and tests
+
+Use the repository's locked viem dependency; do not fetch packages in this task.
+Python needs only the standard library. From the repository root:
+
+```sh
+python3 -B script/rq3/schedule.py --seed public-beacon-20261010 --accounts A B C > /tmp/rq3-schedule.json
+node script/rq3/fixtures.mjs /tmp/rq3-records.json
+python3 -B script/rq3/export.py --records /tmp/rq3-records.json --csv /tmp/rq3-window.csv --inventory /tmp/rq3-inventory.json
+nice -n 10 python3 -B script/rq3/vendor/paired_stats@82453054.py --design aoa --csv /tmp/rq3-window.csv --out /tmp/rq3-stats.json
+nice -n 10 node --test script/rq3/extract.test.mjs
+nice -n 10 python3 -B -m unittest discover -s script/rq3 -p 'test_*.py' -v
+nice -n 10 node --test script/a6-collector/gas-decomposition.test.mjs
+```
+
+`examples/synthetic-window.csv`, `examples/attempt-inventory.json`, and
+`examples/schedule.json` are reviewable examples generated entirely offline.
+The fixture generator follows that schedule's arm order and sender rotation.
+Rebuilding the inventory from the CSV must reproduce its hash.
+
+The fixture has 52 consumed slots, 155 attempts, one SP refusal, one TPM timeout,
+one missing TPM arm, and a fresh retry block. It yields 49 complete blocks and
+CLI exit 3 INCOMPLETE. A separate 53-slot positive control yields 50 complete
+blocks and CLI exit 0 PASS. Tests invoke the unchanged CLI (10,000 bootstrap
+resamples); internal exporter validation uses 100 resamples solely for structural
+checks, and never publishes those results as paper statistics. Negative controls
+assert CLI exit 2 and exporter rejection for refusal broadcast fields, wrong
+exclusion, penalty, c_hat, out-of-range slot and duplicate block/arm attempts.
+
+## Open decisions for DSR before any live implementation
+
+1. **Three-account precheck plans:** `script/upgrade/manifest_exec.py:2704–2712`
+   binds to phaseC.addresses.S. `precheck.py:5` requires separately frozen plans
+   for all senders, without rewriting the original plan. Decide the audited
+   multi-account funding/Amax plan format and how it is signed/frozen.
+2. **Exact G tracer:** qualify an opcode trace/source-map/bytecode pin at
+   EntryPoint.sol:716–726; `extract.mjs:119–121` deliberately exports no G from
+   callTracer. Trace method, node support, and reverted/fallback paths need
+   qualification before penalty statistics can be claimed.
+3. **Timeout and confirmations:** DSR `82453054` paper `main.tex:553` requires a
+   frozen timeout but supplies no numeric value. Choose timeout and confirmation
+   depth, head alignment/reorg policy and evidence for a provably dropped op.
+   `precheck.py:93` implements only the pure account-lock decision.
+4. **PostOp state provenance:** `extract.mjs:129–164` requires the state at postOp,
+   especially TPM's updated cache and legacy SP live fee. Decide the qualified
+   trace/storage proof adapter; block-end state is insufficient if later calls
+   changed the slot. No automatic adapter or proof verifier is claimed.
+5. **Cadence, stop classification, window handoff:** freeze public seed, period,
+   elapsed bound, pilot limits, infrastructure-failure taxonomy and every
+   non-infrastructure stop from paper `main.tex:547–558`. `schedule.py:18` and
+   `precheck.py:59` implement mechanics only. `export.py:51` currently restricts
+   retry annotations to the current window; agree a cross-window reference
+   format before enabling those annotations. All earlier CSVs must be available
+   for inventory verification (`export.py:78`).
+
+6. **Cadence on the qualification chain:** the default 20-second elapsed bound per
+   block assumes OP Mainnet's 2-second blocks. Three sequential single-op
+   transactions on Sepolia (12-second blocks) cannot finish inside 20 s, so the
+   Sepolia qualification run needs its own frozen period/bound.
+
+The sole send entry point is `precheck.py:55` (`broadcast_disabled`), which always
+raises. There is no live sampler loop. No chain, keystore, environment credential
+file, or remote RPC was used to produce this draft.
