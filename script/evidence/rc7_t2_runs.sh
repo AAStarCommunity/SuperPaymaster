@@ -12,7 +12,7 @@ SUITES=(
   adversarial    "--match-path contracts/test/v2/SuperPaymasterV55Adversarial.t.sol"
   tuple480       "--match-path contracts/test/v2/SuperPaymasterTuple480.t.sol"
   token_v2       "--match-path contracts/test/v2/xPNTsTokenV2.t.sol"
-  invariants     "--match-path contracts/test/{invariant/*.invariant.t.sol,v2/xPNTsTokenV2Invariant.t.sol}"
+  invariants     "--match-path 'contracts/test/{invariant/*.invariant.t.sol,v2/xPNTsTokenV2Invariant.t.sol}'"
   g2_replay      "--match-path contracts/test/v2/SuperPaymasterV55Fuzz.t.sol --match-test test_G2_coverage_replay_fixed_seeds"
 )
 for evm in cancun prague; do
