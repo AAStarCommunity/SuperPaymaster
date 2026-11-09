@@ -61,7 +61,8 @@ function events(receipt, address, abi) {
     // our events but whose data/topics do not decode is malformed evidence.
     try { return [{ ...decodeEventLog({ abi, ...log, strict: true }), logIndex: log.logIndex }]; }
     catch (error) {
-      if (error?.name === 'AbiEventSignatureNotFoundError') return [];
+      // Another event of this contract, or an anonymous (LOG0, no topics) log: not ours, skipped.
+      if (error?.name === 'AbiEventSignatureNotFoundError' || error?.name === 'AbiEventSignatureEmptyTopicsError') return [];
       return decodeExternal(() => { throw error; }, 'malformed event log');
     }
   });
