@@ -1,0 +1,1156 @@
+{
+  "C1_cap_headroom": [
+    {
+      "new": "C1_cap_headroom_worksheet",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_worksheet",
+      "line": 1532
+    },
+    {
+      "new": "C1_cap_headroom_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2982
+    }
+  ],
+  "C1_minter": [
+    {
+      "new": "C1_minter_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1480
+    },
+    {
+      "new": "C1_minter_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2981
+    }
+  ],
+  "C2_operator_role": [
+    {
+      "new": "C2_operator_role_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1488
+    },
+    {
+      "new": "C2_operator_role_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2985
+    }
+  ],
+  "C3_community": [
+    {
+      "new": "C3_community_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1489
+    },
+    {
+      "new": "C3_community_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2992
+    }
+  ],
+  "C5_counterfactual": [
+    {
+      "new": "C5_counterfactual_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1497
+    },
+    {
+      "new": "C5_counterfactual_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2999
+    }
+  ],
+  "C6_gtoken_balance": [
+    {
+      "new": "C6_gtoken_balance_worksheet",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_worksheet",
+      "line": 1546
+    },
+    {
+      "new": "C6_gtoken_balance_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 3008
+    }
+  ],
+  "C7_enduser_active": [
+    {
+      "new": "C7_enduser_active_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1491
+    },
+    {
+      "new": "C7_enduser_active_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 3003
+    }
+  ],
+  "C_account_status": [
+    {
+      "new": "C_account_status_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1503
+    },
+    {
+      "new": "C_account_status_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 3006
+    }
+  ],
+  "C_control_slot": [
+    {
+      "new": "C_control_slot_cached_price",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "high_price",
+      "line": 3156
+    },
+    {
+      "new": "C_control_slot_allowance_used",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "exhaust",
+      "line": 3200
+    }
+  ],
+  "C_operator_before": [
+    {
+      "new": "C_operator_before_approve",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2989
+    },
+    {
+      "new": "C_operator_before_configure",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pre_send",
+      "line": 2997
+    }
+  ],
+  "C_price_bound": [
+    {
+      "new": "C_price_bound_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "phase_c_pin_gates",
+      "line": 1485
+    },
+    {
+      "new": "C_price_bound_exec",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "price_gate",
+      "line": 2950
+    }
+  ],
+  "a3a_gap_mined_before_pin": [
+    {
+      "new": "a3a_gap_mined_before_pin_replay",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "replay",
+      "line": 1886
+    },
+    {
+      "new": "a3a_gap_mined_before_pin_recording",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "recording",
+      "line": 1908
+    }
+  ],
+  "a3a_plan": [
+    {
+      "new": "a3a_plan_validate_external",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_external",
+      "line": 633
+    },
+    {
+      "new": "a3a_plan_nonce_expectations",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "nonce_expectations",
+      "line": 1818
+    },
+    {
+      "new": "a3a_plan_history_steps",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "history_steps",
+      "line": 1841
+    }
+  ],
+  "built_aggregator_version": [
+    {
+      "new": "built_aggregator_version_rebuild_commit",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "rebuild_commit",
+      "line": 707
+    },
+    {
+      "new": "built_aggregator_version_release_gate",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "release_gate",
+      "line": 741
+    }
+  ],
+  "evidence_scope_recomputed": [
+    {
+      "new": "evidence_scope_recomputed_validate_evidence_details",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 244
+    },
+    {
+      "new": "evidence_scope_recomputed_rebuild_commit",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "rebuild_commit",
+      "line": 698
+    }
+  ],
+  "evidence_slither_rederived": [
+    {
+      "new": "evidence_slither_rederived_reference_fields",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 257
+    },
+    {
+      "new": "evidence_slither_rederived_path_syntax",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 258
+    },
+    {
+      "new": "evidence_slither_rederived_path_containment",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 262
+    },
+    {
+      "new": "evidence_slither_rederived_path_resolution",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 265
+    },
+    {
+      "new": "evidence_slither_rederived_file",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 266
+    },
+    {
+      "new": "evidence_slither_rederived_success",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 268
+    },
+    {
+      "new": "evidence_slither_rederived_filename",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 273
+    },
+    {
+      "new": "evidence_slither_rederived_routing_error",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 276
+    },
+    {
+      "new": "evidence_slither_rederived_findings",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 277
+    }
+  ],
+  "evidence_unique_findings": [
+    {
+      "new": "evidence_unique_findings_in_scope",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 226
+    },
+    {
+      "new": "evidence_unique_findings_all_scope",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_evidence_details",
+      "line": 253
+    }
+  ],
+  "fixed_old_aggregator": [
+    {
+      "new": "fixed_old_aggregator_collect",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "collect",
+      "line": 1932
+    },
+    {
+      "new": "fixed_old_aggregator_build_plan",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "build_plan",
+      "line": 2133
+    }
+  ],
+  "fraud_token_fields": [
+    {
+      "new": "fraud_token_fields_mock",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "fraud_fixture",
+      "line": 473
+    },
+    {
+      "new": "fraud_token_fields_arm",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "fraud_fixture",
+      "line": 481
+    }
+  ],
+  "manifest_local_only": [
+    {
+      "new": "manifest_local_only_pre_send",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "pre_send",
+      "line": 3224
+    },
+    {
+      "new": "manifest_local_only_run_manifest",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "run_manifest",
+      "line": 3426
+    }
+  ],
+  "old_owner_calldata_bytes": [
+    {
+      "new": "old_owner_calldata_bytes_payload",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "inspect",
+      "line": 1560
+    },
+    {
+      "new": "old_owner_calldata_bytes_outer_tx",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "assert_manifest_calldata",
+      "line": 1592
+    }
+  ],
+  "old_owner_deployed_build": [
+    {
+      "new": "old_owner_deployed_build_launch",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "deployed_build",
+      "line": 933
+    },
+    {
+      "new": "old_owner_deployed_build_exit",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "deployed_build",
+      "line": 934
+    }
+  ],
+  "old_owner_evidence_present": [
+    {
+      "new": "old_owner_evidence_present_validate",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "validate",
+      "line": 886
+    },
+    {
+      "new": "old_owner_evidence_present_validate_deployed",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "validate_deployed",
+      "line": 1227
+    }
+  ],
+  "old_owner_factory_enumeration": [
+    {
+      "new": "old_owner_factory_enumeration_audit",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "audit",
+      "line": 805
+    },
+    {
+      "new": "old_owner_factory_enumeration_discover_targets",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "discover_targets",
+      "line": 957
+    }
+  ],
+  "old_timelock_approval_history": [
+    {
+      "new": "old_timelock_approval_history_creation",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "old_timelock_holds_nothing",
+      "line": 1183
+    },
+    {
+      "new": "old_timelock_approval_history_log",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "old_timelock_holds_nothing",
+      "line": 1189
+    }
+  ],
+  "old_timelock_replay": [
+    {
+      "new": "old_timelock_replay_reads",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "replay",
+      "line": 917
+    },
+    {
+      "new": "old_timelock_replay_owners",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_old_timelock",
+      "line": 923
+    }
+  ],
+  "phase_c_account_evidence": [
+    {
+      "new": "phase_c_account_evidence_fields",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1393
+    },
+    {
+      "new": "phase_c_account_evidence_bytes",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1395
+    }
+  ],
+  "phase_c_measurement": [
+    {
+      "new": "phase_c_measurement_arms",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1407
+    },
+    {
+      "new": "phase_c_measurement_owner",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1410
+    },
+    {
+      "new": "phase_c_measurement_maintenance",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1416
+    }
+  ],
+  "phase_c_rehearsal_evidence": [
+    {
+      "new": "phase_c_rehearsal_evidence_fields",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1398
+    },
+    {
+      "new": "phase_c_rehearsal_evidence_bytes",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_phase_c_inputs",
+      "line": 1400
+    }
+  ],
+  "prefix_boundary": [
+    {
+      "new": "prefix_boundary_phase_c",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "verify_prefix",
+      "line": 2093
+    },
+    {
+      "new": "prefix_boundary_prior_stage",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "verify_prefix",
+      "line": 2097
+    }
+  ],
+  "safe_gap_endpoints": [
+    {
+      "new": "safe_gap_endpoints_check_governance",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1699
+    },
+    {
+      "new": "safe_gap_endpoints_governance_evidence",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_evidence",
+      "line": 1774
+    }
+  ],
+  "safe_gap_gas_price": [
+    {
+      "new": "safe_gap_gas_price_governance_trace",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1632
+    },
+    {
+      "new": "safe_gap_gas_price_check_governance",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1737
+    }
+  ],
+  "safe_gap_gas_used": [
+    {
+      "new": "safe_gap_gas_used_governance_trace",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1631
+    },
+    {
+      "new": "safe_gap_gas_used_check_governance",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1736
+    }
+  ],
+  "safe_gap_hash": [
+    {
+      "new": "safe_gap_hash_governance_entries",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_entries",
+      "line": 1589
+    },
+    {
+      "new": "safe_gap_hash_check_governance",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1707
+    }
+  ],
+  "safe_gap_log_data": [
+    {
+      "new": "safe_gap_log_data_approval",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_logs",
+      "line": 1687
+    },
+    {
+      "new": "safe_gap_log_data_swap_tail",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_logs",
+      "line": 1689
+    },
+    {
+      "new": "safe_gap_log_data_swap_execution",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_logs",
+      "line": 1694
+    }
+  ],
+  "safe_gap_log_logIndex": [
+    {
+      "new": "safe_gap_log_logIndex_typed",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_logs",
+      "line": 1680
+    },
+    {
+      "new": "safe_gap_log_logIndex_sequence",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_logs",
+      "line": 1682
+    }
+  ],
+  "safe_gap_miner_balance": [
+    {
+      "new": "safe_gap_miner_balance_post",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1637
+    },
+    {
+      "new": "safe_gap_miner_balance_pre",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1639
+    },
+    {
+      "new": "safe_gap_miner_balance_delta",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1640
+    }
+  ],
+  "safe_gap_owner_eoa": [
+    {
+      "new": "safe_gap_owner_eoa_live",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1764
+    },
+    {
+      "new": "safe_gap_owner_eoa_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1765
+    }
+  ],
+  "safe_gap_pin_nonce": [
+    {
+      "new": "safe_gap_pin_nonce_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1758
+    },
+    {
+      "new": "safe_gap_pin_nonce_live",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1762
+    }
+  ],
+  "safe_gap_pin_owners": [
+    {
+      "new": "safe_gap_pin_owners_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1756
+    },
+    {
+      "new": "safe_gap_pin_owners_live",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1760
+    }
+  ],
+  "safe_gap_pin_threshold": [
+    {
+      "new": "safe_gap_pin_threshold_pin",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1757
+    },
+    {
+      "new": "safe_gap_pin_threshold_live",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1761
+    }
+  ],
+  "safe_gap_receipt_identity": [
+    {
+      "new": "safe_gap_receipt_identity_index",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1721
+    },
+    {
+      "new": "safe_gap_receipt_identity_fields",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1730
+    },
+    {
+      "new": "safe_gap_receipt_identity_receipt_index",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_governance",
+      "line": 1731
+    }
+  ],
+  "safe_gap_trace_storage": [
+    {
+      "new": "safe_gap_trace_storage_mapping",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1623
+    },
+    {
+      "new": "safe_gap_trace_storage_key",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1625
+    },
+    {
+      "new": "safe_gap_trace_storage_value",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_trace",
+      "line": 1626
+    }
+  ],
+  "stage_not_final": [
+    {
+      "new": "stage_not_final_save_artifact",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "save_artifact",
+      "line": 3628
+    },
+    {
+      "new": "stage_not_final_load_artifact",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "load_artifact",
+      "line": 3642
+    }
+  ],
+  "stake_not_unlocking": [
+    {
+      "new": "stake_not_unlocking_collect",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "collect",
+      "line": 1948
+    },
+    {
+      "new": "stake_not_unlocking_build_plan",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "build_plan",
+      "line": 2153
+    }
+  ],
+  "unexpected_proxy": [
+    {
+      "new": "unexpected_proxy_other",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "deployed_inventory",
+      "line": 1171
+    },
+    {
+      "new": "unexpected_proxy_beacon",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "deployed_inventory",
+      "line": 1173
+    }
+  ],
+  "verifier_commit": [
+    {
+      "new": "verifier_commit_verifier_artifact",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "verifier_artifact",
+      "line": 91
+    },
+    {
+      "new": "verifier_commit_validate_external",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_external",
+      "line": 641
+    }
+  ],
+  "a3a_mined_": [
+    {
+      "new": "a3a_mined_history_",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_nonce_history",
+      "line": 1873
+    },
+    {
+      "new": "a3a_mined_reconcile_",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "reconcile_nonces",
+      "line": 1899
+    }
+  ],
+  "safe_gap_log_transactionIndex": [
+    {
+      "new": "safe_gap_log_transactionIndex_typed",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "governance_logs",
+      "line": 1675
+    }
+  ],
+  "manifest_": [
+    {
+      "new": "manifest_plan_key_",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_plan",
+      "line": 2897,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    }
+  ],
+  "manifest_step_": [
+    {
+      "new": "manifest_step_key_",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_plan",
+      "line": 2910,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    }
+  ],
+  "manifest_tx_": [
+    {
+      "new": "manifest_tx_field_",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "validate_plan",
+      "line": 2913,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    }
+  ],
+  "readback_": [
+    {
+      "new": "readback_value_",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "check_predicate",
+      "line": 2841,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    }
+  ],
+  "old_owner_role_": [
+    {
+      "new": "old_owner_role_member_declared_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "check_target",
+      "line": 695,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_role_member_configured_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "audit",
+      "line": 784,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_role_member_configured_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "audit",
+      "line": 785,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    }
+  ],
+  "old_owner_role_admin_": [
+    {
+      "new": "old_owner_role_admin_declared_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "check_target",
+      "line": 699,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_role_admin_configured_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "audit",
+      "line": 787,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_role_admin_configured_",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 747,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": false
+    },
+    {
+      "new": "old_owner_role_admin_declared_",
+      "file": "script/upgrade/test_authority_checkpoints.py",
+      "function": "checkpoint",
+      "line": 35,
+      "disjointness_exception": false,
+      "reason": "Disjointness wins: migrate exact expected name/reference to the narrowed template namespace."
+    }
+  ],
+  "old_owner_event_role_": [
+    {
+      "new": "old_owner_event_role_member_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "check_target",
+      "line": 704,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_event_role_member_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "check_target",
+      "line": 703,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_event_role_member_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "role_control",
+      "line": 680,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_event_role_member_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "role_control",
+      "line": 674,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": false
+    }
+  ],
+  "old_owner_authority_": [
+    {
+      "new": "old_owner_authority_member_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "check_target",
+      "line": 710,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_authority_member_",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 743,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": false
+    }
+  ],
+  "old_owner_mapping_": [
+    {
+      "new": "old_owner_mapping_member_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "check_target",
+      "line": 714,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_mapping_member_",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 745,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": false
+    }
+  ],
+  "old_owner_allowance_": [
+    {
+      "new": "old_owner_allowance_pair_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "audit",
+      "line": 843,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_allowance_pair_",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "audit",
+      "line": 848,
+      "reason": "Narrow fixed prefix for disjoint dynamic namespaces; preserve old prefix."
+    },
+    {
+      "new": "old_owner_allowance_pair_",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 748,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": false
+    },
+    {
+      "new": "old_owner_allowance_pair_",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 752,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": false
+    }
+  ],
+  "readback_fraudProofVerifier()": [
+    {
+      "new": "readback_value_fraudProofVerifier()",
+      "file": "script/upgrade/manifest_exec.py",
+      "function": "b4_controls",
+      "line": 2799,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_mapping_xPNTsToken_autoApprovedSpenders": [
+    {
+      "new": "old_owner_mapping_member_xPNTsToken_autoApprovedSpenders",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "test_factory_only_token_and_operator_union",
+      "line": 776,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    },
+    {
+      "new": "old_owner_mapping_member_xPNTsToken_autoApprovedSpenders",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "test_factory_only_token_and_operator_union",
+      "line": 774,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    },
+    {
+      "new": "old_owner_mapping_member_xPNTsToken_autoApprovedSpenders",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "test_named_clones_storage_authority_controls",
+      "line": 1560,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins; migrate generated expected gate name."
+    }
+  ],
+  "old_owner_event_role_TimelockController": [
+    {
+      "new": "old_owner_event_role_member_TimelockController",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "test_optional_anvil_fork_role_grant",
+      "line": 711,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_role_TimelockController_PROPOSER_ROLE": [
+    {
+      "new": "old_owner_role_member_declared_TimelockController_PROPOSER_ROLE",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 734,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_authority_SuperPaymaster_pendingOwner": [
+    {
+      "new": "old_owner_authority_member_SuperPaymaster_pendingOwner",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 735,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_mapping_Registry_authorized": [
+    {
+      "new": "old_owner_mapping_member_Registry_authorized",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 736,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_role_admin_ROLE_COMMUNITY": [
+    {
+      "new": "old_owner_role_admin_declared_ROLE_COMMUNITY",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 740,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_event_role_Registry": [
+    {
+      "new": "old_owner_event_role_member_Registry",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "test_role_control_case_without_path_gate",
+      "line": 518,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "old_owner_role_Registry_": [
+    {
+      "new": "old_owner_role_member_configured_Registry_",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "mutations",
+      "line": 746,
+      "reason": "Disjointness wins: narrow the generating template namespace and migrate its exact expected names.",
+      "disjointness_exception": true
+    }
+  ],
+  "case['gate']": [
+    {
+      "new": "'old_owner_fork_case_' + case['gate']",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "fork_probe",
+      "line": 1510,
+      "kind": "prefix_expression",
+      "reason": "Disjointness wins: fork STOP definition must not reuse caller gate namespaces."
+    },
+    {
+      "new": "'old_owner_fork_case_' + case['gate']",
+      "file": "script/upgrade/old_owner_isolation.py",
+      "function": "fork_probe",
+      "line": 1512,
+      "kind": "prefix_expression",
+      "reason": "Disjointness wins: fork STOP definition must not reuse caller gate namespaces."
+    }
+  ],
+  "old_owner_mapping_xPNTsToken_approvedFacilitators": [
+    {
+      "new": "old_owner_mapping_member_xPNTsToken_approvedFacilitators",
+      "file": "script/upgrade/test_old_owner_isolation.py",
+      "function": "test_named_clones_storage_authority_controls",
+      "line": 1559,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins; migrate generated expected gate name."
+    }
+  ],
+  "manifest_tx_data": [
+    {
+      "new": "manifest_tx_field_data",
+      "file": "script/upgrade/test_manifest_exec.py",
+      "function": "test_unpause_outside_6d_refused",
+      "line": 1613,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate the exact expected name after narrowing manifest_tx_ to manifest_tx_field_."
+    },
+    {
+      "new": "manifest_tx_field_data",
+      "file": "script/upgrade/test_manifest_exec.py",
+      "function": "test_unpause_outside_6d_refused",
+      "line": 1615,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate the exact expected name after narrowing manifest_tx_ to manifest_tx_field_."
+    },
+    {
+      "new": "manifest_tx_field_data",
+      "file": "script/upgrade/test_manifest_phase_c.py",
+      "function": "test_reduced_n_or_amount_is_refused",
+      "line": 341,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate exact expected name/reference to the narrowed template namespace."
+    }
+  ],
+  "manifest_phaseC": [
+    {
+      "new": "manifest_plan_key_phaseC",
+      "file": "script/upgrade/test_manifest_phase_c.py",
+      "function": "test_reduced_n_or_amount_is_refused",
+      "line": 338,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate exact expected name/reference to the narrowed template namespace."
+    },
+    {
+      "new": "manifest_plan_key_phaseC",
+      "file": "script/upgrade/test_manifest_phase_c.py",
+      "function": "test_reduced_n_or_amount_is_refused",
+      "line": 339,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate exact expected name/reference to the narrowed template namespace."
+    }
+  ],
+  "manifest_tx_value": [
+    {
+      "new": "manifest_tx_field_value",
+      "file": "script/upgrade/test_manifest_phase_c.py",
+      "function": "test_reduced_n_or_amount_is_refused",
+      "line": 340,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate exact expected name/reference to the narrowed template namespace."
+    }
+  ],
+  "manifest_externalInputs": [
+    {
+      "new": "manifest_plan_key_externalInputs",
+      "file": "script/upgrade/test_execution_reads.py",
+      "function": "test_late_validation_uses_detached_expected",
+      "line": 126,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate exact expected name/reference to the narrowed template namespace."
+    }
+  ],
+  "old_owner_authority_Registry_": [
+    {
+      "new": "old_owner_authority_member_Registry_",
+      "file": "script/upgrade/test_authority_checkpoints.py",
+      "function": "checkpoint",
+      "line": 35,
+      "disjointness_exception": true,
+      "reason": "Disjointness wins: migrate Registry authority expected template."
+    }
+  ]
+}

@@ -1,0 +1,706 @@
+[
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "qty",
+    "line": 103,
+    "column": 17,
+    "gate": "rpc_result_qty_value",
+    "value": "value"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "keccak",
+    "line": 186,
+    "column": 11,
+    "gate": "rpc_result_keccak_keccak",
+    "value": "cast('keccak', data)"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "rpc_keccak",
+    "line": 211,
+    "column": 11,
+    "gate": "rpc_result_rpc_keccak_web3_sha3",
+    "value": "rpc('web3_sha3', [typed(data, HEXDATA, gate='rpc_result_rpc_keccak_data')])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "rpc_keccak",
+    "line": 211,
+    "column": 35,
+    "gate": "rpc_result_rpc_keccak_data",
+    "value": "data"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "verify_runtime",
+    "line": 334,
+    "column": 33,
+    "gate": "rpc_result_verify_runtime_artifactRuntime",
+    "value": "identity['artifactRuntime']"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "verify_runtime",
+    "line": 335,
+    "column": 31,
+    "gate": "rpc_result_verify_runtime_code",
+    "value": "code"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "calldata",
+    "line": 367,
+    "column": 11,
+    "gate": "rpc_result_calldata_calldata",
+    "value": "cast('calldata', signature, *args)"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "call",
+    "line": 371,
+    "column": 11,
+    "gate": "rpc_result_call_eth_call",
+    "value": "rpc('eth_call', [{'to': address, 'data': calldata(signature, *args)}, block])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "block_data",
+    "line": 394,
+    "column": 4,
+    "gate": "rpc_result_block_data_hash",
+    "value": "b.get('hash')"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "artifact_sources",
+    "line": 451,
+    "column": 41,
+    "gate": "rpc_result_artifact_sources_keccak256",
+    "value": "info.get('keccak256')"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "cbor_tail",
+    "line": 471,
+    "column": 24,
+    "gate": "rpc_result_cbor_tail_code",
+    "value": "code"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "rebuild_artifacts",
+    "line": 668,
+    "column": 33,
+    "gate": "rpc_result_rebuild_artifacts_object",
+    "value": "current[field]['object']"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "rebuild_artifacts",
+    "line": 669,
+    "column": 34,
+    "gate": "rpc_result_rebuild_artifacts_object_2",
+    "value": "fresh[field]['object']"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "safe_extensions",
+    "line": 711,
+    "column": 23,
+    "gate": "rpc_result_safe_extensions_eth_getStorageAt",
+    "value": "rpc('eth_getStorageAt', [SAFE, slot, block])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "preflight",
+    "line": 763,
+    "column": 37,
+    "gate": "rpc_result_preflight_eth_getCode",
+    "value": "rpc('eth_getCode', [a, block])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "receipt",
+    "line": 1123,
+    "column": 8,
+    "gate": "rpc_result_receipt_eth_sendTransaction",
+    "value": "rpc('eth_sendTransaction', [tx_rpc(tx, gas_cap=gas_cap)])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "roles_readback",
+    "line": 1196,
+    "column": 24,
+    "gate": "rpc_result_roles_readback_1",
+    "value": "topics[1]"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "roles_readback",
+    "line": 1196,
+    "column": 91,
+    "gate": "rpc_result_roles_readback_2",
+    "value": "topics[2]"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "roles_readback",
+    "line": 1201,
+    "column": 27,
+    "gate": "rpc_result_roles_readback_3",
+    "value": "topics[3]"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "validate_pin",
+    "line": 1322,
+    "column": 4,
+    "gate": "rpc_result_validate_pin_blockHash",
+    "value": "pin['blockHash']"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "validate_gaps",
+    "line": 1346,
+    "column": 31,
+    "gate": "rpc_result_validate_gaps_hash",
+    "value": "g['hash']"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "check_gaps",
+    "line": 1377,
+    "column": 48,
+    "gate": "rpc_result_check_gaps_eth_getCode",
+    "value": "remote('eth_getCode', [to, number])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "scheduled_eta",
+    "line": 1525,
+    "column": 30,
+    "gate": "rpc_result_scheduled_eta_data",
+    "value": "log['data']"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "pre_send",
+    "line": 1559,
+    "column": 11,
+    "gate": "rpc_result_pre_send_eth_getCode",
+    "value": "remote('eth_getCode', [target, 'latest'])"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "function": "require_deployed",
+    "line": 1728,
+    "column": 7,
+    "gate": "rpc_result_require_deployed_eth_getCode",
+    "value": "rpc('eth_getCode', [token, 'latest'])"
+  },
+  {
+    "file": "script/a3a/a3a_send.py",
+    "function": "local_keccak",
+    "line": 151,
+    "column": 11,
+    "gate": "rpc_result_local_keccak_value",
+    "value": "r.stdout.strip()"
+  },
+  {
+    "file": "script/a3a/a3a_send.py",
+    "function": "check_signed",
+    "line": 164,
+    "column": 11,
+    "gate": "rpc_result_check_signed_hash",
+    "value": "decoded.get('hash')"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_evidence_details",
+    "line": 293,
+    "column": 42,
+    "gate": "rpc_result_validate_evidence_details_value",
+    "value": "value"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "verifier_executable",
+    "line": 306,
+    "column": 24,
+    "gate": "rpc_result_verifier_executable_code",
+    "value": "code"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 457,
+    "column": 43,
+    "gate": "rpc_result_fraud_fixture_key",
+    "value": "f[key]"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 458,
+    "column": 51,
+    "gate": "rpc_result_fraud_fixture_key_2",
+    "value": "f[key]"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 464,
+    "column": 26,
+    "gate": "rpc_result_fraud_fixture_who",
+    "value": "who"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 472,
+    "column": 4,
+    "gate": "rpc_result_fraud_fixture_fraudProof",
+    "value": "f['fraudProof']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 474,
+    "column": 4,
+    "gate": "rpc_result_fraud_fixture_address",
+    "value": "f['mockToken']['address']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 482,
+    "column": 4,
+    "gate": "rpc_result_fraud_fixture_address_2",
+    "value": "token['address']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 484,
+    "column": 4,
+    "gate": "rpc_result_fraud_fixture_runtime",
+    "value": "token['runtime']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 510,
+    "column": 4,
+    "gate": "rpc_result_fraud_fixture_fraudProof_2",
+    "value": "n['N3']['fraudProof']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "fraud_fixture",
+    "line": 517,
+    "column": 4,
+    "gate": "rpc_result_fraud_fixture_domainDigest",
+    "value": "n['N4']['domainDigest']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 635,
+    "column": 8,
+    "gate": "rpc_result_validate_external_sid",
+    "value": "data['a3aPlan']['receipts'].get(sid)"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 643,
+    "column": 8,
+    "gate": "rpc_result_validate_external_key",
+    "value": "data[key]"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 650,
+    "column": 12,
+    "gate": "rpc_result_validate_external_validator",
+    "value": "p['validator']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 651,
+    "column": 12,
+    "gate": "rpc_result_validate_external_calldata",
+    "value": "p['calldata']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "validate_external",
+    "line": 664,
+    "column": 8,
+    "gate": "rpc_result_validate_external_who",
+    "value": "who"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "scan",
+    "line": 1110,
+    "column": 27,
+    "gate": "rpc_result_scan_blockNumber",
+    "value": "log.get('blockNumber')"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "call",
+    "line": 1151,
+    "column": 14,
+    "gate": "rpc_result_call_eth_call_2",
+    "value": "rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block])"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "old_timelock_holds_nothing",
+    "line": 1193,
+    "column": 44,
+    "gate": "rpc_result_old_timelock_holds_nothing_1",
+    "value": "topics[1]"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "build_plan",
+    "line": 2119,
+    "column": 4,
+    "gate": "rpc_result_build_plan_value",
+    "value": "'0x' + inputs['sha256']"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "build_plan",
+    "line": 2131,
+    "column": 8,
+    "gate": "rpc_result_build_plan_code",
+    "value": "code"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "call",
+    "line": 615,
+    "column": 14,
+    "gate": "rpc_result_call_eth_call_3",
+    "value": "rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block])"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "storage",
+    "line": 627,
+    "column": 14,
+    "gate": "rpc_result_storage_eth_getStorageAt",
+    "value": "rpc('eth_getStorageAt', [u.SAFE, slot, block])"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 763,
+    "column": 19,
+    "gate": "rpc_result_audit_1",
+    "value": "topics[1]"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 764,
+    "column": 21,
+    "gate": "rpc_result_audit_blockNumber",
+    "value": "log.get('blockNumber')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "audit",
+    "line": 769,
+    "column": 51,
+    "gate": "rpc_result_audit_blockHash",
+    "value": "log.get('blockHash')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "clone_implementation",
+    "line": 976,
+    "column": 11,
+    "gate": "rpc_result_clone_implementation_code",
+    "value": "code"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "verify_deployment_record",
+    "line": 1012,
+    "column": 4,
+    "gate": "rpc_result_verify_deployment_record_txHash",
+    "value": "ref['txHash']"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "runtime_parity",
+    "line": 1115,
+    "column": 31,
+    "gate": "rpc_result_runtime_parity_code",
+    "value": "code"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "runtime_parity",
+    "line": 1116,
+    "column": 33,
+    "gate": "rpc_result_runtime_parity_object",
+    "value": "deployed['object']"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "deployed_inventory",
+    "line": 1168,
+    "column": 19,
+    "gate": "rpc_result_deployed_inventory_eth_getCode",
+    "value": "rpc('eth_getCode', [target, block])"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "deployed_inventory",
+    "line": 1169,
+    "column": 38,
+    "gate": "rpc_result_deployed_inventory_eth_getStorageAt",
+    "value": "rpc('eth_getStorageAt', [target, IMPLEMENTATION_SLOT, block])"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "deployed_inventory",
+    "line": 1170,
+    "column": 30,
+    "gate": "rpc_result_deployed_inventory_eth_getStorageAt_2",
+    "value": "rpc('eth_getStorageAt', [target, BEACON_SLOT, block])"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "validate_deployed",
+    "line": 1241,
+    "column": 8,
+    "gate": "rpc_result_validate_deployed_identity",
+    "value": "identity"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "post_upgrade_check",
+    "line": 1250,
+    "column": 4,
+    "gate": "rpc_result_post_upgrade_check_stateBlock",
+    "value": "pin['stateBlock']"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "post_upgrade_check",
+    "line": 1255,
+    "column": 12,
+    "gate": "rpc_result_post_upgrade_check_target",
+    "value": "target"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "role_history",
+    "line": 1364,
+    "column": 48,
+    "gate": "rpc_result_role_history_data",
+    "value": "log.get('data')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "role_history",
+    "line": 1367,
+    "column": 12,
+    "gate": "rpc_result_role_history_topic",
+    "value": "topic"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "role_history",
+    "line": 1370,
+    "column": 23,
+    "gate": "rpc_result_role_history_blockNumber",
+    "value": "log.get('blockNumber')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "role_history",
+    "line": 1376,
+    "column": 8,
+    "gate": "rpc_result_role_history_transactionHash",
+    "value": "log.get('transactionHash')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "role_history",
+    "line": 1377,
+    "column": 8,
+    "gate": "rpc_result_role_history_transactionIndex",
+    "value": "log.get('transactionIndex')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "role_history",
+    "line": 1378,
+    "column": 8,
+    "gate": "rpc_result_role_history_logIndex",
+    "value": "log.get('logIndex')"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "fork_probe",
+    "line": 1493,
+    "column": 16,
+    "gate": "rpc_result_fork_probe_raw",
+    "value": "raw"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "fork_probe",
+    "line": 1500,
+    "column": 16,
+    "gate": "rpc_result_fork_probe_raw_2",
+    "value": "raw"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "inspect",
+    "line": 1558,
+    "column": 8,
+    "gate": "rpc_result_inspect_data",
+    "value": "data"
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "assert_manifest_calldata",
+    "line": 1591,
+    "column": 12,
+    "gate": "rpc_result_assert_manifest_calldata_data",
+    "value": "tx['data']"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "uints",
+    "line": 58,
+    "column": 4,
+    "gate": "rpc_result_uints_raw",
+    "value": "raw"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "code",
+    "line": 106,
+    "column": 11,
+    "gate": "rpc_result_code_eth_getCode",
+    "value": "rpc('eth_getCode', [target, block])"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "scan",
+    "line": 135,
+    "column": 24,
+    "gate": "rpc_result_scan_blockHash",
+    "value": "log['blockHash']"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "scan",
+    "line": 135,
+    "column": 95,
+    "gate": "rpc_result_scan_transactionHash",
+    "value": "log['transactionHash']"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "inventory",
+    "line": 150,
+    "column": 37,
+    "gate": "rpc_result_inventory_2",
+    "value": "log['topics'][2]"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "inventory",
+    "line": 164,
+    "column": 36,
+    "gate": "rpc_result_inventory_1",
+    "value": "log['topics'][1]"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "safe_state",
+    "line": 189,
+    "column": 12,
+    "gate": "rpc_result_safe_state_eth_getStorageAt",
+    "value": "rpc('eth_getStorageAt', [SAFE, GUARD_SLOT, block])"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "pending_operations",
+    "line": 207,
+    "column": 13,
+    "gate": "rpc_result_pending_operations_1",
+    "value": "topics[1]"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "initial_guardian",
+    "line": 309,
+    "column": 16,
+    "gate": "rpc_result_initial_guardian_eth_getStorageAt",
+    "value": "rpc('eth_getStorageAt', [SP, hex(int(entry['slot'])), block])"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "validate_gas",
+    "line": 468,
+    "column": 8,
+    "gate": "rpc_result_validate_gas_transactionHash",
+    "value": "witness['transactionHash']"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "admission_gas",
+    "line": 588,
+    "column": 25,
+    "gate": "rpc_result_admission_gas_data",
+    "value": "tx['data']"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "validate_pin",
+    "line": 730,
+    "column": 8,
+    "gate": "rpc_result_validate_pin_field",
+    "value": "pin[field]"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "validate_pin",
+    "line": 745,
+    "column": 8,
+    "gate": "rpc_result_validate_pin_who",
+    "value": "who"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "validate_pin",
+    "line": 755,
+    "column": 12,
+    "gate": "rpc_result_validate_pin_who_2",
+    "value": "who"
+  },
+  {
+    "file": "script/upgrade/sp_upgrade_exec.py",
+    "function": "validate_pin",
+    "line": 766,
+    "column": 8,
+    "gate": "rpc_result_validate_pin_who_3",
+    "value": "who"
+  }
+]

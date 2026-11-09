@@ -1,0 +1,2433 @@
+[
+  {
+    "file": "script/evidence/audit605_probes.py",
+    "line": 38,
+    "path": "script/evidence/audit605_probes.py.body[13].value.values[3].elts[2]",
+    "before": "'stake_not_unlocking'",
+    "after": "'stake_not_unlocking_collect'",
+    "ast_sha256": [
+      "834982c99dac104bbd12f8761e692b08e246e29479a3ebf6a15bec9fdceba025",
+      "0756c3c045f201323346371f504de5f27c67b7e5ba782816270b2c52bb895fac"
+    ],
+    "source_sha256": [
+      "a26cc9b0b4757899f174deed2cf30dbd9658f2507f374476cc85347fe80b21a4",
+      "230680475effa71bc34fde2282b40bbd349012513b4f20b9ce5f9acb2d7e4a1c"
+    ],
+    "classification": "y",
+    "reason": "Reviewed probe selector or expected-gate table; binds the renamed guard to its deletion control."
+  },
+  {
+    "file": "script/evidence/audit605_probes.py",
+    "line": 39,
+    "path": "script/evidence/audit605_probes.py.body[13].value.values[4].elts[0]",
+    "before": "'stake_not_unlocking'",
+    "after": "'stake_not_unlocking_build_plan'",
+    "ast_sha256": [
+      "834982c99dac104bbd12f8761e692b08e246e29479a3ebf6a15bec9fdceba025",
+      "53279ce3a16f384a1c89dd03fe5df82463e6dbab1367badf6af850c4c4576248"
+    ],
+    "source_sha256": [
+      "a26cc9b0b4757899f174deed2cf30dbd9658f2507f374476cc85347fe80b21a4",
+      "230680475effa71bc34fde2282b40bbd349012513b4f20b9ce5f9acb2d7e4a1c"
+    ],
+    "classification": "y",
+    "reason": "Reviewed probe selector or expected-gate table; binds the renamed guard to its deletion control."
+  },
+  {
+    "file": "script/evidence/enduser_mapping_probes.py",
+    "line": 148,
+    "path": "script/evidence/enduser_mapping_probes.py.body[22].body[15].value.elts[0].elts[1]",
+    "before": "\"    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\\n\"",
+    "after": "\"    a.need('old_owner_factory_enumeration_discover_targets',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\\n\"",
+    "ast_sha256": [
+      "396ef69d4220e0978620db8e9c35839de5a667dcd286f4e0bf20a3f724e032df",
+      "55448a44e843e193581d3e4959023b3f124d2a5c1e9c5ecfb65f955f31f0eb46"
+    ],
+    "source_sha256": [
+      "0a06553d5186ab10255dfa2251fb3b887d15f85572d2a244cea751ea4149e962",
+      "7ee87a6c9c28e295849a22ee1f50ffa0833d2bdaad055bc4bc12d089c0d3dd88"
+    ],
+    "classification": "y",
+    "reason": "Reviewed probe selector or expected-gate table; binds the renamed guard to its deletion control."
+  },
+  {
+    "file": "script/evidence/enduser_mapping_probes.py",
+    "line": 214,
+    "path": "script/evidence/enduser_mapping_probes.py.body[25].body[1].value.func.value.values[0]",
+    "before": "'old_owner_factory_enumeration'",
+    "after": "'old_owner_factory_enumeration_discover_targets'",
+    "ast_sha256": [
+      "1f13e58574ea66b97a93085bd4cb186977823656bc48607c39195c6188084249",
+      "7f6575e4ce56fa278992945d40c66484baf759a053848fd782d4d1efdffd36ba"
+    ],
+    "source_sha256": [
+      "0a06553d5186ab10255dfa2251fb3b887d15f85572d2a244cea751ea4149e962",
+      "7ee87a6c9c28e295849a22ee1f50ffa0833d2bdaad055bc4bc12d089c0d3dd88"
+    ],
+    "classification": "y",
+    "reason": "Reviewed probe selector or expected-gate table; binds the renamed guard to its deletion control."
+  },
+  {
+    "file": "script/evidence/enduser_mapping_probes.py",
+    "line": 215,
+    "path": "script/evidence/enduser_mapping_probes.py.body[25].body[1].value.func.value.values[1]",
+    "before": "'old_owner_factory_enumeration'",
+    "after": "'old_owner_factory_enumeration_discover_targets'",
+    "ast_sha256": [
+      "1f13e58574ea66b97a93085bd4cb186977823656bc48607c39195c6188084249",
+      "7f6575e4ce56fa278992945d40c66484baf759a053848fd782d4d1efdffd36ba"
+    ],
+    "source_sha256": [
+      "0a06553d5186ab10255dfa2251fb3b887d15f85572d2a244cea751ea4149e962",
+      "7ee87a6c9c28e295849a22ee1f50ffa0833d2bdaad055bc4bc12d089c0d3dd88"
+    ],
+    "classification": "y",
+    "reason": "Reviewed probe selector or expected-gate table; binds the renamed guard to its deletion control."
+  },
+  {
+    "file": "script/evidence/inventory_replay_probes.py",
+    "line": 19,
+    "path": "script/evidence/inventory_replay_probes.py.body[10].value.values[1].elts[0]",
+    "before": "\"    a.need('old_timelock_replay', actual['approvalOwners'], section['approvalOwners'])\\n\"",
+    "after": "\"    a.need('old_timelock_replay_owners', actual['approvalOwners'], section['approvalOwners'])\\n\"",
+    "ast_sha256": [
+      "d857debdf3c8852a05db5598befcb1bf35e42a30a78a16199d9773ac6e96bc27",
+      "1392a38dfd81b3bb099b75b91ff36c9a6a6a3dd59c0a83f82d1f2ff2c9acdaf2"
+    ],
+    "source_sha256": [
+      "1ec1cd61fd9a651f169e7d59ca2ea831c13147930e50faa24c3624fae97233a3",
+      "5dddb541afad5f50c51804f60d34cad001223ff38bf496836613d652f8670733"
+    ],
+    "classification": "y",
+    "reason": "Reviewed probe selector or expected-gate table; binds the renamed guard to its deletion control."
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "line": 2799,
+    "path": "script/upgrade/manifest_exec.py.body[190].body[2].body[1].body[9].handlers[0].body[1].value.args[2]",
+    "before": "'readback_fraudProofVerifier()'",
+    "after": "'readback_value_fraudProofVerifier()'",
+    "ast_sha256": [
+      "c8ed05dc9a46635f9e3a7d60fdc68e598d54bc2c53699a4a8d2ef7397a1ec7d1",
+      "8246f1fd30f59be3d76f68ff702e0b2173f6f97560b197a98420b5753156f2e9"
+    ],
+    "source_sha256": [
+      "8149af1249c14323c0342bb1699a2d95fc179543080dadbcb5ff566b830dd78b",
+      "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28"
+    ],
+    "classification": "y",
+    "reason": "Reviewed negative-control expected gate, consumed by the caught Gate comparison; no data lookup key changes."
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "line": 3158,
+    "path": "script/upgrade/manifest_exec.py.body[206].body[9].body[2].value.args[1]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_exec'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "bb6338de57dd390b35ca1d146e860f1f7ba6c75f14259a70cd23515d442dbcd3"
+    ],
+    "source_sha256": [
+      "8149af1249c14323c0342bb1699a2d95fc179543080dadbcb5ff566b830dd78b",
+      "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28"
+    ],
+    "classification": "y",
+    "reason": "Reviewed negative-control expected gate, consumed by the caught Gate comparison; no data lookup key changes."
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "line": 3166,
+    "path": "script/upgrade/manifest_exec.py.body[206].body[10].body[2].value.args[1]",
+    "before": "'C1_cap_headroom'",
+    "after": "'C1_cap_headroom_exec'",
+    "ast_sha256": [
+      "4e1256462e51c3fb3109c76cfdf5dbd2a4d951ea438bf1c6cf2d504da0e3621c",
+      "e51cdbe7595f3bf17e7acd82b5ce7f9d2340a83d6621ee14feb13cb532a67636"
+    ],
+    "source_sha256": [
+      "8149af1249c14323c0342bb1699a2d95fc179543080dadbcb5ff566b830dd78b",
+      "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28"
+    ],
+    "classification": "y",
+    "reason": "Reviewed negative-control expected gate, consumed by the caught Gate comparison; no data lookup key changes."
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "line": 3174,
+    "path": "script/upgrade/manifest_exec.py.body[206].body[12].body[2].value.args[1]",
+    "before": "'C7_enduser_active'",
+    "after": "'C7_enduser_active_exec'",
+    "ast_sha256": [
+      "7b90a259088e57352fd2020c67dd4652cd38d7295b04a6abaf1cde4654e77da7",
+      "88196aae87d7d55705e9a296b57aca86de900959b1632d523c2fa29574f6e6bf"
+    ],
+    "source_sha256": [
+      "8149af1249c14323c0342bb1699a2d95fc179543080dadbcb5ff566b830dd78b",
+      "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28"
+    ],
+    "classification": "y",
+    "reason": "Reviewed negative-control expected gate, consumed by the caught Gate comparison; no data lookup key changes."
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "line": 3175,
+    "path": "script/upgrade/manifest_exec.py.body[206].body[12].body[3].value.args[1]",
+    "before": "'C_account_status'",
+    "after": "'C_account_status_exec'",
+    "ast_sha256": [
+      "7cd8384264a5f9abded86b116fa29b5854123b969a714c9f7a2234f63c292eda",
+      "96fb593d03fd22aab909d1ccc22a93c09da7d5cc5cb1d723f0d50629545124be"
+    ],
+    "source_sha256": [
+      "8149af1249c14323c0342bb1699a2d95fc179543080dadbcb5ff566b830dd78b",
+      "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28"
+    ],
+    "classification": "y",
+    "reason": "Reviewed negative-control expected gate, consumed by the caught Gate comparison; no data lookup key changes."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 674,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[23].body[4].body[0].value.keywords[1].value.left",
+    "before": "'old_owner_event_role_'",
+    "after": "'old_owner_event_role_member_'",
+    "ast_sha256": [
+      "e7986a19c96a8b31d45f3f07d7a7efb43d1653b689ec23b0949b2ccb7c2fc2f0",
+      "4f5265764d0c895ace4160c2913ca78830351662b3b5cc922bcd7c72b234544a"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 680,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[23].body[8].value.args[2].left",
+    "before": "'old_owner_event_role_'",
+    "after": "'old_owner_event_role_member_'",
+    "ast_sha256": [
+      "e7986a19c96a8b31d45f3f07d7a7efb43d1653b689ec23b0949b2ccb7c2fc2f0",
+      "4f5265764d0c895ace4160c2913ca78830351662b3b5cc922bcd7c72b234544a"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 695,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[24].body[5].body[0].body[1].value.left.left.left",
+    "before": "'old_owner_role_'",
+    "after": "'old_owner_role_member_declared_'",
+    "ast_sha256": [
+      "16acbbfc7bea730e9803f7915d5f5444fa789e96d5e17506696fcb58478cc98e",
+      "90ea3517e74cb4dfece3f38d3660ed032d6582c950871ed0516f0c1e936bfa62"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 703,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[24].body[6].body[0].body[1].value.args[0].left",
+    "before": "'old_owner_event_role_'",
+    "after": "'old_owner_event_role_member_'",
+    "ast_sha256": [
+      "e7986a19c96a8b31d45f3f07d7a7efb43d1653b689ec23b0949b2ccb7c2fc2f0",
+      "4f5265764d0c895ace4160c2913ca78830351662b3b5cc922bcd7c72b234544a"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 710,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[24].body[7].body[1].value.left.left.left",
+    "before": "'old_owner_authority_'",
+    "after": "'old_owner_authority_member_'",
+    "ast_sha256": [
+      "7bfec580a43e0d172a4165a98e8384889c666292a3b2fc87a6c15b80653201c5",
+      "d3ab29e9c304663ea49d6ca584d8e3546953f5b72199564beba3b5a330de51f2"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 714,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[24].body[8].body[0].value.left.left.left",
+    "before": "'old_owner_mapping_'",
+    "after": "'old_owner_mapping_member_'",
+    "ast_sha256": [
+      "05f7d2dda835e721c4cfe74206bbce97fb20d3edbf66337da3bf6b430bd85f7d",
+      "d21762ad5bf55c73f2af6cfde10c544e300f290217727cbe01c5340a3c205594"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 784,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[34].body[12].body[1].value.args[0].left.left.left",
+    "before": "'old_owner_role_'",
+    "after": "'old_owner_role_member_configured_'",
+    "ast_sha256": [
+      "16acbbfc7bea730e9803f7915d5f5444fa789e96d5e17506696fcb58478cc98e",
+      "175be5defeeb554395f78d53836ac12f346bef0aa15d1a24c9d6887ffc6ea418"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 843,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[64].body[0].body[1].value.left.left.left",
+    "before": "'old_owner_allowance_'",
+    "after": "'old_owner_allowance_pair_'",
+    "ast_sha256": [
+      "3c5165d7bbc21318f98a7ffdd8e497fcfc0439914b8141296d06ec7b5a4fedf6",
+      "7078f227f31235e3480f66c2f73c93b487cf673abf21f2d1c56d20d9404b54c6"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 848,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[64].body[2].body[0].value.args[0].keywords[1].value.left.left.left",
+    "before": "'old_owner_allowance_'",
+    "after": "'old_owner_allowance_pair_'",
+    "ast_sha256": [
+      "3c5165d7bbc21318f98a7ffdd8e497fcfc0439914b8141296d06ec7b5a4fedf6",
+      "7078f227f31235e3480f66c2f73c93b487cf673abf21f2d1c56d20d9404b54c6"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 1512,
+    "path": "script/upgrade/old_owner_isolation.py.body[82].body[5].body[2].body[8].body[0].handlers[0].body[0].value.args[2]",
+    "before": "case['gate']",
+    "after": "'old_owner_fork_case_' + case['gate']",
+    "ast_sha256": [
+      "13b3f2d0fc48031331f4639715613faa940a41e5e26e2bae357c71d616f44458",
+      "793192142aee93de292a052d94b0f8ec73fe52cf5ac3a74c575235b6aeb4bec3"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 34,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[22].value.elts[0].elts[2]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_pin'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "b6d9e589eaa6be8adc4e083ab809a93469d9ea1fafacaae2f892ae6edcbcf8fa"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 35,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[22].value.elts[1].elts[2]",
+    "before": "'prefix_boundary'",
+    "after": "'prefix_boundary_phase_c'",
+    "ast_sha256": [
+      "859b482e828e6fa65dcc714f7cb2974634dd93f9d05b6444298f6747a248d762",
+      "4a6dc4d1dad15c37da87be34de270b3a70b8cb9d4e90df110859b45fd84291ec"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 45,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[22].value.elts[11].elts[2]",
+    "before": "'C_control_slot'",
+    "after": "'C_control_slot_cached_price'",
+    "ast_sha256": [
+      "e8278886eba10620fb6b0d2d26a73c492903e35f0096c75cdfdcc6db15eefa1e",
+      "753c42109bd1bc460041d6ac1c8943042034b6d85c5e11dc81240db1f220ad50"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 66,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[27].value.elts[0].elts[2]",
+    "before": "'old_timelock_approval_history'",
+    "after": "'old_timelock_approval_history_creation'",
+    "ast_sha256": [
+      "c7c7d37e8e378c3ae0410be124ffb5f3b6d7e6d592c52f87b7311a3b2c9eedde",
+      "76a02addc70df5b6cf13386fb5784218e2ef2e67220407ca11b42dd4790976f2"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 86,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[40].value.generators[0].iter.elts[0].elts[1]",
+    "before": "'old_timelock_replay'",
+    "after": "'old_timelock_replay_reads'",
+    "ast_sha256": [
+      "ac3ccea48dfc1d5c787204b2c1b5983cd3e04a8c2c79e68a69fb67ce49f91517",
+      "1ac5b790bf6e5ea3a590d93d72f25f08f49e4da075d5254c15eb3864e62c1b56"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 87,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[40].value.generators[0].iter.elts[1].elts[1]",
+    "before": "'old_timelock_replay'",
+    "after": "'old_timelock_replay_owners'",
+    "ast_sha256": [
+      "ac3ccea48dfc1d5c787204b2c1b5983cd3e04a8c2c79e68a69fb67ce49f91517",
+      "39e54916e1fdef8995db0d0e9616ef1d327343b8474f1ca285a238c4165a3d4c"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "line": 88,
+    "path": "script/upgrade/probe_phase_c_gates.py.body[40].value.generators[0].iter.elts[2].elts[1]",
+    "before": "'old_timelock_approval_history'",
+    "after": "'old_timelock_approval_history_log'",
+    "ast_sha256": [
+      "c7c7d37e8e378c3ae0410be124ffb5f3b6d7e6d592c52f87b7311a3b2c9eedde",
+      "887b8c4fb84a0ef48dfb3119d5ecd2a3abda0fac69996ecd0d1296c8ec0148d5"
+    ],
+    "source_sha256": [
+      "e935be5a62619203cac3414b96c7fbe7694ff1d0be6187f49ff9a353d7624757",
+      "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2"
+    ],
+    "classification": "y",
+    "reason": "Reviewed CASES expected-gate binding for the existing test method."
+  },
+  {
+    "file": "script/upgrade/test_authority_checkpoints.py",
+    "line": 35,
+    "path": "script/upgrade/test_authority_checkpoints.py.body[8].body[5].body[3].body[2].body[0].body[4].value.body.left",
+    "before": "'old_owner_role_admin_'",
+    "after": "'old_owner_role_admin_declared_'",
+    "ast_sha256": [
+      "955f2da987ff5241d3b0757a38cde5e32e2fd67cf3588805f2f6f94ef9a11139",
+      "276aa8bab037639239cca560d94fa8d8b2f854b5a08f288414654cdd853ec57f"
+    ],
+    "source_sha256": [
+      "02b348b10f148d690fb3b7c4bff0d9c7581593444c9ff622d40fc55ee66aab2d",
+      "525bec89676b39cf2242f2ca0c10404f84bca803a260284b0ec7f46b132ba8ee"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_authority_checkpoints.py",
+    "line": 35,
+    "path": "script/upgrade/test_authority_checkpoints.py.body[8].body[5].body[3].body[2].body[0].body[4].value.orelse.left",
+    "before": "'old_owner_authority_Registry_'",
+    "after": "'old_owner_authority_member_Registry_'",
+    "ast_sha256": [
+      "0f0dba4a44b89e980c16513f0ea8b8a8b14540416db08326c10fb69a57d3affd",
+      "6451b0d04231168830e1bd82f84b4e2fa4cecfd8a01a4ec4b38f660429621a62"
+    ],
+    "source_sha256": [
+      "02b348b10f148d690fb3b7c4bff0d9c7581593444c9ff622d40fc55ee66aab2d",
+      "525bec89676b39cf2242f2ca0c10404f84bca803a260284b0ec7f46b132ba8ee"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_execution_reads.py",
+    "line": 126,
+    "path": "script/upgrade/test_execution_reads.py.body[14].body[8].body[1].body[0].body[1].items[0].context_expr.args[1]",
+    "before": "'manifest_externalInputs'",
+    "after": "'manifest_plan_key_externalInputs'",
+    "ast_sha256": [
+      "bf870cf69b4dddd07559f04d90dd22827fee0ebbc6ad5c764ae4424ef443346d",
+      "67cd7c4ea202e7496a74966cfb8fa8eb9f3d3a873d2e15c7fb73cc669dec5f36"
+    ],
+    "source_sha256": [
+      "ebd9d9640f09c44ef9fa5d8c39a83fff50a148f56ecf91543608a1dea027f037",
+      "5f724661728828af3874b929b10bfe13c143701e214a172a2d12c8d6777da0ce"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 1034,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[8].body[18].value.func.value.values[1]",
+    "before": "'stage_not_final'",
+    "after": "'stage_not_final_load_artifact'",
+    "ast_sha256": [
+      "b4c609fe8d10052fbeb2041c3f9be525b113c0ba99e47d46cd6066d62929f610",
+      "3a42c46558bf7e3520c9f9c380512439cd6f17c8db6ebbcd960bcba0ac58729f"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 1613,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[56].body[4].items[0].context_expr.args[1]",
+    "before": "'manifest_tx_data'",
+    "after": "'manifest_tx_field_data'",
+    "ast_sha256": [
+      "65291573c199bdafface39b7e187545839c42ae30f7ade06461b414b8287da33",
+      "3df84e15f044672ff3c6e4d5df9c0b004715537148084451eeb20b341a284cf8"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 1615,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[56].body[5].value.args[1]",
+    "before": "'manifest_tx_data'",
+    "after": "'manifest_tx_field_data'",
+    "ast_sha256": [
+      "65291573c199bdafface39b7e187545839c42ae30f7ade06461b414b8287da33",
+      "3df84e15f044672ff3c6e4d5df9c0b004715537148084451eeb20b341a284cf8"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 2073,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[88].body[0].value.args[0]",
+    "before": "'old_timelock_replay'",
+    "after": "'old_timelock_replay_reads'",
+    "ast_sha256": [
+      "ac3ccea48dfc1d5c787204b2c1b5983cd3e04a8c2c79e68a69fb67ce49f91517",
+      "1ac5b790bf6e5ea3a590d93d72f25f08f49e4da075d5254c15eb3864e62c1b56"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 2076,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[89].body[0].value.args[0]",
+    "before": "'old_timelock_replay'",
+    "after": "'old_timelock_replay_owners'",
+    "ast_sha256": [
+      "ac3ccea48dfc1d5c787204b2c1b5983cd3e04a8c2c79e68a69fb67ce49f91517",
+      "39e54916e1fdef8995db0d0e9616ef1d327343b8474f1ca285a238c4165a3d4c"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 2638,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[139].body[1].body[0].items[0].context_expr.args[1]",
+    "before": "'built_aggregator_version'",
+    "after": "'built_aggregator_version_release_gate'",
+    "ast_sha256": [
+      "07720bf744a0141f1f686d1644a5d491128ba45b7db37410f8f15e533d9f3704",
+      "261e2e76f56b2973f6122830a794abbf240f752b91cb5b6f83df47c3f983c94b"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 2639,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[139].body[2].value.args[1]",
+    "before": "'built_aggregator_version'",
+    "after": "'built_aggregator_version_release_gate'",
+    "ast_sha256": [
+      "07720bf744a0141f1f686d1644a5d491128ba45b7db37410f8f15e533d9f3704",
+      "261e2e76f56b2973f6122830a794abbf240f752b91cb5b6f83df47c3f983c94b"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3204,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[184].body[0].body[0].body[0].body[10].items[0].context_expr.args[1]",
+    "before": "'evidence_slither_rederived'",
+    "after": "'evidence_slither_rederived_filename'",
+    "ast_sha256": [
+      "a3194312fc895642bf0abcf1d8f8fc9bb718889fb2e24780cbf3a763817e8443",
+      "fc806482230808000172850bec1c601d9785b2c115c55814efec7bd3492b220d"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3206,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[184].body[0].body[0].body[0].body[11].value.args[1]",
+    "before": "'evidence_slither_rederived'",
+    "after": "'evidence_slither_rederived_filename'",
+    "ast_sha256": [
+      "a3194312fc895642bf0abcf1d8f8fc9bb718889fb2e24780cbf3a763817e8443",
+      "fc806482230808000172850bec1c601d9785b2c115c55814efec7bd3492b220d"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3219,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[185].body[0].body[0].body[7].body[0].items[0].context_expr.args[1]",
+    "before": "'evidence_slither_rederived'",
+    "after": "'evidence_slither_rederived_path_containment'",
+    "ast_sha256": [
+      "a3194312fc895642bf0abcf1d8f8fc9bb718889fb2e24780cbf3a763817e8443",
+      "93b850f86311616408a2fbcd83e0acb160a0a036a5e9ba836f424c77220df442"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3221,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[185].body[0].body[0].body[7].body[1].value.args[1]",
+    "before": "'evidence_slither_rederived'",
+    "after": "'evidence_slither_rederived_path_containment'",
+    "ast_sha256": [
+      "a3194312fc895642bf0abcf1d8f8fc9bb718889fb2e24780cbf3a763817e8443",
+      "93b850f86311616408a2fbcd83e0acb160a0a036a5e9ba836f424c77220df442"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3242,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[187].body[3].items[0].context_expr.args[1]",
+    "before": "'evidence_scope_recomputed'",
+    "after": "'evidence_scope_recomputed_validate_evidence_details'",
+    "ast_sha256": [
+      "0194bde97acf05f5c0e1d937bad51c2950e441aee71aafb4628253aab655a025",
+      "b02192f4d211bb96f078266db26de7c0da59db292a81b15579a9d0cb47cdbe23"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3244,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[187].body[4].value.args[1]",
+    "before": "'evidence_scope_recomputed'",
+    "after": "'evidence_scope_recomputed_validate_evidence_details'",
+    "ast_sha256": [
+      "0194bde97acf05f5c0e1d937bad51c2950e441aee71aafb4628253aab655a025",
+      "b02192f4d211bb96f078266db26de7c0da59db292a81b15579a9d0cb47cdbe23"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3259,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[188].body[3].items[0].context_expr.args[1]",
+    "before": "'evidence_scope_recomputed'",
+    "after": "'evidence_scope_recomputed_validate_evidence_details'",
+    "ast_sha256": [
+      "0194bde97acf05f5c0e1d937bad51c2950e441aee71aafb4628253aab655a025",
+      "b02192f4d211bb96f078266db26de7c0da59db292a81b15579a9d0cb47cdbe23"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3261,
+    "path": "script/upgrade/test_manifest_exec.py.body[65].body[188].body[4].value.args[1]",
+    "before": "'evidence_scope_recomputed'",
+    "after": "'evidence_scope_recomputed_validate_evidence_details'",
+    "ast_sha256": [
+      "0194bde97acf05f5c0e1d937bad51c2950e441aee71aafb4628253aab655a025",
+      "b02192f4d211bb96f078266db26de7c0da59db292a81b15579a9d0cb47cdbe23"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3542,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[8].body[1].value.args[0]",
+    "before": "'safe_gap_receipt_identity'",
+    "after": "'safe_gap_receipt_identity_fields'",
+    "ast_sha256": [
+      "45e97263d524a6a249a0ce736b91618550f7d8bd5390029855d9e3e81da138f7",
+      "3f325b86eacde46955b2b64675f25c297b22c801d39a1574eb1061541c5df4fa"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3548,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[9].body[0].value.elts[4].elts[1]",
+    "before": "'safe_gap_trace_storage'",
+    "after": "'safe_gap_trace_storage_mapping'",
+    "ast_sha256": [
+      "8639afc3856b09d46e7b7b6ca5fe6d374e365ef8abc83948c75ffc6030b391c2",
+      "09c097624848aa13148b6f2f5013d1c5e9eb464ee8026653a2c2831c6da03cba"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3548,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[9].body[0].value.elts[5].elts[1]",
+    "before": "'safe_gap_trace_storage'",
+    "after": "'safe_gap_trace_storage_key'",
+    "ast_sha256": [
+      "8639afc3856b09d46e7b7b6ca5fe6d374e365ef8abc83948c75ffc6030b391c2",
+      "9ed7e636261146470f1a4e8516b00e209faeb2652e7cd35f6b6827c0dd3da08a"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3549,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[9].body[0].value.elts[6].elts[1]",
+    "before": "'safe_gap_trace_storage'",
+    "after": "'safe_gap_trace_storage_value'",
+    "ast_sha256": [
+      "8639afc3856b09d46e7b7b6ca5fe6d374e365ef8abc83948c75ffc6030b391c2",
+      "c180d417aaacb59b167a739834616f460efaa208d1ad952f8ac377c1e39996d8"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3551,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[9].body[0].value.elts[9].elts[1]",
+    "before": "'safe_gap_miner_balance'",
+    "after": "'safe_gap_miner_balance_post'",
+    "ast_sha256": [
+      "93161ef27755de197e6a98722ce52076ce201da4119f65d421413c90e094e0b3",
+      "d6d03142f13205d5099b21902ec32547731fe1c3b90d5a3104a6e34dc56ef992"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3551,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[9].body[0].value.elts[10].elts[1]",
+    "before": "'safe_gap_miner_balance'",
+    "after": "'safe_gap_miner_balance_delta'",
+    "ast_sha256": [
+      "93161ef27755de197e6a98722ce52076ce201da4119f65d421413c90e094e0b3",
+      "8a66ec34b1877729279e16c0cfebf4fc825c3c8f3241b44f27a96213924added"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3552,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[9].body[0].value.elts[11].elts[1]",
+    "before": "'safe_gap_miner_balance'",
+    "after": "'safe_gap_miner_balance_delta'",
+    "ast_sha256": [
+      "93161ef27755de197e6a98722ce52076ce201da4119f65d421413c90e094e0b3",
+      "8a66ec34b1877729279e16c0cfebf4fc825c3c8f3241b44f27a96213924added"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3624,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[17].body[0].value.args[0]",
+    "before": "'safe_gap_pin_owners'",
+    "after": "'safe_gap_pin_owners_pin'",
+    "ast_sha256": [
+      "34c762705b6144a60e2445a230f4799c8c2522e34ee2143f90713b812ffb8035",
+      "c7c9df860e24c046ecc6142816f5e93a9784dec7f0305277e78b882b274a1815"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3626,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[17].body[2].value.args[0]",
+    "before": "'safe_gap_owner_eoa'",
+    "after": "'safe_gap_owner_eoa_pin'",
+    "ast_sha256": [
+      "d2174a31956445fc46e7be2f94b25065a271bde941f4f4cea76a3ba648fd9eab",
+      "9927b8e675e64cacf0bdc84ce776861affdc50da153ad1404baf07b1127d858f"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3628,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[17].body[4].value.args[0]",
+    "before": "'safe_gap_pin_nonce'",
+    "after": "'safe_gap_pin_nonce_pin'",
+    "ast_sha256": [
+      "701949303a7628961ab561ad0cbceef0af16a922ae97c666dca87579081c0ba4",
+      "fba454d042719c9c3c9e69ff95695e76ae64c28aa3d4459d30416207d0d2d644"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3630,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[17].body[6].value.args[0]",
+    "before": "'safe_gap_pin_threshold'",
+    "after": "'safe_gap_pin_threshold_pin'",
+    "ast_sha256": [
+      "4523fbaaedb9a3cab938221800f73bc5ebe32ae61b4760415bcad8aa64b08493",
+      "9e53155d832db432b8d349af41acc1b61deae7ef9f9ea78c300a6084e3d880ff"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3638,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[18].body[3].items[0].context_expr.args[1]",
+    "before": "'safe_gap_owner_eoa'",
+    "after": "'safe_gap_owner_eoa_live'",
+    "ast_sha256": [
+      "d2174a31956445fc46e7be2f94b25065a271bde941f4f4cea76a3ba648fd9eab",
+      "a2d23c1f29992c6182cf4a72176cc57f0e846063a33ab00615e956d25c84d873"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3640,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[18].body[4].value.args[1]",
+    "before": "'safe_gap_owner_eoa'",
+    "after": "'safe_gap_owner_eoa_live'",
+    "ast_sha256": [
+      "d2174a31956445fc46e7be2f94b25065a271bde941f4f4cea76a3ba648fd9eab",
+      "a2d23c1f29992c6182cf4a72176cc57f0e846063a33ab00615e956d25c84d873"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3664,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[21].body[0].body[0].body[0].body[2].value.args[0]",
+    "before": "'safe_gap_miner_balance'",
+    "after": "'safe_gap_miner_balance_delta'",
+    "ast_sha256": [
+      "93161ef27755de197e6a98722ce52076ce201da4119f65d421413c90e094e0b3",
+      "8a66ec34b1877729279e16c0cfebf4fc825c3c8f3241b44f27a96213924added"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3709,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[26].body[0].body[0].body[6].value.args[0]",
+    "before": "'safe_gap_miner_balance'",
+    "after": "'safe_gap_miner_balance_delta'",
+    "ast_sha256": [
+      "93161ef27755de197e6a98722ce52076ce201da4119f65d421413c90e094e0b3",
+      "8a66ec34b1877729279e16c0cfebf4fc825c3c8f3241b44f27a96213924added"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3815,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[34].body[0].iter.elts[0].elts[4]",
+    "before": "'safe_gap_log_data'",
+    "after": "'safe_gap_log_data_approval'",
+    "ast_sha256": [
+      "58351427ddb0970812aa9770180676b8c0e276a58791133d5323b708f7cb8409",
+      "64962058e0fa6cdc8fbcdce786e702c4d870aa167db7ee9411389af5cd236fe1"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3816,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[34].body[0].iter.elts[1].elts[4]",
+    "before": "'safe_gap_log_data'",
+    "after": "'safe_gap_log_data_swap_execution'",
+    "ast_sha256": [
+      "58351427ddb0970812aa9770180676b8c0e276a58791133d5323b708f7cb8409",
+      "ed8fce642d4d6f7d2701a1a5c18cebaae27a408352674ba7cf4cbbcdc940df71"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3817,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[34].body[0].iter.elts[2].elts[4]",
+    "before": "'safe_gap_log_data'",
+    "after": "'safe_gap_log_data_swap_tail'",
+    "ast_sha256": [
+      "58351427ddb0970812aa9770180676b8c0e276a58791133d5323b708f7cb8409",
+      "4153120c663b50d7644769c63ebed2a239d9d0ada8b3b16a3fc9d7d51b0839bf"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3836,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[36].body[0].body[0].iter.elts[0].elts[1]",
+    "before": "'safe_gap_pin_owners'",
+    "after": "'safe_gap_pin_owners_live'",
+    "ast_sha256": [
+      "34c762705b6144a60e2445a230f4799c8c2522e34ee2143f90713b812ffb8035",
+      "18a8c16d52de9ec4fd54d5c52a869449970c583a0cbe2d2d08088ccc16ad7078"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3836,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[36].body[0].body[0].iter.elts[1].elts[1]",
+    "before": "'safe_gap_pin_threshold'",
+    "after": "'safe_gap_pin_threshold_live'",
+    "ast_sha256": [
+      "4523fbaaedb9a3cab938221800f73bc5ebe32ae61b4760415bcad8aa64b08493",
+      "87251ed3157b76bb011b47cd632cdb322fabdc49edbf45e40cdffbc0375a305b"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3837,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[36].body[0].body[0].iter.elts[2].elts[1]",
+    "before": "'safe_gap_pin_nonce'",
+    "after": "'safe_gap_pin_nonce_live'",
+    "ast_sha256": [
+      "701949303a7628961ab561ad0cbceef0af16a922ae97c666dca87579081c0ba4",
+      "f1f5b1ea197eb6fa29854f9bf608bb686f3c971a5cb8656b37e3a10b4bbe2b9d"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3837,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[36].body[0].body[0].iter.elts[3].elts[1]",
+    "before": "'safe_gap_owner_eoa'",
+    "after": "'safe_gap_owner_eoa_live'",
+    "ast_sha256": [
+      "d2174a31956445fc46e7be2f94b25065a271bde941f4f4cea76a3ba648fd9eab",
+      "a2d23c1f29992c6182cf4a72176cc57f0e846063a33ab00615e956d25c84d873"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3850,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[37].body[0].iter.elts[0].elts[3]",
+    "before": "'safe_gap_hash'",
+    "after": "'safe_gap_hash_check_governance'",
+    "ast_sha256": [
+      "c8c9112260857ecac1f07f0447e84ef0fc967dfba503e807f14f6b80992491b5",
+      "bc18cc7cbd24202fb6602b6c9d795d77af0224dc020e8e34eefe1d7c9a7b2346"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3853,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[37].body[0].iter.elts[3].elts[3]",
+    "before": "'safe_gap_gas_used'",
+    "after": "'safe_gap_gas_used_check_governance'",
+    "ast_sha256": [
+      "44ecd17bb78d175702efbdfe826f3f1c388177659027739262dc44f6bfd24267",
+      "a3d5d417098f99aa3fe4fcc0f8ffaa6a4e66c2b5d8e3a9523c52376f43f5633b"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3854,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[37].body[0].iter.elts[4].elts[3]",
+    "before": "'safe_gap_gas_price'",
+    "after": "'safe_gap_gas_price_check_governance'",
+    "ast_sha256": [
+      "7785235df122e3f44256b1dfdc7a0942da9d661f15839ebe4f2c88c5943d7d23",
+      "37c7f42d2ff142fbd668902d9ba83d1a5b3f429e6db24420d40dcbe203909dca"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3906,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[40].body[0].body[0].items[0].context_expr.args[1]",
+    "before": "'safe_gap_endpoints'",
+    "after": "'safe_gap_endpoints_governance_evidence'",
+    "ast_sha256": [
+      "46ae4cff03c1f845b6543f1cc98ec2f934cb400cb544766b907755c13bf0a301",
+      "0d7f940d768eb6446fe62d270d27aa30f714f98c557ec36b5a9593570dc87baf"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 3908,
+    "path": "script/upgrade/test_manifest_exec.py.body[67].body[40].body[1].value.args[1]",
+    "before": "'safe_gap_endpoints'",
+    "after": "'safe_gap_endpoints_governance_evidence'",
+    "ast_sha256": [
+      "46ae4cff03c1f845b6543f1cc98ec2f934cb400cb544766b907755c13bf0a301",
+      "0d7f940d768eb6446fe62d270d27aa30f714f98c557ec36b5a9593570dc87baf"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 4635,
+    "path": "script/upgrade/test_manifest_exec.py.body[76].body[0].body[1].value.args[0]",
+    "before": "'stake_not_unlocking'",
+    "after": "'stake_not_unlocking_build_plan'",
+    "ast_sha256": [
+      "834982c99dac104bbd12f8761e692b08e246e29479a3ebf6a15bec9fdceba025",
+      "53279ce3a16f384a1c89dd03fe5df82463e6dbab1367badf6af850c4c4576248"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 4651,
+    "path": "script/upgrade/test_manifest_exec.py.body[77].body[1].body[2].body[1].body[0].value.right.args[0].generators[0].iter.elts[4].args[0].comparators[0]",
+    "before": "'stake_not_unlocking'",
+    "after": "'stake_not_unlocking_collect'",
+    "ast_sha256": [
+      "834982c99dac104bbd12f8761e692b08e246e29479a3ebf6a15bec9fdceba025",
+      "0756c3c045f201323346371f504de5f27c67b7e5ba782816270b2c52bb895fac"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 4676,
+    "path": "script/upgrade/test_manifest_exec.py.body[77].body[4].body[0].value.args[0]",
+    "before": "'stake_not_unlocking'",
+    "after": "'stake_not_unlocking_collect'",
+    "ast_sha256": [
+      "834982c99dac104bbd12f8761e692b08e246e29479a3ebf6a15bec9fdceba025",
+      "0756c3c045f201323346371f504de5f27c67b7e5ba782816270b2c52bb895fac"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "line": 5119,
+    "path": "script/upgrade/test_manifest_exec.py.body[80].body[31].body[3].value.args[0]",
+    "before": "'old_owner_factory_enumeration'",
+    "after": "'old_owner_factory_enumeration_discover_targets'",
+    "ast_sha256": [
+      "1f13e58574ea66b97a93085bd4cb186977823656bc48607c39195c6188084249",
+      "7f6575e4ce56fa278992945d40c66484baf759a053848fd782d4d1efdffd36ba"
+    ],
+    "source_sha256": [
+      "30bb2a524248af8c5279c58f12a96091f216d828b09614881373a9c9132d23d4",
+      "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 315,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[8].body[2].value.args[0]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_pin'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "b6d9e589eaa6be8adc4e083ab809a93469d9ea1fafacaae2f892ae6edcbcf8fa"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 338,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[10].body[0].iter.elts[0].elts[0]",
+    "before": "'manifest_phaseC'",
+    "after": "'manifest_plan_key_phaseC'",
+    "ast_sha256": [
+      "7f0594d8f1cb367743a4823fc9e83d50b210aa360e55c75b6add12ff758e0357",
+      "b62369cb401dd42ce08be884ff3eb680ac7dd0c6a824028f8fa2431b459f9f9e"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 339,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[10].body[0].iter.elts[1].elts[0]",
+    "before": "'manifest_phaseC'",
+    "after": "'manifest_plan_key_phaseC'",
+    "ast_sha256": [
+      "7f0594d8f1cb367743a4823fc9e83d50b210aa360e55c75b6add12ff758e0357",
+      "b62369cb401dd42ce08be884ff3eb680ac7dd0c6a824028f8fa2431b459f9f9e"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 340,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[10].body[0].iter.elts[2].elts[0]",
+    "before": "'manifest_tx_value'",
+    "after": "'manifest_tx_field_value'",
+    "ast_sha256": [
+      "819d1142b65b3bdc154ce770fd90da3ab1effdcfd34ef4560e73860be5480056",
+      "9ac7c0384a4b0e8e9463dcee46bc94558ef8e77ec0f5f42aa5739588d0415493"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 341,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[10].body[0].iter.elts[3].elts[0]",
+    "before": "'manifest_tx_data'",
+    "after": "'manifest_tx_field_data'",
+    "ast_sha256": [
+      "65291573c199bdafface39b7e187545839c42ae30f7ade06461b414b8287da33",
+      "3df84e15f044672ff3c6e4d5df9c0b004715537148084451eeb20b341a284cf8"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 388,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[13].body[7].value.args[0]",
+    "before": "'prefix_boundary'",
+    "after": "'prefix_boundary_phase_c'",
+    "ast_sha256": [
+      "859b482e828e6fa65dcc714f7cb2974634dd93f9d05b6444298f6747a248d762",
+      "4a6dc4d1dad15c37da87be34de270b3a70b8cb9d4e90df110859b45fd84291ec"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 392,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[13].body[11].value.args[0]",
+    "before": "'prefix_boundary'",
+    "after": "'prefix_boundary_phase_c'",
+    "ast_sha256": [
+      "859b482e828e6fa65dcc714f7cb2974634dd93f9d05b6444298f6747a248d762",
+      "4a6dc4d1dad15c37da87be34de270b3a70b8cb9d4e90df110859b45fd84291ec"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 405,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[18].body[14].body[6].value.args[0]",
+    "before": "'stage_not_final'",
+    "after": "'stage_not_final_save_artifact'",
+    "ast_sha256": [
+      "b4c609fe8d10052fbeb2041c3f9be525b113c0ba99e47d46cd6066d62929f610",
+      "f754521dc89df224b5e87a5c0c12157a57d62eacbbc1f7192c819825ff754685"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 559,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[7]",
+    "before": "'phase_c_account_evidence'",
+    "after": "'phase_c_account_evidence_bytes'",
+    "ast_sha256": [
+      "acd947e556144a582e9bbd75554b52b44ed5061ce6f052df78dbbb065607ad62",
+      "a637311b8712ac40727df0bb3c246dc62d99b184d2d3900565d2706915825e10"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 565,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[13]",
+    "before": "'phase_c_measurement'",
+    "after": "'phase_c_measurement_arms'",
+    "ast_sha256": [
+      "80cb447e43bfcb276e6437f29746e8e5b9eb88b046fb6c13c58108166fe2fca2",
+      "935b18acd272ae60512deb87c97893422de02f422dd0c3a9fff6633782c01ee3"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 579,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[26]",
+    "before": "'C1_minter'",
+    "after": "'C1_minter_pin'",
+    "ast_sha256": [
+      "bd31aaf286f6e7ad37dce64494468cf65e2c24239971a39a7a90b842db9ec0dd",
+      "4d71ddc9618a632bf5d1cae631ca281a834601a4589a8cba13a74496a02bd9ee"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 581,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[28]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_pin'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "b6d9e589eaa6be8adc4e083ab809a93469d9ea1fafacaae2f892ae6edcbcf8fa"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 584,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[31]",
+    "before": "'C2_operator_role'",
+    "after": "'C2_operator_role_pin'",
+    "ast_sha256": [
+      "51c8919b204b806662479ef8a3987603e446ca51b19736dcc13b798f931fed1b",
+      "2f6cd31a894641102f8b8d3552600f1f15e6f203a8c335166d2f8bd6385868e4"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 585,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[32]",
+    "before": "'C3_community'",
+    "after": "'C3_community_pin'",
+    "ast_sha256": [
+      "3332063c9524a59ea649f1fa18dfca903f4c467894dea2394cd3b660951bc089",
+      "52162fe62990cc1f09877efb722b492d2dc8a287b218bd0aa74b6b649c99d635"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 586,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[33]",
+    "before": "'C7_enduser_active'",
+    "after": "'C7_enduser_active_pin'",
+    "ast_sha256": [
+      "7b90a259088e57352fd2020c67dd4652cd38d7295b04a6abaf1cde4654e77da7",
+      "4262571676f08dd6c928be680903bab733dbb0fa66da5a87880ce9b716a4badf"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 591,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[38]",
+    "before": "'C5_counterfactual'",
+    "after": "'C5_counterfactual_pin'",
+    "ast_sha256": [
+      "ccc8ebb221b703bf01ef2f56cc672cc2cfcbbdc8be906cdc7896dd744c2620f5",
+      "bbf765d40925f5cac45fb00bd6f910c9401fab0bc75e18ba5ae3ed22be08dc26"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 593,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[40]",
+    "before": "'C_account_status'",
+    "after": "'C_account_status_pin'",
+    "ast_sha256": [
+      "7cd8384264a5f9abded86b116fa29b5854123b969a714c9f7a2234f63c292eda",
+      "1b3138a67ad17034cddd0bd77ec73d3e8f0881655ba423c5838575642061353b"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 594,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[41]",
+    "before": "'C1_cap_headroom'",
+    "after": "'C1_cap_headroom_worksheet'",
+    "ast_sha256": [
+      "4e1256462e51c3fb3109c76cfdf5dbd2a4d951ea438bf1c6cf2d504da0e3621c",
+      "8e63c88362d70cb8414c33320ee91cd03a690aa16d66b88cee66f6c23471e211"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 595,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[24].value.keys[42]",
+    "before": "'C6_gtoken_balance'",
+    "after": "'C6_gtoken_balance_worksheet'",
+    "ast_sha256": [
+      "a70c66845c6d229ca4e232204aec75556cc4859055b4e2ef0ae86dcdab57d276",
+      "3b24a0d469671a4f8a916ad3f7667bf1bf968b86d6eee4c8dce36bf7f6940ca1"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 660,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[8]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_exec'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "bb6338de57dd390b35ca1d146e860f1f7ba6c75f14259a70cd23515d442dbcd3"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 662,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[10]",
+    "before": "'C1_minter'",
+    "after": "'C1_minter_exec'",
+    "ast_sha256": [
+      "bd31aaf286f6e7ad37dce64494468cf65e2c24239971a39a7a90b842db9ec0dd",
+      "d480a081a3c3318a19751ee1314123b4e306c67da1bd603770d282ee234c820a"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 663,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[11]",
+    "before": "'C1_cap_headroom'",
+    "after": "'C1_cap_headroom_exec'",
+    "ast_sha256": [
+      "4e1256462e51c3fb3109c76cfdf5dbd2a4d951ea438bf1c6cf2d504da0e3621c",
+      "e51cdbe7595f3bf17e7acd82b5ce7f9d2340a83d6621ee14feb13cb532a67636"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 665,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[13]",
+    "before": "'C2_operator_role'",
+    "after": "'C2_operator_role_exec'",
+    "ast_sha256": [
+      "51c8919b204b806662479ef8a3987603e446ca51b19736dcc13b798f931fed1b",
+      "61dc950ddb75407d0001bd301f262326403f3e7fb4a48c6036bf60aa3591b3e1"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 668,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[15]",
+    "before": "'C_operator_before'",
+    "after": "'C_operator_before_configure'",
+    "ast_sha256": [
+      "a3e5b45a0359a0dc277a6cea04dcba3a5b0f9e369ab44c54c43a6aa36caad93b",
+      "490383ddb2770c4604f2346db8750a53ed2c12f646dc7251c065f6b12ec4eed0"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 670,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[17]",
+    "before": "'C3_community'",
+    "after": "'C3_community_exec'",
+    "ast_sha256": [
+      "3332063c9524a59ea649f1fa18dfca903f4c467894dea2394cd3b660951bc089",
+      "65ed29bbb517dc93376130138dd0c946ed17e7c034017814158d139b6ddd4213"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 672,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[19]",
+    "before": "'C5_counterfactual'",
+    "after": "'C5_counterfactual_exec'",
+    "ast_sha256": [
+      "ccc8ebb221b703bf01ef2f56cc672cc2cfcbbdc8be906cdc7896dd744c2620f5",
+      "98467ac80c0bc2228b56b415f15710fd97da10245b1ddce3deac896307999412"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 674,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[21]",
+    "before": "'C7_enduser_active'",
+    "after": "'C7_enduser_active_exec'",
+    "ast_sha256": [
+      "7b90a259088e57352fd2020c67dd4652cd38d7295b04a6abaf1cde4654e77da7",
+      "88196aae87d7d55705e9a296b57aca86de900959b1632d523c2fa29574f6e6bf"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 676,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[23]",
+    "before": "'C_account_status'",
+    "after": "'C_account_status_exec'",
+    "ast_sha256": [
+      "7cd8384264a5f9abded86b116fa29b5854123b969a714c9f7a2234f63c292eda",
+      "96fb593d03fd22aab909d1ccc22a93c09da7d5cc5cb1d723f0d50629545124be"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 677,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[31].value.keys[24]",
+    "before": "'C6_gtoken_balance'",
+    "after": "'C6_gtoken_balance_exec'",
+    "ast_sha256": [
+      "a70c66845c6d229ca4e232204aec75556cc4859055b4e2ef0ae86dcdab57d276",
+      "493c8cf2413587196fb25d81f53c033ac6c1afd783c3afd20099ab14d799daec"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 904,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[1].body[3].value.args[1].values[0]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_exec'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "bb6338de57dd390b35ca1d146e860f1f7ba6c75f14259a70cd23515d442dbcd3"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 904,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[1].body[3].value.args[1].values[1]",
+    "before": "'C1_cap_headroom'",
+    "after": "'C1_cap_headroom_exec'",
+    "ast_sha256": [
+      "4e1256462e51c3fb3109c76cfdf5dbd2a4d951ea438bf1c6cf2d504da0e3621c",
+      "e51cdbe7595f3bf17e7acd82b5ce7f9d2340a83d6621ee14feb13cb532a67636"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 905,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[1].body[3].value.args[1].values[3]",
+    "before": "'C7_enduser_active'",
+    "after": "'C7_enduser_active_exec'",
+    "ast_sha256": [
+      "7b90a259088e57352fd2020c67dd4652cd38d7295b04a6abaf1cde4654e77da7",
+      "88196aae87d7d55705e9a296b57aca86de900959b1632d523c2fa29574f6e6bf"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 906,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[1].body[3].value.args[1].values[4]",
+    "before": "'C_account_status'",
+    "after": "'C_account_status_exec'",
+    "ast_sha256": [
+      "7cd8384264a5f9abded86b116fa29b5854123b969a714c9f7a2234f63c292eda",
+      "96fb593d03fd22aab909d1ccc22a93c09da7d5cc5cb1d723f0d50629545124be"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 928,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[3].body[1].body[1].value.args[1].body.args[2]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_exec'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "bb6338de57dd390b35ca1d146e860f1f7ba6c75f14259a70cd23515d442dbcd3"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 930,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[3].body[1].body[3].value.args[1].body.args[2]",
+    "before": "'C_price_bound'",
+    "after": "'C_price_bound_exec'",
+    "ast_sha256": [
+      "7c2ef04ea52f11e8a48656c13f2a2b9e82178580e171bb2df66e12a8aee6dbb8",
+      "bb6338de57dd390b35ca1d146e860f1f7ba6c75f14259a70cd23515d442dbcd3"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_manifest_phase_c.py",
+    "line": 947,
+    "path": "script/upgrade/test_manifest_phase_c.py.body[42].body[4].body[4].body[1].value.args[0]",
+    "before": "'C_control_slot'",
+    "after": "'C_control_slot_cached_price'",
+    "ast_sha256": [
+      "e8278886eba10620fb6b0d2d26a73c492903e35f0096c75cdfdcc6db15eefa1e",
+      "753c42109bd1bc460041d6ac1c8943042034b6d85c5e11dc81240db1f220ad50"
+    ],
+    "source_sha256": [
+      "7dedd2332e2af0ad998b95ec56719c8eef364463dcca755232e7cddae580b881",
+      "c2c7412454ee3783076a5546a51e868e532a2c9c6ebd9d8b75f493f334fbba4b"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 518,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[15].body[1].value.args[0].keywords[1].value",
+    "before": "'old_owner_event_role_Registry'",
+    "after": "'old_owner_event_role_member_Registry'",
+    "ast_sha256": [
+      "b24cfaa0ef6280486a7cc0afd90a81b3b0f42771a7681d048fc04a72d0d5df09",
+      "1d4ff6bbc205f6cf25014186e34aa31bb30890fd5d1b4b9dbaa30d9a48490c7c"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 711,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[36].body[6].value.keywords[1].value",
+    "before": "'old_owner_event_role_TimelockController'",
+    "after": "'old_owner_event_role_member_TimelockController'",
+    "ast_sha256": [
+      "953372f72a2bf3e9ae53b94ae0fd612f55ec5c41f7950e2440696e4626d1fea9",
+      "43c0e5b44cda975e9233cb02808e183f5fe1edf853d7f1777493f4655ea3eafa"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 734,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[2].value.value.elts[0]",
+    "before": "'old_owner_role_TimelockController_PROPOSER_ROLE'",
+    "after": "'old_owner_role_member_declared_TimelockController_PROPOSER_ROLE'",
+    "ast_sha256": [
+      "f4233d7bc053b984206044cf785356482dc7ff097fc2736f97c5e9c9c25d92ed",
+      "db1fe26a78506c2d4de163375a1b352323563608a4e6579a26a5c1101da535c4"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 735,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[3].value.value.elts[0]",
+    "before": "'old_owner_authority_SuperPaymaster_pendingOwner'",
+    "after": "'old_owner_authority_member_SuperPaymaster_pendingOwner'",
+    "ast_sha256": [
+      "ed6994cc05003152f46e01f40b6be0a7895df39a3fe527949d9271715c862302",
+      "db9330d93d912448df698a526edb553828be5b263fc317e66b06e7021422ce69"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 736,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[4].value.value.elts[0]",
+    "before": "'old_owner_mapping_Registry_authorized'",
+    "after": "'old_owner_mapping_member_Registry_authorized'",
+    "ast_sha256": [
+      "01bef931b87f4a2e65bdb08670d2203a0a6eb8bc3c3213e10b4d60ff73a771f7",
+      "34407a6cea82487763c8d01282d504cdeb440d75edaf83ddb212a4b5127e3369"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 740,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[8].value.value.elts[0]",
+    "before": "'old_owner_role_admin_ROLE_COMMUNITY'",
+    "after": "'old_owner_role_admin_declared_ROLE_COMMUNITY'",
+    "ast_sha256": [
+      "c378cc2b0443a07a388c045ed342509e7aad17249552135d6b9939432c885e6f",
+      "f0bb621cd7783ac4310f0687223474cffca5fa7369ecf42939cbf4a670af6552"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 743,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[9].body[1].value.value.elts[0].orelse.left.left.left",
+    "before": "'old_owner_authority_'",
+    "after": "'old_owner_authority_member_'",
+    "ast_sha256": [
+      "7bfec580a43e0d172a4165a98e8384889c666292a3b2fc87a6c15b80653201c5",
+      "d3ab29e9c304663ea49d6ca584d8e3546953f5b72199564beba3b5a330de51f2"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 745,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[10].body[0].value.value.elts[0].left.left.left",
+    "before": "'old_owner_mapping_'",
+    "after": "'old_owner_mapping_member_'",
+    "ast_sha256": [
+      "05f7d2dda835e721c4cfe74206bbce97fb20d3edbf66337da3bf6b430bd85f7d",
+      "d21762ad5bf55c73f2af6cfde10c544e300f290217727cbe01c5340a3c205594"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 746,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[11].value.value.elts[0].left",
+    "before": "'old_owner_role_Registry_'",
+    "after": "'old_owner_role_member_configured_Registry_'",
+    "ast_sha256": [
+      "13820c8d2acf1d569088af6489ab9fe983b9324decb3679a6153eea40b71fb6e",
+      "87c55ab5b20a2df8112ecf8f738c104f585253eb9112e19f8dae37c9d2c6408d"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 747,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[12].value.value.elts[0].left",
+    "before": "'old_owner_role_admin_'",
+    "after": "'old_owner_role_admin_configured_'",
+    "ast_sha256": [
+      "955f2da987ff5241d3b0757a38cde5e32e2fd67cf3588805f2f6f94ef9a11139",
+      "d8612a201bb1af967a3dd2f2b33762af52d60e158f2b47d1d29359c2e3432929"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 748,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[13].value.value.elts[0].left.left.left",
+    "before": "'old_owner_allowance_'",
+    "after": "'old_owner_allowance_pair_'",
+    "ast_sha256": [
+      "3c5165d7bbc21318f98a7ffdd8e497fcfc0439914b8141296d06ec7b5a4fedf6",
+      "7078f227f31235e3480f66c2f73c93b487cf673abf21f2d1c56d20d9404b54c6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 752,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[38].body[17].value.value.elts[0].left.left.left",
+    "before": "'old_owner_allowance_'",
+    "after": "'old_owner_allowance_pair_'",
+    "ast_sha256": [
+      "3c5165d7bbc21318f98a7ffdd8e497fcfc0439914b8141296d06ec7b5a4fedf6",
+      "7078f227f31235e3480f66c2f73c93b487cf673abf21f2d1c56d20d9404b54c6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 774,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[40].body[6].items[0].context_expr.args[1]",
+    "before": "'old_owner_mapping_xPNTsToken_autoApprovedSpenders'",
+    "after": "'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'",
+    "ast_sha256": [
+      "1493b1e434c93dd106052a61ead33d7863e9182965f93495a3769262129b6028",
+      "81099c1d7ccf99e37922c424b9f2a8a01bafec06aba36c2d920b3dba9168cc39"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 776,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[40].body[7].value.args[1]",
+    "before": "'old_owner_mapping_xPNTsToken_autoApprovedSpenders'",
+    "after": "'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'",
+    "ast_sha256": [
+      "1493b1e434c93dd106052a61ead33d7863e9182965f93495a3769262129b6028",
+      "81099c1d7ccf99e37922c424b9f2a8a01bafec06aba36c2d920b3dba9168cc39"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 986,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[53].body[1].body[3].body[1].items[0].context_expr.args[1]",
+    "before": "'unexpected_proxy'",
+    "after": "'unexpected_proxy_other'",
+    "ast_sha256": [
+      "71f9e3b0cbb49dac0a5e12a4a2d466aa1ba83a3565257699f7f0aac419073635",
+      "cb97e62c01836152180ac56af4c17d229c8e6c94f2d6f3b667036cb40c63009c"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 987,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[53].body[1].body[3].body[2].value.args[1]",
+    "before": "'unexpected_proxy'",
+    "after": "'unexpected_proxy_other'",
+    "ast_sha256": [
+      "71f9e3b0cbb49dac0a5e12a4a2d466aa1ba83a3565257699f7f0aac419073635",
+      "cb97e62c01836152180ac56af4c17d229c8e6c94f2d6f3b667036cb40c63009c"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 988,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[53].body[1].body[3].body[3].value.args[2]",
+    "before": "'unexpected_proxy'",
+    "after": "'unexpected_proxy_other'",
+    "ast_sha256": [
+      "71f9e3b0cbb49dac0a5e12a4a2d466aa1ba83a3565257699f7f0aac419073635",
+      "cb97e62c01836152180ac56af4c17d229c8e6c94f2d6f3b667036cb40c63009c"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1389,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[80].body[1].body[19].items[0].context_expr.keywords[0].value.args[0]",
+    "before": "'old_owner_deployed_build'",
+    "after": "'old_owner_deployed_build_launch'",
+    "ast_sha256": [
+      "7419e28038862ff5de9f20b4d7827009226f43e3f9615d17a84c0edd6b8eed42",
+      "3cd6a901a7e487f10fa89ae582bfcda50541b1d9ec8b29d27bea1db7f2b58b11"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1390,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[80].body[1].body[19].body[0].items[0].context_expr.args[1]",
+    "before": "'old_owner_deployed_build'",
+    "after": "'old_owner_deployed_build_launch'",
+    "ast_sha256": [
+      "7419e28038862ff5de9f20b4d7827009226f43e3f9615d17a84c0edd6b8eed42",
+      "3cd6a901a7e487f10fa89ae582bfcda50541b1d9ec8b29d27bea1db7f2b58b11"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1391,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[80].body[1].body[19].body[1].value.args[1]",
+    "before": "'old_owner_deployed_build'",
+    "after": "'old_owner_deployed_build_launch'",
+    "ast_sha256": [
+      "7419e28038862ff5de9f20b4d7827009226f43e3f9615d17a84c0edd6b8eed42",
+      "3cd6a901a7e487f10fa89ae582bfcda50541b1d9ec8b29d27bea1db7f2b58b11"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1559,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[88].body[0].body[0].value.elts[1].elts[3]",
+    "before": "'old_owner_mapping_xPNTsToken_approvedFacilitators'",
+    "after": "'old_owner_mapping_member_xPNTsToken_approvedFacilitators'",
+    "ast_sha256": [
+      "cf3c063fd1bd8ef79113d2742a4f0ab7c0c82bfc430f0f846d9100a7d407b63b",
+      "613fe6186b1a1e8894e3e09a37ba3829439462261161547aade2ffe74540cb79"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1560,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[88].body[0].body[0].value.elts[2].elts[3]",
+    "before": "'old_owner_mapping_xPNTsToken_autoApprovedSpenders'",
+    "after": "'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'",
+    "ast_sha256": [
+      "1493b1e434c93dd106052a61ead33d7863e9182965f93495a3769262129b6028",
+      "81099c1d7ccf99e37922c424b9f2a8a01bafec06aba36c2d920b3dba9168cc39"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1561,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[88].body[0].body[0].value.elts[3].elts[3].left.left.left",
+    "before": "'old_owner_allowance_'",
+    "after": "'old_owner_allowance_pair_'",
+    "ast_sha256": [
+      "3c5165d7bbc21318f98a7ffdd8e497fcfc0439914b8141296d06ec7b5a4fedf6",
+      "7078f227f31235e3480f66c2f73c93b487cf673abf21f2d1c56d20d9404b54c6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1649,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[94].body[7].items[0].context_expr.args[1]",
+    "before": "'old_owner_calldata_bytes'",
+    "after": "'old_owner_calldata_bytes_outer_tx'",
+    "ast_sha256": [
+      "2212283021fd109b5599725fc5b44f978afd2092d3bcbd267443a765a3a0b1f2",
+      "a261cd0f42237f279d69945ee0ed32436ded740f39388a4d07f0cd24b4ad00e6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1650,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[94].body[8].value.args[1]",
+    "before": "'old_owner_calldata_bytes'",
+    "after": "'old_owner_calldata_bytes_outer_tx'",
+    "ast_sha256": [
+      "2212283021fd109b5599725fc5b44f978afd2092d3bcbd267443a765a3a0b1f2",
+      "a261cd0f42237f279d69945ee0ed32436ded740f39388a4d07f0cd24b4ad00e6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1651,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[94].body[9].value.args[2]",
+    "before": "'old_owner_calldata_bytes'",
+    "after": "'old_owner_calldata_bytes_outer_tx'",
+    "ast_sha256": [
+      "2212283021fd109b5599725fc5b44f978afd2092d3bcbd267443a765a3a0b1f2",
+      "a261cd0f42237f279d69945ee0ed32436ded740f39388a4d07f0cd24b4ad00e6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1663,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[95].body[0].value.elts[0].elts[1]",
+    "before": "'old_owner_calldata_bytes'",
+    "after": "'old_owner_calldata_bytes_outer_tx'",
+    "ast_sha256": [
+      "2212283021fd109b5599725fc5b44f978afd2092d3bcbd267443a765a3a0b1f2",
+      "a261cd0f42237f279d69945ee0ed32436ded740f39388a4d07f0cd24b4ad00e6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "line": 1848,
+    "path": "script/upgrade/test_old_owner_isolation.py.body[39].body[105].body[3].value.elts[2].keywords[1].value.left.left.left",
+    "before": "'old_owner_allowance_'",
+    "after": "'old_owner_allowance_pair_'",
+    "ast_sha256": [
+      "3c5165d7bbc21318f98a7ffdd8e497fcfc0439914b8141296d06ec7b5a4fedf6",
+      "7078f227f31235e3480f66c2f73c93b487cf673abf21f2d1c56d20d9404b54c6"
+    ],
+    "source_sha256": [
+      "6ae2b0869eacd1b2575b4950459ee7f42b181180ed2e82a6f278b499838ba3c1",
+      "311519ae281dfa43e8bb0cd077a05f3eddcac957079b67a82bd8f7ae7d483314"
+    ],
+    "classification": "y",
+    "reason": "Reviewed expected Gate name in assertion, fixture, test case table, or injected Gate; no application data property renamed."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 699,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[24].body[5].body[0].body[4].body[0].value.args[2].left",
+    "before": "'old_owner_role_admin_'",
+    "after": "'old_owner_role_admin_declared_'",
+    "ast_sha256": [
+      "955f2da987ff5241d3b0757a38cde5e32e2fd67cf3588805f2f6f94ef9a11139",
+      "276aa8bab037639239cca560d94fa8d8b2f854b5a08f288414654cdd853ec57f"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  },
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "line": 787,
+    "path": "script/upgrade/old_owner_isolation.py.body[47].body[34].body[12].body[3].body[0].value.args[2].left",
+    "before": "'old_owner_role_admin_'",
+    "after": "'old_owner_role_admin_configured_'",
+    "ast_sha256": [
+      "955f2da987ff5241d3b0757a38cde5e32e2fd67cf3588805f2f6f94ef9a11139",
+      "d8612a201bb1af967a3dd2f2b33762af52d60e158f2b47d1d29359c2e3432929"
+    ],
+    "source_sha256": [
+      "477dfa7df5014ea9932a8be44cc22ff4ab1c2b22a0e1d833ef14e44092d59a67",
+      "aa6692c4ed13ee57e7e274c9a8128ed61b356f859daab12c09cff348bb3f2aa6"
+    ],
+    "classification": "y",
+    "reason": "Reviewed assembled gate label or negative-control expected label; consumed by a.need, negative, or probe gate comparison."
+  }
+]
