@@ -40,6 +40,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'script/upgrade'))
+from gate_assertions import assertion_mentions
 sys.path.insert(0, str(ROOT/'script/upgrade/audit'))
 import probe_gate_removal as probe  # noqa: E402
 
@@ -126,7 +128,9 @@ def child(name, result_path):
     failed = {failed_id(t) for t, _ in result.failures}
     # The result goes to a file the parent named, never through stdout, which tests can write to.
     Path(result_path).write_text(json.dumps(dict(name=name, ids=ids, ran=result.testsRun, reached=bool(failed & hits),
-                                                 failures=len(result.failures), errors=len(result.errors))))
+                                                 failures=len(result.failures), errors=len(result.errors),
+                                                 named=any(assertion_mentions(log, 'dvt_stale_sibling_executed' if name == 'sibling_level' else name)
+                                                     for _, log in result.failures))))
 
 
 def run(name):
@@ -137,7 +141,7 @@ def run(name):
         try:
             r = json.loads(path.read_text())
             assert p.returncode == 0 and r['name'] == name
-            assert set(r) == {'name', 'ids', 'ran', 'reached', 'failures', 'errors'}
+            assert set(r) == {'name', 'ids', 'ran', 'reached', 'failures', 'errors', 'named'}
         except Exception:
             return dict(name=name, ids=[], ran=0, reached=False, failures=0, errors=-1,
                         note='child did not report (rc=%d)' % p.returncode)
@@ -158,7 +162,7 @@ def main():
         r = run(name)
         # Same tests as the baseline (by id), all run, red by assertion failures only.
         red = (r['ids'] == base['ids'] and r['ran'] == base['ran'] and r['reached']
-               and r['failures'] > 0 and r['errors'] == 0)
+               and r['failures'] > 0 and r['errors'] == 0 and r['named'])
         ok &= red
         print('remove %s -> ran=%d reached=%d failures=%d errors=%d %s' % (name, r['ran'], r['reached'], r['failures'],
               r['errors'], 'red' if red else 'NOT RED ' + r.get('note', '')), flush=True)

@@ -41,11 +41,28 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
 Artefacts go to --out (0700): unsigned tx, decoded fields without the signature, the allowlisted receipt, and
 signed.raw only after broadcast. The RPC URL and provider-supplied text are never written or printed.
 """
+import importlib.util
 import argparse, contextlib, fcntl, hashlib, json, os, re, stat, subprocess, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import a3a_exec as ex  # noqa: E402
+
+def integrity_check(commit):
+    # Trust root: the helper's bytes must equal the reviewed commit before any of it runs; the helper then
+    # attests every loaded repository module, this file included. Kept inline (stdlib only) on purpose.
+    root = Path(__file__).resolve().parents[2]
+    path = root / 'script/upgrade/execution_integrity.py'
+    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    env['GIT_CONFIG_NOSYSTEM'] = '1'
+    committed = subprocess.run(['git', 'show', commit + ':script/upgrade/execution_integrity.py'], cwd=root,
+                               env=env, capture_output=True, check=True).stdout
+    ex.need('execution_integrity_source', path.read_bytes() == committed, True)
+    spec = importlib.util.spec_from_file_location('_a3a_repository_execution_integrity', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.check(commit)
+
 
 CAST = os.environ.get('A3A_CAST', str(Path.home()/'.foundry/bin/cast'))
 RECEIPT_WAIT_SECONDS = 600
@@ -131,7 +148,7 @@ def decode(raw):
 def local_keccak(raw):
     r = subprocess.run([CAST, 'keccak'], input=raw, env=signer_env(), capture_output=True, text=True)
     ex.need('send_keccak_exit', r.returncode, 0)
-    return ex.typed(r.stdout.strip(), ex.HASH32).lower()
+    return ex.typed(r.stdout.strip(), ex.HASH32, gate='rpc_result_local_keccak_value').lower()
 
 
 def check_signed(decoded, tx):
@@ -144,7 +161,7 @@ def check_signed(decoded, tx):
     for k in expected:
         ex.need('send_signed_'+k, seen[k], expected[k])
     ex.need('send_signed_no_authorizations', decoded.get('authorizationList') in (None, []), True)
-    return ex.typed(decoded.get('hash'), ex.HASH32).lower()
+    return ex.typed(decoded.get('hash'), ex.HASH32, gate='rpc_result_check_signed_hash').lower()
 
 
 def fee_fits(remote, tx):
@@ -281,6 +298,8 @@ def run(args, remote, url, confirm=None):
     snapshot = args.out/'plan.reviewed.json'
     snapshot.write_bytes(raw_plan)
     plan = ex.plan_json(raw_plan)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'upgrade'))
+    integrity_check(plan['rebuild']['commit'])
     tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     role = role_of(plan, tx['from'])
     accounts = json.loads(args.accounts.read_text())
@@ -298,6 +317,8 @@ def run(args, remote, url, confirm=None):
     again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     ex.need('send_tx_stable', again, tx)
     fee_fits(remote, tx)
+    # Executor integrity again after the pause, before any record claims an attempt.
+    integrity_check(plan['rebuild']['commit'])
     # The attempt is on disk before anything is transmitted: if this write fails, nothing has been sent.
     ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome='attempting'))
     outcome, provider = 'unknown', None

@@ -1,0 +1,219 @@
+[
+  {
+    "file": "script/upgrade/execution_integrity.py",
+    "baseline": "81d074ce",
+    "before_sha256": null,
+    "after_sha256": "665012e111cb6b6ce47280ed8189c127b31797aeb9fd24f140372b9580cd44fc",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "6cf53694051bb2c37431f58a086b7c68f44028a9e7dcd5d6adcd3dd177153453",
+    "gates": [
+      {
+        "gate": "execution_root",
+        "line": 87,
+        "column": 4,
+        "ast_sha256": "e9e26bd680c6eae39fbed5a01f2048930953a7404a0ac62aab0accefae2f1f35"
+      },
+      {
+        "gate": "execution_index_flags",
+        "line": 89,
+        "column": 4,
+        "ast_sha256": "f613fea8d51d9688faf295e1216ca0cbfa1db6a46a680c5d48d95da3d7d6c109"
+      },
+      {
+        "gate": "execution_head",
+        "line": 91,
+        "column": 4,
+        "ast_sha256": "106e0098e51749e1d842f541a7aa98215085ffbcab389ada236fbd324e00ef7c"
+      },
+      {
+        "gate": "execution_clean_tree",
+        "line": 92,
+        "column": 4,
+        "ast_sha256": "87b36a9aab5add7a076197a59344a336d485e03b57d7ee9aafe16eadc6d78b0b"
+      },
+      {
+        "gate": "execution_bootstrap_origin",
+        "line": 72,
+        "column": 14,
+        "ast_sha256": "82c0f1b68a08dd3d18863f0d77a7a77d2c76e046cf821cef45f03007b58b153a"
+      },
+      {
+        "gate": "execution_module_tracked",
+        "line": 123,
+        "column": 8,
+        "ast_sha256": "a6b866ae476f10854a52bdaa6227c198a972d16bb17c6849d0bbd2330566c913"
+      },
+      {
+        "gate": "execution_module_bytes",
+        "line": 125,
+        "column": 8,
+        "ast_sha256": "802653fbb9058fbb42914fee3e4dc2ff41ea85cf0e71c0710248274a567dff82"
+      },
+      {
+        "gate": "execution_module_origin",
+        "line": 108,
+        "column": 12,
+        "ast_sha256": "c8a97d8a36dcb2c499bfa62e4d3235226cf9254cde7605ac672e702d13bba332"
+      }
+    ],
+    "reason": "H1/H2 shared tree and loaded-source integrity; four new named gates, two relocated unchanged gate names; 6g: require exact repository origins for loaded first-party names enumerated from the commit; 6h: stdlib bootstrap authenticates loaded first-party origins and committed bytes before imports; verified private Gate handles bootstrap failure"
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "baseline": "81d074ce",
+    "before_sha256": "2cce6ef9c2658d569d7408bb353c4ca3e4bfd4a0e29cde4f14909fdeae079c28",
+    "after_sha256": "4b991606c137d549fa43b66b5d5665462a81d6323f5003c2b4923f287866ab2f",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "8b76da7912a16b6ebbf86ff72e15830ee55da6006fd0e5ceb279e2776a329c78",
+    "gates": [
+      {
+        "gate": "execution_integrity_source_manifest",
+        "line": 3429,
+        "column": 4,
+        "ast_sha256": "9430c4a2d5a589e299986207e0c4e256ece191d862e89ac9960e7eed5aae63cf"
+      }
+    ],
+    "reason": "H1/H2 replace tree-only implementation with shared integrity helper; 6h: exact repository integrity loader under private module name; 6i: helper bytes verified against the commit before the helper runs (execution_integrity_source_manifest)"
+  },
+  {
+    "file": "script/a3a/a3a_send.py",
+    "baseline": "81d074ce",
+    "before_sha256": "d6179257dac8d63f4d95a9f197aadbcd06323bc6c2902b003a82f3432617143d",
+    "after_sha256": "ab9fb005ee79f19fac0a0cb257b82316ab7c6eac7cea26a51430ea9a5c8b8a4a",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "12a6d65741ebe98af587751ed4653337fe3bcbbe5d7e956e09952d700b58cdd7",
+    "gates": [
+      {
+        "gate": "execution_integrity_source",
+        "line": 60,
+        "column": 4,
+        "ast_sha256": "d736776e06b0c278062f72c73da609bed04f5ff863ea66937c05fc790c096851"
+      }
+    ],
+    "reason": "H1 invoke shared integrity before signing and after confirmation before broadcast; operator moved the recheck before the broadcast.json attempt record; 6g: load fresh integrity helper from exact repository file under private name; synthetic tests patch sender wrapper; 6i: helper bytes verified against the commit before the helper runs (execution_integrity_source)"
+  },
+  {
+    "file": "script/upgrade/execution_reads.py",
+    "baseline": "81d074ce",
+    "before_sha256": "d557dae514afd674bbf1f3a2821768b7d736b46b5e8b94502e8705fe2ddaed2b",
+    "after_sha256": "017560f0beb43404154fcc5f4411c8605e6f76068cf0ba0654649eda1e7262ee",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "82ca79d9693e4a97da5fbdfc246522a520b88ef37e52afc7557adc9c00104f06",
+    "gates": [],
+    "reason": "M intercept os.open and Popen with existing execution_repo_read gate; 6g: docstring only records accepted case-alias and sh -c git bypasses"
+  },
+  {
+    "file": "script/upgrade/execution_git_fixture.py",
+    "baseline": "81d074ce",
+    "before_sha256": "e11abc2b2358817c579920175a7e4c6fe72e331a2bf163a8a80824e0ec2fe22f",
+    "after_sha256": "e068bba0c3a7c00dffe4c748ed81b0682fa3659453a5e8322051d80eef5e0f39",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "f10d0088eca1ed0391d8ad071f5ecd30955e62a6e1ef64efa50f6da82ddfc8f7",
+    "gates": [],
+    "reason": "Synthetic executor fixture patches shared integrity helper only; 6h: synthetic manifest fixtures patch the public wrapper, real-loader bootstrap covered separately"
+  },
+  {
+    "file": "script/a3a/test_a3a_send.py",
+    "baseline": "81d074ce",
+    "before_sha256": "94c3a2961bd230a3fe4742b170e5fa24c310f61c8be89c9902fa11522bf3dc01",
+    "after_sha256": "9774661c8acba9a32f149f8a7dd99822ac6f8ef337580ef92ff1ac25f1f3329e",
+    "line": 1,
+    "column": 0,
+    "ast_sha256": "fd54f55886e2ed481aa606c49241d68dd7bea684a8512b97e28d016a38e5c7eb",
+    "gates": [],
+    "reason": "Synthetic sender plan supplies rebuild commit and patches shared integrity helper only; operator added test_integrity_recheck_stops_before_the_attempt_record; 6g: load fresh integrity helper from exact repository file under private name; synthetic tests patch sender wrapper"
+  },
+  {
+    "file": "script/a3a/a3a_exec.py",
+    "baseline": "6aff70e4",
+    "before_sha256": "b997851ae73930d403ecdf7621d1f5117597d2390b4dfbb6b32857078ba042e7",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6h: verified private Gate subclasses authenticated canonical Gate to preserve strict exception identity; initialize Exception directly",
+    "after_sha256": "7c22d74713bb53763eb125e424f2d6f5764104beb2651d8b91f78d3c8ebdb989",
+    "ast_sha256": "527707c6886c817c15217279e6880571745a12a14b9632abb759b5f303d9897c"
+  },
+  {
+    "file": "script/upgrade/test_execution_head.py",
+    "baseline": "6aff70e4",
+    "before_sha256": "0614ffb336b03865797a27e49dcc77c99e2cf10a3a8513c75345895af2155508",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6h: isolate existing checkout gate fixtures at public wrapper; real bootstrap loader exercised by BootstrapTests",
+    "after_sha256": "9284518524909c46cc270f1f9eb7a13546d96158d4fa8477cebab11737763b1e",
+    "ast_sha256": "fefbec7df9b5e14ebbe3d349ec772068c4bdb636f7270578ea068d5840bcff40"
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "baseline": "d21042ad",
+    "before_sha256": "01ed14866ee646a875166ba7f624383a1ed5363ee55f53489ecb3f50adb28d34",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6j: D/M7 substitution controls (DiscoveryCallTests); 6k: source-only test_call_* moved to DiscoveryCallSourceTests without setUpClass; test-only, no gate literal changed",
+    "after_sha256": "cc73935b5998155bef1626d2ed46802536d97d62ac1ed0278ed5f3070118d352",
+    "ast_sha256": "3684038ac2b17c67874269dc01bda7ac485dae4c5a43871b0228be3a95d9d3c9"
+  },
+  {
+    "file": "script/upgrade/probe_phase_c_gates.py",
+    "baseline": "d21042ad",
+    "before_sha256": "6106d6794deb1a808aeab0245fd1274645264a955207b46ab2f094cdc57fbca2",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6k: new_gates() applies gate_rename_map.json; COVERED_ELSEWHERE requires the gate literal in the covering driver; list rows shifted by inserted entries, not renames",
+    "after_sha256": "ececf671c41b07f7a2d4da0958f6526c0649407799087c562908f1b6e346fba7",
+    "ast_sha256": "c047e30ccff1b7f141e5f7731c9f2bbe182230e8745baa88e300463dce6835c0"
+  },
+  {
+    "file": "script/evidence/enduser_mapping_probes.py",
+    "baseline": "d21042ad",
+    "before_sha256": "7ee87a6c9c28e295849a22ee1f50ffa0833d2bdaad055bc4bc12d089c0d3dd88",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6k: probe class chosen by AST (DiscoveryCallSourceTests); summary label split DELTA_/MANIFEST_DELETION_PROBES; probe driver only",
+    "after_sha256": "6583d6b3c6ebd8bbe97d292035685f3980fbd3242b7e44e58161dd3d61396937",
+    "ast_sha256": "37ff39e0ffa40f010bf668e24d0a53fbec6b8114e34dc6548dae2b6f080dc71f"
+  },
+  {
+    "file": "script/upgrade/probe_execution_head.py",
+    "baseline": "d21042ad",
+    "before_sha256": "f44ba76bb7626fd239729643eddf3ad27b23a5919ebf89f25c95f8553ef7af7a",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6k: probe module retargeted t.m -> t.integrity after 6f moved the gates; probe driver only",
+    "after_sha256": "a50c5c503ea6e55c2f56d2d9bbf79b8df02482a1e2b2efa65398094c037906ff",
+    "ast_sha256": "bc0c1aa20f2a5297ca8849c96a5517e0680d0c73746e396bb67b989f00bbc993"
+  },
+  {
+    "file": "script/evidence/audit605_probes.py",
+    "baseline": "d21042ad",
+    "before_sha256": "230680475effa71bc34fde2282b40bbd349012513b4f20b9ce5f9acb2d7e4a1c",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6l: F05 key run_manifest -> _run_manifest (gates moved into _run_manifest by 2acc71af); probe driver only, gate names unchanged",
+    "after_sha256": "646bae40997fbc5b8db9afb8b0d5af30e988f1eecc68c81bc775be6d19c3b6bc",
+    "ast_sha256": "a71f9ac082ab207b910a61174ab989a9fe5373fad5428ef963b1f47afaf971c0"
+  },
+  {
+    "file": "script/upgrade/audit/probe_gate_removal.py",
+    "baseline": "d21042ad",
+    "before_sha256": "40df18f52a5dc6b1e3789e37a025fa7831cf8e3b0ccb9cccb26fc79ac5731dc4",
+    "line": 1,
+    "column": 0,
+    "gates": [],
+    "reason": "6l: PHASE_FUNCTIONS += _run_manifest so its gate sites are listed; probe driver only",
+    "after_sha256": "00524d4136de9d77883bf42353a5c10d308c14a3b512eac855f2eb83f61be364",
+    "ast_sha256": "044f3f6f55abf039ab788e92b4c9cb52f7bbc1d8bea0e7b28c98096e1658d143"
+  }
+]

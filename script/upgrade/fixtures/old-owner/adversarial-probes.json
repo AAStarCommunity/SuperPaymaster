@@ -215,7 +215,7 @@
     },
     {
       "gate": "old_owner_role_TimelockController_PROPOSER_ROLE",
-      "outcome": "caught_elsewhere:old_owner_event_role_TimelockController"
+      "outcome": "caught_elsewhere:old_owner_event_role_member_TimelockController"
     },
     {
       "gate": "old_owner_authority_SuperPaymaster_pendingOwner",

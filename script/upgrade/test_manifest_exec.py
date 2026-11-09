@@ -3,6 +3,8 @@
 import sys
 sys.dont_write_bytecode = True
 import copy
+from collections import UserDict
+from gate_assertions import assert_stop
 import contextlib
 from types import SimpleNamespace
 import hashlib
@@ -17,6 +19,7 @@ import test_old_owner_isolation as isolation_tests
 from test_old_owner_isolation import OldOwnerIsolationTests
 
 a, u = m.a, m.u
+REAL_FUNDING_GATE = m.funding_gate
 REAL_RELEASE_GATE = m.release_gate
 REAL_A3A_VALIDATE_PLAN = a.validate_plan
 ANNI = m.ANNI
@@ -29,7 +32,9 @@ ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymas
     bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
-ART['oldOwnerInventory'] = isolation_tests.inventory()
+ART['oldOwnerInventory'] = copy.deepcopy(isolation_tests.inventory())
+for release_name, deployed_name in (('xPNTsFactoryV2', 'xPNTsFactory'), ('xPNTsTokenV2', 'xPNTsToken'), ('xPNTsTokenV2Ext', 'xPNTsToken')):
+    ART['oldOwnerInventory'][release_name] = copy.deepcopy(ART['oldOwnerInventory'][deployed_name])
 import ast
 import re
 ART['calldataSignatures'] = sorted({n.value for module in (m,u) for n in ast.walk(ast.parse(Path(module.__file__).read_text()))
@@ -197,6 +202,7 @@ def pin():
     p['guardianInventory'] = [dict(slot=i, validator=('0x'+format(i, '040x')) if i <= 3 else a.ZERO) for i in range(1, 14)]
     p['pendingAPNTsTokenEta'] = 1794226596
     p['oldOwnerIsolation'] = isolation_tests.evidence(p)
+    p['oldTimelock'] = m.old_timelock_holds_nothing(old_timelock_rpc(p, p['stateBlock']), p, p['stateBlock'])
     set_old_exit_evidence(p)
     p['phaseC'] = phase_c_pin(p)
     return p
@@ -217,6 +223,168 @@ def input_data(p):
         releaseEvidence={key:'c'*64 for key in m.EVIDENCE_KINDS},
         verifier=dict(commit=m.VERIFIER_COMMIT, artifactPath='unit-fixture', ciSha256='e'*64, buildSha256=m.VERIFIER_SHA256,
                       artifact=dict(bytecode=VERIFIER_CODE, runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]))), pop=pops)
+
+
+def orphan_replies(pin):
+    # The orphaned-timelock reads (roles, authorities, Safe, allowances) answered as "holds nothing".
+    o = m.isolation
+    raw = isolation_tests.raw
+    replies = {}
+    discovery = isolation_tests.fixture_rpc(copy.deepcopy(pin))
+    for target, sig in ((u.REG, 'GTOKEN_STAKING()'), (u.REG, 'MYSBT()'), (u.REG, 'SUPER_PAYMASTER()'), (u.SP, 'xpntsFactory()'),
+                        (isolation_tests.STAKING, 'GTOKEN()'), (isolation_tests.FACTORY, 'getAllTokens()')):
+        replies[(target, a.calldata(sig))] = a.call(discovery, target, sig, block=pin['stateBlock'])
+    for who in pin['pauseList']:
+        replies[(u.SP, a.calldata('operators(address)', who))] = raw([0]*9)
+    for target, sig, args, kind in o.authority_rows(pin['oldOwnerIsolation']):
+        if kind == 'config':
+            values = [32]+[0]*13
+            values[10], values[11] = 384, int(u.DEPLOYER, 16)
+        else:
+            values = [int(u.DEPLOYER, 16) if kind == 'address' else 0]
+        replies.setdefault((target, a.calldata(sig, *args)), raw(values))
+    for role in [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]:
+        replies[(u.TL, a.calldata('hasRole(bytes32,address)', role, o.OLD_TIMELOCK))] = raw([0])
+    replies[(u.SAFE, a.calldata('getOwners()'))] = raw([32, 2, int(a.APPROVER, 16), int(a.EXECUTOR, 16)])
+    replies[(u.SAFE, a.calldata('isModuleEnabled(address)', o.OLD_TIMELOCK))] = raw([0])
+    for token in pin['oldOwnerIsolation']['tokens']:
+        for holder in o.allowance_holders():
+            replies[(token, a.calldata('allowance(address,address)', holder, o.OLD_TIMELOCK))] = raw([0])
+    for (target, data), value in list(replies.items()):
+        if o.OLD_TIMELOCK[2:] in data:
+            replies[(target, data.replace(o.OLD_TIMELOCK[2:], o.OLD[2:]))] = value
+    return replies
+
+
+def with_orphan_reads(rpc, pin, block):
+    # pre_send re-checks the orphaned timelock before every send; fixtures for other pre_send gates answer
+    # exactly those reads at `block` and pass every other request to their own strict handler.
+    replies = orphan_replies(pin)
+    def wrapped(method, params):
+        if method == 'eth_getLogs' and a.qty(params[0]['fromBlock']) > a.qty(pin['stateBlock']) and (
+                isinstance(params[0]['topics'][0], list) or params[0]['topics'][0] in (a.keccak('Approval(address,address,uint256)'), a.keccak(m.isolation.ROLE_EVENT))):
+            return []
+        if method == 'eth_call' and (params[0]['to'], params[0]['data']) in replies and params[1] == block:
+            return replies[(params[0]['to'], params[0]['data'])]
+        return rpc(method, params)
+    wrapped.local = getattr(rpc, 'local', False)
+    return wrapped
+
+
+def old_timelock_rpc(pin, block, bad=None):
+    replies = orphan_replies(pin)
+    discovery = isolation_tests.fixture_rpc(copy.deepcopy(dict(pin, stateBlock=block)))
+    history = isolation_tests.fixture_rpc(copy.deepcopy(pin))
+    if bad:
+        target, sig, args, value = bad
+        replies[(target, a.calldata(sig, *args))] = value
+    def rpc(method, params):
+        if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak('Approval(address,address,uint256)'):
+            return []
+        if method == 'eth_getLogs': return history(method, params)
+        if method == 'eth_call' and (params[0]['to'], params[0]['data']) in replies:
+            assert params[1] == block
+            return replies[(params[0]['to'], params[0]['data'])]
+        return discovery(method, params)
+    return rpc
+
+
+class DeltaTests(unittest.TestCase):
+    def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
+        self.pin = pin()
+        self.block = hex(a.qty(self.pin['stateBlock'])+1)
+        self.role = a.keccak('POST_PIN_ROLE')
+        self.holder = '0x'+'ac'*20
+        self.token = self.pin['oldOwnerIsolation']['tokens'][0]
+
+    def rpc(self, fault=None, kind='approval'):
+        o = m.isolation
+        topic = a.keccak('Approval(address,address,uint256)' if kind == 'approval' else o.ROLE_EVENT if kind == 'config' else o.REGISTERED if kind == 'registered' else o.GRANTED)
+        target = self.token if kind == 'approval' else u.REG
+        topics = [topic, '0x'+self.holder[2:].zfill(64), '0x'+o.OLD_TIMELOCK[2:].zfill(64)] if kind == 'approval' else [topic, self.role]
+        if kind in ('grant', 'registered'):
+            topics += ['0x'+(o.OLD if fault == 'old_role' else u.SAFE)[2:].zfill(64)] + (['0x'+u.SAFE[2:].zfill(64)] if kind == 'grant' else [])
+        event = dict(address=target, removed=False, topics=topics, blockNumber=self.block,
+                     blockHash=self.pin['stateBlockHash'], data=isolation_tests.raw([0, 123]))
+        if fault == 'address': event['address'] = u.SP
+        if fault == 'removed': event['removed'] = True
+        if fault == 'topics': event['topics'] = topics+[a.ZERO32]
+        if fault == 'range': event['blockNumber'] = self.pin['stateBlock']
+        if fault == 'canonical': event['blockHash'] = a.ZERO32
+        baseline = old_timelock_rpc(self.pin, self.block)
+        def rpc(method, params):
+            if method == 'eth_getLogs':
+                query = params[0]
+                ts = query['topics'][0]
+                return [event] if query['address'] == target and (topic in ts if isinstance(ts, list) else topic == ts) else []
+            if method == 'eth_getBlockByNumber':
+                return dict(number='0x0' if fault == 'number' else self.block, hash=self.pin['stateBlockHash'], timestamp='0x123', gasLimit='0xbebc200')
+            if method == 'eth_chainId': return '0x0'
+            if method == 'eth_call':
+                self.assertEqual(params[1], self.block)
+                to, data = params[0]['to'], params[0]['data']
+                if data == a.calldata('allowance(address,address)', self.holder, o.OLD_TIMELOCK):
+                    return isolation_tests.raw([int(fault == 'allowance')])
+                if to == u.REG and data == a.calldata('getRoleConfig(bytes32)', self.role):
+                    values = [32]+[0]*13
+                    values[10], values[11] = 384, int(o.OLD_TIMELOCK if fault == 'config_owner' else u.SAFE, 16)
+                    return isolation_tests.raw(values)
+                for who, gate in ((o.OLD, 'old_role'), (o.OLD_TIMELOCK, 'timelock_role')):
+                    if data == a.calldata('hasRole(bytes32,address)', self.role, who):
+                        return isolation_tests.raw([int(fault == gate)])
+                if fault == 'xpnts' and data == a.calldata('getAllTokens()'):
+                    tokens = sorted(set(self.pin['oldOwnerIsolation']['xpnts']) | {self.holder})
+                    return isolation_tests.raw([32, len(tokens), *[int(t,16) for t in tokens]])
+                if fault == 'targets' and data == a.calldata('MYSBT()'):
+                    return isolation_tests.raw([int(self.holder,16)])
+            return baseline(method, params)
+        rpc.local = True
+        return rpc
+
+    def check(self, fault, kind='approval'):
+        rpc = self.rpc(fault, kind)
+        with assert_stop(self, 'old_timelock_delta_' + fault) as caught:
+            delta = m.post_pin_delta(rpc, self.pin, self.block)
+            m.old_timelock_holds_nothing(rpc, self.pin, self.block, delta['approvalOwners'])
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_'+fault)
+
+    def test_pre_send_delta_call(self):
+        tree = ast.parse(Path(m.__file__).read_text())
+        pre = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'pre_send')
+        self.assertEqual(sum(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'post_pin_delta' for n in ast.walk(pre)), 1, 'old_timelock_delta_allowance')
+        self.assertNotIn(self.holder, m.isolation.allowance_holders())
+        self.assertNotIn(self.holder, self.pin['oldTimelock']['approvalOwners'].get(self.token, []))
+        with patch.object(m, 'handover_gate'), assert_stop(self, 'old_timelock_delta_allowance') as caught:
+            m.pre_send(self.rpc('allowance'), dict(pin=self.pin, steps=[]), dict(tx={}), {})
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_allowance')
+
+    def test_unrelated(self):
+        for kind in ('approval', 'config', 'grant', 'registered'):
+            rpc = self.rpc(kind=kind)
+            delta = m.post_pin_delta(rpc, self.pin, self.block)
+            m.old_timelock_holds_nothing(rpc, self.pin, self.block, delta['approvalOwners'])
+            self.assertEqual(sum(delta['logCounts'].values()), 1)
+            self.assertEqual(delta['fromBlock'], self.block)
+            if kind == 'approval': self.assertIn(self.holder, delta['approvalOwners'][self.token])
+            else: self.assertIn(self.role, delta['rolesChecked'][u.REG])
+
+    def test_empty_range_discovery(self):
+        self.block = self.pin['stateBlock']
+        rpc = self.rpc('xpnts')
+        def no_logs(method, params):
+            self.assertNotEqual(method, 'eth_getLogs')
+            return rpc(method, params)
+        with assert_stop(self, 'old_timelock_delta_xpnts') as caught:
+            m.post_pin_delta(no_logs, self.pin, self.block)
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_delta_xpnts')
+
+
+DELTA_CASES = dict(address='approval', removed='approval', topics='approval', range='approval',
+                   canonical='approval', number='approval', allowance='approval', config_owner='config',
+                   timelock_role='grant', old_role='registered', targets='approval', xpnts='approval')
+for _fault, _kind in DELTA_CASES.items():
+    setattr(DeltaTests, 'test_old_timelock_delta_'+_fault, lambda self, f=_fault, k=_kind: self.check(f, k))
 
 
 class FakeChain:
@@ -246,6 +414,8 @@ class FakeChain:
                 return [dict(log, topics=[topic, '0x'+self.plan['implementation'][2:].zfill(64)], data='0x')]
         if method == 'eth_call':
             data = params[0]['data']
+            if data.startswith(a.keccak('hasRole(bytes32,address)')[:10]):
+                return a.ZERO32
             calls = {'totalTrackedBalance()':self.balances['totalTrackedBalance'],
                      'protocolRevenue()':self.balances['protocolRevenue'], 'paused()':self.paused,
                      'fraudProofVerifier()':int(self.verifier, 16)}
@@ -412,6 +582,9 @@ class DvtCiEvidenceTests(unittest.TestCase):
 
 
 class Round8Controls(unittest.TestCase):
+    def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
+
     def dvt_rebuild(self, mutate=None):
         creation = VERIFIER_CODE
         runtime = '0x6001'
@@ -441,7 +614,7 @@ class Round8Controls(unittest.TestCase):
         m.rebuild_dvt.cache_clear()
         self.addCleanup(m.rebuild_dvt.cache_clear)
         env = {k: v for k, v in m.os.environ.items() if k != 'MANIFEST_DVT_REPO'}
-        with patch.dict(m.os.environ, env, clear=True), self.assertRaises(a.Gate) as caught:
+        with patch.dict(m.os.environ, env, clear=True), assert_stop(self, 'dvt_repo_configured') as caught:
             m.rebuild_dvt()
         self.assertEqual(caught.exception.record['gate'], 'dvt_repo_configured')
 
@@ -450,12 +623,12 @@ class Round8Controls(unittest.TestCase):
 
     def test_dvt_rebuilt_creation_gate(self):
         self.dvt_rebuild()
-        with self.assertRaises(a.Gate) as caught: self.dvt_rebuild('creation')
+        with assert_stop(self, 'dvt_rebuilt_creation') as caught: self.dvt_rebuild('creation')
         self.assertEqual(caught.exception.record['gate'], 'dvt_rebuilt_creation')
 
     def test_dvt_mock_rebuilt_runtime_gate(self):
         self.dvt_rebuild()
-        with self.assertRaises(a.Gate) as caught: self.dvt_rebuild('runtime')
+        with assert_stop(self, 'dvt_mock_rebuilt_runtime') as caught: self.dvt_rebuild('runtime')
         self.assertEqual(caught.exception.record['gate'], 'dvt_mock_rebuilt_runtime')
 
     def swap_control(self, late=False, broken_eta=False, bad_accounting=False, wrong_reason=False, old_impl=False):
@@ -530,19 +703,19 @@ class Round8Controls(unittest.TestCase):
     def test_early_swap_late_pin(self): self.swap_control(late=True)
 
     def test_early_swap_detects_missing_eta_guard(self):
-        with self.assertRaises(a.Gate) as caught: self.swap_control(broken_eta=True)
+        with assert_stop(self, 'receipt_status') as caught: self.swap_control(broken_eta=True)
         self.assertEqual(caught.exception.record['gate'], 'receipt_status')
 
     def test_early_swap_refuses_old_implementation(self):
-        with self.assertRaises(a.Gate) as caught: self.swap_control(old_impl=True, broken_eta=True)
+        with assert_stop(self, 'early_swap_implementation') as caught: self.swap_control(old_impl=True, broken_eta=True)
         self.assertEqual(caught.exception.record['gate'], 'early_swap_implementation')
 
     def test_early_swap_requires_valid_accounting(self):
-        with self.assertRaises(a.Gate) as caught: self.swap_control(bad_accounting=True)
+        with assert_stop(self, 'early_swap_accounting') as caught: self.swap_control(bad_accounting=True)
         self.assertEqual(caught.exception.record['gate'], 'early_swap_accounting')
 
     def test_early_swap_requires_eta_revert_reason(self):
-        with self.assertRaises(a.Gate) as caught: self.swap_control(wrong_reason=True)
+        with assert_stop(self, 'negative_early_swap_reason') as caught: self.swap_control(wrong_reason=True)
         self.assertEqual(caught.exception.record['gate'], 'negative_early_swap_reason')
 
 
@@ -593,7 +766,7 @@ class RebuiltScopeTests(unittest.TestCase):
             self.assertIs(m.rebuild(), built)
             json.dumps(built)  # Manifest rebuild metadata must remain serializable.
             scope.assert_called_once_with(trees[0])
-            extracted.assert_called_once_with(trees[0])
+            extracted.assert_called_once_with(trees[0], tuple(sorted(set(m.isolation.NAMES) | {'xPNTsFactoryV2', 'xPNTsTokenV2', 'xPNTsTokenV2Ext'})))
             self.assertEqual(built['oldOwnerInventory'], ART['oldOwnerInventory'])
         self.assertTrue(trees[0].exists())
         m.rebuild_commit(ART['commit'])['treeOwner'].cleanup()
@@ -602,7 +775,16 @@ class RebuiltScopeTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
     def setUp(self):
-        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,ART['oldOwnerInventory'])))
+        from execution_git_fixture import clean_checkout
+        clean_checkout(self, ART['commit'])
+        timelock_build = patch.object(u, 'build', return_value=copy.deepcopy(base.ART))
+        timelock_build.start()
+        self.addCleanup(timelock_build.stop)
+        isolation_tests.patch_callsite_targets(self)
+        config_reader = patch.object(m.isolation, 'committed_callsite_config', return_value=isolation_tests.FIXTURE_CONFIG_BYTES)
+        config_reader.start()
+        self.addCleanup(config_reader.stop)
+        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,{k: ART['oldOwnerInventory'][k] for k in m.isolation.NAMES}, isolation_tests.FIXTURE_CALLSITE_TARGETS)))
         source_validation.start(); self.addCleanup(source_validation.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -744,7 +926,7 @@ class ManifestTests(unittest.TestCase):
                 for step in bad['steps']: step[field] = 9999999999
             bad['prefixDigest'] = m.prefix_digest(bad)
             with self.subTest(field=field):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'prefix_exact') as caught:
                     m.verify_prefix(full, bad, 'b4')
                 self.assertEqual(caught.exception.record['gate'], 'prefix_exact')
 
@@ -759,7 +941,7 @@ class ManifestTests(unittest.TestCase):
                 plan[field] = 9999999999
             plan['prefixDigest'] = m.prefix_digest(plan)
             bad['b4']['readback']['prefixDigest'] = plan['prefixDigest']
-            with self.subTest(field=field), self.assertRaises(a.Gate) as caught:
+            with self.subTest(field=field), assert_stop(self, 'source_plan_bytes') as caught:
                 m.build_plan(self.pin, self.inputs, 'full', bad)
             self.assertEqual(caught.exception.record['gate'], 'source_plan_bytes')
 
@@ -849,7 +1031,7 @@ class ManifestTests(unittest.TestCase):
                            '--plan', str(artifact)])
         self.assertEqual(code, 1)
         failure = json.loads((out/'FAILURE.json').read_text())
-        expected = {'sidecar':'plan_hash', 'final':'stage_not_final'}.get(tamper, 'test_fork_boundary')
+        expected = {'sidecar':'plan_hash', 'final':'stage_not_final_load_artifact'}.get(tamper, 'test_fork_boundary')
         self.assertEqual(failure['gate'], expected)
         if tamper:
             fork.assert_not_called()
@@ -1014,7 +1196,7 @@ class ManifestTests(unittest.TestCase):
         passed = {s['id'] for s in self.plan['steps']}
         step = self.step('D.committee.transfer')
         m.handover_gate(None, self.plan, step, {'passed':passed})
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'handover_dependencies') as caught:
             m.handover_gate(None, self.plan, step, {'passed':passed-{'A8.committee'}})
         self.assertEqual(caught.exception.record['gate'], 'handover_dependencies')
 
@@ -1028,7 +1210,7 @@ class ManifestTests(unittest.TestCase):
                 return a.cast('abi-encode', 'c(address)', u.SAFE)
             with self.subTest(name=name), patch.object(a, 'call', side_effect=call):
                 m.handover_gate(None, self.plan, step, {'passed':passed})
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'handover_dependencies') as caught:
                     m.handover_gate(None, self.plan, step, {'passed':passed-{'D.'+name+'.admin'}})
                 self.assertEqual(caught.exception.record['gate'], 'handover_dependencies')
 
@@ -1041,7 +1223,7 @@ class ManifestTests(unittest.TestCase):
             bad = copy.deepcopy(self.plan)
             bad['pin']['bindings'][COMMITTEE] += ('63'+selector).upper()
             with self.subTest(selector=selector):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, gate) as caught:
                     m.handover_gate(None, bad, step, {'passed':passed})
                 self.assertEqual(caught.exception.record['gate'], gate)
         self.assertIn(m.address_pred(COMMITTEE, 'owner()', u.SAFE), step['readbacks'])
@@ -1053,23 +1235,28 @@ class ManifestTests(unittest.TestCase):
             self.assertEqual((method, params), ('eth_chainId', []))
             return hex(a.CHAIN)
         rpc.local = True
+        rpc = with_orphan_reads(rpc, self.plan['pin'], '0x150')
+        real_word, real_call, real_address = a.word, a.call, a.address
         for accepted in (False, True):
             passed = {s['id'] for s in self.plan['steps']}-{'D.registry_execute_exec'}
             if accepted: passed.add('D.registry_execute_exec')
             for owner in (u.DEPLOYER, u.TL):
                 def address(r, target, sig, *args):
+                    if sig in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                        return real_address(r, target, sig, *args)
                     self.assertEqual(sig, 'owner()')
                     return owner if target == u.REG else u.TL
                 with self.subTest(accepted=accepted, owner=owner), contextlib.ExitStack() as stack:
                     for mock in (
                         patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])),
-                        patch.object(a, 'word', return_value=step['safeNonce']),
+                        patch.object(a, 'word', side_effect=lambda r,t,s,*args,**kw: step['safeNonce'] if s == 'nonce()' else real_word(r,t,s,*args,**kw)),
                         patch.object(a, 'address', side_effect=address),
-                        patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])),
+                        patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else u.frozen_config(self.pin['roleConfig']) if s == 'getRoleConfig(bytes32)' else real_call(r,t,s,*args,**kw)),
                         patch.object(a, 'block_data', return_value={'number':'0x150'}),
                         patch.object(u, 'safe_state', return_value=self.pin['safe']),
                         patch.object(u, 'governance'),
                         patch.object(u, 'code', side_effect=lambda r,t,*args:self.pin['bindings'][t]),
+                        patch.object(m, 'discovery_coverage', return_value=copy.deepcopy(self.plan['pin'])),
                         patch.object(m, 'old_activity', return_value={}),
                         patch.object(m, 'dvt_activity', return_value=[])):
                         stack.enter_context(mock)
@@ -1077,7 +1264,7 @@ class ManifestTests(unittest.TestCase):
                     if owner == (u.TL if accepted else u.DEPLOYER):
                         self.assertEqual(m.pre_send(rpc, self.plan, step, context), step['tx'])
                     else:
-                        with self.assertRaises(a.Gate) as caught:
+                        with assert_stop(self, 'registry_owner') as caught:
                             m.pre_send(rpc, self.plan, step, context)
                         self.assertEqual(caught.exception.record['gate'], 'registry_owner')
 
@@ -1097,14 +1284,14 @@ class ManifestTests(unittest.TestCase):
                  patch.object(m, 'CONTROLS', ['owner_handover']), patch.object(m, 'PC_CONTROLS', []), \
                  patch.object(m, 'handover_controls', return_value={'control':'owner_handover'}), \
                  patch.object(a, 'address', return_value=owner), \
-                 patch.object(a, 'call', return_value=u.frozen_config(self.pin['roleConfig'])), \
+                 patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else u.frozen_config(self.pin['roleConfig'])), \
                  patch.object(m, 'dvt_closing', return_value={}), \
                  patch.object(m, 'balances', side_effect=CheckpointPassed):
                 if owner == u.TL:
                     with self.assertRaises(CheckpointPassed):
                         m.run_manifest(None, rpc, plan, Path(self.tmp.name))
                 else:
-                    with self.assertRaises(a.Gate) as caught:
+                    with assert_stop(self, 'registry_authority') as caught:
                         m.run_manifest(None, rpc, plan, Path(self.tmp.name))
                     self.assertEqual(caught.exception.record['gate'], 'registry_authority')
 
@@ -1347,7 +1534,7 @@ class ManifestTests(unittest.TestCase):
         # DSR F-02 (2026-11-05): exact shortfall, 1 wei short; keys {requiredWei, balanceWei, shortfallWei}.
         required = self.plan['budgetsWei']['deployer']
         self.plan['pin']['senders']['deployer']['balance'] = required-1
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'budget_deployer') as caught:
             m.budget(self.plan)
         self.assertEqual(caught.exception.record['gate'], 'budget_deployer')
         self.assertEqual(caught.exception.record['observed'],
@@ -1393,7 +1580,7 @@ class ManifestTests(unittest.TestCase):
                             target = target['variantMeasurements']['placeholder']
                         del target['estimateGas']
                         with self.subTest(stage=stage, step=step['id'], variant=variant):
-                            with self.assertRaises(a.Gate) as caught:
+                            with assert_stop(self, 'remote_estimate_missing') as caught:
                                 m.validate_plan(bad, inputs, frozen=True)
                             self.assertEqual(caught.exception.record['gate'], 'remote_estimate_missing')
                             self.assertEqual(caught.exception.record['step'], step['id'])
@@ -1407,14 +1594,14 @@ class ManifestTests(unittest.TestCase):
             with self.subTest(sampled=sampled):
                 data = copy.deepcopy(self.data)
                 data['sampled'] = sampled
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'sampled_deployer_only') as caught:
                     m.validate_external(data)
                 self.assertEqual(caught.exception.record['gate'], 'sampled_deployer_only')
 
     def test_pin_pending_token_eta(self):
         pin = copy.deepcopy(self.pin)
         pin['pendingAPNTsTokenEta'] = 1794226597
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'pin_pending_token_eta') as caught:
             m.build_plan(pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'pin_pending_token_eta')
 
@@ -1423,9 +1610,9 @@ class ManifestTests(unittest.TestCase):
         plan = copy.deepcopy(self.plan)
         step = next(s for s in plan['steps'] if s['id'].startswith('A14.'))
         step['tx']['data'] = a.calldata('setOperatorPaused(address,bool)', u.DEPLOYER, 'false')
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'manifest_tx_field_data') as caught:
             m.validate_plan(plan, self.inputs)
-        self.assertEqual(caught.exception.record['gate'], 'manifest_tx_data')
+        self.assertEqual(caught.exception.record['gate'], 'manifest_tx_field_data')
 
     def test_unpause_only_in_activation_batch(self):
         # DSR Q4: setOperatorPaused(op,false) for any op appears only in the 6c/6d activation batch, and only for D.
@@ -1548,7 +1735,7 @@ class ManifestTests(unittest.TestCase):
                 context['B2'] = {'checked':True}
                 gates.append(len(sent))
             return step['tx']
-        def controls(r, plan, sid, output):
+        def controls(r, plan, sid, output, expected):
             if sid == 'after_upgrade_execute_exec':
                 self.assertEqual(sent[-1][0], 'upgrade_execute_exec')
             if sid == 'after_B4': output.extend(dict(control=x) for x in m.CONTROLS if x != 'owner_handover')
@@ -1591,7 +1778,7 @@ class ManifestTests(unittest.TestCase):
                 m.fraud_rehearsal.assert_called_once_with(rpc, self.plan)
                 m.dvt_closing.assert_called_once_with(rpc, self.plan)
             else:
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, gate) as caught:
                     m.run_manifest(None, rpc, self.plan, Path(self.tmp.name))
                 self.assertEqual(caught.exception.record['gate'], gate)
         return sent, waits, gates, state
@@ -1608,13 +1795,17 @@ class ManifestTests(unittest.TestCase):
         self.rehearse_fake(fault='drift', gate='accounting_unchanged_since_phase_c')
 
     def test_rehearsal_funding_rechecked_after_phase_c(self):
-        # run_manifest must call the funding re-read right after the last Phase C step and stop
-        # on its gate before any Phase D transaction (the real gate is tested in the Phase C suite).
+        from test_manifest_phase_c import Chain
         def drained(rpc, plan):
-            a.need('C_funding_bundler', False, True)
+            chain = Chain(plan, 'after_phase_c')
+            chain.balances[chain.B] = plan['phaseC']['bundlerTarget']-1
+            # Use real read helpers with the offline chain, including the production gate.
+            with patch.object(a, 'word', base_word), patch.object(a, 'block_data', base_block), chain.patches()[0]:
+                return REAL_FUNDING_GATE(chain, plan)
+        base_word, base_block = a.word, a.block_data
         with patch.object(m, 'funding_gate', side_effect=drained):
             sent, _, _, _ = self.rehearse_fake(fault='funding', gate='C_funding_bundler')
-        self.assertEqual(sent[-1][0], self.plan['phaseC']['steps'][-1])
+        self.assertEqual(sent[-1][0], self.plan['phaseC']['steps'][-1], 'C_funding_bundler')
 
     def test_rehearsal_orders_all_steps_warps_and_b2(self):
         sent, waits, gates, state = self.rehearse_fake()
@@ -1665,7 +1856,7 @@ class ManifestTests(unittest.TestCase):
     def test_unsigned_dvt_proposal_stops(self):
         # Superseded fixture shape: the getter inventory is now authoritative (see stale tests).
         self.assertEqual(len(self.stale_proposals()), 9)
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'dvt_stale_proposal_listed') as caught:
             self.stale_proposals(lambda rows: rows[7].update(executed=False))
         self.assertEqual(caught.exception.record['gate'], 'dvt_stale_proposal_listed')
 
@@ -1709,17 +1900,90 @@ class ManifestTests(unittest.TestCase):
                  (dict(edit=stale_executed), 'dvt_stale_open_set'), (dict(next_id=11), 'dvt_stale_next_id')]
         for kw, gate in cases:
             with self.subTest(gate=gate, case=getattr(kw.get('edit'), '__name__', kw)):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, gate) as caught:
                     self.stale_proposals(**kw)
                 self.assertEqual(caught.exception.record['gate'], gate)
+
+    def never_recheck_change(self, closing, field='neverGrantedReads', gate='old_owner_never_granted_recheck'):
+        plan = copy.deepcopy(self.plan)
+        plan['pin']['oldActivity']['dvtProposals'] = [{'recorded':True}]
+        row = plan['pin']['oldOwnerIsolation'][field][-1]
+        # oldRoleReads rows are OLD's memberships: a post-pin grant to OLD (e.g. via safeMintForRole).
+        holder = row.get('holder', m.isolation.OLD)
+        rpc = old_timelock_rpc(plan['pin'],'0x200',
+            (row['target'],'hasRole(bytes32,address)',[row['role'],holder],isolation_tests.raw([1])))
+        rpc.local = True
+        with contextlib.ExitStack() as stack:
+            for item in self.closing_rpc(plan['pin']['oldAggregator']):
+                stack.enter_context(item)
+            if not closing:
+                # Reach the normal chain guard if the recheck gate is removed.
+                original = rpc
+                def rpc(method,params):
+                    if method == 'eth_chainId': return '0x0'
+                    return original(method,params)
+                rpc.local = True
+                stack.enter_context(patch.object(m,'handover_gate'))
+            with assert_stop(self, gate) as caught:
+                if closing:
+                    m.dvt_closing(rpc,plan)
+                else:
+                    m.pre_send(rpc,plan,dict(tx={}),{})
+            self.assertEqual(caught.exception.record['gate'],gate)
+
+    def test_never_granted_closing_change(self):
+        self.never_recheck_change(True)
+
+    def test_never_granted_pre_send_change(self):
+        self.never_recheck_change(False)
+
+
+    def xpnts_owner_change(self, closing):
+        for owner in (m.isolation.OLD,m.isolation.OLD_TIMELOCK):
+            plan = copy.deepcopy(self.plan)
+            plan['pin']['oldActivity']['dvtProposals'] = [{'recorded':True}]
+            token = plan['pin']['oldOwnerIsolation']['xpnts'][-1]
+            rpc = old_timelock_rpc(plan['pin'],'0x200',
+                (token,'communityOwner()',[],isolation_tests.raw([int(owner,16)])))
+            original = rpc
+            def rpc(method,params):
+                if method == 'eth_chainId': return '0x0'
+                return original(method,params)
+            rpc.local = True
+            with contextlib.ExitStack() as stack:
+                for item in self.closing_rpc(plan['pin']['oldAggregator']): stack.enter_context(item)
+                stack.enter_context(patch.object(m,'handover_gate'))
+                with assert_stop(self, 'old_owner_xpnts_owner_recheck') as caught:
+                    if closing: m.dvt_closing(rpc,plan)
+                    else: m.pre_send(rpc,plan,dict(tx={}),{})
+                self.assertEqual(caught.exception.record['gate'],'old_owner_xpnts_owner_recheck')
+
+    def test_xpnts_owner_closing(self):
+        self.xpnts_owner_change(True)
+
+    def test_xpnts_owner_pre_send(self):
+        self.xpnts_owner_change(False)
+
+    def test_old_role_closing_change(self):
+        self.never_recheck_change(True, 'oldRoleReads', 'old_owner_role_recheck')
+
+    def test_old_role_pre_send_change(self):
+        self.never_recheck_change(False, 'oldRoleReads', 'old_owner_role_recheck')
 
     def closing_rpc(self, pointer, activity='pin', executed=(), stray=None):
         # Every read must name the one closing block (0x200); `stray` points one target elsewhere.
         getters = {u.REG: 'blsAggregator()', DVT: 'BLS_AGGREGATOR()', COMMITTEE: 'blsAggregator()'}
+        real_address = a.address
         def address(r, target, sig, block=None):
+            if target == u.REG and sig in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                return real_address(r, target, sig, block)
             self.assertEqual((sig, block), (getters[target], '0x200'))
             return u.SP if target == stray else pointer
-        def call(r, target, sig, proposal, block=None):
+        real_call = a.call
+        def call(r, target, sig, *args, block=None):
+            if (target, sig) != (DVT, 'proposals(uint256)'):
+                return real_call(r, target, sig, *args, block=block)
+            proposal, = args
             self.assertEqual((target, sig, block), (DVT, 'proposals(uint256)', '0x200'))
             return a.cast('abi-encode', 'c(address,uint8,string,bool,bool,bytes32)', m.STALE_PROPOSAL_OPERATOR, 1,
                           'fixture', str(proposal in executed).lower(), 'true', a.ZERO32)
@@ -1728,7 +1992,324 @@ class ManifestTests(unittest.TestCase):
             return [{'recorded': True}] if activity == 'pin' else [{'changed': True}]
         return [patch.object(a, 'address', side_effect=address), patch.object(a, 'call', side_effect=call),
                 patch.object(a, 'block_data', return_value=dict(number='0x200')),
-                patch.object(m, 'dvt_activity', side_effect=activity_at)]
+                patch.object(m, 'dvt_activity', side_effect=activity_at),
+                patch.object(m, 'discovery_coverage', side_effect=lambda plan, passed: copy.deepcopy(plan['pin']))]
+
+    def check_old_timelock(self, gate, bad=None, pin=None):
+        pin = pin or self.pin
+        for closing in (False, True):
+            block = '0x200' if closing else pin['stateBlock']
+            rpc = old_timelock_rpc(pin, block, bad)
+            with self.subTest(closing=closing), contextlib.ExitStack() as stack:
+                if closing:
+                    plan = copy.deepcopy(self.plan)
+                    plan['pin'] = copy.deepcopy(pin)
+                    plan['pin']['oldActivity']['dvtProposals'] = [{'recorded': True}]
+                    pointer = plan['addresses']['BLSAggregator']
+                    for item in self.closing_rpc(pointer): stack.enter_context(item)
+                    action = lambda: m.dvt_closing(rpc, plan)
+                else:
+                    action = lambda: m.old_timelock_holds_nothing(rpc, pin, block)
+                expected = 'old_owner_xpnts_owner_recheck' if closing and bad and bad[1] == 'communityOwner()' else gate
+                if closing and bad and bad[0] == u.REG and bad[1] in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                    expected = 'old_owner_role_callsite_target'
+                with assert_stop(self, expected) as caught: action()
+                self.assertEqual(caught.exception.record['gate'], expected)
+
+    def assert_timelock_build_gate(self, gate, mutate):
+        changed = copy.deepcopy(self.pin)
+        mutate(changed)
+        with assert_stop(self, gate) as caught:
+            m.build_plan(changed, self.inputs)
+        self.assertEqual(caught.exception.record['gate'], gate)
+
+    def test_old_timelock_required(self):
+        tree = ast.parse(Path(m.__file__).read_text())
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        # Conservatively count EVERY matching string constant, including get,
+        # membership, subscripts and unknown key consumers. Only direct Store
+        # subscripts are excluded: they write evidence, never read it. Locations
+        # keep even identical expressions at separate sites distinct.
+        sites = {(node.lineno, node.col_offset) for node in ast.walk(tree)
+                 if isinstance(node, ast.Constant) and node.value == 'oldTimelock'
+                 and not (isinstance(parents[node], ast.Subscript)
+                          and parents[node].slice is node
+                          and isinstance(parents[node].ctx, ast.Store))}
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        gate = functions['validate_old_timelock'].body[0].value.args[1].left
+        lookup = functions['old_timelock_section'].body[0].value.slice
+        self.assertEqual(sites, {(gate.lineno, gate.col_offset), (lookup.lineno, lookup.col_offset)},
+                         'old_timelock_read_sites: patch needs updating')
+        changed = json.loads(json.dumps(self.pin))
+        del changed['oldTimelock']
+        # Source: the valid evidence in this test's pin fixture. The patched
+        # accessor neither computes this value nor calls its fixture producer.
+        good_section = copy.deepcopy(self.pin['oldTimelock'])
+        with patch.object(m, 'old_timelock_section', return_value=good_section):
+            with assert_stop(self, 'old_timelock_required'):
+                m.build_plan(changed, self.inputs)
+
+    def test_old_timelock_read_sites(self):
+        original = Path.read_text
+        source = original(Path(m.__file__))
+        # Each form must independently invalidate the accessor patch inventory.
+        for expression in ("pin['oldTimelock']", "pin.get('oldTimelock')",
+                           "'oldTimelock' in pin", "consume('oldTimelock')"):
+            extra = source + '\ndef future_read(pin):\n    return ' + expression + '\n'
+            def read(path, *args, **kwargs):
+                return extra if path == Path(m.__file__) else original(path, *args, **kwargs)
+            with self.subTest(expression=expression), patch.object(Path, 'read_text', read):
+                with self.assertRaisesRegex(AssertionError, 'old_timelock_read_sites: patch needs updating',
+                                            msg='old_timelock_read_sites: count assertion not raised'):
+                    self.test_old_timelock_required()
+
+    def test_old_timelock_schema(self):
+        self.assert_timelock_build_gate('old_timelock_schema', lambda p: p['oldTimelock'].update(extra=True))
+
+    def test_old_timelock_block(self):
+        self.assert_timelock_build_gate('old_timelock_block', lambda p: p['oldTimelock']['reads'][0].update(block='0x123'))
+
+    def test_old_timelock_replay_reads(self):
+        self.assert_timelock_build_gate('old_timelock_replay_reads', lambda p: p['oldTimelock']['reads'][0].update(target=u.SP))
+
+    def test_old_timelock_replay_owners(self):
+        self.assert_timelock_build_gate('old_timelock_replay_owners', lambda p: p['oldTimelock']['approvalOwners'].clear())
+
+    def test_old_timelock_unused(self):
+        self.assert_timelock_build_gate('old_timelock_unused', lambda p: p['oldTimelock']['reads'].append(copy.deepcopy(p['oldTimelock']['reads'][0])))
+
+    def test_old_timelock_tampered_result(self):
+        self.assert_timelock_build_gate('old_timelock_tl_roles', lambda p: p['oldTimelock']['reads'][0].update(result=isolation_tests.raw([1])))
+
+    def test_old_timelock_allowance(self):
+        token = self.pin['oldOwnerIsolation']['tokens'][0]
+        bad = (token, 'allowance(address,address)', [u.SAFE, m.isolation.OLD_TIMELOCK], isolation_tests.raw([1]))
+        self.check_old_timelock('old_timelock_allowance', bad)
+        def mutate(p):
+            p['oldTimelock']['reads'] = [dict(r, result=bad[3]) if
+                (r.get('target'), r.get('signature'), r.get('args')) == bad[:3] else r for r in p['oldTimelock']['reads']]
+        self.assert_timelock_build_gate('old_timelock_allowance', mutate)
+
+    def approval_rpc(self, block, amount=1, incomplete=False, malformed=False):
+        token = self.pin['oldOwnerIsolation']['tokens'][0]
+        holder = '0x'+'ac'*20
+        self.assertNotIn(holder, m.isolation.allowance_holders())
+        baseline = old_timelock_rpc(self.pin, block,
+            (token, 'allowance(address,address)', [holder, m.isolation.OLD_TIMELOCK], isolation_tests.raw([amount])))
+        topic = a.keccak('Approval(address,address,uint256)')
+        event = dict(address=token, blockNumber='0x2', removed=malformed,
+            topics=[topic, '0x'+holder[2:].zfill(64), '0x'+m.isolation.OLD_TIMELOCK[2:].zfill(64)],
+            data=isolation_tests.raw([1]))
+        def rpc(method, params):
+            if method == 'eth_getLogs' and params[0]['topics'][0] == topic:
+                query = params[0]
+                self.assertEqual(query['topics'], [topic, None, event['topics'][2]])
+                if incomplete and query['fromBlock'] == '0x1' and query['toBlock'] == block:
+                    return []
+                return [event] if query['address'] == token and a.qty(query['fromBlock']) <= 2 <= a.qty(query['toBlock']) else []
+            return baseline(method, params)
+        return rpc, token, holder
+
+    def test_old_timelock_external_approval(self):
+        rpc, _, _ = self.approval_rpc(self.pin['stateBlock'])
+        with assert_stop(self, 'old_timelock_allowance') as caught:
+            m.old_timelock_holds_nothing(rpc, self.pin, self.pin['stateBlock'])
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_allowance')
+
+    def test_old_timelock_external_approval_closing(self):
+        rpc, _, _ = self.approval_rpc('0x200')
+        plan = copy.deepcopy(self.plan)
+        plan['pin']['oldActivity']['dvtProposals'] = [{'recorded': True}]
+        with contextlib.ExitStack() as stack:
+            for item in self.closing_rpc(plan['addresses']['BLSAggregator']): stack.enter_context(item)
+            with assert_stop(self, 'old_timelock_allowance') as caught:
+                m.dvt_closing(rpc, plan)
+            self.assertEqual(caught.exception.record['gate'], 'old_timelock_allowance')
+
+    def test_old_timelock_external_approval_pre_send(self):
+        # Challenge round 2 P2: a pinned Approval owner grants the orphan an allowance after the pin; pre_send
+        # (not only closing) must stop before any transaction is sent.
+        rpc, token, holder = self.approval_rpc('0x200')
+        plan = copy.deepcopy(self.plan)
+        plan['pin']['oldTimelock'] = dict(plan['pin'].get('oldTimelock') or {}, approvalOwners={token: [holder]})
+        def sender(method, params):
+            if method == 'eth_getLogs': return []
+            if method == 'eth_chainId': return '0x0'
+            return rpc(method, params)
+        sender.local = True
+        with contextlib.ExitStack() as stack:
+            for item in self.closing_rpc(plan['pin']['oldAggregator']): stack.enter_context(item)
+            stack.enter_context(patch.object(m, 'handover_gate'))
+            with assert_stop(self, 'old_timelock_allowance') as caught:
+                m.pre_send(sender, plan, dict(tx={}), {})
+            self.assertEqual(caught.exception.record['gate'], 'old_timelock_allowance')
+
+    def test_old_timelock_external_approval_revoked(self):
+        rpc, token, holder = self.approval_rpc(self.pin['stateBlock'], amount=0)
+        pin = copy.deepcopy(self.pin)
+        pin['oldTimelock'] = m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
+        self.assertEqual(pin['oldTimelock']['approvalOwners'][token], [holder])
+        m.validate_old_timelock(pin)
+
+    def test_old_timelock_approval_incomplete(self):
+        rpc, _, _ = self.approval_rpc(self.pin['stateBlock'], incomplete=True)
+        with assert_stop(self, 'old_owner_log_partition') as caught:
+            m.old_timelock_holds_nothing(rpc, self.pin, self.pin['stateBlock'])
+        self.assertEqual(caught.exception.record['gate'], 'old_owner_log_partition')
+
+    def approval_history_control(self, invalid_range):
+        pin = copy.deepcopy(self.pin)
+        rpc, token, _ = self.approval_rpc(pin['stateBlock'], amount=0, malformed=not invalid_range)
+        if invalid_range:
+            pin['oldOwnerIsolation']['inventory']['deployedSources'] = [dict(target=token, creationBlock=0)]
+        gate = 'old_timelock_approval_history_creation' if invalid_range else 'old_timelock_approval_history_log'
+        with assert_stop(self, gate):
+            m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
+
+    def test_old_timelock_approval_history_range(self):
+        self.approval_history_control(True)
+
+    def test_old_timelock_approval_history_log(self):
+        self.approval_history_control(False)
+
+    def test_old_timelock_approval_creation_bounds(self):
+        pin = copy.deepcopy(self.pin)
+        tokens = pin['oldOwnerIsolation']['tokens']
+        pin['isolationDeployments'] = {token: 3 for token in tokens}
+        pin['oldOwnerIsolation']['inventory']['deployedSources'] = [dict(target=tokens[0], creationBlock=2)]
+        rpc = old_timelock_rpc(pin, pin['stateBlock'])
+        evidence = m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
+        for token in tokens:
+            queries = [r['params'][0] for r in evidence['reads'] if r.get('method') == 'eth_getLogs'
+                       and r['params'][0]['address'] == token]
+            self.assertEqual(len(queries), 3)
+            self.assertEqual(queries[0]['fromBlock'], '0x2' if token == tokens[0] else '0x3')
+            self.assertEqual(queries[0]['toBlock'], pin['stateBlock'])
+        pin['oldTimelock'] = evidence
+        m.validate_old_timelock(pin)
+
+    def test_old_timelock_log_replay(self):
+        for mutation, gate in (('omit', 'old_timelock_replay_reads'),
+                               ('mismatch', 'old_timelock_replay_reads'),
+                               ('unused', 'old_timelock_unused'),
+                               ('owners', 'old_timelock_replay_owners')):
+            pin = copy.deepcopy(self.pin)
+            rpc, token, _ = self.approval_rpc(pin['stateBlock'], amount=0)
+            pin['oldTimelock'] = m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
+            rows = pin['oldTimelock']['reads']
+            index = next(i for i, row in enumerate(rows) if row.get('method') == 'eth_getLogs')
+            if mutation == 'omit': rows.pop(index)
+            if mutation == 'mismatch': rows[index]['params'][0]['address'] = u.SAFE
+            if mutation == 'unused': rows.append(copy.deepcopy(rows[index]))
+            if mutation == 'owners': pin['oldTimelock']['approvalOwners'][token] = []
+            with self.subTest(mutation=mutation):
+                with assert_stop(self, gate) as caught:
+                    m.validate_old_timelock(pin)
+                self.assertEqual(caught.exception.record['gate'],
+                    gate)
+
+    def check_closing_inventory(self, new_role=False):
+        block = '0x200'
+        rpc = old_timelock_rpc(self.pin, block)
+        new = '0x'+'ab'*20
+        role = '0x'+'ab'*32
+        def changed(method, params):
+            if method == 'eth_getLogs' and params[0]['topics'] == [a.keccak(m.isolation.ROLE_EVENT)] and new_role:
+                rows = rpc(method, params)
+                return rows + [dict(rows[0], topics=[a.keccak(m.isolation.ROLE_EVENT), role])] if rows else []
+            if method == 'eth_call':
+                data = params[0]['data']
+                if new_role and data == a.calldata('getRoleConfig(bytes32)', role):
+                    values = [32]+[0]*13
+                    values[10], values[11] = 384, int(m.isolation.OLD_TIMELOCK, 16)
+                    return isolation_tests.raw(values)
+                # The forbidden state: the orphan holds the role configured after the pin. With the inventory
+                # gate removed, a later gate must reject it under another name (an assertion failure, not an error).
+                if new_role and data.startswith(a.calldata('hasRole(bytes32,address)', role, '0x'+'00'*20)[:74]):
+                    holder = '0x'+data[-40:]
+                    return isolation_tests.raw([int(holder == m.isolation.OLD_TIMELOCK.lower())])
+                if not new_role and data == a.calldata('getAllTokens()'):
+                    tokens = u.addr_array(rpc(method, params)) + [new]
+                    return isolation_tests.raw([32, len(tokens), *(int(t, 16) for t in tokens)])
+                if params[0]['to'] == new and data == a.calldata('owner()'):
+                    return isolation_tests.raw([int(m.isolation.OLD_TIMELOCK, 16)])
+            return rpc(method, params)
+        plan = copy.deepcopy(self.plan)
+        plan['pin']['oldActivity']['dvtProposals'] = [{'recorded': True}]
+        with contextlib.ExitStack() as stack:
+            for item in self.closing_rpc(plan['addresses']['BLSAggregator']): stack.enter_context(item)
+            with assert_stop(self, 'old_timelock_inventory') as caught:
+                m.dvt_closing(changed, plan)
+            self.assertEqual(caught.exception.record['gate'], 'old_timelock_inventory')
+
+    def test_configured_roles_closing_without_events(self):
+        pin = copy.deepcopy(self.pin)
+        section = pin['oldOwnerIsolation']
+        section['roleHistory'] = {target: [] for target in section['roleHistory']}
+        section['configuredRoles'] = sorted(r['value'] for r in section['inventory']['Registry']['roles'])
+        rpc = isolation_tests.fixture_rpc(pin)
+        with patch.object(m.isolation, 'role_history', return_value=[]), patch.object(
+                m.isolation, 'bounded_history_logs', return_value=[]):
+            try:
+                result = m.closing_timelock_inventory(rpc, pin, pin['stateBlock'])
+            except a.Gate as fault:
+                self.fail(fault.record['gate'])
+        self.assertEqual(result['oldOwnerIsolation']['configuredRoles'], section['configuredRoles'])
+
+    def test_old_timelock_inventory_new_role(self):
+        self.check_closing_inventory(new_role=True)
+
+    def test_old_timelock_inventory_new_token(self):
+        block = '0x200'
+        rpc = old_timelock_rpc(self.pin, block)
+        new = '0x'+'ab'*20
+        def changed(method, params):
+            if method == 'eth_call' and params[0]['data'] == a.calldata('getAllTokens()'):
+                tokens = u.addr_array(rpc(method, params)) + [new]
+                return isolation_tests.raw([32, len(tokens), *(int(t, 16) for t in tokens)])
+            return rpc(method, params)
+        # End at inventory validation; a deleted gate must not reach unrelated authority RPCs.
+        with assert_stop(self, 'old_timelock_inventory') as caught:
+            m.closing_timelock_inventory(changed, self.pin, block)
+        self.assertEqual(caught.exception.record['gate'], 'old_timelock_inventory')
+
+    def test_old_timelock_tl_roles(self):
+        for role in [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]:
+            self.check_old_timelock('old_timelock_tl_roles',
+                (u.TL, 'hasRole(bytes32,address)', [role, m.isolation.OLD_TIMELOCK], isolation_tests.raw([1])))
+
+    def test_old_timelock_authority(self):
+        for target, sig, args, kind in m.isolation.authority_rows(self.pin['oldOwnerIsolation']):
+            if target == u.TL: continue
+            if kind == 'config':
+                values = [32]+[0]*13
+                values[10], values[11] = 384, int(m.isolation.OLD_TIMELOCK, 16)
+            else:
+                values = [1 if kind == 'bool' else int(m.isolation.OLD_TIMELOCK, 16)]
+            with self.subTest(target=target, signature=sig):
+                self.check_old_timelock('old_timelock_authority', (target, sig, args, isolation_tests.raw(values)))
+
+    def test_old_timelock_safe(self):
+        for sig, args, values in [('getOwners()', [], [32, 1, int(m.isolation.OLD_TIMELOCK, 16)]),
+                                 ('isModuleEnabled(address)', [m.isolation.OLD_TIMELOCK], [1])]:
+            self.check_old_timelock('old_timelock_safe', (u.SAFE, sig, args, isolation_tests.raw(values)))
+
+    def test_old_timelock_holds_nothing(self):
+        pin = copy.deepcopy(self.pin)
+        section = pin['oldOwnerIsolation']
+        target = section['targets']['GToken']
+        section['inventory'].setdefault('targetInventories', {})[target] = dict(
+            authorities=[], mappings=[], roles=[], hasRole=False)
+        self.check_old_timelock('old_timelock_holds_nothing', pin=pin)
+
+    def test_old_timelock_reads_bound_to_block(self):
+        for block in (self.pin['stateBlock'], '0x200'):
+            result = m.old_timelock_holds_nothing(old_timelock_rpc(self.pin, block), self.pin, block)
+            self.assertEqual(result['block'], block)
+            self.assertTrue(result['reads'])
+            self.assertEqual({r['block'] for r in result['reads']}, {block})
+            self.assertEqual({r[0] for r in m.isolation.authority_rows(self.pin['oldOwnerIsolation'])},
+                set(self.pin['oldOwnerIsolation']['targets'].values()) | set(self.pin['oldOwnerIsolation']['xpnts']))
 
     def test_dvt_closing_binds_pointer_and_stale_proposals(self):
         new, old = self.plan['addresses']['BLSAggregator'], self.plan['pin']['oldAggregator']
@@ -1746,13 +2327,13 @@ class ManifestTests(unittest.TestCase):
                 plan = copy.deepcopy(dict(self.plan, stage=stage))
                 plan['pin'].setdefault('oldActivity', {})['dvtProposals'] = [{'recorded': True}]
                 if gate is None:
-                    closing = m.dvt_closing(None, plan)
+                    closing = m.dvt_closing(old_timelock_rpc(plan['pin'], '0x200'), plan)
                     self.assertEqual(closing['staleUnexecuted'], [1, 2, 4, 5, 6, 8, 9])
                     self.assertEqual((closing['block'], closing['pointers']),
                                      ('0x200', dict(registry=pointer, dvt=pointer, committee=pointer)))
                 else:
-                    with self.assertRaises(a.Gate) as caught:
-                        m.dvt_closing(None, plan)
+                    with assert_stop(self, gate) as caught:
+                        m.dvt_closing(old_timelock_rpc(plan['pin'], '0x200'), plan)
                     self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_old_pointers_require_old_aggregator(self):
@@ -1767,7 +2348,7 @@ class ManifestTests(unittest.TestCase):
                 if gate is None:
                     self.assertEqual(set(m.old_pointers(None, d, old, '0x1')), {DVT, COMMITTEE})
                 else:
-                    with self.assertRaises(a.Gate) as caught:
+                    with assert_stop(self, gate) as caught:
                         m.old_pointers(None, d, old, '0x1')
                     self.assertEqual(caught.exception.record['gate'], gate)
 
@@ -1776,7 +2357,7 @@ class ManifestTests(unittest.TestCase):
         def calls(fn, name):
             node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == fn)
             return sum(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == name for c in ast.walk(node))
-        self.assertEqual(calls('run_manifest', 'dvt_closing'), 2)
+        self.assertEqual(calls('_run_manifest', 'dvt_closing'), 2)
         self.assertEqual(calls('collect', 'old_pointers'), 1)
         self.assertEqual(calls('collect', 'dvt_activity'), 1)
 
@@ -1875,9 +2456,10 @@ class ManifestTests(unittest.TestCase):
             if method == 'eth_chainId': return hex(a.CHAIN)
             return chain(method, params)
         rpc.local = True
+        rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
         with patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])), \
              patch.object(a, 'word', side_effect=word), \
-             patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
+             patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'][s[:-2]] if s[:-2] in self.plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'] else self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
              patch.object(u, 'safe_state', return_value=self.pin['safe']), patch.object(u, 'governance'), \
              patch.object(u, 'code', side_effect=lambda r,t,*args:'0xdead' if bad_runtime else self.pin['bindings'][t]), \
              patch.object(m, 'old_activity', return_value={}), patch.object(m, 'dvt_activity', return_value=[]), \
@@ -1887,11 +2469,11 @@ class ManifestTests(unittest.TestCase):
 
     def test_pre_send_real_b2_is_required(self):
         self.pre_send_fixture()
-        with self.assertRaises(a.Gate) as caught: self.pre_send_fixture(bad_buffer=True)
+        with assert_stop(self, 'B2_capped_buffer') as caught: self.pre_send_fixture(bad_buffer=True)
         self.assertEqual(caught.exception.record['gate'], 'B2_capped_buffer')
 
     def test_pre_send_bound_runtime_is_required(self):
-        with self.assertRaises(a.Gate) as caught: self.pre_send_fixture(bad_runtime=True)
+        with assert_stop(self, 'bound_runtime') as caught: self.pre_send_fixture(bad_runtime=True)
         self.assertEqual(caught.exception.record['gate'], 'bound_runtime')
 
     def test_b2a_order_and_missing_mint_refused(self):
@@ -2018,7 +2600,7 @@ class ManifestTests(unittest.TestCase):
 
     def test_builder_runs_release_validation(self):
         with patch.object(m, 'release_gate', side_effect=a.Gate('release_test', False, True)):
-            with self.assertRaises(a.Gate) as caught: m.build_plan(self.pin, self.inputs)
+            with assert_stop(self, 'release_test') as caught: m.build_plan(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'release_test')
 
     def test_unproven_approver_executor_gaps_refused(self):
@@ -2047,20 +2629,20 @@ class ManifestTests(unittest.TestCase):
 
     def test_stale_tree_evidence_refused(self):
         with patch.object(m.subprocess, 'run', return_value=SimpleNamespace(stdout=' M contracts/source.sol', returncode=0)):
-            with self.assertRaises(a.Gate) as caught: REAL_RELEASE_GATE(self.inputs, ART, self.pin)
+            with assert_stop(self, 'release_clean_tree') as caught: REAL_RELEASE_GATE(self.inputs, ART, self.pin)
         self.assertEqual(caught.exception.record['gate'], 'release_clean_tree')
 
     def test_built_aggregator_version_required(self):
         build = dict(ART, aggregatorVersion='BLSAggregator-4.11.0')
         with patch.object(m.subprocess, 'run', return_value=SimpleNamespace(stdout='', returncode=0)):
-            with self.assertRaises(a.Gate) as caught: REAL_RELEASE_GATE(self.inputs, build, self.pin)
-        self.assertEqual(caught.exception.record['gate'], 'built_aggregator_version')
+            with assert_stop(self, 'built_aggregator_version_release_gate') as caught: REAL_RELEASE_GATE(self.inputs, build, self.pin)
+        self.assertEqual(caught.exception.record['gate'], 'built_aggregator_version_release_gate')
 
     def test_cached_build_current_head_required(self):
         def run(cmd, **kwargs):
             return SimpleNamespace(returncode=0, stdout='' if 'status' in cmd else 'f'*40)
         with patch.object(m.subprocess, 'run', side_effect=run):
-            with self.assertRaises(a.Gate) as caught: REAL_RELEASE_GATE(self.inputs, ART, self.pin)
+            with assert_stop(self, 'release_current_head') as caught: REAL_RELEASE_GATE(self.inputs, ART, self.pin)
         self.assertEqual(caught.exception.record['gate'], 'release_current_head')
 
     def registry_layout_fixture(self, change, gate):
@@ -2073,7 +2655,7 @@ class ManifestTests(unittest.TestCase):
         def run(cmd, **kw):
             return SimpleNamespace(returncode=0, stdout='' if 'status' in cmd else ART['commit'] if ('refs/tags/' in cmd[-1] or cmd[-1] == 'HEAD') else 'b'*40)
         with patch.object(m.subprocess, 'run', side_effect=run), patch.object(a, 'compile_commit', return_value=({'Registry':old}, {})):
-            with self.assertRaises(a.Gate) as caught:
+            with assert_stop(self, gate) as caught:
                 REAL_RELEASE_GATE(self.inputs, build, dict(self.pin, registryImplementation=ANNI, registryImplementationCode='0x6000'))
         self.assertEqual(caught.exception.record['gate'], gate)
 
@@ -2093,7 +2675,7 @@ class ManifestTests(unittest.TestCase):
             if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak('Upgraded(address)'):
                 return [result[0], dict(result[0], logIndex='0x1')]
             return result
-        with self.assertRaises(a.Gate) as caught: m.b2_gate(rpc, self.plan, '0x100')
+        with assert_stop(self, 'B2_single_upgrade') as caught: m.b2_gate(rpc, self.plan, '0x100')
         self.assertEqual(caught.exception.record['gate'], 'B2_single_upgrade')
 
     def test_b2_implementation_identity_required(self):
@@ -2103,7 +2685,7 @@ class ManifestTests(unittest.TestCase):
             if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak('Upgraded(address)'):
                 result[0]['topics'][1] = '0x'+ANNI[2:].zfill(64)
             return result
-        with self.assertRaises(a.Gate) as caught: m.b2_gate(rpc, self.plan, '0x100')
+        with assert_stop(self, 'B2_upgrade_identity') as caught: m.b2_gate(rpc, self.plan, '0x100')
         self.assertEqual(caught.exception.record['gate'], 'B2_upgrade_identity')
 
     def test_guardian_inventory_and_anni_required(self):
@@ -2111,11 +2693,11 @@ class ManifestTests(unittest.TestCase):
         # set equals the slot inventory), so assert this exact gate, not any later one.
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][0]['validator'] = ANNI
-        with self.assertRaises(a.Gate) as caught: m.build_plan(bad, self.inputs)
+        with assert_stop(self, 'guardian_inventory') as caught: m.build_plan(bad, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'guardian_inventory')
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][3]['validator'] = '0xf36c9317765634e4995ce1e7210b5738225425b0'
-        with self.assertRaises(a.Gate) as caught: m.build_plan(bad, self.inputs)
+        with assert_stop(self, 'guardian_inventory') as caught: m.build_plan(bad, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'guardian_inventory')
         bad = copy.deepcopy(self.pin)
         bad['guardianInventory'][0]['slot'] = 4
@@ -2152,6 +2734,7 @@ class ManifestTests(unittest.TestCase):
         self.pin['stateBlock'] = harness.pin['stateBlock']
         set_old_exit_evidence(self.pin)
         self.pin['oldOwnerIsolation'] = isolation_tests.evidence(self.pin)
+        self.pin['oldTimelock'] = m.old_timelock_holds_nothing(old_timelock_rpc(self.pin, self.pin['stateBlock']), self.pin, self.pin['stateBlock'])
         self.pin['safeNonce'] = harness.pin['safeNonce']
         self.pin['safe']['owners'] = harness.pin['safe']['owners']
         self.pin['safe']['codes'] = {who:code for who,code in self.pin['safe']['codes'].items() if who in (a.SAFE, a.DEPLOYER)}
@@ -2160,7 +2743,7 @@ class ManifestTests(unittest.TestCase):
         m.build_plan(self.pin, self.inputs, 'a7')
         self.assertEqual(spec['sha256'], digest)
         self.pin['safeGovernanceGaps']['reads']['b'][0]['result']['input'] = '0x00'
-        with self.assertRaises(a.Gate) as caught: m.build_plan(self.pin, self.inputs, 'a7')
+        with assert_stop(self, 'safe_gap_input') as caught: m.build_plan(self.pin, self.inputs, 'a7')
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_input')
 
     def test_embedded_a3a_contract_call_gap_refused(self):
@@ -2173,7 +2756,7 @@ class ManifestTests(unittest.TestCase):
         mined = dict(gap, blockNumber='0x1', blockHash=base.HASH, type='0x2', input='0x12345678', to=u.REG)
         pin = copy.deepcopy(self.pin)
         pin['a3aGapReads'] = [dict(method='eth_getTransactionByHash', params=[gap['hash']], result=mined)]
-        with self.assertRaises(a.Gate) as caught: m.validate_nonce_history(pin, inputs)
+        with assert_stop(self, 'a3a_nonce_complete_deployer') as caught: m.validate_nonce_history(pin, inputs)
         self.assertEqual(caught.exception.record['gate'], 'a3a_nonce_complete_deployer')
 
     def test_fraud_sample_format_only(self):
@@ -2439,7 +3022,7 @@ class ManifestTests(unittest.TestCase):
         p = copy.deepcopy(self.pin)
         m.reconcile_nonces(self.history_rpc(), p, self.inputs)
         self.assertEqual(p['a3aHistory'], self.pin['a3aHistory'])
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'a3a_canonical_receipt') as caught:
             m.reconcile_nonces(self.history_rpc(True), p, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'a3a_canonical_receipt')
 
@@ -2453,7 +3036,7 @@ class ManifestTests(unittest.TestCase):
         spec.update(self.file_ref('hole', plan))
         inputs = copy.deepcopy(self.inputs); inputs['data']['a3aPlan'] = spec
         p = copy.deepcopy(self.pin); p['senders']['deployer']['nonce'] = 106
-        with self.assertRaises(a.Gate) as caught: m.reconcile_nonces(self.history_rpc(), p, inputs)
+        with assert_stop(self, 'a3a_nonce_complete_deployer') as caught: m.reconcile_nonces(self.history_rpc(), p, inputs)
         self.assertEqual(caught.exception.record['gate'], 'a3a_nonce_complete_deployer')
 
     def test_history_calls_frozen_historical_validator_after_hash(self):
@@ -2465,9 +3048,45 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaises(a.Gate): m.history_steps(self.pin, bad)
             validate.assert_not_called()
 
+    def source_stop(self, field, value, gate):
+        altered = copy.deepcopy(self.pin)
+        altered['oldOwnerIsolation']['callsiteTargetSource'][field] = value
+        with assert_stop(self, gate):
+            m.build_plan(altered, self.inputs)
+
+    def test_callsite_source_path(self):
+        self.source_stop('path', 'deployments/other.json', 'callsite_source_path')
+
+    def test_callsite_source_commit(self):
+        self.source_stop('commit', 'b'*40, 'callsite_source_commit')
+
+    def test_callsite_source_sha256(self):
+        self.source_stop('sha256', '0'*64, 'callsite_source_sha256')
+
+    def test_callsite_source_expected(self):
+        wrong = dict(isolation_tests.FIXTURE_CALLSITE_TARGETS, MYSBT='0x'+'ab'*20)
+        self.source_stop('expected', wrong, 'callsite_source_expected')
+
+    def test_callsite_config_byte_changes_plan_digest(self):
+        # Model git-show bytes for a committed one-byte whitespace change.
+        changed = isolation_tests.FIXTURE_CONFIG_BYTES + b' '
+        with patch.object(m.isolation, 'committed_callsite_config', return_value=changed):
+            with assert_stop(self, 'callsite_source_sha256'):
+                m.build_plan(self.pin, self.inputs)
+            fresh = copy.deepcopy(self.pin)
+            fresh['oldOwnerIsolation']['callsiteTargetSource'] = m.isolation.callsite_target_source(ART['commit'])
+            updated = m.build_plan(fresh, self.inputs)
+        first, second = Path(self.tmp.name)/'source-before', Path(self.tmp.name)/'source-after'
+        first.mkdir(); second.mkdir()
+        u.save_plan(first, self.plan)
+        u.save_plan(second, updated)
+        self.assertNotEqual((first/'plan.json.sha256').read_text(), (second/'plan.json.sha256').read_text())
+
     def test_collect_direct_fake_chain(self):
         history = self.history_rpc()
+        legacy = old_timelock_rpc(self.pin, self.pin['stateBlock'])
         def rpc(method, params):
+            if method in ('eth_call', 'eth_getLogs'): return legacy(method, params)
             if method == 'eth_getBalance': return '0x100'
             if method == 'eth_getStorageAt': return '0x'+ANNI[2:].zfill(64)
             return history(method, params)
@@ -2492,9 +3111,10 @@ class ManifestTests(unittest.TestCase):
             def wrong_admin(rpc, target, sig, block):
                 return ANNI if sig == 'slashPolicyAdmin()' else address(rpc, target, sig, block)
             with patch.object(a, 'address', side_effect=wrong_admin):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'old_aggregator_slash_policy_admin') as caught:
                     m.collect(rpc, '0x100', self.inputs)
             self.assertEqual(caught.exception.record['gate'], 'old_aggregator_slash_policy_admin')
+        self.assertEqual({r['block'] for r in collected['oldTimelock']['reads']}, {collected['stateBlock']})
         phase_c.assert_called_once()
         self.assertEqual(collected['phaseC'], self.pin['phaseC'])
         self.assertEqual(collected['a3aHistory'], self.pin['a3aHistory'])
@@ -2531,7 +3151,7 @@ class ManifestTests(unittest.TestCase):
             value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
             value['findings']['outOfScope'] = [dict(id='hidden', impact='High', files=[path], classification='unclassified')]
             with self.subTest(path=path):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'evidence_finding_path_canonical') as caught:
                     m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
                 self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
 
@@ -2543,12 +3163,14 @@ class ManifestTests(unittest.TestCase):
         value['findings']['outOfScope'] = [dict(id='alias', impact='High',
             files=['Alias.sol'], classification='unclassified')]
         with patch.object(m, 'rebuild_commit', return_value=dict(ART, tree=tree)):
-            with self.assertRaises(a.Gate) as caught:
+            with assert_stop(self, 'evidence_finding_path_canonical') as caught:
                 m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
 
     def test_slither_raw_rederived_gate(self):
-        for attack in ('drop', 'hash', 'move'):
+        for attack, gate in (('drop', 'evidence_slither_rederived_findings'),
+                             ('hash', 'evidence_slither_rederived_file'),
+                             ('move', 'evidence_slither_rederived_findings')):
             value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
             self.raw_findings(value, [('hidden', 'High', 'contracts/src/SuperPaymaster.sol')])
             if attack == 'hash':
@@ -2557,9 +3179,9 @@ class ManifestTests(unittest.TestCase):
                 value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
                     files=['contracts/lib/Fake.sol'], classification='unclassified')]
             with self.subTest(attack=attack):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, gate) as caught:
                     m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-                self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_raw_absolute_mapping_rejected(self):
         for field in ('filename_relative', 'filename_absolute', 'filename_short'):
@@ -2579,9 +3201,9 @@ class ManifestTests(unittest.TestCase):
                         item['elements'][0]['source_mapping'].update(mapping)
                     ref = self.file_ref('slither.raw', raw)
                     value['rawReport']['sha256'] = ref['sha256']
-                    with self.assertRaises(a.Gate) as caught:
+                    with assert_stop(self, 'evidence_slither_rederived_filename') as caught:
                         m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived_filename')
 
     def test_raw_report_symlink_escape_rejected(self):
         for parent in (False, True):
@@ -2594,9 +3216,9 @@ class ManifestTests(unittest.TestCase):
                 link.symlink_to(Path(external) if parent else outside, target_is_directory=parent)
                 value['rawReport']['path'] = link.name + ('/report.json' if parent else '')
                 with patch.object(m, 'reviewed_file', wraps=m.reviewed_file) as reviewed:
-                    with self.assertRaises(a.Gate) as caught:
+                    with assert_stop(self, 'evidence_slither_rederived_path_containment') as caught:
                         m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived_path_containment')
                     reviewed.assert_not_called()
 
     def test_outside_high_medium_allowed(self):
@@ -2613,19 +3235,19 @@ class ManifestTests(unittest.TestCase):
         for files in ([], ['']):
             value = copy.deepcopy(original)
             value['scope']['files'] = files
-            with self.assertRaises(a.Gate) as caught:
+            with assert_stop(self, 'evidence_scope_files') as caught:
                 m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
             self.assertEqual(caught.exception.record['gate'], 'evidence_scope_files')
         original['scope']['files'] = ['contracts/lib/Base.sol']
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'evidence_scope_recomputed_validate_evidence_details') as caught:
             m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
-        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed_validate_evidence_details')
         with patch.object(m, 'rebuild_commit', return_value=dict(commit=ART['commit'], scope=copy.deepcopy(original['scope']))):
             m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
         original['scope']['files'] = ART['scope']['files']
         original['findings']['outOfScope'] = [dict(id='lib', impact='High',
             files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'evidence_outside_files') as caught:
             m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
 
@@ -2634,9 +3256,9 @@ class ManifestTests(unittest.TestCase):
         value['scope']['files'] = ['contracts/lib/Fabricated.sol']
         value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
             files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'evidence_scope_recomputed_validate_evidence_details') as caught:
             m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed_validate_evidence_details')
 
     def test_finding_ids_unique_across_scope_partitions(self):
         original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
@@ -2657,7 +3279,7 @@ class ManifestTests(unittest.TestCase):
         value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
         value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
             files=ART['scope']['files'], classification='unclassified')]
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'evidence_outside_files') as caught:
             m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_outside_files')
 
@@ -2666,7 +3288,7 @@ class ManifestTests(unittest.TestCase):
         for name in m.NAMES:
             changed = copy.deepcopy(value)
             changed['contracts'][name]['strippedCreationKeccak'] = a.ZERO32
-            with self.subTest(contract=name), self.assertRaises(a.Gate) as caught:
+            with self.subTest(contract=name), assert_stop(self, 'evidence_full_creation_' + name) as caught:
                 m.validate_evidence_details(changed, 'reproducible-build')
             self.assertEqual(caught.exception.record['gate'], 'evidence_full_creation_'+name)
 
@@ -2676,14 +3298,14 @@ class ManifestTests(unittest.TestCase):
             for field in ('core', 'extension', 'reference'):
                 value = copy.deepcopy(original)
                 value['storageLayout'][index][field] = 'substituted'
-                with self.subTest(index=index, field=field), self.assertRaises(a.Gate) as caught:
+                with self.subTest(index=index, field=field), assert_stop(self, 'evidence_layout_identity') as caught:
                     m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
                 self.assertEqual(caught.exception.record['gate'], 'evidence_layout_identity')
 
     def test_layout_pair_parity_required(self):
         value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
         value['storageLayout'][0]['extensionTable']['storage'][0]['slot'] = '999'
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'evidence_layout_parity') as caught:
             m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
         self.assertEqual(caught.exception.record['gate'], 'evidence_layout_parity')
 
@@ -2710,7 +3332,7 @@ class ManifestTests(unittest.TestCase):
              patch.object(u, 'collect', return_value=copy.deepcopy(self.pin)), \
              patch.object(a, 'nonce', return_value=55), patch.object(u, 'code', return_value='0x'), \
              patch.object(a, 'call', return_value='0x'):
-            with self.assertRaises(a.Gate) as caught: m.collect(lambda method,params:'0x1', '0x100', self.inputs)
+            with assert_stop(self, 'registry_version') as caught: m.collect(lambda method,params:'0x1', '0x100', self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'registry_version')
 
     def test_sign_send_refused(self):
@@ -2785,14 +3407,14 @@ class RealCreationTests(unittest.TestCase):
     def test_verifier_metadata_solc_required(self):
         changed = bytearray.fromhex(self.verifier()[2:])
         changed[-3] ^= 1
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'verifier_metadata_solc') as caught:
             m.verifier_executable('0x' + changed.hex())
         self.assertEqual(caught.exception.record['gate'], 'verifier_metadata_solc')
 
     def test_verifier_segment_length_required(self):
         changed = bytearray.fromhex(self.verifier()[2:])
         changed[-1] -= 1
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'verifier_segment_length') as caught:
             m.verifier_executable('0x' + changed.hex())
         self.assertEqual(caught.exception.record['gate'], 'verifier_segment_length')
 
@@ -2801,7 +3423,7 @@ class RealCreationTests(unittest.TestCase):
         first, second = '0x6000', '0x6001'
         hashes = m.creation_hashes(second, name)
         # Evidence and rebuilt hashes agree; only the independent reference differs.
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'reproducible_bytes_' + name) as caught:
             m.compare_build_evidence(dict(contracts={name: hashes}),
                 {name: dict(bytecode=second, creationHashes=hashes)},
                 reference_contracts={name: dict(bytecode=first)})
@@ -2863,7 +3485,7 @@ class SafeGovernanceTests(unittest.TestCase):
     def stop(self, gate, mutate):
         self.verify()  # The same harness must pass before each mutation.
         mutate()
-        with self.assertRaises(a.Gate) as caught: self.verify()
+        with assert_stop(self, gate) as caught: self.verify()
         self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_real_chain_and_offline_replay(self):
@@ -2872,7 +3494,7 @@ class SafeGovernanceTests(unittest.TestCase):
         self.assertFalse(evidence['partOfA3aPlan'])
         self.assertEqual([r['traceEndpoints'] for r in evidence['transactions']], [1, 1, 1])
         evidence['reads']['a'][0]['result']['input'] = '0x00'
-        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        with assert_stop(self, 'safe_gap_input') as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_input')
 
     def test_replay_duplicate_unused_and_endpoint_copy(self):
@@ -2888,7 +3510,7 @@ class SafeGovernanceTests(unittest.TestCase):
                 else:
                     evidence['reads']['b'] = copy.deepcopy(evidence['reads']['a'])
                     for tx in evidence['transactions']: tx['traceEndpoints'] = 2
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, gate) as caught:
                     m.governance_evidence(self.pin, self.inputs)
                 self.assertEqual(caught.exception.record['gate'], gate)
 
@@ -2907,7 +3529,8 @@ class SafeGovernanceTests(unittest.TestCase):
                 self.setUp()
                 log = self.chain['E755']['a']['receipt']['logs'][1]
                 value = a.ZERO32 if field.endswith('Hash') else hex(a.qty(log[field]) + 2)
-                self.stop('safe_gap_log_' + field, lambda: log.update({field:value}))
+                gate = 'safe_gap_log_logIndex_sequence' if field == 'logIndex' else 'safe_gap_log_' + field
+                self.stop(gate, lambda: log.update({field:value}))
 
     def test_receipt_index_bound_to_mined_transaction(self):
         # Receipt and all logs moved together to another index: only the mined tx binds it.
@@ -2916,17 +3539,17 @@ class SafeGovernanceTests(unittest.TestCase):
                 receipt = self.chain['E755'][endpoint]['receipt']
                 receipt['transactionIndex'] = '0x0'
                 for log in receipt['logs']: log['transactionIndex'] = '0x0'
-        self.stop('safe_gap_receipt_identity', move)
+        self.stop('safe_gap_receipt_identity_fields', move)
 
     def test_malformed_trace_gates(self):
         cases = [
             ('shape', 'safe_gap_trace_account_shape'), ('unknown', 'safe_gap_trace_account_shape'),
             ('balance', 'safe_gap_trace_balance'), ('nonce', 'safe_gap_trace_nonce'),
-            ('storage_list', 'safe_gap_trace_storage'), ('storage_key', 'safe_gap_trace_storage'),
-            ('storage_value', 'safe_gap_trace_storage'), ('code', 'safe_gap_trace_code'),
+            ('storage_list', 'safe_gap_trace_storage_mapping'), ('storage_key', 'safe_gap_trace_storage_key'),
+            ('storage_value', 'safe_gap_trace_storage_value'), ('code', 'safe_gap_trace_code'),
             ('missing_sender', 'safe_gap_sender_pre_balance'),
-            ('missing_miner', 'safe_gap_miner_balance'), ('miner_equal', 'safe_gap_miner_balance'),
-            ('miner_less', 'safe_gap_miner_balance'), ('miner_invalid', 'safe_gap_trace_balance')]
+            ('missing_miner', 'safe_gap_miner_balance_post'), ('miner_equal', 'safe_gap_miner_balance_delta'),
+            ('miner_less', 'safe_gap_miner_balance_delta'), ('miner_invalid', 'safe_gap_trace_balance')]
         for case, gate in cases:
             with self.subTest(case=case):
                 self.setUp()
@@ -2998,13 +3621,13 @@ class SafeGovernanceTests(unittest.TestCase):
         self.stop('safe_gap_packet', lambda: self.inputs['data']['safeGovernanceGaps'][0].update(sha256='1'*64))
 
     def test_pin_owner_controls(self):
-        self.stop('safe_gap_pin_owners', lambda: self.pin['safe'].update(owners=sorted(a.safe_owners(hex(12060358)))))
+        self.stop('safe_gap_pin_owners_pin', lambda: self.pin['safe'].update(owners=sorted(a.safe_owners(hex(12060358)))))
         self.setUp()
-        self.stop('safe_gap_owner_eoa', lambda: self.pin['safe']['codes'].update({a.APPROVER:'0xef0100'+'11'*20}))
+        self.stop('safe_gap_owner_eoa_pin', lambda: self.pin['safe']['codes'].update({a.APPROVER:'0xef0100'+'11'*20}))
         self.setUp()
-        self.stop('safe_gap_pin_nonce', lambda: self.pin.update(safeNonce=5))
+        self.stop('safe_gap_pin_nonce_pin', lambda: self.pin.update(safeNonce=5))
         self.setUp()
-        self.stop('safe_gap_pin_threshold', lambda: self.pin['safe'].update(threshold=1))
+        self.stop('safe_gap_pin_threshold_pin', lambda: self.pin['safe'].update(threshold=1))
 
     def test_live_owner_code_on_one_endpoint(self):
         self.verify()
@@ -3012,9 +3635,9 @@ class SafeGovernanceTests(unittest.TestCase):
         def delegated(method, params):
             if method == 'eth_getCode' and params[0] == a.APPROVER: return '0xef0100'+'11'*20
             return original(method, params)
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'safe_gap_owner_eoa_live') as caught:
             m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), delegated])
-        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_eoa')
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_eoa_live')
 
     def test_dual_identity_and_sender_balance(self):
         self.stop('safe_gap_dual_identity', lambda: self.chain['E755']['b']['block'].update(miner='0x'+'22'*20))
@@ -3027,7 +3650,7 @@ class SafeGovernanceTests(unittest.TestCase):
     def test_owner_swap_block_bound_to_chain(self):
         self.verify()
         with patch.object(a, 'OWNER_SWAP_BLOCK', 12060360):
-            with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), self.rpc('b')])
+            with assert_stop(self, 'safe_gap_owner_swap_block') as caught: m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), self.rpc('b')])
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_swap_block')
 
     def test_miner_priority_fee_exact(self):
@@ -3038,7 +3661,7 @@ class SafeGovernanceTests(unittest.TestCase):
                     def shift():
                         diff, miner = self.chain[key]['a']['diff'], self.chain[key]['a']['block']['miner']
                         diff['post'][miner]['balance'] = hex(int(diff['post'][miner]['balance'], 16) + delta)
-                    self.stop('safe_gap_miner_balance', shift)
+                    self.stop('safe_gap_miner_balance_delta', shift)
 
     def test_base_fee_required_and_agreed(self):
         self.stop('safe_gap_base_fee', lambda: self.chain['A100']['a']['block'].pop('baseFeePerGas'))
@@ -3083,7 +3706,7 @@ class SafeGovernanceTests(unittest.TestCase):
                 priority_fee = a.qty(item['receipt']['gasUsed']) * (
                     a.qty(item['receipt']['effectiveGasPrice']) - a.qty(item['block']['baseFeePerGas']))
                 item['diff']['post'][miner]['balance'] = hex(priority_fee)
-                self.stop('safe_gap_miner_balance',
+                self.stop('safe_gap_miner_balance_delta',
                           lambda: item['diff']['post'][miner].update(balance=hex(priority_fee + 1)))
 
     def test_block_transaction_membership(self):
@@ -3123,7 +3746,7 @@ class SafeGovernanceTests(unittest.TestCase):
         def missing(method, params):
             if method == 'eth_getTransactionByHash': return None
             return original(method, params)
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'safe_gap_found') as caught:
             m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), missing])
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_found')
 
@@ -3144,17 +3767,17 @@ class SafeGovernanceTests(unittest.TestCase):
         m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), unavailable('b')])
         m.governance_evidence(self.pin, self.inputs)
         self.assertEqual([r['traceEndpoints'] for r in self.pin['safeGovernanceGaps']['transactions']], [1,1,1])
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'safe_gap_trace_available') as caught:
             m.governance_evidence(self.pin, self.inputs, [unavailable('a'), unavailable('b')])
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_trace_available')
 
     def test_replay_evidence_required_and_counts_checked(self):
         self.verify()
         self.pin['safeGovernanceGaps']['transactions'][0]['traceEndpoints'] = 2
-        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        with assert_stop(self, 'safe_gap_trace_counts') as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_trace_counts')
         del self.pin['safeGovernanceGaps']
-        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        with assert_stop(self, 'safe_gap_evidence') as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_evidence')
 
     def test_sender_and_miner_trace_controls(self):
@@ -3189,9 +3812,9 @@ class SafeGovernanceTests(unittest.TestCase):
 
     def test_log_bytes_and_removed_controls(self):
         for key, index, field, value, gate in [
-                ('A100', 0, 'data', '0x00', 'safe_gap_log_data'),
-                ('E755', 0, 'data', '0x00', 'safe_gap_log_data'),
-                ('E755', 1, 'data', '0x00', 'safe_gap_log_data'),
+                ('A100', 0, 'data', '0x00', 'safe_gap_log_data_approval'),
+                ('E755', 0, 'data', '0x00', 'safe_gap_log_data_swap_execution'),
+                ('E755', 1, 'data', '0x00', 'safe_gap_log_data_swap_tail'),
                 ('E755', 0, 'removed', True, 'safe_gap_log_removed')]:
             with self.subTest(key=key, index=index, field=field):
                 self.setUp()
@@ -3210,8 +3833,8 @@ class SafeGovernanceTests(unittest.TestCase):
 
     def test_independent_chain_state(self):
         for endpoint in ('a', 'b'):
-            for field, gate in [('owners', 'safe_gap_pin_owners'), ('threshold', 'safe_gap_pin_threshold'),
-                                ('nonce', 'safe_gap_pin_nonce'), ('code', 'safe_gap_owner_eoa')]:
+            for field, gate in [('owners', 'safe_gap_pin_owners_live'), ('threshold', 'safe_gap_pin_threshold_live'),
+                                ('nonce', 'safe_gap_pin_nonce_live'), ('code', 'safe_gap_owner_eoa_live')]:
                 with self.subTest(endpoint=endpoint, field=field):
                     self.setUp()
                     def mutate():
@@ -3224,11 +3847,11 @@ class SafeGovernanceTests(unittest.TestCase):
 
     def test_mined_and_receipt_controls(self):
         for part, field, value, gate in [
-                ('tx', 'hash', a.ZERO32, 'safe_gap_hash'),
+                ('tx', 'hash', a.ZERO32, 'safe_gap_hash_check_governance'),
                 ('block', 'number', '0x1', 'safe_gap_block_number'),
                 ('receipt', 'logs', {}, 'safe_gap_logs_shape'),
-                ('receipt', 'gasUsed', None, 'safe_gap_gas_used'),
-                ('receipt', 'effectiveGasPrice', None, 'safe_gap_gas_price')]:
+                ('receipt', 'gasUsed', None, 'safe_gap_gas_used_check_governance'),
+                ('receipt', 'effectiveGasPrice', None, 'safe_gap_gas_price_check_governance')]:
             with self.subTest(part=part, field=field):
                 self.setUp()
                 self.stop(gate, lambda: self.chain['A99']['a'][part].update({field:value}))
@@ -3257,21 +3880,22 @@ class SafeGovernanceTests(unittest.TestCase):
                         for tx in packet['transactions']: tx['to'] = a.ZERO
                     elif case == 'chain': packet['chainId'] = 1
                     elif case == 'hash': packet['safeTxHash'] = a.ZERO32
-                    with self.assertRaises(a.Gate) as caught: m.governance_entries(inputs)
+                    with assert_stop(self, gate) as caught: m.governance_entries(inputs)
                     self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_list_and_endpoint_controls(self):
-        with self.assertRaises(a.Gate) as caught: m.governance_entries(dict(data=dict(safeGovernanceGaps={})))
+        with assert_stop(self, 'safe_gap_list') as caught: m.governance_entries(dict(data=dict(safeGovernanceGaps={})))
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_list')
-        for check in (m.check_governance, m.governance_evidence):
+        for check, gate in ((m.check_governance, 'safe_gap_endpoints_check_governance'),
+                            (m.governance_evidence, 'safe_gap_endpoints_governance_evidence')):
             with self.subTest(check=check.__name__):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, gate) as caught:
                     if check == m.check_governance: check([self.rpc('a')], self.pin, self.inputs)
                     else: check(self.pin, self.inputs, [self.rpc('a')])
-                self.assertEqual(caught.exception.record['gate'], 'safe_gap_endpoints')
+                self.assertEqual(caught.exception.record['gate'], gate)
         inputs = copy.deepcopy(self.inputs)
         inputs['data']['safeGovernanceGaps'] = inputs['data']['safeGovernanceGaps'][:2]
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'safe_gap_swap_required') as caught:
             m.check_governance([self.rpc('a'), self.rpc('b')], self.pin, inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_swap_required')
 
@@ -3279,25 +3903,60 @@ class SafeGovernanceTests(unittest.TestCase):
         # The nested verifier repeats this guard. Isolate the collection boundary
         # so removing its own check cannot hide behind the same downstream gate.
         with patch.object(m, 'check_governance', side_effect=AssertionError('delegated invalid endpoints')):
-            with self.assertRaises(a.Gate) as caught:
+            with assert_stop(self, 'safe_gap_endpoints_governance_evidence') as caught:
                 m.governance_evidence(self.pin, self.inputs, [self.rpc('a')])
-        self.assertEqual(caught.exception.record['gate'], 'safe_gap_endpoints')
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_endpoints_governance_evidence')
 
     def test_evidence_controls(self):
         self.verify()
-        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, dict(data={}))
+        with assert_stop(self, 'safe_gap_evidence_undeclared') as caught: m.governance_evidence(self.pin, dict(data={}))
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_evidence_undeclared')
         self.pin['safeGovernanceGaps']['partOfA3aPlan'] = True
-        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        with assert_stop(self, 'safe_gap_not_a3a') as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_not_a3a')
         self.verify()
         self.pin['safeGovernanceGaps']['reads']['b'].pop(0)
-        with self.assertRaises(a.Gate) as caught: m.governance_evidence(self.pin, self.inputs)
+        with assert_stop(self, 'safe_gap_proof_read') as caught: m.governance_evidence(self.pin, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_proof_read')
+
+
+class NamedStopAssertionTests(unittest.TestCase):
+    def test_timelock_wrapper_propagates_unexpected_exceptions(self):
+        case = ManifestTests('test_old_timelock_required')
+        case.pin, case.inputs = {}, {}
+        for kind in (KeyError, TypeError, IndexError):
+            fault = kind('unrelated failure')
+            with self.subTest(kind=kind.__name__), patch.object(m, 'build_plan', side_effect=fault):
+                with self.assertRaises(kind) as caught:
+                    case.assert_timelock_build_gate('old_timelock_required', lambda pin: None)
+                self.assertIs(caught.exception, fault)
+
+    def test_expected_gate(self):
+        with assert_stop(self, 'expected'):
+            a.need('expected', False, True)
+
+    def test_wrong_gate_names_both(self):
+        with self.assertRaisesRegex(AssertionError, 'expected') as caught:
+            with assert_stop(self, 'expected'):
+                a.need('other', False, True)
+        self.assertIn('other', str(caught.exception))
+
+    def test_acceptance_names_gate(self):
+        with self.assertRaisesRegex(AssertionError, 'expected: Gate not raised'):
+            with assert_stop(self, 'expected'):
+                pass
+
+    def test_unexpected_exception_propagates(self):
+        fault = ValueError('unrelated failure')
+        with self.assertRaises(ValueError) as caught:
+            with assert_stop(self, 'expected'):
+                raise fault
+        self.assertIs(caught.exception, fault)
 
 
 class GasGateControls(unittest.TestCase):
     def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
         self.step = dict(id='approve', executionTimestamp=100,
             tx={'from': a.APPROVER, 'to': a.SAFE, 'data': '0x', 'value': '0x0',
                 'nonce': '0x63', 'chainId': hex(a.CHAIN),
@@ -3310,7 +3969,7 @@ class GasGateControls(unittest.TestCase):
         self.step['tx']['gas'] = hex(u.margin_limit(135104))
 
     def stop(self, gate, action=None):
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, gate) as caught:
             (action or (lambda: u.validate_gas_evidence(self.plan, self.step)))()
         self.assertEqual(caught.exception.record['gate'], gate)
         self.assertEqual(caught.exception.record['step'], self.step['id'])
@@ -3319,17 +3978,27 @@ class GasGateControls(unittest.TestCase):
         u.validate_gas_evidence(self.plan, self.step)
 
     def test_gas_evidence_missing(self):
-        del self.step['gasEvidence']
+        self.step['gasEvidence'] = UserDict(self.step['gasEvidence'])
         self.stop('gas_evidence_missing')
 
     def test_remote_estimate_context(self):
-        del self.step['gasEvidence']['estimateContext']
+        self.step['gasEvidence']['estimateContext'] = UserDict(self.step['gasEvidence']['estimateContext'])
         self.stop('remote_estimate_context')
 
-    def test_measurement_executionTimestamp(self):
+    def test_measurement_executionTimestamp_context(self):
         self.step['executionTimestamp'] = 0
         self.step['gasEvidence']['estimateContext']['blockOverrides'] = {'time': '0x0'}
-        self.stop('measurement_executionTimestamp')
+        # Isolate the context check from the separately tested transaction validator.
+        with patch.object(u, 'validate_gas'):
+            self.stop('measurement_executionTimestamp')
+
+    def test_measurement_executionTimestamp_transaction(self):
+        self.step['executionTimestamp'] = 0
+        self.stop('measurement_executionTimestamp', lambda: self.validate_transaction_gas())
+
+    def validate_transaction_gas(self):
+        with u.gas_step(self.step):
+            u.validate_gas(self.step)
 
     def test_measurement_blockGasLimit(self):
         self.step['gasEvidence']['blockGasLimit'] = 200_000_000.0
@@ -3470,7 +4139,8 @@ class GasGateControls(unittest.TestCase):
                     select.assert_not_called()
 
     def test_b4_preapplied_real_measurement(self):
-        # Stop at the first pre-send RPC: all replay and selection helpers are real.
+        self.plan['pin'] = dict(pin(), **self.plan['pin'])
+        # Stop at the pre-send chain check: all replay and selection helpers are real.
         class ReachedPreSend(Exception):
             pass
         self.step.update(id='B4', estimateGas=120000, localEstimateGas=120000,
@@ -3503,7 +4173,9 @@ class GasGateControls(unittest.TestCase):
                 raise AssertionError(method)
             def fork(method, params):
                 if method == 'eth_getBlockByNumber': return remote(method, params)
-                if method == 'eth_call': return '0x'+format(int(verifier, 16), '064x')
+                if method == 'eth_call':
+                    if params[0]['data'].startswith(a.keccak('hasRole(bytes32,address)')[:10]): return a.ZERO32
+                    return '0x'+format(int(verifier, 16), '064x')
                 if method == 'eth_estimateGas':
                     if params[0]['data'] != '0x': raise RuntimeError('NoPendingVerifierRotation')
                     self.assertEqual(params[1:], ['latest'])
@@ -3512,6 +4184,8 @@ class GasGateControls(unittest.TestCase):
                 if method == 'eth_chainId': raise ReachedPreSend()
                 raise AssertionError(method)
             fork.local = True
+            fork = with_orphan_reads(fork, self.plan['pin'], '0x123')
+            self.plan['pin']['oldTimelock'] = dict(approvalOwners={t: [] for t in self.plan['pin']['oldOwnerIsolation']['tokens']})
             with self.subTest(tamper=tamper):
                 if tamper:
                     self.stop('replay_estimateGas' if tamper == 'estimate' else 'replay_gasEvidence',
@@ -3560,27 +4234,26 @@ class GasGateControls(unittest.TestCase):
 
 
 class GasProbeReportingTests(unittest.TestCase):
-    def test_suppressed_outcomes_distinguish_defense_in_depth(self):
+    def test_all_single_site_deletions_are_strict(self):
         import probe_gas_gates as probes
         for name, gate in probes.CASES.items():
             with self.subTest(gate=gate):
-                expected = ('caught by measurement_estimateGas (defense in depth)'
-                            if gate == 'remote_estimate_missing' else
-                            'rejected by AttributeError (unstructured failure)'
-                            if gate in ('gas_evidence_missing', 'remote_estimate_context') else
-                            'accepted (load-bearing)')
-                self.assertEqual(probes.suppressed_outcome(name, gate), expected)
+                red, log = probes.strict_outcome(name, gate)
+                self.assertTrue(red, gate+'\n'+log)
 
     def test_suppressed_gate_cannot_be_reported_as_another_defense(self):
         import probe_gas_gates as probes
         with patch.object(u, 'validate_gas_evidence',
                           side_effect=a.Gate('remote_estimate_missing', False, True)):
             with self.assertRaises(AssertionError):
-                probes.suppressed_outcome('test_missing_remote', 'remote_estimate_missing')
+                probes.strict_outcome('test_missing_remote', 'remote_estimate_missing')
 
 
 
 class OldExitExemptionTests(unittest.TestCase):
+    def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
+
     guardian = '0xf36c9317765634e4995ce1e7210b5738225425b0'
 
     def fixture(self, **kw):
@@ -3591,7 +4264,7 @@ class OldExitExemptionTests(unittest.TestCase):
     def control(self, gate, **kw):
         pop = kw.pop('pop', [])
         p, rpc = self.fixture(**kw)
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, gate) as caught:
             m.old_activity(rpc, OLD, p['stateBlock'], pop)
         self.assertEqual(caught.exception.record['gate'], gate)
 
@@ -3668,9 +4341,9 @@ class OldExitExemptionTests(unittest.TestCase):
             with self.assertRaises(a.Gate): m.validate_old_activity(bad, [])
         bad = copy.deepcopy(p)
         bad['oldActivity']['exemptions'][0]['slashCount'] = 1
-        with self.assertRaises(a.Gate) as caught: m.validate_old_activity(bad, [])
+        with assert_stop(self, 'old_exit_evidence') as caught: m.validate_old_activity(bad, [])
         self.assertEqual(caught.exception.record['gate'], 'old_exit_evidence')
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_exit_exempt_pop') as caught:
             m.validate_old_activity(p, [dict(validator=self.guardian)])
         self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_pop')
 
@@ -3682,7 +4355,7 @@ class OldExitExemptionTests(unittest.TestCase):
         later['stateTimestamp'] += 100
         m.unchanged_old_activity(old_exit_rpc(later, self.guardian), plan, later['stateBlock'])
         for slot in range(1, 14):
-            with self.assertRaises(a.Gate) as caught:
+            with assert_stop(self, 'old_exit_exempt_slot') as caught:
                 m.unchanged_old_activity(old_exit_rpc(later, self.guardian, occupied=slot), plan, later['stateBlock'])
             self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
 
@@ -3702,7 +4375,7 @@ class OldExitExemptionTests(unittest.TestCase):
             if method == 'eth_call' and params[0]['data'] == a.calldata('executedProposals(uint256)', 7):
                 return '0x'+format(1, '064x')
             return base_rpc(method, params)
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_activity_unchanged') as caught:
             m.unchanged_old_activity(later, plan, p['stateBlock'])
         self.assertEqual(caught.exception.record['gate'], 'old_activity_unchanged')
 
@@ -3717,14 +4390,19 @@ class OldExitExemptionTests(unittest.TestCase):
     def test_pre_send_enforces_exit_gate(self):
         p, good = self.fixture()
         p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
+        p = dict(pin(), **p)
         p.update(bindings={}, safe={})
-        plan = dict(pin=p, externalInputs=dict(data=dict(pop=[])))
+        plan = dict(pin=p, steps=[], externalInputs=dict(data=dict(pop=[])),
+                    timelockRuntimeIdentity=copy.deepcopy(base.ART['contracts']['TimelockController']['runtime']))
         step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
         bad = old_exit_rpc(p, self.guardian, occupied=13)
         def rpc(method, params):
             if method == 'eth_chainId': return hex(a.CHAIN)
+            if method == 'eth_call' and params[0]['data'].startswith(a.keccak('hasRole(bytes32,address)')[:10]): return a.ZERO32
             return bad(method, params)
         rpc.local = True
+        rpc = with_orphan_reads(rpc, p, p['stateBlock'])
+        p['oldTimelock'] = dict(approvalOwners={t: [] for t in p['oldOwnerIsolation']['tokens']})
         original_word = a.word
         def word(r, target, sig, *args, **kw):
             if target == u.SAFE and sig == 'nonce()': return 0
@@ -3733,7 +4411,7 @@ class OldExitExemptionTests(unittest.TestCase):
              patch.object(a, 'word', side_effect=word), patch.object(u, 'safe_state', return_value={}), \
              patch.object(u, 'governance'):
             p['timelockCreation'] = 1
-            with self.assertRaises(a.Gate) as caught: m.pre_send(rpc, plan, step, {})
+            with assert_stop(self, 'old_exit_exempt_slot') as caught: m.pre_send(rpc, plan, step, {})
         self.assertEqual(caught.exception.record['gate'], 'old_exit_exempt_slot')
 
     def test_endpoint_replay_reruns_predicates(self):
@@ -3754,7 +4432,7 @@ class OldExitExemptionTests(unittest.TestCase):
                 with self.subTest(gate=gate, endpoint=endpoint):
                     p.update(oldActivity=activity, oldActivityReads=dict(primary=reads, secondary=reads))
                     p['oldActivityReads'][endpoint] = bad_reads
-                    with self.assertRaises(a.Gate) as caught: m.validate_old_activity(p, [])
+                    with assert_stop(self, gate) as caught: m.validate_old_activity(p, [])
                     self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_cleared_notice_needs_no_exemption(self):
@@ -3787,7 +4465,7 @@ class F05Fixture(unittest.TestCase):
         # gate=None is the positive control: the unbroken fixture must pass every gate.
         if gate is None:
             return action()
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, gate) as caught:
             action()
         self.assertEqual(caught.exception.record['gate'], gate)
 
@@ -3807,12 +4485,16 @@ class F05PreSendGates(F05Fixture):
                 return hex(a.qty(step['tx']['gas']) + int(gate == 'fresh_estimate'))
             raise AssertionError((method, params))
         rpc.local = True
+        rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
+        real_word, real_call, real_address = a.word, a.call, a.address
         def word(rpc, target, sig, *args, **kw):
             if sig == 'nonce()': return step['safeNonce'] + int(gate == 'safe_nonce')
             if sig == 'pendingAPNTsTokenEta()':
                 return self.pin['pendingAPNTsTokenEta'] + int(gate == 'pending_token_eta')
-            raise AssertionError(sig)
+            return real_word(rpc, target, sig, *args, **kw)
         def address(rpc, target, sig, *args):
+            if sig in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+                return real_address(rpc, target, sig, *args)
             if sig == 'pendingAPNTsToken()':
                 return a.ZERO if gate == 'pending_token' else self.pin['capped']
             return a.ZERO if target == u.SP and gate == 'SP_owner' else u.DEPLOYER
@@ -3822,7 +4504,7 @@ class F05PreSendGates(F05Fixture):
                 patch.object(a, 'nonce', side_effect=lambda r,w,block='latest':
                     nonce + int(gate == ('pending_nonce' if block == 'pending' else 'sender_nonce'))),
                 patch.object(a, 'word', side_effect=word), patch.object(a, 'address', side_effect=address),
-                patch.object(a, 'call', return_value=a.ZERO32 if gate == 'onchain_safe_hash' else step['safeHash']),
+                patch.object(a, 'call', side_effect=lambda r,t,s,*args,**kw: a.ZERO32 if s == 'hasRole(bytes32,address)' else (a.ZERO32 if gate == 'onchain_safe_hash' else step['safeHash']) if s.startswith('getTransactionHash(') else real_call(r,t,s,*args,**kw)),
                 patch.object(a, 'block_data', return_value=dict(number='0x200',
                     gasLimit=hex(a.qty(step['tx']['gas']) - int(gate == 'block_gas_limit')))),
                 patch.object(u, 'safe_state', return_value={} if gate == 'safe_state' else self.pin['safe']),
@@ -3950,21 +4632,23 @@ class F05ExecuteB4Gates(F05Fixture):
 class F05BuildPlanGates(F05Fixture):
     def test_stake_not_unlocking(self):
         self.pin['withdrawTime'] = 1
-        self.stop('stake_not_unlocking', lambda:m.build_plan(self.pin, self.inputs))
+        self.stop('stake_not_unlocking_build_plan', lambda:m.build_plan(self.pin, self.inputs))
 
 
 class F05CollectGates(F05Fixture):
     def test_positive_control(self): self.check(None)
 
-    def check(self, gate):
+    def check(self, gate, collector=None):
+        legacy = old_timelock_rpc(self.pin, self.pin['stateBlock'])
         def rpc(method, params):
+            if method in ('eth_call', 'eth_getLogs'): return legacy(method, params)
             if method in ('eth_getBalance', 'eth_getStorageAt'): return '0x1'
             raise AssertionError((method, params))
         def call(rpc, target, sig, *args, **kw):
             if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
             if sig == 'getDepositInfo(address)':
                 return '0x'+''.join(format(x, '064x') for x in (10**18, 1, 10**18, 86400,
-                    int(gate == 'stake_not_unlocking')))
+                    int(gate == 'stake_not_unlocking_collect')))
             raise AssertionError(sig)
         def address(rpc, target, sig, *args):
             if sig == 'blsAggregator()': return OLD
@@ -3981,15 +4665,26 @@ class F05CollectGates(F05Fixture):
                 patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'old_pointers', return_value={}),
                 patch.object(m, 'balances', return_value={}),
                 patch.object(m, 'collect_phase_c', return_value=self.pin['phaseC']),
-                patch.object(m.isolation, 'collect_deployed', return_value=self.pin['oldOwnerIsolation'])]:
+                patch.object(m.isolation, 'collect_deployed', side_effect=collector, return_value=self.pin['oldOwnerIsolation'])]:
                 stack.enter_context(item)
-            self.stop(gate, lambda:m.collect(rpc, self.pin['block'], self.inputs))
+            return self.stop(gate, lambda:m.collect(rpc, self.pin['block'], self.inputs))
 
     def test_old_aggregator_owner(self): self.check('old_aggregator_owner')
 
     def test_anni_eoa(self): self.check('anni_eoa')
 
-    def test_stake_not_unlocking(self): self.check('stake_not_unlocking')
+    def test_stake_not_unlocking(self): self.check('stake_not_unlocking_collect')
+
+    def test_collect_callsite_source_single_read_shared_with_audit(self):
+        source = copy.deepcopy(self.pin['oldOwnerIsolation']['callsiteTargetSource'])
+        collector = m.isolation.collect_deployed
+        with patch.object(m.isolation, 'callsite_target_source', return_value=source) as reader, \
+             patch.object(m.isolation, 'inventory_source', return_value={}), \
+             patch.object(m.isolation, 'audit', return_value=copy.deepcopy(self.pin['oldOwnerIsolation'])) as audit:
+            result = self.check(None, collector)
+        reader.assert_called_once_with()
+        self.assertIs(result['oldOwnerIsolation']['callsiteTargetSource'], source)
+        self.assertIs(audit.call_args.args[3], source['expected'])
 
 
 class F05MainGates(F05Fixture):
@@ -4169,6 +4864,645 @@ class F05Q3ForkControls(F05Fixture):
     def test_B4_later_nonce(self): self.b4('B4_later_nonce')
 
     def test_B4_control_restore(self): self.b4('B4_control_restore')
+
+
+
+class DiscoveryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = ManifestTests()
+        cls.fixture.setUp()
+        cls.addClassCleanup(cls.fixture.doCleanups)
+
+    def setUp(self):
+        self.plan = copy.deepcopy(self.fixture.plan)
+        self.pin = self.plan['pin']
+        self.passed = {s['id'] for s in self.plan['steps']}
+        self.block = '0x200'
+
+    def gate(self, name, action):
+        with assert_stop(self, name):
+            action()
+
+    def rpc(self, plan=None, passed=None, extra=None, bad=None):
+        plan = plan or self.plan
+        passed = self.passed if passed is None else passed
+        coverage = m.discovery_coverage(plan, passed)
+        state = m.expected_discovery(plan, passed)
+        section = coverage['oldOwnerIsolation']
+        factory = state['targets']['xPNTsFactory']
+        replies = orphan_replies(plan['pin'])
+        replies[(plan['addresses']['xPNTsFactoryV2'],a.calldata('getAllTokens()'))] = isolation_tests.raw([32,0])
+        replies[(u.SP, a.calldata('xpntsFactory()'))] = isolation_tests.raw([int(factory, 16)])
+        tokens = state['xpnts'] if factory == plan['pin']['oldOwnerIsolation']['targets']['xPNTsFactory'] else sorted(set(state['xpnts']) - set(plan['pin']['oldOwnerIsolation']['xpnts']))
+        if extra: tokens = tokens + [extra]
+        replies[(factory, a.calldata('getAllTokens()'))] = isolation_tests.raw([32, len(tokens), *[int(t,16) for t in tokens]])
+        for target, sig, args, kind in m.isolation.authority_rows(section):
+            if kind == 'config': continue
+            for holder in (m.isolation.OLD, m.isolation.OLD_TIMELOCK):
+                arguments = [holder if v == m.isolation.OLD_TIMELOCK else v for v in args]
+                replies.setdefault((target, a.calldata(sig, *arguments)), isolation_tests.raw([int(u.DEPLOYER,16) if kind == 'address' else 0]))
+        for token in section['xpnts']:
+            replies[(token, a.calldata('communityOwner()'))] = isolation_tests.raw([int(u.DEPLOYER,16)])
+        for token in section['tokens']:
+            for holder in m.isolation.allowance_holders():
+                for spender in (m.isolation.OLD, m.isolation.OLD_TIMELOCK):
+                    replies[(token,a.calldata('allowance(address,address)',holder,spender))] = isolation_tests.raw([0])
+        if bad:
+            target, sig, args, value = bad
+            replies[(target,a.calldata(sig,*args))] = isolation_tests.raw([value])
+        baseline = old_timelock_rpc(plan['pin'], self.block)
+        def rpc(method, params):
+            if method == 'eth_getLogs':
+                if params[0]['address'] == u.REG and a.qty(params[0]['fromBlock']) <= a.qty(plan['pin']['stateBlock']):
+                    return baseline(method,params)
+                return []
+            if method == 'eth_getCode': return '0x6000'
+            if method == 'eth_chainId': return '0x0'
+            if method == 'eth_getBlockByNumber': return dict(number=self.block,hash=plan['pin']['stateBlockHash'],timestamp='0x123',gasLimit='0xbebc200')
+            if method == 'eth_call':
+                self.assertEqual(params[1], self.block)
+                key = (params[0]['to'],params[0]['data'])
+                if key in replies: return replies[key]
+            return baseline(method,params)
+        rpc.local = True
+        return rpc
+
+    def closing(self, rpc, plan=None):
+        plan = plan or self.plan
+        plan['pin']['oldActivity']['dvtProposals'] = [{'recorded': True}]
+        pointer = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
+        with contextlib.ExitStack() as stack:
+            # Keep the real coverage helper; only unrelated DVT reads are stubbed.
+            for item in self.fixture.closing_rpc(pointer)[:-1]: stack.enter_context(item)
+            with patch.object(m.isolation, 'role_history', side_effect=lambda rpc,pin,target,spec,creation: list(pin['oldOwnerIsolation']['roleHistory'].get(target,[]))):
+                return m.dvt_closing(rpc,plan)
+
+    def pre(self, rpc, passed=None):
+        with patch.object(m, 'handover_gate'):
+            return m.pre_send(rpc,self.plan,dict(tx={}),dict(passed=self.passed if passed is None else passed))
+
+    def test_stages(self):
+        class Checked(Exception): pass
+        a7, b4, _ = self.fixture.staged_chain()
+        for plan in (a7,b4,m.build_plan(self.pin,self.fixture.inputs,'c'),self.plan):
+            passed = set()
+            for step in plan['steps']:
+                rpc = self.rpc(plan,passed)
+                with patch.object(m,'handover_gate',side_effect=Checked), self.assertRaises(Checked):
+                    m.pre_send(rpc,plan,step,dict(passed=passed))
+                passed.add(step['id'])
+                expected = plan['expectedDiscoveryAfter'][step['id']]
+                self.assertEqual(m.current_discovery(self.rpc(plan,passed),m.discovery_coverage(plan,passed),self.block),expected)
+            self.closing(self.rpc(plan,passed),plan)
+
+    def test_expected_states(self):
+        state = m.pin_discovery(self.pin)
+        factory = self.plan['addresses']['xPNTsFactoryV2']
+        token = a.create_address(factory,1)
+        for step in self.plan['steps']:
+            sid = step['id']
+            if sid == 'A4.factory': state['targets']['releaseFactory'] = factory
+            if sid == 'upgrade_execute_exec':
+                state['targets']['legacyFactory'] = state['targets']['xPNTsFactory']
+                state['targets']['xPNTsFactory'] = factory
+            if sid in ('C3.deploy','C3.configure'): state['xpnts'] = sorted(set(state['xpnts']) | {token})
+            self.assertEqual(self.plan['expectedDiscoveryAfter'][sid],state,sid)
+
+    def closing_inventory(self, gained_role=False):
+        coverage = m.discovery_coverage(self.plan, self.passed)
+        pinned = self.pin['oldOwnerIsolation']['roleHistory']
+        target = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+        self.assertIn(target, pinned)
+        self.assertNotEqual(coverage['discoveryExpected'], m.pin_discovery(self.pin))
+        def history(rpc, pin, address, spec, creation):
+            roles = list(pinned.get(address, []))
+            if gained_role and address == target:
+                roles.append('0x'+'ab'*32)
+            return roles
+        with patch.object(m.isolation, 'role_history', side_effect=history):
+            return m.closing_timelock_inventory(self.rpc(), coverage, self.block)
+
+    def test_closing_planned_discovery_pinned_history_unchanged(self):
+        result = self.closing_inventory()
+        for target, roles in self.pin['oldOwnerIsolation']['roleHistory'].items():
+            self.assertEqual(result['oldOwnerIsolation']['roleHistory'][target], roles)
+        self.assertIn(self.plan['addresses']['xPNTsFactoryV2'], result['oldOwnerIsolation']['roleHistory'])
+
+    def test_old_timelock_inventory_pinned_history(self):
+        self.gate('old_timelock_inventory_pinned_history', lambda: self.closing_inventory(gained_role=True))
+
+    def test_creation_before_upgrade_execution(self):
+        index = next(i for i, s in enumerate(self.plan['steps']) if s['id'] == 'upgrade_execute_exec')
+        self.plan['steps'].insert(index, dict(id='test.creation', tx=dict(to=None, data='0x6000')))
+        expected = m.build_expected_discovery(self.plan)
+        self.assertEqual(expected['upgrade_execute_exec'], self.plan['expectedDiscoveryAfter']['upgrade_execute_exec'])
+        self.plan['steps'][index+1]['tx']['to'] = None
+        self.gate('discovery_factory_argument', lambda: m.build_expected_discovery(self.plan))
+
+    def test_discovery_step_table(self):
+        self.plan['steps'] = [s for s in self.plan['steps'] if s['id'] != 'A6.upgrade']
+        self.gate('discovery_step_table',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_unlisted_effect(self):
+        step = copy.deepcopy(next(s for s in self.plan['steps'] if s['id'] == 'C3.configure'))
+        step['id'] = 'unplanned'
+        self.plan['steps'].append(step)
+        self.gate('discovery_unlisted_effect',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_factory_prediction(self):
+        next(s for s in self.plan['steps'] if s['id'] == 'A4.factory')['creates'] = u.SP
+        self.gate('discovery_factory_prediction',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_factory_argument(self):
+        step = next(s for s in self.plan['steps'] if s['id'] == 'upgrade_execute_exec')
+        step['tx']['data'] = a.calldata('setXPNTsFactory(address)',u.SP)
+        self.gate('discovery_factory_argument',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_token_prediction(self):
+        next(s for s in self.plan['steps'] if s['id'] == 'C3.deploy')['tx']['to'] = u.SP
+        self.gate('discovery_token_prediction',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_operator_argument(self):
+        next(s for s in self.plan['steps'] if s['id'] == 'C3.configure')['tx']['data'] = a.calldata('configureOperator(address,address)',u.SP,m.PC_TREASURY)
+        self.gate('discovery_operator_argument',lambda:m.build_expected_discovery(self.plan))
+
+    def test_discovery_old_authority(self):
+        factory = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+        self.gate('discovery_old_authority',lambda:self.pre(self.rpc(bad=(factory,'owner()',[],int(m.isolation.OLD,16)))))
+
+    def test_extra_token_pre(self):
+        self.gate('old_owner_release_factory_enumeration',lambda:self.pre(self.rpc(extra=u.SP)))
+
+    def test_wrong_factory_pre(self):
+        self.gate('old_timelock_delta_targets',lambda:self.pre(self.rpc(bad=(u.SP,'xpntsFactory()',[],int(self.pin['oldOwnerIsolation']['targets']['xPNTsFactory'],16)))))
+
+    def test_extra_token_closing(self):
+        # Exercise inventory drift independently of the factory enumeration gates.
+        coverage = m.discovery_coverage(self.plan, self.passed)
+        observed = copy.deepcopy(coverage['discoveryExpected'])
+        observed['xpnts'].append(u.SP)
+        with patch.object(m, 'current_discovery', return_value=observed), patch.object(
+                m.isolation, 'role_history', side_effect=lambda rpc,pin,target,spec,creation: list(pin['oldOwnerIsolation']['roleHistory'].get(target,[]))):
+            self.gate('old_timelock_inventory', lambda: m.closing_timelock_inventory(self.rpc(), coverage, self.block))
+
+    def test_extra_token_in_inactive_factory(self):
+        for passed, factory in (({'A4.factory'}, self.plan['addresses']['xPNTsFactoryV2']),
+                                (self.passed, self.pin['oldOwnerIsolation']['targets']['xPNTsFactory'])):
+            original = self.rpc(passed=passed)
+            def rpc(method,params):
+                if method == 'eth_call' and params[0] == dict(to=factory,data=a.calldata('getAllTokens()')):
+                    return isolation_tests.raw([32,1,int(u.SP,16)])
+                return original(method,params)
+            rpc.local = True
+            self.gate('old_owner_original_factory_enumeration' if passed == self.passed else 'old_timelock_delta_xpnts',lambda:self.pre(rpc,passed))
+
+    def test_old_allowance_after_switch(self):
+        for token in self.pin['oldOwnerIsolation']['xpnts']:
+            bad = (token,'allowance(address,address)',[u.DEPLOYER,m.isolation.OLD_TIMELOCK],1)
+            self.gate('old_timelock_allowance',lambda:self.pre(self.rpc(bad=bad)))
+            self.gate('old_timelock_allowance',lambda:self.closing(self.rpc(bad=bad)))
+
+    def test_new_owner_pre(self):
+        token = a.create_address(self.plan['addresses']['xPNTsFactoryV2'],1)
+        self.gate('old_owner_xpnts_owner_recheck',lambda:self.pre(self.rpc(bad=(token,'communityOwner()',[],int(m.isolation.OLD,16)))))
+
+    def test_new_owner_closing(self):
+        token = a.create_address(self.plan['addresses']['xPNTsFactoryV2'],1)
+        self.gate('old_owner_xpnts_owner_recheck',lambda:self.closing(self.rpc(bad=(token,'communityOwner()',[],int(m.isolation.OLD_TIMELOCK,16)))))
+
+    def test_build_call(self):
+        plan = m.build_plan(self.pin,self.fixture.inputs,'a7')
+        self.assertIn('expectedDiscoveryAfter',plan,'discovery_step_table')
+        self.assertEqual(set(plan['expectedDiscoveryAfter']),{s['id'] for s in plan['steps']},'discovery_step_table')
+
+    def test_release_inventory(self):
+        coverage = m.discovery_coverage(self.plan,self.passed)
+        spec = coverage['oldOwnerIsolation']['inventory']['targetInventories']
+        self.assertEqual(spec[self.plan['addresses']['xPNTsFactoryV2']],ART['oldOwnerInventory']['xPNTsFactoryV2'])
+        self.assertIn(a.create_address(self.plan['addresses']['xPNTsFactoryV2'],1),spec)
+
+    def test_old_owner_original_factory_enumeration(self):
+        for tokens in ([], list(m.isolation.ROUND_CLONES[:1]), list(m.isolation.ROUND_CLONES)):
+            original = self.rpc()
+            factory = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+            def rpc(method, params):
+                if method == 'eth_call' and params[0] == dict(to=factory, data=a.calldata('getAllTokens()')):
+                    return isolation_tests.raw([32, len(tokens), *[int(t,16) for t in tokens]])
+                return original(method, params)
+            self.gate('old_owner_original_factory_enumeration', lambda: m.current_discovery(rpc, m.discovery_coverage(self.plan,self.passed), self.block))
+
+    def test_old_owner_release_factory_enumeration(self):
+        self.gate('old_owner_release_factory_enumeration', lambda: m.current_discovery(self.rpc(extra=u.SP), m.discovery_coverage(self.plan,self.passed), self.block))
+
+    def test_postswitch_enumeration(self):
+        coverage = m.discovery_coverage(self.plan,self.passed)
+        original = self.rpc()
+        old_factory = self.pin['oldOwnerIsolation']['targets']['xPNTsFactory']
+        def rpc(method,params):
+            if method == 'eth_call' and params[0] == dict(to=old_factory,data=a.calldata('getAllTokens()')):
+                tokens = self.pin['oldOwnerIsolation']['xpnts']
+                return isolation_tests.raw([32,len(tokens),*[int(t,16) for t in tokens]])
+            return original(method,params)
+        try:
+            actual = m.current_discovery(rpc,coverage,self.block)
+        except a.Gate as fault:
+            self.fail(fault.record['gate'])
+        self.assertEqual(actual,m.expected_discovery(self.plan,self.passed),'old_timelock_delta_xpnts')
+
+    def test_preswitch_enumeration(self):
+        rpc = self.rpc(passed=set(),bad=(self.pin['oldOwnerIsolation']['targets']['xPNTsFactory'],'getAllTokens()',[],32))
+        original = rpc
+        def missing(method,params):
+            if method == 'eth_call' and params[0]['data'] == a.calldata('getAllTokens()'): return isolation_tests.raw([32,0])
+            return original(method,params)
+        self.gate('old_owner_factory_enumeration_discover_targets',lambda:m.current_discovery(missing,m.discovery_coverage(self.plan,set()),self.block))
+
+
+DISCOVERY_GATES = ('discovery_step_table', 'discovery_unlisted_effect', 'discovery_factory_prediction',
+                   'discovery_factory_argument', 'discovery_token_prediction', 'discovery_operator_argument',
+                   'discovery_old_authority', 'old_timelock_inventory_pinned_history',
+                   'old_owner_original_factory_enumeration', 'old_owner_release_factory_enumeration')
+DISCOVERY_CALLS = [
+    ('rebuild_commit', 'isolation.inventory_source(tree, mode="release", names=tuple(sorted(set(isolation.NAMES) | {"xPNTsFactoryV2", "xPNTsTokenV2", "xPNTsTokenV2Ext"})))', 'discovery_old_authority'),
+    ('build_expected_discovery', "pin_discovery(plan['pin'])", 'discovery_step_table'),
+    ('expected_discovery', "pin_discovery(plan['pin'])", 'old_timelock_delta_targets'),
+    ('discovery_coverage', 'expected_discovery(plan, passed)', 'old_timelock_delta_targets'),
+    ('closing_timelock_inventory', 'current_discovery(rpc, pin, block)', 'old_timelock_inventory'),
+    ('closing_timelock_inventory', 'pin_discovery(pin)', 'old_timelock_inventory'),
+    ('post_pin_delta', 'current_discovery(rpc, pin, block)', 'old_timelock_delta_targets'),
+    ('post_pin_delta', 'pin_discovery(pin)', 'old_timelock_delta_xpnts'),
+    ('dvt_closing', "discovery_coverage(plan, {s['id'] for s in plan['steps']})", 'old_timelock_inventory'),
+    ('dvt_closing', 'discovery_old_authority(rpc, closing, block)', 'discovery_old_authority'),
+    ('finish', 'build_expected_discovery(plan)', 'discovery_step_table'),
+    ('pre_send', "discovery_coverage(plan, context.get('passed', set()))", 'old_timelock_delta_targets'),
+    ('pre_send', 'discovery_old_authority(rpc, coverage, block)', 'discovery_old_authority'),
+    ('pre_send', 'isolation.never_granted_recheck(rpc, coverage, block)', 'old_owner_xpnts_owner_recheck'),
+    ('dvt_closing', 'isolation.never_granted_recheck(rpc, coverage, block)', 'old_owner_xpnts_owner_recheck'),
+    ('current_discovery', 'isolation.discover_targets(rpc, dict(pin, stateBlock=block))', 'old_timelock_delta_xpnts'),
+    ('current_discovery', "u.code(rpc, pin['discoveryReleaseFactory'], block)", 'old_timelock_delta_targets'),
+    ('discovery_old_authority', "isolation.authority_rows(pin['oldOwnerIsolation'])", 'discovery_old_authority'),
+    ('discovery_old_authority', 'a.call(rpc, target, sig, *args, block=block)', 'discovery_old_authority'),
+    ('discovery_old_authority', "a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD, block=block)", 'discovery_old_authority'),
+    ('build_expected_discovery', "isolation.assert_manifest_calldata([step], plan['rebuild']['calldataSignatures'])", 'discovery_unlisted_effect'),
+    ('pre_send', "old_timelock_holds_nothing(rpc, coverage, block, delta['approvalOwners'])", 'old_timelock_allowance'),
+    ('dvt_closing', 'old_timelock_holds_nothing(rpc, closing, block)', 'old_timelock_allowance'),
+    ('dvt_closing', 'closing_timelock_inventory(rpc, coverage, block)', 'old_timelock_inventory'),
+    ('current_discovery', "a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block)", 'old_timelock_delta_xpnts'),
+    ('current_discovery', "a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block)", 'old_timelock_delta_xpnts'),
+]
+
+
+class ExceptionStopTests(unittest.TestCase):
+    def rehearsal_fault(self, phase, k):
+        import io
+        state = {'sends': 0, 'injected': False}
+        steps = [dict(id=f'test_{i}', tx={'from': u.DEPLOYER, 'nonce': hex(i-1)},
+                      safeNonce=0, forkGasUsed=1, rrRequired=False, readbacks=[dict(kind='test', index=i)])
+                 for i in range(1, 4)]
+        plan = dict(stage='a7', externalInputs={}, pin=dict(senders={}, block='0x1'), steps=steps)
+        def rpc(method, params):
+            self.assertIn(method, ('evm_setNextBlockTimestamp', 'eth_getTransactionByHash'))
+            return {}
+        rpc.local, rpc.engine_process = True, None
+        def pre(rpc, plan, step, context, measured=False):
+            if phase == 'pre_send' and step['id'] == f'test_{k}':
+                state['injected'] = True
+                raise KeyError('injected pre_send')
+        def measure(remote, rpc, plan, step, *args):
+            if phase == 'measure_step' and step['id'] == f'test_{k}':
+                state['injected'] = True
+                raise KeyError('injected measure_step')
+            return {}
+        def readback(rpc, pred, timestamp):
+            if phase == 'readback' and pred['index'] == k:
+                state['injected'] = True
+                raise KeyError('injected readback')
+            return {}
+        def receipt(rpc, tx):
+            state['sends'] += 1
+            return dict(gasUsed='0x1', blockNumber=hex(state['sends']), transactionHash=a.ZERO32)
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            out = Path(directory)/'out'
+            # These files contain no endpoint; RPC construction and fork creation are replaced by local fakes.
+            endpoint = Path(directory)/'offline'; endpoint.write_text('offline-test-only')
+            for item in (
+                patch.object(a, 'RPC', return_value=rpc),
+                patch.object(a, 'fork', side_effect=lambda *args: contextlib.nullcontext(rpc)),
+                patch.object(m, 'external', return_value={}),
+                patch.object(m, 'collect_pair', return_value=plan['pin']),
+                patch.object(m, 'build_plan', return_value=plan), patch.object(m, 'validate_plan'),
+                # The HEAD/clean-tree gates have their own tests and probes; this fixture targets fault handling.
+                patch.object(m, 'execution_tree_gates'),
+                patch.object(a, 'process_alive'), patch.object(m, 'controls_at'), patch.object(m, 'phase_c_controls'),
+                patch.object(m, 'pre_send', side_effect=pre), patch.object(u, 'measure_step', side_effect=measure),
+                patch.object(u, 'fresh_gas', return_value={}), patch.object(u, 'receipt', side_effect=receipt),
+                patch.object(a, 'block_data', side_effect=lambda *args: dict(timestamp=hex(10+state['sends']))),
+                patch.object(a, 'mined_identity'), patch.object(a, 'nonce', side_effect=lambda *args: state['sends']),
+                patch.object(a, 'word', return_value=0), patch.object(m, 'check_predicate', side_effect=readback),
+                patch.object(u, 'log'), patch.object(a, 'trace_overrides'),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
+                stack.enter_context(item)
+            rc = m.main(['simulate', '--stage', 'a7', '--inputs', str(endpoint), '--rpc-file', str(endpoint),
+                         '--rpc-file-secondary', str(endpoint), '--block', '1', '--out', str(out)])
+            self.assertEqual(rc, 1, 'manifest_error')
+            self.assertEqual(json.loads((out/'FAILURE.json').read_text())['gate'], 'manifest_error', 'manifest_error')
+            self.assertEqual(state['sends'], k if phase == 'readback' else k-1, 'manifest_error')
+            self.assertTrue(state['injected'], 'manifest_error: injected fault was not reached')
+
+    def test_first_pre_send_exception(self):
+        self.rehearsal_fault('pre_send', 1)
+
+    def test_later_rehearsal_exceptions(self):
+        for phase in ('pre_send', 'measure_step', 'readback'):
+            for k in (2, 3):
+                with self.subTest(phase=phase, k=k):
+                    self.rehearsal_fault(phase, k)
+
+    def test_a3a_exception(self):
+        import io
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)/'out'
+            endpoint = Path(directory)/'offline'; endpoint.write_text('offline-test-only')
+            with patch.object(a, 'RPC', side_effect=KeyError('injected')), contextlib.redirect_stderr(io.StringIO()):
+                rc = a.main(['plan', '--rpc-file', str(endpoint), '--block', '1', '--out', str(out)])
+            self.assertEqual(rc, 1, 'executor_error')
+            self.assertEqual(json.loads((out/'FAILURE.json').read_text())['gate'], 'executor_error', 'executor_error')
+
+    def test_refusals_without_rpc(self):
+        import io
+        for module in (m, a, u):
+            for command in ('sign', 'send'):
+                with self.subTest(module=module.__name__, command=command), tempfile.TemporaryDirectory() as directory:
+                    args = [command] if module is m else [command, '--out', directory]
+                    with patch.object(a, 'RPC') as rpc, patch.object(a.urllib.request, 'urlopen') as network, contextlib.redirect_stderr(io.StringIO()):
+                        self.assertEqual(module.main(args), 3)
+                        rpc.assert_not_called()
+                        network.assert_not_called()
+                    if module is not m:
+                        self.assertEqual(json.loads((Path(directory)/'FAILURE.json').read_text())['gate'], command+'_disabled')
+
+
+class TargetReadTests(unittest.TestCase):
+    setUpClass = classmethod(DiscoveryTests.setUpClass.__func__)
+    setUp = DiscoveryTests.setUp
+    rpc = DiscoveryTests.rpc
+    closing = DiscoveryTests.closing
+    gate = DiscoveryTests.gate
+
+    def changed_rpc(self, signature, closing=False):
+        base = self.rpc(passed=self.passed if closing else set())
+        value = self.plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'][signature[:-2]]
+        wrong = value[:20] + ('ff' if value[20:22] != 'ff' else '00') + value[22:]
+        def rpc(method, params):
+            if method == 'eth_call':
+                first = params[0]
+                if first['to'] == u.REG and first['data'] == a.calldata(signature):
+                    self.assertEqual(params[1], self.block)
+                    return isolation_tests.raw([int(wrong, 16)])
+                # A look-alike contract answers exactly as the real target if the read is deleted.
+                params = [dict(first, to=value if first['to'] == wrong else first['to'],
+                               data=first['data'].replace(wrong[2:], value[2:])), *params[1:]]
+            return base(method, params)
+        rpc.local = True
+        return rpc
+
+    def test_pre_send_target_change(self):
+        # The pin remains unchanged; each step observes the adverse value only at its pre-send block.
+        for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+            rpc = self.changed_rpc(signature)
+            for step in self.plan['steps']:
+                with self.subTest(signature=signature, step=step['id']), patch.object(m, 'handover_gate'), \
+                     patch.object(m.isolation, 'callsite_target_source', side_effect=AssertionError('execution config read')):
+                    self.gate('old_owner_role_callsite_target', lambda: m.pre_send(
+                        rpc, self.plan, step, dict(passed=set())))
+
+    def test_closing_target_change(self):
+        for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+            with self.subTest(signature=signature):
+                rpc = self.changed_rpc(signature, closing=True)
+                with patch.object(m.isolation, 'callsite_target_source', side_effect=AssertionError('execution config read')):
+                    self.gate('old_owner_role_callsite_target', lambda: self.closing(rpc))
+
+
+class PrerequisiteCallTests(F05Fixture):
+    def test_stage_pin_call(self):
+        class UndeclaredPhaseC(dict):
+            def __contains__(self, key):
+                return False if key == 'phaseC' else super().__contains__(key)
+        # All downstream data remain available: removal must not cause a missing-key crash.
+        self.stop('stage_pin_phase_c', lambda: m.build_plan(UndeclaredPhaseC(self.pin), self.inputs))
+
+    def test_decode_immutable_call(self):
+        class UndeclaredValues(list):
+            def __bool__(self):
+                return False
+        values = UndeclaredValues([int(u.SP, 16).to_bytes(32, 'big')])
+        artifact = dict(immutableDeclarations={'1': dict(name='SP', type='address')})
+        self.stop('old_owner_immutable_values', lambda: m.isolation.decode_immutable(
+            '1', values, artifact, {'SP': u.SP}))
+
+
+class DiscoveryCallTests(unittest.TestCase):
+    """Behavioural caller controls; remaining source-only controls live in DiscoveryCallSourceTests."""
+    setUpClass = classmethod(DiscoveryTests.setUpClass.__func__)
+    setUp = DiscoveryTests.setUp
+    rpc = DiscoveryTests.rpc
+    closing = DiscoveryTests.closing
+
+    def pre(self, rpc):
+        # Complete the unrelated continuation so removing a check reaches return.
+        self.pin['oldActivity']['dvtProposals'] = []
+        step = dict(id='discovery.control', tx=dict(from_=u.DEPLOYER, nonce='0x0'), safeNonce=0)
+        step['tx']['from'] = step['tx'].pop('from_')
+        real_call, real_address, real_code, real_word = a.call, a.address, u.code, a.word
+        def call(r, target, sig, *args, block=None):
+            if block is not None:
+                return real_call(r, target, sig, *args, block=block)
+            if sig == 'getRoleConfig(bytes32)': return self.pin['roleConfig']
+            return real_call(r, target, sig, *args, block=self.block)
+        def address(r, target, sig, block=None):
+            if block is not None: return real_address(r, target, sig, block)
+            if sig == 'owner()': return u.TL if target == u.REG else u.DEPLOYER
+            return real_address(r, target, sig, self.block)
+        def complete(method, params):
+            if method == 'eth_chainId': return hex(a.CHAIN)
+            return rpc(method, params)
+        complete.local = True
+        with contextlib.ExitStack() as stack:
+            for item in (
+                patch.object(m, 'handover_gate'),
+                patch.object(a, 'nonce', return_value=0),
+                patch.object(a, 'word', side_effect=lambda r,t,s,*args,**kw: 0 if s == 'nonce()' else real_word(r,t,s,*args,**kw)),
+                patch.object(a, 'call', side_effect=call),
+                patch.object(a, 'address', side_effect=address),
+                patch.object(u, 'safe_state', return_value=self.pin['safe']),
+                patch.object(u, 'governance'),
+                patch.object(u, 'code', side_effect=lambda r,t,b='latest': self.pin['bindings'][t] if b == 'latest' else real_code(r,t,b)),
+                patch.object(m, 'unchanged_old_activity'),
+                patch.object(m, 'dvt_activity', return_value=self.pin['oldActivity']['dvtProposals']),
+            ): stack.enter_context(item)
+            return m.pre_send(complete, self.plan, step, dict(passed=self.passed, activated=True))
+
+    def check_authority(self, closing=False):
+        factory = self.plan['addresses']['xPNTsFactoryV2']
+        rpc = self.rpc(bad=(factory, 'owner()', [], int(m.isolation.OLD, 16)))
+        with assert_stop(self, 'discovery_old_authority'):
+            (self.closing if closing else self.pre)(rpc)
+
+    def check_owner(self, closing=False):
+        token = a.create_address(self.plan['addresses']['xPNTsFactoryV2'], 1)
+        # A newly discovered token must reject the former owner.
+        rpc = self.rpc(bad=(token, 'communityOwner()', [], int(m.isolation.OLD, 16)))
+        with assert_stop(self, 'old_owner_xpnts_owner_recheck'):
+            (self.closing if closing else self.pre)(rpc)
+
+    def check_allowance(self, closing=False):
+        token = self.pin['oldOwnerIsolation']['xpnts'][0]
+        rpc = self.rpc(bad=(token, 'allowance(address,address)', [u.DEPLOYER, m.isolation.OLD_TIMELOCK], 1))
+        with assert_stop(self, 'old_timelock_allowance'):
+            (self.closing if closing else self.pre)(rpc)
+
+    def test_call_9(self): self.check_authority(closing=True)
+    def test_call_12(self): self.check_authority()
+    def test_call_13(self): self.check_owner()
+    def test_call_14(self): self.check_owner(closing=True)
+    def test_call_21(self): self.check_allowance()
+    def test_call_22(self): self.check_allowance(closing=True)
+
+    def test_clean_callers_accept(self):
+        self.assertEqual(self.pre(self.rpc())['from'], u.DEPLOYER)
+        self.assertEqual(self.closing(self.rpc())['block'], self.block)
+
+
+class DiscoverySubstitutionTests(unittest.TestCase):
+    """6j: literal good states, independent of every production discovery helper."""
+    FACTORY = '0x' + '11' * 20
+    RELEASE = '0x' + '22' * 20
+    OTHER = '0x' + '33' * 20
+    WORD_ZERO = '0x' + '00' * 32
+    CODE = '0x6000'
+
+    def setUp(self):
+        # Constants and literal fixture fields only; never snapshot a production call.
+        self.targets = dict(Registry=u.REG, SuperPaymaster=u.SP, APNTsCapped=self.OTHER,
+            TimelockController=u.TL, GTokenStaking=self.OTHER, MySBT=self.OTHER,
+            xPNTsFactory=self.FACTORY, PaymasterFactory=m.isolation.PAYMASTER_FACTORY,
+            GToken=self.OTHER)
+        self.tokens = sorted(m.isolation.ROUND_CLONES)
+        self.good = dict(targets=dict(self.targets), xpnts=list(self.tokens))
+        spec = dict(authorities=[], mappings=[], roles=[], hasRole=False, roleEventTopic=a.ZERO32)
+        inventory = {name: copy.deepcopy(spec) for name in [*self.targets, 'xPNTsToken', 'releaseFactory', 'legacyFactory']}
+        self.pin = dict(stateBlock='0x1', capped=self.OTHER, pauseList=[], registryCreation=1,
+            oldTimelock=dict(approvalOwners={}), oldOwnerIsolation=dict(
+                targets=dict(self.targets), xpnts=list(self.tokens), tokens=list(self.tokens),
+                inventory=inventory, roleHistory={}, configuredRoles=[]))
+        self.bad = None
+
+    def array(self, values):
+        return isolation_tests.raw([32, len(values), *[int(v, 16) for v in values]])
+
+    def rpc(self, method, params):
+        if method == 'eth_getLogs': return []
+        if method == 'eth_getCode': return '0x' if self.bad == 'code' else self.CODE
+        self.assertEqual(method, 'eth_call')
+        self.assertEqual(params[1], '0x2')
+        target, data = params[0]['to'], params[0]['data']
+        if data == a.calldata('getAllTokens()'):
+            values = [] if target == self.pin.get('discoveryReleaseFactory') else list(self.tokens)
+            if self.bad == target: values.append(self.OTHER)
+            return self.array(values)
+        if data == a.calldata('xpntsFactory()'):
+            return isolation_tests.raw([int(self.OTHER if self.bad == 'factory' else self.FACTORY, 16)])
+        if data == a.calldata('owner()'):
+            return isolation_tests.raw([int(m.isolation.OLD, 16)])
+        if data.startswith(a.calldata('allowance(address,address)', u.SP, m.isolation.OLD)[:10]):
+            return isolation_tests.raw([1])
+        return isolation_tests.raw([int(self.OTHER, 16)])
+
+    def check(self, index):
+        gate = DISCOVERY_CALLS[index][2]
+        if index in (18, 19):
+            section = self.pin['oldOwnerIsolation']
+            section.update(targets={'Factory': self.FACTORY} if index == 18 else {}, xpnts=[],
+                           tokens=[] if index == 18 else [self.OTHER])
+            section['inventory']['Factory'] = dict(authorities=[dict(signature='owner()')], mappings=[], roles=[], hasRole=False)
+            action = lambda: m.discovery_old_authority(self.rpc, self.pin, '0x2')
+        else:
+            if index in (4, 6, 23): self.bad = 'factory'
+            if index == 15: self.bad = self.FACTORY
+            if index in (16, 24):
+                self.pin['discoveryReleaseFactory'] = self.RELEASE
+                self.good['targets']['releaseFactory'] = self.RELEASE
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+                self.bad = 'code' if index == 16 else self.RELEASE
+            if index == 25:
+                self.pin.update(discoveryReleaseFactory=self.RELEASE, discoveryOriginalFactory=self.RELEASE,
+                                discoveryRetainedTokens=list(self.tokens))
+                self.good['targets'].update(releaseFactory=self.RELEASE, legacyFactory=self.RELEASE)
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+                self.bad = self.RELEASE
+                # Release and original must be distinct for this post-switch fixture.
+                self.pin['discoveryReleaseFactory'] = self.OTHER
+                self.good['targets']['releaseFactory'] = self.OTHER
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+            action = lambda: m.post_pin_delta(self.rpc, self.pin, '0x2')
+            if index in (4, 23):
+                self.pin['discoveryExpected'] = copy.deepcopy(self.good)
+                action = lambda: m.closing_timelock_inventory(self.rpc, self.pin, '0x2')
+        with contextlib.ExitStack() as stack:
+            if index in (4, 23):
+                stack.enter_context(patch.object(m.isolation, 'role_history', return_value=[]))
+            if index == 23:
+                self.pin.update(oldAggregator=self.OTHER, oldActivity=dict(dvtProposals=[]))
+                self.pin['oldOwnerIsolation']['callsiteTargetSource'] = dict(expected={})
+                plan = dict(pin=self.pin, stage='a7', steps=[], externalInputs=dict(data=dict(dvt=self.OTHER, committee=self.OTHER)))
+                for item in (patch.object(a, 'block_data', return_value=dict(number='0x2')),
+                             patch.object(m.isolation, 'registry_callsite_targets'),
+                             patch.object(m, 'discovery_coverage', return_value=self.pin),
+                             patch.object(m.isolation, 'never_granted_recheck', return_value=[]),
+                             patch.object(a, 'address', return_value=self.OTHER),
+                             patch.object(m, 'dvt_activity', return_value=[]),
+                             patch.object(m, 'STALE_PROPOSALS', []),
+                             patch.object(m, 'discovery_old_authority'),
+                             patch.object(m, 'old_timelock_holds_nothing', return_value=[])):
+                    stack.enter_context(item)
+                action = lambda: m.dvt_closing(self.rpc, plan)
+            with assert_stop(self, gate): action()
+
+    def test_call_23(self): self.check(23)
+    def test_call_4(self): self.check(4)
+    def test_call_6(self): self.check(6)
+    def test_call_15(self): self.check(15)
+    def test_call_16(self): self.check(16)
+    def test_call_18(self): self.check(18)
+    def test_call_19(self): self.check(19)
+    def test_call_24(self): self.check(24)
+    def test_call_25(self): self.check(25)
+
+# Retained pending controls: these are source inventory checks, not behavioural
+# acceptance evidence. Do not count them toward item D completion.
+def discovery_call_test(function, expression, gate):
+    def test(self):
+        source = Path(m.__file__).read_text()
+        tree = ast.parse(source)
+        fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == function)
+        sites = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and ast.get_source_segment(source, n) == expression]
+        self.assertEqual(len(sites), 1, gate)
+    return test
+
+
+class DiscoveryCallSourceTests(unittest.TestCase):
+    """Source-only call controls. Deliberately has no plan-building setUpClass:
+    deleting a call that build_plan itself reaches must fail the assertion, not
+    error out of a shared fixture. Indices with a behavioural control in
+    DiscoveryCallTests are not duplicated here."""
+
+
+for _i, (_function, _expression, _gate) in enumerate(DISCOVERY_CALLS):
+    if not hasattr(DiscoveryCallTests, 'test_call_' + str(_i)):
+        setattr(DiscoveryCallSourceTests, 'test_call_' + str(_i), discovery_call_test(_function, _expression, _gate))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,65 @@
+[
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "name": "approval_history_control",
+    "ast_sha256": [
+      "bc39130b73037b0be9cb011092e8db5f1dfe4db1e8b6f0b6a84106fa76c1a0c8",
+      "881e7bd198628b5e28bfc4754b3569677b0e1efaf65957f940f56b37630a9303"
+    ],
+    "reason": "DSR ruling 3: exact per-subcase expectations; preserved assertions and cases"
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "name": "test_old_timelock_log_replay",
+    "ast_sha256": [
+      "1943c61724c34e15b64727487f001908e81591654d6ed4c19b6b5e3ccddb233c",
+      "1799a15eb58206f5546c6f6a731fda576e8f1175aa7e059cb47c28f605faa684"
+    ],
+    "reason": "DSR ruling 3: exact per-subcase expectations; preserved assertions and cases"
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "name": "test_slither_raw_rederived_gate",
+    "ast_sha256": [
+      "6d10fe2275bc5435d852f8a870f9e6a970fa16b02817e41fe873028af22571ac",
+      "5f2c344ab4f716eb6480aa830609e8d6ba6de72b630bac196ca93690d936ad6b"
+    ],
+    "reason": "DSR ruling 3: exact per-subcase expectations; preserved assertions and cases"
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "name": "test_list_and_endpoint_controls",
+    "ast_sha256": [
+      "63c6232c40cbc8a7306b46a293dcd92f5f211a1e65ce852b543e249e0ea52d12",
+      "7161c96f8431208a694a062730ede902d0b2a693fb5a8dd196c73a0536be33b7"
+    ],
+    "reason": "DSR ruling 3: exact per-subcase expectations; preserved assertions and cases"
+  },
+  {
+    "file": "script/upgrade/test_manifest_exec.py",
+    "name": "test_log_identity_fields",
+    "ast_sha256": [
+      "27885c52194ed9dad5033b01bdab1d4f5b31d4fc5c6e9e2935aa61faea4d6154",
+      "715f5c31051f3ff0959c13207028fcf163cf6ac3345abb5d25162d6b3b964156"
+    ],
+    "reason": "DSR ruling 3: exact per-subcase expectations; preserved assertions and cases"
+  },
+  {
+    "file": "script/upgrade/test_old_owner_isolation.py",
+    "name": "test_factory_enumeration_must_stand_alone",
+    "ast_sha256": [
+      "af2b23978bd5eecac348a44b25dd04168a1c2ed5239af464c1c70c4e9064b5d8",
+      "97f077c8133a386c15d398a2295063ed523a43c1e5d1df84b03dcef2181760ec"
+    ],
+    "reason": "DSR ruling 3: exact per-subcase expectations; preserved assertions and cases"
+  },
+  {
+    "file": "script/evidence/audit605_probes.py",
+    "name": "REQUIRED",
+    "ast_sha256": [
+      "837bb5b449da39b5528d16fc66b0a43582642ad8158d3c1b84809766c45f1a8e",
+      "880dc9543cb5f865965224e268232805d5c035e111c6d64323f83070f7612c50"
+    ],
+    "reason": "DSR minor: separate per-site REQUIRED bindings and F05 method mapping"
+  }
+]

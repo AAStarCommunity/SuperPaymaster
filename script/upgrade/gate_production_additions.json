@@ -1,0 +1,20 @@
+[
+  {
+    "file": "script/upgrade/old_owner_isolation.py",
+    "function": "extract",
+    "line": 494,
+    "column": 20,
+    "gate": "old_owner_getter_signature_present",
+    "ast_sha256": "e07c54d15b43bf2c80ac93eafa655700ac4db26bd8cf1bf5eb166f42ba6b9068",
+    "reason": "DSR ruling 3: crash-red #20; accessor guard before signatures[sig] lookup. Fixed literal registered by gate-name inventory; prefix-disjoint."
+  },
+  {
+    "file": "script/upgrade/manifest_exec.py",
+    "function": "nonce_expectations",
+    "line": 1823,
+    "column": 8,
+    "gate": "a3a_sender_history_rows_present",
+    "ast_sha256": "845e5c060bd8ad54f4df96aac6905b59491183c25c93e5c9a62504ca5234a7e4",
+    "reason": "DSR crash-red #21: named accessor before max(rows); no fallback."
+  }
+]

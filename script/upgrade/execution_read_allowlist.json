@@ -1,0 +1,4 @@
+{
+  "reason": "No repository file is required during manifest execution. Source, artifact, schema and evidence reads belong to pre-execution plan validation. Output writes are not reads and need no exception. Git has no execution exception.",
+  "paths": {}
+}

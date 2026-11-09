@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import sp_upgrade_exec as u
 import old_owner_isolation as isolation
+import execution_reads
 
 a = u.a
 ANNI = '0xecaacb915f7d92e9916f449f7ad42bd0408733c9'
@@ -87,7 +88,7 @@ def reviewed_file(path, digest, gate):
 
 
 def verifier_artifact(v):
-    a.need('verifier_commit', v['commit'], VERIFIER_COMMIT)
+    a.need('verifier_commit_verifier_artifact', v['commit'], VERIFIER_COMMIT)
     art = reviewed_file(v.get('artifactPath'), VERIFIER_SHA256, 'verifier_file')
     a.need('verifier_creation', a.keccak(art['bytecode']['object']), VERIFIER_CREATION)
     refs = art['deployedBytecode']['immutableReferences']
@@ -175,6 +176,12 @@ def validate_ci_run(e):
     a.need('evidence_ci_overall', not failing if run['overall'] == 'success' else bool(direct & accepted), True)
 
 
+@lru_cache(maxsize=32)
+def evidence_test_names(source):
+    return frozenset(n.name for n in ast.walk(ast.parse(source))
+                     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))
+
+
 def validate_evidence_details(e, kind, evidence_dir=None):
     if kind == 'conformance':
         schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]
@@ -186,7 +193,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
                 path = (root / ref['suite']).resolve()
                 a.need('evidence_test_suite', path.is_relative_to(root) and path.suffix == '.py' and path.is_file(), True)
                 try:
-                    names = {n.name for n in ast.walk(ast.parse(path.read_text())) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                    names = evidence_test_names(path.read_text())
                 except (OSError, SyntaxError):
                     names = set()
                 a.need('evidence_test_name', ref['test'] in names, True)
@@ -216,7 +223,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
             a.need('evidence_classification', item['classification'] in ('false-positive', 'accepted'), True)
             a.need('evidence_acceptance_reason', all(isinstance(item[k],str) and item[k].strip() for k in ('id', 'reason')), True)
         ids = f['aboveThreshold']
-        a.need('evidence_unique_findings', len(ids), len(set(ids)))
+        a.need('evidence_unique_findings_in_scope', len(ids), len(set(ids)))
         a.need('evidence_unaccepted_findings', sorted(ids), sorted(x['id'] for x in f['accepted']))
         a.need('evidence_in_scope_total', f['inScopeTotal'], len(ids))
         scope = e['scope']
@@ -234,7 +241,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
             for filename in item.get('files', []):
                 a.need('evidence_finding_path_canonical', canonical_path_syntax(filename) and
                        canonical_source_path(filename, tree) == filename, True)
-        a.need('evidence_scope_recomputed', scope, recomputed)
+        a.need('evidence_scope_recomputed_validate_evidence_details', scope, recomputed)
         outside_ids = []
         for item in f['outOfScope']:
             a.exact_keys('evidence_outside', item, ('id', 'impact', 'files', 'classification'))
@@ -243,31 +250,31 @@ def validate_evidence_details(e, kind, evidence_dir=None):
             outside_ids.append(item['id'])
         a.need('evidence_outside_unique', len(outside_ids), len(set(outside_ids)))
         a.need('evidence_outside_not_reviewed', bool(set(outside_ids).intersection(ids)), False)
-        a.need('evidence_unique_findings', len(ids + outside_ids), len(set(ids + outside_ids)))
+        a.need('evidence_unique_findings_all_scope', len(ids + outside_ids), len(set(ids + outside_ids)))
         # Do not rerun Slither: report completeness rests on the generator at the release commit.
         # Re-derive classification under the independently rebuilt scope.
         ref = e.get('rawReport')
-        a.exact_keys('evidence_slither_rederived', ref, ('path', 'sha256'))
-        a.need('evidence_slither_rederived', canonical_path_syntax(ref['path']), True)
+        a.exact_keys('evidence_slither_rederived_reference_fields', ref, ('path', 'sha256'))
+        a.need('evidence_slither_rederived_path_syntax', canonical_path_syntax(ref['path']), True)
         evidence_root = (evidence_dir or Path.cwd()).resolve()
         try:
             raw_path = (evidence_root / ref['path']).resolve()
-            a.need('evidence_slither_rederived',
+            a.need('evidence_slither_rederived_path_containment',
                    raw_path.is_relative_to(evidence_root) and raw_path.is_file(), True)
         except (OSError, RuntimeError) as error:
-            raise a.Gate('evidence_slither_rederived', str(error), 'contained regular raw report') from None
-        raw = reviewed_file(str(raw_path), ref['sha256'], 'evidence_slither_rederived')
+            raise a.Gate('evidence_slither_rederived_path_resolution', str(error), 'contained regular raw report') from None
+        raw = reviewed_file(str(raw_path), ref['sha256'], 'evidence_slither_rederived_file')
         try:
-            a.need('evidence_slither_rederived', raw.get('success') is True and raw.get('error') is None, True)
+            a.need('evidence_slither_rederived_success', raw.get('success') is True and raw.get('error') is None, True)
             for mapping in source_mappings(raw):
                 for field in ('filename_relative', 'filename_absolute', 'filename_short'):
                     filename = mapping.get(field)
                     if filename:
-                        a.need('evidence_slither_rederived', canonical_path_syntax(filename), True)
+                        a.need('evidence_slither_rederived_filename', canonical_path_syntax(filename), True)
             routed = route_slither(normalized_detectors(raw['results'].get('detectors', []), tree), recomputed, f['threshold'])
         except (Stop, KeyError, TypeError, ValueError) as error:
-            raise a.Gate('evidence_slither_rederived', str(error), 'valid raw report') from None
-        a.need('evidence_slither_rederived', {k: f[k] for k in routed}, routed)
+            raise a.Gate('evidence_slither_rederived_routing_error', str(error), 'valid raw report') from None
+        a.need('evidence_slither_rederived_findings', {k: f[k] for k in routed}, routed)
         a.need('evidence_layout_pair_count', len(e['storageLayout']), len(LAYOUT_PAIRS))
         for pair, (core, extension, reference) in zip(e['storageLayout'], LAYOUT_PAIRS):
             a.exact_keys('evidence_layout_pair', pair, ('core', 'extension', 'reference', 'testReferences', 'coreTable', 'extensionTable'))
@@ -283,7 +290,7 @@ def validate_evidence_details(e, kind, evidence_dir=None):
         a.exact_keys('evidence_contracts', e['contracts'], (*NAMES, 'OverIssueFraudProofVerifier'))
         for name, hashes in e['contracts'].items():
             a.exact_keys('evidence_creation_hashes', hashes, ('fullCreationKeccak', 'strippedCreationKeccak'))
-            for value in hashes.values(): a.typed(value, a.HASH32)
+            for value in hashes.values(): a.typed(value, a.HASH32, gate='rpc_result_validate_evidence_details_value')
             if name != 'OverIssueFraudProofVerifier':
                 a.need('evidence_full_creation_'+name, hashes['strippedCreationKeccak'], hashes['fullCreationKeccak'])
 
@@ -296,7 +303,7 @@ VERIFIER_METADATA_LAYOUT = {'byteLength': 3300, 'segments': [{'offset': 3247, 'l
 def verifier_executable(code, layout=None):
     layout = VERIFIER_METADATA_LAYOUT if layout is None else layout
     a.need('verifier_metadata_layout', layout, VERIFIER_METADATA_LAYOUT)
-    raw = bytes.fromhex(a.typed(code, a.HEXDATA)[2:])
+    raw = bytes.fromhex(a.typed(code, a.HEXDATA, gate='rpc_result_verifier_executable_code')[2:])
     a.need('verifier_creation_length', len(raw), layout['byteLength'])
     chunks, cursor = [], 0
     for segment in layout['segments']:
@@ -447,14 +454,14 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
            all(c in '0123456789abcdef' for c in f['toolCommit']), True)
     a.need('fraud_verifier_commit', f['verifierCommit'], VERIFIER_COMMIT)
     a.need('fraud_registry', f['registry'], u.REG)
-    for key in ('aggregator', 'verifier'): a.typed(f[key], a.ADDRESS_RX)
-    for key in ('domainSeparator', 'messageHash'): a.typed(f[key], a.HASH32)
+    for key in ('aggregator', 'verifier'): a.typed(f[key], a.ADDRESS_RX, gate='rpc_result_fraud_fixture_key')
+    for key in ('domainSeparator', 'messageHash'): a.typed(f[key], a.HASH32, gate='rpc_result_fraud_fixture_key_2')
     for key in ('pid', 'fraudProofId', 'signerMask'):
         a.need('fraud_uint_'+key, type(f[key]) is int and 0 < f[key] < 2**256, True)
     a.need('fraud_large_pid', f['pid'] >= 2**128, True)
     guardians = f['guiltyGuardians']
     a.need('fraud_guardians', isinstance(guardians, list) and len(guardians) == 3, True)
-    for who in guardians: a.typed(who, a.ADDRESS_RX)
+    for who in guardians: a.typed(who, a.ADDRESS_RX, gate='rpc_result_fraud_fixture_who')
     a.need('fraud_guardians_sorted', guardians, sorted(set(guardians)))
     if pin is not None:
         a.need('fraud_pin_block', f['block'], a.qty(pin['block']) if isinstance(pin['block'], str) else pin['block'])
@@ -462,19 +469,19 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
                sorted(x['validator'] for x in pin['guardianInventory'] if x['validator'] != a.ZERO))
     if aggregator is not None: a.need('fraud_aggregator', f['aggregator'], aggregator.lower())
     if verifier is not None: a.need('fraud_verifier', f['verifier'], verifier.lower())
-    a.typed(f['fraudProof'], a.HEXDATA)
-    a.exact_keys('fraud_token_fields', f['mockToken'], ('address', 'runtime', 'runtimeHash', 'over'))
-    a.typed(f['mockToken']['address'], a.ADDRESS_RX)
+    a.typed(f['fraudProof'], a.HEXDATA, gate='rpc_result_fraud_fixture_fraudProof')
+    a.exact_keys('fraud_token_fields_mock', f['mockToken'], ('address', 'runtime', 'runtimeHash', 'over'))
+    a.typed(f['mockToken']['address'], a.ADDRESS_RX, gate='rpc_result_fraud_fixture_address')
     words = u.uints(f['fraudProof'])
     a.need('fraud_proof_encoding', len(words), 11)
     a.need('fraud_proof_fields', [words[0], words[4], words[5], words[6], words[7], *words[8:]],
            [f['pid'], int(f['mockToken']['address'], 16), f['signerMask'], 224, 3, *[int(x,16) for x in guardians]])
     a.need('fraud_proof_metadata', words[1:4], [int(v['operator'], 16), v['slashLevel'], epoch])
     token = f['mockToken']
-    a.exact_keys('fraud_token_fields', token, ('address', 'runtime', 'runtimeHash', 'over'))
-    a.typed(token['address'], a.ADDRESS_RX)
+    a.exact_keys('fraud_token_fields_arm', token, ('address', 'runtime', 'runtimeHash', 'over'))
+    a.typed(token['address'], a.ADDRESS_RX, gate='rpc_result_fraud_fixture_address_2')
     a.need('fraud_token_distinct', token['address'] not in (f['aggregator'], f['verifier'], u.REG, u.SP), True)
-    a.typed(token['runtime'], a.HEXDATA)
+    a.typed(token['runtime'], a.HEXDATA, gate='rpc_result_fraud_fixture_runtime')
     a.need('fraud_token_runtime', token['runtime'] != '0x', True)
     a.need('fraud_token_pin_available', MOCK_TOKEN_RUNTIME_HASH is not None, True)
     a.need('fraud_token_pinned_runtime', a.keccak(token['runtime']), MOCK_TOKEN_RUNTIME_HASH)
@@ -500,14 +507,14 @@ def fraud_fixture(ref, pin=None, aggregator=None, verifier=None, layout=None):
     a.exact_keys('fraud_N2_fields', n['N2'], ('over',))
     a.need('fraud_N2_over', n['N2']['over'] is True, True)
     a.exact_keys('fraud_N3_fields', n['N3'], ('fraudProof',))
-    a.typed(n['N3']['fraudProof'], a.HEXDATA)
+    a.typed(n['N3']['fraudProof'], a.HEXDATA, gate='rpc_result_fraud_fixture_fraudProof_2')
     changed = u.uints(n['N3']['fraudProof'])
     a.need('fraud_N3_only_mask', changed[:5]+changed[6:], words[:5]+words[6:])
     a.need('fraud_N3_length', len(changed), len(words))
     delta = changed[5] ^ words[5]
     a.need('fraud_N3_one_bit', delta > 0 and delta & (delta-1) == 0, True)
     a.exact_keys('fraud_N4_fields', n['N4'], ('domainDigest',))
-    a.typed(n['N4']['domainDigest'], a.HASH32)
+    a.typed(n['N4']['domainDigest'], a.HASH32, gate='rpc_result_fraud_fixture_domainDigest')
     digest = a.keccak(a.cast('abi-encode', 'c(bytes32,bytes32,uint256,address[])', f['domainSeparator'],
         a.keccak('SuperPaymaster.BLS.FraudProof.v1'), f['fraudProofId'], '['+','.join(guardians)+']'))
     a.need('fraud_domain_digest', v['domainDigest'], digest)
@@ -623,25 +630,25 @@ def validate_external(data, stage="full"):
         validate_phase_c_inputs(data['phaseC'])
     a.need('fixed_anni', data['anni'], ANNI)
     required(data['a3aPlan'], ('path', 'sha256', 'receipts'), 'a3a_input')
-    reviewed_file(data['a3aPlan']['path'], data['a3aPlan']['sha256'], 'a3a_plan')
+    reviewed_file(data['a3aPlan']['path'], data['a3aPlan']['sha256'], 'a3a_plan_validate_external')
     for sid in a.STEP_IDS:
-        a.typed(data['a3aPlan']['receipts'].get(sid), a.HASH32)
+        a.typed(data['a3aPlan']['receipts'].get(sid), a.HASH32, gate='rpc_result_validate_external_sid')
         a.need('a3a_receipt_nonzero', data['a3aPlan']['receipts'][sid] != a.ZERO32, True)
     a.need('fixed_dvt', data['dvt'], DVT)
     a.need('fixed_committee', data['committee'], COMMITTEE)
     for key in ('ciSha256', 'buildSha256'):
         a.need('verifier_'+key, len(v[key]) == 64 and all(c in '0123456789abcdef' for c in v[key]) and int(v[key], 16) != 0, True)
-    a.need('verifier_commit', len(v['commit']) == 40 and all(c in '0123456789abcdef' for c in v['commit']), True)
+    a.need('verifier_commit_validate_external', len(v['commit']) == 40 and all(c in '0123456789abcdef' for c in v['commit']), True)
     for key in ('anni', 'dvt', 'committee'):
-        a.typed(data[key], a.ADDRESS_RX)
+        a.typed(data[key], a.ADDRESS_RX, gate='rpc_result_validate_external_key')
         a.need('canonical_'+key, data[key], data[key].lower())
         a.need('nonzero_'+key, data[key] != a.ZERO, True)
     if stage != 'a7':
         a.need('pop_three', len(data['pop']), 3)
         for p in data['pop']:
             a.exact_keys('pop_fields', p, ('validator', 'slot', 'calldata', 'aggregator', 'pinBlockHash', 'domainSeparator'))
-            a.typed(p['validator'], a.ADDRESS_RX)
-            a.typed(p['calldata'], a.HEXDATA)
+            a.typed(p['validator'], a.ADDRESS_RX, gate='rpc_result_validate_external_validator')
+            a.typed(p['calldata'], a.HEXDATA, gate='rpc_result_validate_external_calldata')
             a.need('pop_selector', p['calldata'][:10], a.keccak(POP)[:10])
             words = u.uints('0x'+p['calldata'][10:])
             a.need('pop_words', len(words), 14)
@@ -654,7 +661,7 @@ def validate_external(data, stage="full"):
     a.need('sampled_unique', data['sampled'], sorted(set(data['sampled'])))
     a.need('sampled_nonempty', bool(data['sampled']), True)
     for who in data['sampled']:
-        a.typed(who, a.ADDRESS_RX)
+        a.typed(who, a.ADDRESS_RX, gate='rpc_result_validate_external_who')
     a.need('deposit_target', type(data['depositTargetWei']) is int and data['depositTargetWei'] > 0, True)
     for kind in EVIDENCE_KINDS:
         evidence_file(data['releaseEvidence'].get(kind), kind)
@@ -688,7 +695,7 @@ def rebuild_commit(head):
     try:
         scope, _, _ = compiled_scope(tree)
     except Stop as error:
-        raise a.Gate('evidence_scope_recomputed', str(error), 'valid compiled release scope') from None
+        raise a.Gate('evidence_scope_recomputed_rebuild_commit', str(error), 'valid compiled release scope') from None
     result = subprocess.run([str(a.REBUILD_FORGE), 'inspect', 'BLSAggregator', 'storage-layout', '--offline', '--json'],
         cwd=tree, env=env, capture_output=True, text=True)
     a.need('fraud_layout_inspect', result.returncode, 0)
@@ -697,8 +704,8 @@ def rebuild_commit(head):
            commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
     arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
-    a.need('built_aggregator_version', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release"), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    a.need('built_aggregator_version_rebuild_commit', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
+    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release", names=tuple(sorted(set(isolation.NAMES) | {"xPNTsFactoryV2", "xPNTsTokenV2", "xPNTsTokenV2Ext"}))), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -731,7 +738,7 @@ def release_gate(inputs, build, pin):
     data = inputs['data']
     state = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=u.ROOT, capture_output=True, text=True, check=True)
     a.need('release_clean_tree', state.stdout, '')
-    a.need('built_aggregator_version', build['aggregatorVersion'], AGG_VERSION)
+    a.need('built_aggregator_version_release_gate', build['aggregatorVersion'], AGG_VERSION)
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT, capture_output=True, text=True, check=True).stdout.strip()
     a.need('release_current_head', head, build['commit'])
     for kind in EVIDENCE_KINDS:
@@ -885,11 +892,325 @@ def old_pointers(rpc, d, old, block):
     return bindings
 
 
+def old_timelock_section(pin):
+    return pin['oldTimelock']
+
+
+def validate_old_timelock(pin):
+    a.need('old_timelock_required', 'oldTimelock' in pin, True)
+    section = old_timelock_section(pin)
+    a.need('old_timelock_schema', isinstance(section, dict) and set(section) == {'block', 'reads', 'approvalOwners'}
+           and isinstance(section.get('approvalOwners'), dict)
+           and isinstance(section.get('reads'), list) and all(isinstance(r, dict) and
+           ((set(r) == {'method', 'params', 'block', 'result'} and
+             r['method'] == 'eth_getLogs' and isinstance(r['params'], list) and
+             isinstance(r['block'], str) and isinstance(r['result'], list)) or
+           (set(r) == {'target', 'signature', 'args', 'block', 'result'} and
+           isinstance(r['target'], str) and isinstance(r['signature'], str) and
+           isinstance(r['args'], list) and isinstance(r['block'], str) and
+           isinstance(r['result'], str))) for r in section['reads']), True)
+    a.need('old_timelock_block', section['block'] == pin['stateBlock'] and
+           all(r['block'] == pin['stateBlock'] for r in section['reads']), True)
+    reads = iter(section['reads'])
+    def replay(method, params):
+        row = next(reads, None)
+        a.need('old_timelock_replay_reads', row is not None and
+               ((row.get('method') == method == 'eth_getLogs' and params == row['params']) or
+                ('target' in row and method == 'eth_call' and
+                 params == [dict(to=row['target'], data=a.calldata(row['signature'], *row['args'])), row['block']])), True)
+        return copy.deepcopy(row['result'])
+    actual = old_timelock_holds_nothing(replay, pin, pin['stateBlock'])
+    a.need('old_timelock_replay_owners', actual['approvalOwners'], section['approvalOwners'])
+    a.need('old_timelock_unused', next(reads, None), None)
+
+
+# Getter discovery changes only at these reviewed steps. Deployments also expand coverage.
+DISCOVERY_STEPS = {
+    'A4.factory': 'factory deployment',
+    'A6.upgrade': 'Registry implementation; getters unchanged',
+    'upgrade_execute_exec': 'factory pointer',
+    'C3.deploy': 'factory token enumeration',
+    'C3.configure': 'operator token',
+}
+
+
+def pin_discovery(pin):
+    section = pin['oldOwnerIsolation']
+    return dict(targets=copy.deepcopy(section['targets']), xpnts=list(section['xpnts']))
+
+
+def build_expected_discovery(plan):
+    state = pin_discovery(plan['pin'])
+    expected = {}
+    required_ids = set(DISCOVERY_STEPS)
+    if plan['stage'] == 'a7':
+        required_ids -= {'upgrade_execute_exec', 'C3.deploy', 'C3.configure'}
+    elif plan['stage'] == 'b4':
+        required_ids -= {'C3.deploy', 'C3.configure'}
+    ids = [s['id'] for s in plan['steps']]
+    a.need('discovery_step_table', set(ids) & set(DISCOVERY_STEPS) == required_ids and len(ids) == len(set(ids)), True)
+    factory = plan['addresses']['xPNTsFactoryV2']
+    token = a.create_address(factory, 1)
+    sensitive = ('setXPNTsFactory(address)', 'deployxPNTsToken(string,string,string,string,uint256,address)',
+                 'configureOperator(address,address)', 'setStaking(address)', 'setMySBT(address)', 'upgradeToAndCall(address,bytes)')
+    schedules = {a.keccak(sig)[:10] for sig in plan['rebuild']['calldataSignatures'] if sig.startswith(('schedule(', 'scheduleBatch('))}
+    allowed = {sensitive[0]: {'upgrade_execute_exec'}, sensitive[1]: {'C3.deploy'}, sensitive[2]: {'C3.configure'},
+               sensitive[5]: {'A6.upgrade', 'upgrade_execute_exec'}}
+    for step in plan['steps']:
+        sid = step['id']
+        # Inspect executed payloads, excluding Safe approvals and timelock scheduling.
+        data, effects = step['tx']['data'], []
+        if step['tx']['to'] is not None:
+            decoded = isolation.assert_manifest_calldata([step], plan['rebuild']['calldataSignatures'])
+            outer = decoded[-1] if decoded else {}
+            payload = outer.get('arguments', [])[2] if outer.get('signature', '').startswith('execTransaction(') else data
+            inactive = data[:10] == a.keccak('approveHash(bytes32)')[:10] or payload[:10] in schedules
+            effects = [] if inactive else [r for r in decoded if r['signature'] in sensitive]
+            a.need('discovery_unlisted_effect', all(sid in allowed.get(r['signature'], set()) for r in effects), True)
+        if sid == 'A4.factory':
+            a.need('discovery_factory_prediction', step.get('creates'), factory)
+            state['targets']['releaseFactory'] = factory
+        elif sid == 'upgrade_execute_exec':
+            calls = [r['arguments'][0].lower() for r in effects if r['signature'] == sensitive[0]]
+            a.need('discovery_factory_argument', bool(calls) and set(calls) == {factory}, True)
+            state['targets']['legacyFactory'] = state['targets']['xPNTsFactory']
+            state['targets']['xPNTsFactory'] = factory
+        elif sid == 'C3.deploy':
+            a.need('discovery_token_prediction', step['tx']['to'] == factory and
+                   data == a.calldata('deployxPNTsToken(string,string,string,string,uint256,address)', *PC_TOKEN, PC_RATE, a.ZERO) and
+                   any(r.get('kind') == 'code' and r['target'] == token for r in step['readbacks']), True)
+            state['xpnts'] = sorted(set(state['xpnts']) | {token})
+        elif sid == 'C3.configure':
+            a.need('discovery_operator_argument', step['tx']['to'] == u.SP and
+                   data == a.calldata('configureOperator(address,address)', token, PC_TREASURY), True)
+            state['xpnts'] = sorted(set(state['xpnts']) | {token})
+        expected[sid] = copy.deepcopy(state)
+    return expected
+
+
+def expected_discovery(plan, passed):
+    state = pin_discovery(plan['pin'])
+    for step in plan['steps']:
+        if step['id'] in passed:
+            state = plan['expectedDiscoveryAfter'][step['id']]
+    return copy.deepcopy(state)
+
+
+def discovery_coverage(plan, passed):
+    pin = copy.deepcopy(plan['pin'])
+    section = pin['oldOwnerIsolation']
+    state = expected_discovery(plan, passed)
+    section['targets'].update(state['targets'])
+    section['xpnts'] = sorted(set(section['xpnts']) | set(state['xpnts']) | set(isolation.ROUND_CLONES))
+    section['tokens'] = sorted(set(section['tokens']) | set(section['xpnts']))
+    inventory = section['inventory']
+    old_factory = plan['pin']['oldOwnerIsolation']['targets']['xPNTsFactory']
+    if 'A4.factory' in passed:
+        factory = plan['addresses']['xPNTsFactoryV2']
+        section['targets']['legacyFactory'] = old_factory
+        section['targets']['releaseFactory'] = factory
+        pin['discoveryReleaseFactory'] = factory
+        inventory['legacyFactory'] = inventory.get('targetInventories', {}).get(old_factory, inventory['xPNTsFactory'])
+        release = plan['rebuild']['oldOwnerInventory']
+        inventory['releaseFactory'] = release['xPNTsFactoryV2']
+        inventory.setdefault('targetInventories', {})[factory] = release['xPNTsFactoryV2']
+        for token in set(section['xpnts']) - set(plan['pin']['oldOwnerIsolation']['xpnts']):
+            spec = copy.deepcopy(release['xPNTsTokenV2'])
+            for group in ('roles', 'authorities', 'mappings'):
+                rows = {r['signature']: r for r in spec[group]}
+                rows.update({r['signature']: r for r in release['xPNTsTokenV2Ext'][group]})
+                spec[group] = list(rows.values())
+            inventory['targetInventories'][token] = spec
+    pin['discoveryExpected'] = state
+    pin['discoveryOriginalFactory'] = old_factory
+    pin['discoveryRetainedTokens'] = plan['pin']['oldOwnerIsolation']['xpnts']
+    return pin
+
+
+def current_discovery(rpc, pin, block):
+    found = isolation.discover_targets(rpc, dict(pin, stateBlock=block))
+    release_tokens = None
+    if 'discoveryReleaseFactory' in pin and u.code(rpc, pin['discoveryReleaseFactory'], block) != '0x':
+        found['releaseFactory'] = [pin['discoveryReleaseFactory']]
+        release_tokens = u.addr_array(a.call(rpc, pin['discoveryReleaseFactory'], 'getAllTokens()', block=block))
+        found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(release_tokens))
+    if 'discoveryOriginalFactory' in pin and found['xPNTsFactory'][0] != pin['discoveryOriginalFactory']:
+        found['legacyFactory'] = [pin['discoveryOriginalFactory']]
+        tokens = u.addr_array(a.call(rpc, pin['discoveryOriginalFactory'], 'getAllTokens()', block=block))
+        a.need('old_owner_original_factory_enumeration', set(isolation.ROUND_CLONES) | set(pin['discoveryRetainedTokens']) <= set(tokens), True)
+        a.need('old_owner_release_factory_enumeration', release_tokens is not None and set(release_tokens) == set(pin['discoveryExpected']['xpnts']) - set(pin['discoveryRetainedTokens']), True)
+        found['xPNTsToken'] = sorted(set(found['xPNTsToken']) | set(tokens))
+    return dict(targets={name: group[0] for name, group in found.items() if name != 'xPNTsToken'},
+                xpnts=sorted(set(found['xPNTsToken'])))
+
+
+def discovery_old_authority(rpc, pin, block):
+    rows = isolation.authority_rows(pin['oldOwnerIsolation'])
+    clean = []
+    for target, sig, args, kind in rows:
+        args = [isolation.OLD if arg == isolation.OLD_TIMELOCK else arg for arg in args]
+        raw = a.call(rpc, target, sig, *args, block=block)
+        clean.append(u.config(raw)['owner'] != isolation.OLD if kind == 'config' else
+                     u.addr_word(u.uints(raw)[0]) != isolation.OLD if kind == 'address' else u.uints(raw) == [0])
+    for token in pin['oldOwnerIsolation']['tokens']:
+        for holder in isolation.allowance_holders():
+            clean.append(u.uints(a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD, block=block)) == [0])
+    a.need('discovery_old_authority', all(clean), True)
+
+
+def closing_timelock_inventory(rpc, pin, block):
+    current = dict(pin, stateBlock=block)
+    section = copy.deepcopy(pin['oldOwnerIsolation'])
+    found = current_discovery(rpc, pin, block)
+    expected = pin.get('discoveryExpected', pin_discovery(pin))
+    section['xpnts'] = sorted(set(section['xpnts']) | set(found['xpnts']))
+    section['tokens'] = sorted({pin['capped'], isolation.OLD_TOKEN, section['targets']['GToken'], *section['xpnts']})
+    inventory = section['inventory']
+    deployments = {r['target']: r['creationBlock'] for r in inventory.get('deployedSources', [])}
+    section['roleHistory'] = {}
+    for name, target in [*section['targets'].items(), *(('xPNTsToken', t) for t in section['xpnts'])]:
+        spec = inventory.get('targetInventories', {}).get(target, inventory[name])
+        # Scan from genesis for newly discovered contracts, before rejecting inventory drift.
+        creation = deployments.get(target, pin.get('isolationDeployments', {}).get(target, 1))
+        section['roleHistory'][target] = isolation.role_history(rpc, current, target, spec, creation)
+    spec = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
+    logs = isolation.bounded_history_logs(rpc, dict(address=u.REG, fromBlock=hex(pin['registryCreation']),
+        toBlock=block, topics=[spec['roleEventTopic']]))
+    section['configuredRoles'] = sorted({r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs} | set(section['roleHistory'].get(u.REG, [])))
+    fields = ('configuredRoles',) if 'discoveryExpected' in pin else ('targets', 'xpnts', 'tokens', 'roleHistory', 'configuredRoles')
+    # Coverage never shrinks: every pin target keeps its pinned role history, even after planned discovery changes.
+    pinned = pin['oldOwnerIsolation']['roleHistory']
+    a.need('old_timelock_inventory_pinned_history', {t: section['roleHistory'].get(t) for t in pinned}, pinned)
+    a.need('old_timelock_inventory', (found, {k: section[k] for k in fields}),
+           (expected, {k: pin['oldOwnerIsolation'][k] for k in fields}))
+    return dict(pin, oldOwnerIsolation=section)
+
+
+def post_pin_delta(rpc, pin, block):
+    section = pin['oldOwnerIsolation']
+    start, stop = a.qty(pin['stateBlock'])+1, a.qty(block)
+    owners = copy.deepcopy(old_timelock_section(pin)['approvalOwners'])
+    counts, checked, canonical = {}, {}, {}
+    spender = '0x'+isolation.OLD_TIMELOCK[2:].zfill(64)
+    approval = a.keccak('Approval(address,address,uint256)')
+    inventory = section['inventory']
+    registry = inventory.get('targetInventories', {}).get(u.REG, inventory['Registry'])
+    configured = registry['roleEventTopic']
+    def scan(target, topics):
+        logs = isolation.bounded_history_logs(rpc, dict(address=target, fromBlock=hex(start), toBlock=block, topics=topics)) if start <= stop else []
+        for log in logs:
+            a.need('old_timelock_delta_address', log.get('address'), target)
+            a.need('old_timelock_delta_removed', log.get('removed', False), False)
+            ts = log.get('topics', [])
+            signatures = topics[0] if isinstance(topics[0], list) else [topics[0]]
+            length = 2 if ts and ts[0] == configured else 3 if ts and ts[0] in (approval, a.keccak(isolation.REGISTERED), a.keccak(isolation.EXITED)) else 4
+            a.need('old_timelock_delta_topics', isinstance(ts, list) and len(ts) == length and ts[0] in signatures and
+                   all(isinstance(t, str) and re.fullmatch(r'0x[0-9a-fA-F]{64}', t) for t in ts) and
+                   (topics[0] != approval or ts[2] == spender), True)
+            number = a.qty(a.typed(log.get('blockNumber'), a.QTY, gate='rpc_result_scan_blockNumber'))
+            a.need('old_timelock_delta_range', start <= number <= stop, True)
+            if number not in canonical:
+                canonical[number] = rpc('eth_getBlockByNumber', [hex(number), False])
+            a.need('old_timelock_delta_canonical', log.get('blockHash'), canonical[number]['hash'])
+            a.need('old_timelock_delta_number', canonical[number]['number'], hex(number))
+        counts[target+':'+str(topics[0])] = len(logs)
+        return logs
+    for token in section['tokens']:
+        holders = set(owners.get(token, []))
+        for log in scan(token, [approval, None, spender]):
+            holders.add(u.addr_word(int(log['topics'][1], 16)))
+        owners[token] = sorted(holders)
+        for holder in sorted(holders - set(old_timelock_section(pin)['approvalOwners'].get(token, []))):
+            a.need('old_timelock_delta_allowance', u.uints(a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK, block=block)), [0])
+    configured_roles = {log['topics'][1] for log in scan(u.REG, [configured])}
+    for name, target in [*sorted(section['targets'].items()), *(('xPNTsToken', t) for t in section['xpnts'])]:
+        spec = inventory.get('targetInventories', {}).get(target, inventory[name])
+        roles = set(configured_roles) if target == u.REG else set()
+        if spec['hasRole']:
+            events = [isolation.GRANTED, isolation.REVOKED] + ([isolation.REGISTERED, isolation.EXITED] if target == u.REG else [])
+            roles.update(log['topics'][1] for log in scan(target, [[a.keccak(e) for e in events]]))
+        checked[target] = sorted(roles)
+        for role in sorted(roles):
+            if target == u.REG:
+                a.need('old_timelock_delta_config_owner', u.config(a.call(rpc, target, 'getRoleConfig(bytes32)', role, block=block))['owner'] != isolation.OLD_TIMELOCK, True)
+            if spec['hasRole']:
+                a.need('old_timelock_delta_timelock_role', u.uints(a.call(rpc, target, 'hasRole(bytes32,address)', role, isolation.OLD_TIMELOCK, block=block)), [0])
+                a.need('old_timelock_delta_old_role', u.uints(a.call(rpc, target, 'hasRole(bytes32,address)', role, isolation.OLD, block=block)), [0])
+    found = current_discovery(rpc, pin, block)
+    expected = pin.get('discoveryExpected', pin_discovery(pin))
+    a.need('old_timelock_delta_targets', found['targets'], expected['targets'])
+    a.need('old_timelock_delta_xpnts', found['xpnts'], expected['xpnts'])
+    return dict(fromBlock=hex(start), toBlock=block, logCounts=counts, rolesChecked=checked, approvalOwners=owners)
+
+
+def old_timelock_holds_nothing(rpc, pin, block, owners=None):
+    # pre_send supplies pinned owners plus the post-pin delta; closing and the pin scan full history.
+    section = pin['oldOwnerIsolation']
+    reads = []
+    def call(target, sig, *args):
+        raw = a.typed(rpc('eth_call', [dict(to=target, data=a.calldata(sig, *args)), block]), a.HEXDATA, gate='rpc_result_call_eth_call_2')
+        reads.append(dict(target=target, signature=sig, args=list(args), block=block, result=raw))
+        return raw
+    roles = [a.ZERO32, *(a.keccak(r+'_ROLE') for r in ('PROPOSER', 'EXECUTOR', 'CANCELLER'))]
+    values = [u.uints(call(u.TL, 'hasRole(bytes32,address)', r, isolation.OLD_TIMELOCK)) for r in roles]
+    a.need('old_timelock_tl_roles', values, [[0]]*4)
+    rows = isolation.authority_rows(section)
+    authority = []
+    for target, sig, args, kind in rows:
+        raw = call(target, sig, *args)
+        if kind == 'config':
+            clean = u.config(raw)['owner'] != isolation.OLD_TIMELOCK
+        elif kind == 'address':
+            words = u.uints(raw)
+            clean = len(words) == 1 and u.addr_word(words[0]) != isolation.OLD_TIMELOCK
+        else:
+            clean = u.uints(raw) == [0]
+        authority.append(clean)
+    a.need('old_timelock_authority', all(authority), True)
+    approval_owners = {}
+    deployments = {r['target']: r['creationBlock'] for r in section['inventory'].get('deployedSources', [])}
+    approval = a.keccak('Approval(address,address,uint256)')
+    spender = '0x'+isolation.OLD_TIMELOCK[2:].zfill(64)
+    def recorded_logs(method, params):
+        result = rpc(method, params)
+        reads.append(dict(method=method, params=copy.deepcopy(params), block=block, result=copy.deepcopy(result)))
+        return result
+    for token in section['tokens']:
+        if owners is not None:
+            holders = set(owners.get(token, []))
+        else:
+            creation = deployments.get(token, pin.get('isolationDeployments', {}).get(token, 1))
+            a.need('old_timelock_approval_history_creation', type(creation) is int and 0 < creation <= a.qty(block), True)
+            logs = isolation.bounded_history_logs(recorded_logs, dict(address=token,
+                fromBlock=hex(creation), toBlock=block, topics=[approval, None, spender]))
+            holders = set()
+            for log in logs:
+                topics = log.get('topics', [])
+                a.need('old_timelock_approval_history_log', log.get('address') == token and
+                       not log.get('removed', False) and len(topics) == 3 and
+                       topics[0] == approval and topics[2] == spender and
+                       creation <= a.qty(log.get('blockNumber', '0x0')) <= a.qty(block), True)
+                holders.add(u.addr_word(int(a.typed(topics[1], a.HASH32, gate='rpc_result_old_timelock_holds_nothing_1'), 16)))
+        approval_owners[token] = sorted(holders)
+        for holder in sorted(holders | set(isolation.allowance_holders())):
+            a.need('old_timelock_allowance', u.uints(call(token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK)), [0])
+    owners = u.addr_array(call(u.SAFE, 'getOwners()'))
+    module = u.uints(call(u.SAFE, 'isModuleEnabled(address)', isolation.OLD_TIMELOCK))
+    a.need('old_timelock_safe', isolation.OLD_TIMELOCK not in owners and module == [0], True)
+    wanted = set(section['targets'].values()) | set(section['xpnts'])
+    a.need('old_timelock_holds_nothing', bool(wanted) and {r[0] for r in rows} == wanted, True)
+    return dict(block=block, reads=reads, approvalOwners=approval_owners)
+
+
 def dvt_closing(rpc, plan):
     # After the last step: per-step pre_send reads cannot see anything that lands after it.
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {},
+                                       plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'])
+    coverage = discovery_coverage(plan, {s['id'] for s in plan['steps']})
+    never_granted = isolation.never_granted_recheck(rpc, coverage, block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
     pointers = dict(registry=a.address(rpc, u.REG, 'blsAggregator()', block), dvt=a.address(rpc, dvt, 'BLS_AGGREGATOR()', block),
                     committee=a.address(rpc, d['committee'], 'blsAggregator()', block))
@@ -900,7 +1221,10 @@ def dvt_closing(rpc, plan):
     a.need('closing_dvt_activity', latest, plan['pin']['oldActivity']['dvtProposals'])
     for proposal in sorted(STALE_PROPOSALS):
         a.need('closing_stale_unexecuted', (proposal, u.uints(a.call(rpc, dvt, 'proposals(uint256)', proposal, block=block))[3]), (proposal, 0))
-    return dict(block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS))
+    closing = closing_timelock_inventory(rpc, coverage, block)
+    discovery_old_authority(rpc, closing, block)
+    return dict(neverGranted=never_granted, block=block, pointers=pointers, dvtAggregator=expected, staleUnexecuted=sorted(STALE_PROPOSALS),
+                oldTimelock=old_timelock_holds_nothing(rpc, closing, block))
 
 
 def balances(rpc, operators, block='latest'):
@@ -1066,30 +1390,30 @@ def validate_phase_c_inputs(c):
     a.exact_keys('phase_c_runtime_keys', c['runtimeKeccak'], PC_RUNTIMES)
     for key in PC_RUNTIMES:
         pc_hash('phase_c_runtime_'+key, c['runtimeKeccak'][key])
-    required(c['accountEvidence'], ('path', 'sha256'), 'phase_c_account_evidence')
+    required(c['accountEvidence'], ('path', 'sha256'), 'phase_c_account_evidence_fields')
     a.need('phase_c_account_evidence_nonempty', bool(reviewed_bytes(
-        c['accountEvidence']['path'], c['accountEvidence']['sha256'], 'phase_c_account_evidence').strip()), True)
+        c['accountEvidence']['path'], c['accountEvidence']['sha256'], 'phase_c_account_evidence_bytes').strip()), True)
     r = c['rehearsal']
     a.exact_keys('phase_c_rehearsal', r, ('evidence', 'arms', 'ownerPreparation', 'ownerMaintenance', 'bundlerMaintenance'))
-    required(r['evidence'], ('path', 'sha256'), 'phase_c_rehearsal_evidence')
+    required(r['evidence'], ('path', 'sha256'), 'phase_c_rehearsal_evidence_fields')
     a.need('phase_c_rehearsal_evidence_nonempty', bool(reviewed_bytes(
-        r['evidence']['path'], r['evidence']['sha256'], 'phase_c_rehearsal_evidence').strip()), True)
+        r['evidence']['path'], r['evidence']['sha256'], 'phase_c_rehearsal_evidence_bytes').strip()), True)
     a.exact_keys('phase_c_arms', r['arms'], ARMS)
     for arm in ARMS:
         # pp_SP is the fixed initial 480000; an SP postOp measurement cannot replace it.
         fields = tuple(f for f in ARM_FIELDS if not (arm == 'SP' and f == 'postOp'))
         a.exact_keys('phase_c_arm_fields_'+arm, r['arms'][arm], fields)
         for field in fields:
-            pc_integer('phase_c_measurement', r['arms'][arm][field], 0 if field == 'postOp' else 1)
+            pc_integer('phase_c_measurement_arms', r['arms'][arm][field], 0 if field == 'postOp' else 1)
     a.exact_keys('phase_c_owner_preparation', r['ownerPreparation'], OWNER_PREPARATION)
     for value in r['ownerPreparation'].values():
-        pc_integer('phase_c_measurement', value)
+        pc_integer('phase_c_measurement_owner', value)
     for key in ('ownerMaintenance', 'bundlerMaintenance'):
         a.need('phase_c_maintenance_list', isinstance(r[key], list), True)
         for item in r[key]:
             a.exact_keys('phase_c_maintenance_fields', item, ('name', 'gas'))
             a.need('phase_c_maintenance_name', single_line(item['name']), True)
-            pc_integer('phase_c_measurement', item['gas'])
+            pc_integer('phase_c_measurement_maintenance', item['gas'])
         names = [item['name'] for item in r[key]]
         a.need('phase_c_maintenance_unique', len(names), len(set(names)))
 
@@ -1153,30 +1477,30 @@ def phase_c_pin_gates(pin, c):
     for label, key in (('owner', 'accountOwner'), ('bundler', 'bundler'), ('verifyingSigner', 'verifyingSigner')):
         a.need('phase_c_pin_identity_'+label, p[label]['address'], c[key])
         a.need('phase_c_eoa_'+label, p[label]['code'], '0x')
-    a.need('C1_minter', p['capped']['minter'], u.SAFE)
+    a.need('C1_minter_pin', p['capped']['minter'], u.SAFE)
     price = p['sp']['cachedPrice']
     a.need('C_price_shape', len(price), 4)
     # A pin price alone does not bound future reservations: P* bounds funding, and the
     # live cache is re-read before every Phase C transaction.
-    a.need('C_price_bound', 0 < price[0] <= PC_PRICE_CAP, True)
+    a.need('C_price_bound_pin', 0 < price[0] <= PC_PRICE_CAP, True)
     a.need('C_pricing_nonzero', p['sp']['aPNTsPriceUSD'] > 0, True)
     a.need('C_operator_shape', len(p['sp']['deployerOperator']), len(OPERATOR_FIELDS))
-    a.need('C2_operator_role', p['roles']['PAYMASTER_SUPER'], 1)
-    a.need('C3_community', p['roles']['COMMUNITY'], 1)
+    a.need('C2_operator_role_pin', p['roles']['PAYMASTER_SUPER'], 1)
+    a.need('C3_community_pin', p['roles']['COMMUNITY'], 1)
     cfg = u.config(p['endUser']['roleConfig'])
-    a.need('C7_enduser_active', cfg['isActive'], True)
+    a.need('C7_enduser_active_pin', cfg['isActive'], True)
     acct = p['account']
     a.need('C5_factory_runtime', acct['factoryCodeHash'], c['runtimeKeccak']['accountFactory'])
     a.need('C5_factory_implementation', acct['implementation'], c['accountImplementation'])
     a.need('C5_implementation_runtime', acct['implementationCodeHash'], c['runtimeKeccak']['accountImplementation'])
     a.need('C5_implementation_entrypoint', acct['implementationEntryPoint'], pin['immutables']['entryPoint'])
-    a.need('C5_counterfactual', acct['counterfactual'], c['account'])
+    a.need('C5_counterfactual_pin', acct['counterfactual'], c['account'])
     exists = acct['codeHash'] != a.EMPTY_KECCAK
     if exists:
         a.need('C5_existing_account', [acct.get('codeHash'), acct.get('owner'), acct.get('entryPoint'), acct.get('implementationSlot')],
                [c['runtimeKeccak']['account'], c['accountOwner'], pin['immutables']['entryPoint'], c['accountImplementation']])
     # Membership is all or nothing; D cannot repair SP status directly (Registry-only).
-    a.need('C_account_status', acct['status'] in ([0, 0, 0], [1, 1, 1]), True)
+    a.need('C_account_status_pin', acct['status'] in ([0, 0, 0], [1, 1, 1]), True)
     return dict(accountExists=exists, member=acct['status'] == [1, 1, 1], minStake=cfg['minStake'], ticketPrice=cfg['ticketPrice'])
 
 
@@ -1205,7 +1529,7 @@ def phase_c_worksheet(pin, c, sp_deposit_before):
     delta_a = positive(target_a-0)
     delta_m = positive(delta_a-p['capped']['deployerBalance'])
     supply = p['capped']['totalSupply']+BUFFER                   # B2a minted the buffer
-    a.need('C1_cap_headroom', supply+delta_m <= p['capped']['cap'], True)
+    a.need('C1_cap_headroom_worksheet', supply+delta_m <= p['capped']['cap'], True)
     xmax = ceil_div(amax*PC_RATE, 10**18)
     target_x = n*xmax+PC_BETA*xmax
     deposits = {arm: n*maxima[arm]+maxima[arm]+PC_BETA*maxima[arm] for arm in ARMS}
@@ -1219,7 +1543,7 @@ def phase_c_worksheet(pin, c, sp_deposit_before):
     maintenance_wei = sum(x['gas'] for x in maintenance)*PC_FEE
     target_o = sum(prep.values())*a.MAX_FEE+maintenance_wei
     stake_cost = 0 if facts['member'] else facts['minStake']+facts['ticketPrice']
-    a.need('C6_gtoken_balance', p['endUser']['deployerGToken'] >= stake_cost, True)
+    a.need('C6_gtoken_balance_worksheet', p['endUser']['deployerGToken'] >= stake_cost, True)
     return dict(attempts=n, feeCap=PC_FEE, priorityCap=PC_PRIORITY, priceCap=PC_PRICE_CAP, priceDecimals=PC_PRICE_DECIMALS,
         exchangeRate=PC_RATE, betaMultiplier=PC_BETA, bundlerBeta=PC_BUNDLER_BETA, allowanceCap=PC_CAP_L,
         spRenew=False, spPostOp=PC_SP_POSTOP, bounds=bounds, maxPrefund=maxima, outerBound=outer,
@@ -1262,7 +1586,7 @@ def governance_entries(inputs):
         steps = [t for t in packet['transactions'] if t['step'] == entry['step']]
         a.need('safe_gap_packet_step', len(steps), 1)
         tx = steps[0]
-        a.typed(entry['hash'], a.HASH32, gate='safe_gap_hash')
+        a.typed(entry['hash'], a.HASH32, gate='safe_gap_hash_governance_entries')
         a.need('safe_gap_safe', tx['to'], a.SAFE)
         a.need('safe_gap_packet_chain', packet['chainId'], a.CHAIN)
         a.need('safe_gap_safe_hash', packet['safeTxHash'], safe_hash(packet['swapOwner']['data'], packet['safeNonce'], a.SAFE))
@@ -1296,24 +1620,24 @@ def governance_trace(diff, row, miner, receipt, base_fee):
             if 'code' in account:
                 a.typed(account['code'], a.HEXDATA, gate='safe_gap_trace_code')
             storage = account.get('storage', {})
-            a.need('safe_gap_trace_storage', isinstance(storage, dict), True)
+            a.need('safe_gap_trace_storage_mapping', isinstance(storage, dict), True)
             for key, value in storage.items():
-                a.typed(key, a.HASH32, gate='safe_gap_trace_storage')
-                a.typed(value, a.HASH32, gate='safe_gap_trace_storage')
+                a.typed(key, a.HASH32, gate='safe_gap_trace_storage_key')
+                a.typed(value, a.HASH32, gate='safe_gap_trace_storage_value')
     a.need('safe_gap_trace_sender', sender in pre and sender in post, True)
     a.need('safe_gap_sender_fields', set(post[sender]), {'nonce', 'balance'})
     a.need('safe_gap_sender_nonce', [pre[sender].get('nonce'), post[sender]['nonce']], [tx['nonce'], tx['nonce']+1])
     a.need('safe_gap_sender_pre_balance', 'balance' in pre[sender], True)
-    gas_used = a.qty(a.typed(receipt.get('gasUsed'), a.QTY, gate='safe_gap_gas_used'))
-    gas_price = a.qty(a.typed(receipt.get('effectiveGasPrice'), a.QTY, gate='safe_gap_gas_price'))
+    gas_used = a.qty(a.typed(receipt.get('gasUsed'), a.QTY, gate='safe_gap_gas_used_governance_trace'))
+    gas_price = a.qty(a.typed(receipt.get('effectiveGasPrice'), a.QTY, gate='safe_gap_gas_price_governance_trace'))
     a.need('safe_gap_sender_balance', a.qty(pre[sender]['balance']) - a.qty(post[sender]['balance']), gas_used * gas_price + tx['value'])
     a.need('safe_gap_sender_storage', pre[sender].get('storage', {}), {})
     a.need('safe_gap_sender_code', pre[sender].get('code', '0x'), '0x')
     a.need('safe_gap_miner_fields', set(post.get(miner, {})) <= {'balance'} and miner in post, True)
-    a.typed(post[miner].get('balance'), a.QTY, gate='safe_gap_miner_balance')
+    a.typed(post[miner].get('balance'), a.QTY, gate='safe_gap_miner_balance_post')
     # The fee recipient gains exactly the priority fee; an absent pre balance was zero.
-    miner_pre = a.qty(a.typed(pre.get(miner, {}).get('balance', '0x0'), a.QTY, gate='safe_gap_miner_balance'))
-    a.need('safe_gap_miner_balance', a.qty(post[miner]['balance']) - miner_pre, gas_used * (gas_price - base_fee))
+    miner_pre = a.qty(a.typed(pre.get(miner, {}).get('balance', '0x0'), a.QTY, gate='safe_gap_miner_balance_pre'))
+    a.need('safe_gap_miner_balance_delta', a.qty(post[miner]['balance']) - miner_pre, gas_used * (gas_price - base_fee))
     a.need('safe_gap_miner_storage', pre.get(miner, {}).get('storage', {}), {})
     if not row['status']:
         return
@@ -1348,31 +1672,31 @@ def governance_logs(logs, row, receipt):
     a.need('safe_gap_logs', [(x.get('address'), x.get('topics')) for x in logs], [(a.SAFE, x) for x in expected])
     previous = None
     if logs:
-        a.typed(receipt.get('transactionIndex'), a.QTY, gate='safe_gap_log_transactionIndex')
+        a.typed(receipt.get('transactionIndex'), a.QTY, gate='safe_gap_log_transactionIndex_typed')
     for log in logs:
         for field in ('transactionHash', 'blockHash', 'blockNumber', 'transactionIndex'):
             a.need('safe_gap_log_' + field, log.get(field),
                    row['entry']['hash'] if field == 'transactionHash' else receipt.get(field))
-        index = a.qty(a.typed(log.get('logIndex'), a.QTY, gate='safe_gap_log_logIndex'))
+        index = a.qty(a.typed(log.get('logIndex'), a.QTY, gate='safe_gap_log_logIndex_typed'))
         if previous is not None:
-            a.need('safe_gap_log_logIndex', index, previous + 1)
+            a.need('safe_gap_log_logIndex_sequence', index, previous + 1)
         previous = index
         a.need('safe_gap_log_removed', log.get('removed', False), False)
     if expected:
         if tx['step'] == 'approveHash':
-            a.need('safe_gap_log_data', logs[0]['data'], '0x')
+            a.need('safe_gap_log_data_approval', logs[0]['data'], '0x')
         else:
-            a.need('safe_gap_log_data', [x['data'] for x in logs[1:]], ['0x', '0x', a.ZERO32])
+            a.need('safe_gap_log_data_swap_tail', [x['data'] for x in logs[1:]], ['0x', '0x', a.ZERO32])
             signatures = '0x'+''.join(who[2:].zfill(64)+'0'*64+'01' for who in sorted((a.APPROVER, a.EXECUTOR)))
             info = a.cast('abi-encode', 'c(uint256,address,uint256)', packet['safeNonce'], a.EXECUTOR, 2)
             data = a.cast('abi-encode', 'c(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,bytes)',
                           a.SAFE, 0, packet['swapOwner']['data'], 0, 0, 0, 0, a.ZERO, a.ZERO, signatures, info)
-            a.need('safe_gap_log_data', logs[0]['data'], data)
+            a.need('safe_gap_log_data_swap_execution', logs[0]['data'], data)
 
 
 def check_governance(rpcs, pin, inputs):
     rows = governance_entries(inputs)
-    a.need('safe_gap_endpoints', len(rpcs), 2)
+    a.need('safe_gap_endpoints_check_governance', len(rpcs), 2)
     counts = []
     for row in rows:
         tx, entry = row['tx'], row['entry']
@@ -1380,7 +1704,7 @@ def check_governance(rpcs, pin, inputs):
         for label, rpc in zip(('a', 'b'), rpcs):
             mined = rpc('eth_getTransactionByHash', [entry['hash']])
             a.need('safe_gap_found', isinstance(mined, dict), True)
-            a.need('safe_gap_hash', mined.get('hash'), entry['hash'])
+            a.need('safe_gap_hash_check_governance', mined.get('hash'), entry['hash'])
             for field in ('from', 'to', 'nonce', 'gas', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value', 'chainId'):
                 expected = hex(tx[field]) if type(tx[field]) is int else tx[field]
                 a.need('safe_gap_'+field, mined.get(field), expected)
@@ -1394,7 +1718,7 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_block', isinstance(block, dict), True)
             a.need('safe_gap_canonical', block.get('hash'), mined.get('blockHash'))
             a.need('safe_gap_block_number', block.get('number'), number)
-            index = a.qty(a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity'))
+            index = a.qty(a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity_index'))
             transactions = block.get('transactions')
             a.need('safe_gap_block_transactions', isinstance(transactions, list), True)
             a.need('safe_gap_block_transaction', index < len(transactions) and transactions[index] == entry['hash'], True)
@@ -1403,14 +1727,14 @@ def check_governance(rpcs, pin, inputs):
             a.need('safe_gap_miner_alias', miner.lower() not in {a.SAFE, tx['from']} | owners, True)
             receipt = rpc('eth_getTransactionReceipt', [entry['hash']])
             a.need('safe_gap_receipt', isinstance(receipt, dict), True)
-            a.need('safe_gap_receipt_identity', [receipt.get(k) for k in ('transactionHash', 'blockNumber', 'blockHash', 'transactionIndex')],
-                   [entry['hash'], number, block['hash'], a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity')])
+            a.need('safe_gap_receipt_identity_fields', [receipt.get(k) for k in ('transactionHash', 'blockNumber', 'blockHash', 'transactionIndex')],
+                   [entry['hash'], number, block['hash'], a.typed(mined.get('transactionIndex'), a.QTY, gate='safe_gap_receipt_identity_receipt_index')])
             a.need('safe_gap_status', receipt.get('status'), hex(row['status']))
             a.need('safe_gap_logs_shape', isinstance(receipt.get('logs'), list), True)
             governance_logs(receipt['logs'], row, receipt)
             base_fee = a.qty(a.typed(block.get('baseFeePerGas'), a.QTY, gate='safe_gap_base_fee'))
-            gas_used = a.qty(a.typed(receipt.get('gasUsed'), a.QTY, gate='safe_gap_gas_used'))
-            gas_price = a.qty(a.typed(receipt.get('effectiveGasPrice'), a.QTY, gate='safe_gap_gas_price'))
+            gas_used = a.qty(a.typed(receipt.get('gasUsed'), a.QTY, gate='safe_gap_gas_used_check_governance'))
+            gas_price = a.qty(a.typed(receipt.get('effectiveGasPrice'), a.QTY, gate='safe_gap_gas_price_check_governance'))
             a.need('safe_gap_gas_used_positive', gas_used > 0, True)
             a.need('safe_gap_effective_gas_price', gas_price, min(tx['maxFeePerGas'], base_fee + tx['maxPriorityFeePerGas']))
             identities.append([number, block['hash'], block['miner'], mined['transactionIndex'], base_fee,
@@ -1429,16 +1753,16 @@ def check_governance(rpcs, pin, inputs):
     # The hand-written owner-set boundary must be the block that actually executed the swap.
     a.need('safe_gap_owner_swap_block', swaps[0]['block'], a.OWNER_SWAP_BLOCK)
     expected = swaps[0]['packet']['expectedReadback']
-    a.need('safe_gap_pin_owners', pin['safe']['owners'], sorted(a.safe_owners(pin['stateBlock'], expected['owners'])))
-    a.need('safe_gap_pin_threshold', pin['safe']['threshold'], expected['threshold'])
-    a.need('safe_gap_pin_nonce', pin['safeNonce'], expected['nonce'])
+    a.need('safe_gap_pin_owners_pin', pin['safe']['owners'], sorted(a.safe_owners(pin['stateBlock'], expected['owners'])))
+    a.need('safe_gap_pin_threshold_pin', pin['safe']['threshold'], expected['threshold'])
+    a.need('safe_gap_pin_nonce_pin', pin['safeNonce'], expected['nonce'])
     for rpc in rpcs:
-        a.need('safe_gap_pin_owners', sorted(u.addr_array(a.call(rpc, a.SAFE, 'getOwners()', block=pin['stateBlock']))), sorted(expected['owners']))
-        a.need('safe_gap_pin_threshold', a.word(rpc, a.SAFE, 'getThreshold()', block=pin['stateBlock']), expected['threshold'])
-        a.need('safe_gap_pin_nonce', a.word(rpc, a.SAFE, 'nonce()', block=pin['stateBlock']), expected['nonce'])
+        a.need('safe_gap_pin_owners_live', sorted(u.addr_array(a.call(rpc, a.SAFE, 'getOwners()', block=pin['stateBlock']))), sorted(expected['owners']))
+        a.need('safe_gap_pin_threshold_live', a.word(rpc, a.SAFE, 'getThreshold()', block=pin['stateBlock']), expected['threshold'])
+        a.need('safe_gap_pin_nonce_live', a.word(rpc, a.SAFE, 'nonce()', block=pin['stateBlock']), expected['nonce'])
         for who in expected['owners']:
-            a.need('safe_gap_owner_eoa', rpc('eth_getCode', [who, pin['stateBlock']]), '0x')
-            a.need('safe_gap_owner_eoa', pin['safe']['codes'].get(who), '0x')
+            a.need('safe_gap_owner_eoa_live', rpc('eth_getCode', [who, pin['stateBlock']]), '0x')
+            a.need('safe_gap_owner_eoa_pin', pin['safe']['codes'].get(who), '0x')
     return counts
 
 
@@ -1447,7 +1771,7 @@ def governance_evidence(pin, inputs, rpcs=None):
         a.need('safe_gap_evidence_undeclared', 'safeGovernanceGaps' in pin, False)
         return
     if rpcs is not None:
-        a.need('safe_gap_endpoints', len(rpcs), 2)
+        a.need('safe_gap_endpoints_governance_evidence', len(rpcs), 2)
         evidence = dict(partOfA3aPlan=False, reads={'a': [], 'b': []})
         def recording(label, rpc):
             def read(method, params):
@@ -1491,12 +1815,12 @@ def governance_evidence(pin, inputs, rpcs=None):
 
 def nonce_expectations(pin, inputs):
     spec = inputs['data']['a3aPlan']
-    plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan')
+    plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan_nonce_expectations')
     last = {}
     for label in ('deployer', 'approver', 'executor'):
         rows = [x for x in plan['steps'] if x['tx']['from'] == pin['senders'][label]['address']]
         a.need('a3a_sender_history', bool(rows), True)
-        last[label] = max(rows, key=lambda x: a.qty(x['tx']['nonce']))
+        a.need('a3a_sender_history_rows_present', bool(rows), True); last[label] = max(rows, key=lambda x: a.qty(x['tx']['nonce']))
         a.need('a3a_last_'+label, last[label]['id'],
                {'deployer':'S7', 'approver':'S6a', 'executor':'S6b'}[label])
         start = a.qty(last[label]['tx']['nonce'])+1
@@ -1514,7 +1838,7 @@ def nonce_expectations(pin, inputs):
 def history_steps(pin, inputs):
     nonce_expectations(pin, inputs)
     spec = inputs['data']['a3aPlan']
-    plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan')
+    plan = reviewed_file(spec['path'], spec['sha256'], 'a3a_plan_history_steps')
     a.validate_plan(plan, frozen=True, historical=True)
     for label in ('deployer', 'approver', 'executor'):
         sender = pin['senders'][label]
@@ -1546,7 +1870,7 @@ def validate_nonce_history(pin, inputs):
         proof = pin['a3aHistory'][step['id']]
         receipt, mined = proof['receipt'], proof['transaction']
         txhash = spec['receipts'][step['id']]
-        a.need('a3a_mined_'+step['id'], isinstance(receipt, dict), True)
+        a.need('a3a_mined_history_'+step['id'], isinstance(receipt, dict), True)
         a.need('a3a_receipt_hash', receipt['transactionHash'], txhash)
         a.need('a3a_transaction_hash', mined['hash'], txhash)
         a.need('a3a_status_'+step['id'], a.qty(receipt['status']), 1)
@@ -1559,7 +1883,7 @@ def validate_nonce_history(pin, inputs):
         a.need('gap_proof_read', bool(matches), True)
         result = matches[0]
         if method == 'eth_getTransactionByHash' and result is not None:
-            a.need('a3a_gap_mined_before_pin', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
+            a.need('a3a_gap_mined_before_pin_replay', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
         return result
     history_gaps(replay, pin, spec, plan)
     governance_evidence(pin, inputs)
@@ -1572,7 +1896,7 @@ def reconcile_nonces(rpc, pin, inputs, governance_rpcs=None):
     for step in plan['steps']:
         txhash = spec['receipts'][step['id']]
         receipt = rpc('eth_getTransactionReceipt', [txhash])
-        a.need('a3a_mined_'+step['id'], isinstance(receipt, dict), True)
+        a.need('a3a_mined_reconcile_'+step['id'], isinstance(receipt, dict), True)
         block = rpc('eth_getBlockByNumber', [receipt['blockNumber'], False])
         a.need('a3a_canonical_receipt', receipt['blockHash'], block['hash'])
         pin['a3aHistory'][step['id']] = dict(receipt=receipt,
@@ -1581,7 +1905,7 @@ def reconcile_nonces(rpc, pin, inputs, governance_rpcs=None):
     def recording(method, params):
         result = rpc(method, params)
         if method == 'eth_getTransactionByHash' and result is not None:
-            a.need('a3a_gap_mined_before_pin', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
+            a.need('a3a_gap_mined_before_pin_recording', a.qty(result['blockNumber']) <= a.qty(pin['stateBlock']), True)
         pin['a3aGapReads'].append(dict(method=method, params=params, result=result))
         return result
     history_gaps(recording, pin, spec, plan)
@@ -1605,7 +1929,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     pin['registryImplementationCode'] = u.code(rpc, pin['registryImplementation'], block)
     reconcile_nonces(rpc, pin, inputs, governance_rpcs)
     pin['oldAggregator'] = a.address(rpc, u.REG, 'blsAggregator()', block)
-    a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
+    a.need('fixed_old_aggregator_collect', pin['oldAggregator'], OLD_AGGREGATOR)
     maximum = a.word(rpc, pin['oldAggregator'], 'MAX_VALIDATORS()', block=block)
     a.need('guardian_maximum', maximum, 13)
     pin['guardianInventory'] = [dict(slot=slot, validator=u.addr_word(a.word(rpc, pin['oldAggregator'], 'validatorAtSlot(uint8)', slot, block=block))) for slot in range(1, maximum+1)]
@@ -1621,10 +1945,13 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     deposit = u.uints(a.call(rpc, ep, 'getDepositInfo(address)', u.SP, block=block))
     a.need('deposit_info_shape', len(deposit), 5)
     pin['entryPointDeposit'], _, pin['stake'], pin['stakeDelay'], pin['withdrawTime'] = deposit
-    a.need('stake_not_unlocking', pin['withdrawTime'], 0)
+    a.need('stake_not_unlocking_collect', pin['withdrawTime'], 0)
     # Isolation records discovery calls, bounded role-event history and canonical blocks
     # so build_plan can replay every new inventory gate on both endpoint transcripts.
-    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    callsite_source = isolation.callsite_target_source()
+    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), callsite_source['expected'], fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    pin['oldOwnerIsolation']['callsiteTargetSource'] = callsite_source
+    pin['oldTimelock'] = old_timelock_holds_nothing(rpc, pin, block)
     if stage in PC_STAGES:
         pin['phaseC'] = collect_phase_c(rpc, block, inputs, pin)
     return pin
@@ -1763,11 +2090,11 @@ def verify_prefix(plan, prior, stage):
     expected['addresses'] = {k: expected['addresses'].get(k) for k in prior['addresses']}
     if stage == 'c':
         # Stage c ends with the complete Phase C expansion.
-        a.need('prefix_boundary', [s['id'] for s in prior['steps'] if s.get('phase') == 'C'][-1:],
+        a.need('prefix_boundary_phase_c', [s['id'] for s in prior['steps'] if s.get('phase') == 'C'][-1:],
                [s['id'] for s in plan['steps'] if s.get('phase') == 'C'][-1:])
         a.need('prefix_boundary_last', prior['steps'][-1].get('phase'), 'C')
     else:
-        a.need('prefix_boundary', prior['steps'][-1]['id'], 'A7' if stage == 'a7' else 'B4')
+        a.need('prefix_boundary_prior_stage', prior['steps'][-1]['id'], 'A7' if stage == 'a7' else 'B4')
     a.need('prefix_exact', prefix_payload(prior), expected)
 
 
@@ -1778,27 +2105,32 @@ def stage_readback(plan, rpc):
     return dict(prefixDigest=plan['prefixDigest'], domainSeparator=domain)
 
 
+def stage_pin(pin, stage):
+    """Require Phase C evidence before the builder reads it; strip it for earlier stages."""
+    if stage in PC_STAGES:
+        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
+        return pin
+    return {k: v for k, v in pin.items() if k != 'phaseC'}
+
+
 def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     a.need('manifest_inputs_required', inputs is not None, True)
     required(inputs, ('sha256', 'data'), 'external_binding')
-    a.typed('0x'+inputs['sha256'], a.HASH32)
+    a.typed('0x'+inputs['sha256'], a.HASH32, gate='rpc_result_build_plan_value')
     a.need('external_digest_nonzero', int(inputs['sha256'], 16) != 0, True)
     d = inputs['data']
     validate_external(d, stage)
     # Phase C pin reads belong only to the stages that build Phase C; a7/b4 prefixes are
     # byte-identical whether or not the supplied pin carries them.
-    if stage in PC_STAGES:
-        a.need('stage_pin_phase_c', 'phaseC' in pin, True)
-    else:
-        pin = {k: v for k, v in pin.items() if k != 'phaseC'}
+    pin = stage_pin(pin, stage)
     sources = copy.deepcopy(stage_sources or {})
     a.need("stage_sources", set(sources), set() if stage == "a7" else ({"a7"} if stage == "b4" else ({"a7", "b4"} if sources else set())))
     salt_digest = sources["b4"]["plan"]["externalInputs"]["sha256"] if "b4" in sources else inputs["sha256"]
     a.exact_keys('bindings', pin['bindings'], (DVT, COMMITTEE))
     for code in pin['bindings'].values():
-        a.typed(code, a.HEXDATA)
+        a.typed(code, a.HEXDATA, gate='rpc_result_build_plan_code')
         a.need('binding_nonempty', code != '0x', True)
-    a.need('fixed_old_aggregator', pin['oldAggregator'], OLD_AGGREGATOR)
+    a.need('fixed_old_aggregator_build_plan', pin['oldAggregator'], OLD_AGGREGATOR)
     validate_nonce_history(pin, inputs)
     validate_old_activity(pin, d.get('pop'))
     required(d, ('verifier', 'anni', 'dvt', 'committee', 'sampled', 'depositTargetWei'), 'manifest_external_complete')
@@ -1818,12 +2150,14 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         a.pin_integer(sender['balance'], 'balance_'+label)
     for field in ('stake', 'stakeDelay', 'entryPointDeposit', 'withdrawTime'):
         a.pin_integer(pin[field], field)
-    a.need('stake_not_unlocking', pin['withdrawTime'], 0)
+    a.need('stake_not_unlocking_build_plan', pin['withdrawTime'], 0)
     for label, who in a.SENDERS.items():
         a.need('sender_'+label, pin['senders'][label]['address'], who)
     arts = copy.deepcopy(rebuild())
+    isolation.validate_callsite_source(pin['oldOwnerIsolation'], arts['commit'])
     a.need('old_owner_control_cases_binding',pin.get('isolationControlCases',{}),d.get('isolationControlCases',{}))
     isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'), pending=d.get('pendingDsrRuling'))
+    validate_old_timelock(pin)
     release_gate(inputs, arts, pin)
     counters = {label: x['nonce'] for label, x in pin['senders'].items()}
     sender_of = {label: x['address'] for label, x in pin['senders'].items()}
@@ -1837,6 +2171,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     def finish():
         plan = dict(schema='3.1', route='manifest-A-B-D', stage=stage, final=stage == 'full', stageSources=sources,
             pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs), rebuild=arts,
+            timelockRuntimeIdentity=copy.deepcopy(u.build()['contracts']['TimelockController']['runtime']),
             creationMetadataLayouts={'OverIssueFraudProofVerifier': copy.deepcopy(VERIFIER_METADATA_LAYOUT)},
             addresses=addresses, implementation=impl, extension=extension, operations=operations,
             steps=steps, controls=CONTROLS+(PC_CONTROLS if stage in PC_STAGES else []),
@@ -1847,6 +2182,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         isolation.assert_manifest_calldata(steps, arts['calldataSignatures'])
         if stage in PC_STAGES:
             plan['phaseC'] = phase_c
+        plan['expectedDiscoveryAfter'] = build_expected_discovery(plan)
         bind_timing(plan)
         plan['prefixDigest'] = prefix_digest(plan)
         prefix_pin = {k: v for k, v in pin.items() if k != 'phaseC'}
@@ -2460,7 +2796,7 @@ def b4_controls(rpc, plan, step):
             except a.Gate as error:
                 if control != 'verifier_wrong':
                     raise
-                a.need('B4_wrong_gate', error.record['gate'], 'readback_fraudProofVerifier()')
+                a.need('B4_wrong_gate', error.record['gate'], 'readback_value_fraudProofVerifier()')
                 a.need('B4_wrong_status', receipt['status'], '0x0')
                 results.append(dict(control=control, stopped=True, receipt=receipt))
             else:
@@ -2502,7 +2838,7 @@ def check_predicate(rpc, p, timestamp=None):
         words = u.uints(raw)
         value = words[p['index']] if 'index' in p else (words if isinstance(expected, list) else
             (int(raw, 16) if isinstance(expected, int) else raw))
-    a.need('readback_'+p.get('signature', kind), value, p['expected'])
+    a.need('readback_value_'+p.get('signature', kind), value, p['expected'])
     return value
 
 
@@ -2552,12 +2888,13 @@ def budget(plan):
     plan['budgetsWei'] = result
 
 
-def validate_plan(plan, inputs, frozen=False):
+def validate_plan(plan, inputs, frozen=False, *, expected=None):
     a.need('external_inputs_match', plan['externalInputs'], inputs)
-    expected = build_plan(plan['pin'], inputs, plan.get('stage', 'full'), plan.get('stageSources'))
+    if expected is None:
+        expected = build_plan(plan['pin'], inputs, plan.get('stage', 'full'), plan.get('stageSources'))
     a.exact_keys('manifest_keys', plan, set(expected) | ({'budgetsWei'} if frozen else set()))
     for key in set(expected)-{'steps'}:
-        a.need('manifest_'+key, plan[key], expected[key])
+        a.need('manifest_plan_key_'+key, plan[key], expected[key])
     a.need('manifest_length', len(plan['steps']), len(expected['steps']))
     for actual, derived in zip(plan['steps'], expected['steps']):
         extra = u.MEASURED_KEYS | {'skipped', 'gasEvidence'} if frozen else set()
@@ -2570,10 +2907,10 @@ def validate_plan(plan, inputs, frozen=False):
             a.need('no_skipped_nonce', actual.get('skipped'), False)
         a.exact_keys('manifest_step', actual, set(derived) | extra)
         for key in set(derived)-{'tx', 'variants'}:
-            a.need('manifest_step_'+key, actual[key], derived[key])
+            a.need('manifest_step_key_'+key, actual[key], derived[key])
         a.exact_keys('manifest_tx', actual['tx'], set(derived['tx']) | ({'gas'} if frozen and not actual.get('skipped') else set()))
         for key, value in derived['tx'].items():
-            a.need('manifest_tx_'+key, actual['tx'][key], value)
+            a.need('manifest_tx_field_'+key, actual['tx'][key], value)
         if 'variants' in derived:
             a.exact_keys('B4_variants', actual['variants'], ('apply', 'placeholder'))
             for name, tx in derived['variants'].items():
@@ -2598,6 +2935,8 @@ def validate_plan(plan, inputs, frozen=False):
         budget(checked)
         a.need('manifest_budget', checked['budgetsWei'], plan['budgetsWei'])
 
+    return copy.deepcopy(expected)
+
 
 def owner_gas_gate(step):
     # O's funding (OD) was computed from this reviewed bound; a larger limit is STOP.
@@ -2608,7 +2947,7 @@ def owner_gas_gate(step):
 def price_gate(rpc, block='latest'):
     price = u.uints(a.call(rpc, u.SP, 'cachedPrice()', block=block))
     a.need('C_price_decimals', price[3], PC_PRICE_DECIMALS)
-    a.need('C_price_bound', 0 < price[0] <= PC_PRICE_CAP, True)
+    a.need('C_price_bound_exec', 0 < price[0] <= PC_PRICE_CAP, True)
     return price
 
 
@@ -2639,34 +2978,34 @@ def phase_c_pre_send(rpc, plan, step, context):
     addr = pc['addresses']
     X, factory = addr['X'], plan['addresses']['xPNTsFactoryV2']
     if sid.startswith('C1_'):
-        a.need('C1_minter', a.address(rpc, capped, 'minter()'), u.SAFE)
-        a.need('C1_cap_headroom', a.word(rpc, capped, 'totalSupply()')+pc['cappedMint'] <= a.word(rpc, capped, 'cap()'), True)
+        a.need('C1_minter_exec', a.address(rpc, capped, 'minter()'), u.SAFE)
+        a.need('C1_cap_headroom_exec', a.word(rpc, capped, 'totalSupply()')+pc['cappedMint'] <= a.word(rpc, capped, 'cap()'), True)
         a.need('C1_pinned_balance', a.word(rpc, capped, 'balanceOf(address)', D), p['capped']['deployerBalance'])
     if sid == 'C2.approve':
-        a.need('C2_operator_role', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('PAYMASTER_SUPER'), D), 1)
+        a.need('C2_operator_role_exec', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('PAYMASTER_SUPER'), D), 1)
         a.need('C2_token_balance', a.word(rpc, capped, 'balanceOf(address)', D) >= pc['operatorTopUp'], True)
         expected = list(pc['operatorBefore'])
         expected[OP['aPNTsBalance']] = pc['operatorTarget']-pc['operatorTopUp']
-        a.need('C_operator_before', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), expected)
+        a.need('C_operator_before_approve', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), expected)
     if sid == 'C3.deploy':
         a.need('C3_factory_active', a.address(rpc, u.SP, 'xpntsFactory()'), factory)
-        a.need('C3_community', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('COMMUNITY'), D), 1)
+        a.need('C3_community_exec', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('COMMUNITY'), D), 1)
         # X is the factory's first CREATE; any earlier clone changes the planned address.
         a.need('C3_factory_fresh', [addr_call(rpc, factory, 'getTokenAddress(address)', D),
                a.word(rpc, factory, 'getDeployedCount()'), u.code(rpc, X, 'latest')], [a.ZERO, 0, '0x'])
     if sid == 'C3.configure':
-        a.need('C_operator_before', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), pc['operatorBefore'])
+        a.need('C_operator_before_configure', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), pc['operatorBefore'])
     if sid == 'C5':
-        a.need('C5_counterfactual', addr_call(rpc, ACCOUNT_FACTORY, 'getAddress(address,uint256)', O, c['salt']), S)
+        a.need('C5_counterfactual_exec', addr_call(rpc, ACCOUNT_FACTORY, 'getAddress(address,uint256)', O, c['salt']), S)
         a.need('C5_absent', u.code(rpc, S, 'latest'), '0x')
     if sid in ('C6', 'C7', 'C8'):
         cfg = u.config(a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER')))
-        a.need('C7_enduser_active', cfg['isActive'], True)
+        a.need('C7_enduser_active_exec', cfg['isActive'], True)
         a.need('C7_enduser_config', [cfg['minStake'], cfg['ticketPrice']], [pc['endUserStake'], pc['endUserTicket']])
         member = pc['accountMember'] or sid == 'C8'
-        a.need('C_account_status', account_status(rpc, S, p['endUser']['mysbt']), [int(member)]*3)
+        a.need('C_account_status_exec', account_status(rpc, S, p['endUser']['mysbt']), [int(member)]*3)
     if sid == 'C6':
-        a.need('C6_gtoken_balance', a.word(rpc, p['endUser']['gtoken'], 'balanceOf(address)', D),
+        a.need('C6_gtoken_balance_exec', a.word(rpc, p['endUser']['gtoken'], 'balanceOf(address)', D),
                p['endUser']['deployerGToken'])
     if sid == 'C8':
         a.need('C8_community_owner', addr_call(rpc, X, 'communityOwner()'), D)
@@ -2814,9 +3153,9 @@ def phase_c_controls(rpc, plan, sid, controls, context):
         def high_price():
             value = PC_PRICE_CAP+1
             detail = write_word(rpc, u.SP, slot, value, lambda: u.uints(a.call(rpc, u.SP, 'cachedPrice()'))[0])
-            a.need('C_control_slot', detail['readback'], value)
+            a.need('C_control_slot_cached_price', detail['readback'], value)
             return detail
-        add('C_price_above_cap', 'C_price_bound', high_price)
+        add('C_price_above_cap', 'C_price_bound_exec', high_price)
         if 'C1_approve' not in pc['steps']:
             not_applicable('C_cap_exhausted', 'C1 omitted: zero mint deficit')
     if sid == 'C1_approve':
@@ -2824,7 +3163,7 @@ def phase_c_controls(rpc, plan, sid, controls, context):
         def exhaust():
             room = a.word(rpc, capped, 'cap()')-a.word(rpc, capped, 'totalSupply()')-pc['cappedMint']+1
             return fixture(u.SAFE, capped, a.calldata('mint(address,uint256)', DEAD, room))
-        add('C_cap_exhausted', 'C1_cap_headroom', exhaust)
+        add('C_cap_exhausted', 'C1_cap_headroom_exec', exhaust)
     if sid == 'C3.deploy':
         add('C_factory_used', 'C3_factory_fresh', lambda: fixture(u.DEPLOYER, plan['addresses']['xPNTsFactoryV2'],
             step['tx']['data']))
@@ -2832,8 +3171,8 @@ def phase_c_controls(rpc, plan, sid, controls, context):
         raw = a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER'))
         data = (a.keccak('configureRole(bytes32,'+u.CONFIG_TYPE+')')[:10]+role_id('ENDUSER')[2:]
                 +format(64, '064x')+u.frozen_config(raw)[66:])
-        add('C_enduser_inactive', 'C7_enduser_active', lambda: fixture(u.DEPLOYER, u.REG, data))
-        add('C_status_mismatch', 'C_account_status', lambda: fixture(u.REG, u.SP,
+        add('C_enduser_inactive', 'C7_enduser_active_exec', lambda: fixture(u.DEPLOYER, u.REG, data))
+        add('C_status_mismatch', 'C_account_status_exec', lambda: fixture(u.REG, u.SP,
             a.calldata('updateSBTStatus(address,bool)', S, 'false')))
         add('C_policy_pending', 'C8_policy_off', lambda: fixture(u.DEPLOYER, X, a.calldata('queueCreditPolicy(uint8)', 1)))
     if sid == 'C9.allowance':
@@ -2858,7 +3197,7 @@ def phase_c_controls(rpc, plan, sid, controls, context):
                 getter = (lambda: u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP))[1]) if args else \
                          (lambda: u.uints(a.call(rpc, X, 'userTotal(address)', S))[1])
                 detail = write_word(rpc, X, slot, (old >> 128 << 128) | used, getter)
-                a.need('C_control_slot', detail['readback'], used)
+                a.need('C_control_slot_allowance_used', detail['readback'], used)
                 return detail
             add(name, gate, exhaust, check)
         state = dict(flags=0)
@@ -2882,7 +3221,17 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 
 
 def pre_send(rpc, plan, step, context, measured=False):
-    a.need('manifest_local_only', getattr(rpc, 'local', False), True)
+    a.need('manifest_local_only_pre_send', getattr(rpc, 'local', False), True)
+    block = a.block_data(rpc,'latest')['number']
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {},
+                                       plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'])
+    # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
+    coverage = discovery_coverage(plan, context.get('passed', set()))
+    isolation.never_granted_recheck(rpc, coverage, block)
+    delta = post_pin_delta(rpc, coverage, block)
+    context['oldTimelockDelta'] = delta
+    discovery_old_authority(rpc, coverage, block)
+    old_timelock_holds_nothing(rpc, coverage, block, delta['approvalOwners'])
     handover_gate(rpc, plan, step, context)
     if step.get('phase') == 'C':
         phase_c_pre_send(rpc, plan, step, context)
@@ -2892,7 +3241,7 @@ def pre_send(rpc, plan, step, context, measured=False):
     a.need('pending_nonce', a.nonce(rpc, tx['from'], 'pending'), a.qty(tx['nonce']))
     a.need('safe_nonce', a.word(rpc, u.SAFE, 'nonce()'), step['safeNonce'])
     a.need('safe_state', u.safe_state(rpc, 'latest'), plan['pin']['safe'])
-    u.governance(rpc, 'latest', plan['pin']['timelockCreation'])
+    u.governance(rpc, 'latest', plan['pin']['timelockCreation'], plan['timelockRuntimeIdentity'])
     for target, expected in plan['pin']['bindings'].items():
         a.need('bound_runtime', u.code(rpc, target, 'latest'), expected)
     unchanged_old_activity(rpc, plan, a.block_data(rpc, 'latest')['number'])
@@ -2945,7 +3294,7 @@ def mint_trace(rpc, step, receipt):
                (u.SAFE, step['inner'], False))
 
 
-def unbacked_swap_control(rpc, plan):
+def unbacked_swap_control(rpc, plan, expected=None):
     """Execute the real 6d operation without B2a on a reverted local snapshot."""
     snap = rpc('evm_snapshot', [])
     try:
@@ -2966,10 +3315,11 @@ def unbacked_swap_control(rpc, plan):
             a.need('unbacked_refusal_gate', error.record['gate'], 'B2_capped_buffer')
         else:
             raise a.Gate('unbacked_build_refusal', 'accepted', 'B2 rejection')
-        candidate = build_plan(plan['pin'], plan['externalInputs'])
+        expected = expected if expected is not None else build_plan(plan['pin'], plan['externalInputs'])
+        candidate = copy.deepcopy(expected)
         candidate['steps'] = [s for s in candidate['steps'] if not s['id'].startswith('B2a_')]
         try:
-            validate_plan(candidate, plan['externalInputs'])
+            validate_plan(candidate, plan['externalInputs'], expected=expected)
         except a.Gate as error:
             a.need('unbacked_plan_refusal_gate', error.record['gate'], 'manifest_length')
         else:
@@ -3011,7 +3361,7 @@ def early_swap_control(rpc, plan):
         a.need('early_swap_restore', rpc('evm_revert', [snap]), True)
 
 
-def controls_at(rpc, plan, sid, controls):
+def controls_at(rpc, plan, sid, controls, expected=None):
     agg = plan['addresses']['BLSAggregator']
     def negative(name, sender, target, sig, args, error, error_args=()):
         snap = rpc('evm_snapshot', [])
@@ -3044,7 +3394,7 @@ def controls_at(rpc, plan, sid, controls):
         finally:
             a.need('factory_control_restore', rpc('evm_revert', [snap]), True)
     if sid == 'B2a_approve':
-        controls.append(unbacked_swap_control(rpc, plan))
+        controls.append(unbacked_swap_control(rpc, plan, expected))
     if sid == 'activation_schedule_approve':
         negative('early_unpause', u.DEPLOYER, u.SP, 'setGlobalPaused(bool)', ('false',), 'Unauthorized()')
         negative('early_bls', u.TL, u.SP, 'applyBLSAggregator()', (), 'InvalidConfiguration()')
@@ -3063,9 +3413,36 @@ def controls_at(rpc, plan, sid, controls):
         negative('repeat_verifier', u.DEPLOYER, agg, 'applyFraudProofVerifier()', (), 'NoPendingVerifierRotation()')
 
 
+def execution_tree_gates(plan):
+    """Check the checkout and every loaded repository module before execution.
+
+    Retain this entry point for rehearsal fixtures; the sender shares the helper.
+    """
+    import importlib.util
+    # Trust root: the helper's bytes must equal the reviewed commit before any of it runs; the helper then
+    # attests every loaded repository module, this file included. Kept inline (stdlib only) on purpose.
+    path = Path(__file__).resolve().parent / 'execution_integrity.py'
+    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    env['GIT_CONFIG_NOSYSTEM'] = '1'
+    committed = subprocess.run(['git', 'show', plan['rebuild']['commit'] + ':script/upgrade/execution_integrity.py'],
+                               cwd=path.parents[2], env=env, capture_output=True, check=True).stdout
+    a.need('execution_integrity_source_manifest', path.read_bytes() == committed, True)
+    spec = importlib.util.spec_from_file_location('_manifest_repository_execution_integrity', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.check(plan['rebuild']['commit'])
+
+
 def run_manifest(remote, rpc, plan, out, calibrate=True):
-    a.need('manifest_local_only', getattr(rpc, 'local', False), True)
-    validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
+    a.need('manifest_local_only_run_manifest', getattr(rpc, 'local', False), True)
+    expected = validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
+    allowlist = execution_reads.reviewed_allowlist()
+    execution_tree_gates(plan)
+    with execution_reads.guard(allowlist):
+        return _run_manifest(remote, rpc, plan, out, calibrate, expected)
+
+
+def _run_manifest(remote, rpc, plan, out, calibrate, expected):
     for sender in plan['pin']['senders'].values():
         rpc('anvil_impersonateAccount', [sender['address']])
     pc = plan.get('phaseC')
@@ -3076,7 +3453,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     for step in plan['steps']:
         a.process_alive(rpc.engine_process)
         sid = step['id']
-        controls_at(rpc, plan, sid, controls)
+        controls_at(rpc, plan, sid, controls, expected)
         phase_c_controls(rpc, plan, sid, controls, context)
         if not calibrate:
             a.need('frozen_step_not_skipped', step['skipped'], False)
@@ -3093,7 +3470,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             u.log(out, record)
             a.trace_overrides(rpc, record['receipt'], overrides)
             context['passed'].add(sid)
-            controls_at(rpc, plan, 'after_B4', controls)
+            controls_at(rpc, plan, 'after_B4', controls, expected)
             continue
         pre_send(rpc, plan, step, context)
         timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
@@ -3148,7 +3525,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         u.log(out, record)
         a.trace_overrides(rpc, r, overrides)
         if sid == 'upgrade_execute_exec':
-            controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
+            controls_at(rpc, plan, 'after_upgrade_execute_exec', controls, expected)
         if pc is not None and sid == pc['steps'][-1]:
             context['afterC'] = phase_c_accounting(rpc, plan)
             context['funding'] = funding_gate(rpc, plan)
@@ -3163,7 +3540,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         readback = dict(stage_readback(plan, rpc), dvtClosing=closing)
         a.write_json(out/'stage-readback.json', readback)
         budget(plan)
-        validate_plan(plan, plan['externalInputs'], frozen=True)
+        validate_plan(plan, plan['externalInputs'], frozen=True, expected=expected)
         result = dict(status='PASS', stage=plan['stage'], steps=records, readback=readback)
         if pc is not None:
             result.update(phaseCAccounting=context['afterC'], phaseCFunding=context['funding'], spAttemptPrecheck=context['precheck'],
@@ -3188,7 +3565,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.write_json(out/'manifest-solvency.json', solvency)
     a.need('post_swap_solvency', solvency['allSolvent'], True)
     budget(plan)
-    validate_plan(plan, plan['externalInputs'], frozen=True)
+    validate_plan(plan, plan['externalInputs'], frozen=True, expected=expected)
     result = dict(status='PASS', scope='Phases A/B/C/D', steps=records, negativeControls=controls,
                   B2=context['B2'], postSwapAccounting=accounting, phaseCAccounting=context['afterC'],
                   phaseCFunding=context['funding'], handoverFunding=context.get('handoverFunding', []),
@@ -3259,7 +3636,7 @@ def require_final(plan):
 
 def save_artifact(out, plan):
     if plan['stage'] in STAGES[:-1]:
-        a.need('stage_not_final', plan['final'], False)
+        a.need('stage_not_final_save_artifact', plan['final'], False)
         path = out/('stage-'+plan['stage']+'.json')
         a.write_json(path, plan)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -3273,7 +3650,7 @@ def load_artifact(path):
     # Integrity is independent of release eligibility and of the filename.
     plan = a.load_plan(path)
     if plan.get('stage') in STAGES[:-1]:
-        a.need('stage_not_final', plan.get('final'), False)
+        a.need('stage_not_final_load_artifact', plan.get('final'), False)
     else:
         require_final(plan)
     return plan

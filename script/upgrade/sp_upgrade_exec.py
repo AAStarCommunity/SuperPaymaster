@@ -55,7 +55,7 @@ def role():
 
 
 def uints(raw):
-    a.typed(raw, a.HEXDATA)
+    a.typed(raw, a.HEXDATA, gate='rpc_result_uints_raw')
     a.need('abi_word_alignment', len(raw[2:]) % 64, 0)
     return [int(raw[i:i+64], 16) for i in range(2, len(raw), 64)]
 
@@ -103,7 +103,7 @@ def freeze_calldata(raw):
 
 
 def code(rpc, target, block):
-    return a.typed(rpc('eth_getCode', [target, block]), a.HEXDATA).lower()
+    return a.typed(rpc('eth_getCode', [target, block]), a.HEXDATA, gate='rpc_result_code_eth_getCode').lower()
 
 
 def creation(rpc, target, block):
@@ -132,7 +132,7 @@ def scan(rpc, target, start, end, topics):
             a.need('log_emitter', log['address'].lower(), target)
             a.need('log_removed', log.get('removed', False), False)
             a.need('log_range', lo <= a.qty(log['blockNumber']) <= hi, True)
-            identity = (a.typed(log['blockHash'], a.HASH32), a.typed(log['transactionHash'], a.HASH32),
+            identity = (a.typed(log['blockHash'], a.HASH32, gate='rpc_result_scan_blockHash'), a.typed(log['transactionHash'], a.HASH32, gate='rpc_result_scan_transactionHash'),
                         a.qty(log['logIndex']))
             a.need('log_duplicate', identity in seen, False)
             seen.add(identity)
@@ -147,7 +147,7 @@ def inventory(rpc, block, reg_start, sp_start):
     for log in logs:
         a.need('grant_topics', len(log['topics']), 3)
         a.need('grant_topic', log['topics'][:2], [grant, role()])
-        candidates.add(addr_word(int(a.typed(log['topics'][2], a.HASH32), 16)))
+        candidates.add(addr_word(int(a.typed(log['topics'][2], a.HASH32, gate='rpc_result_inventory_2'), 16)))
     holders = []
     for who in sorted(candidates):
         held = a.word(rpc, REG, 'hasRole(bytes32,address)', role(), who, block=block)
@@ -161,7 +161,7 @@ def inventory(rpc, block, reg_start, sp_start):
     for log in logs:
         a.need('operator_topics', len(log['topics']), 2)
         a.need('operator_topic', log['topics'][0], topic)
-        operators.add(addr_word(int(a.typed(log['topics'][1], a.HASH32), 16)))
+        operators.add(addr_word(int(a.typed(log['topics'][1], a.HASH32, gate='rpc_result_inventory_1'), 16)))
     a.need('nonempty_holders', len(holders) > 0, True)
     a.need('nonempty_operators', len(operators) > 0, True)
     return dict(holders=holders, historicalOperators=sorted(operators), pauseList=sorted(set(holders) | operators))
@@ -186,7 +186,7 @@ def safe_state(rpc, block):
             break
         a.need('module_page_progress', w[2] > 0, True)
     a.need('safe_modules', modules, [])
-    guard = a.typed(rpc('eth_getStorageAt', [SAFE, GUARD_SLOT, block]), a.HASH32)
+    guard = a.typed(rpc('eth_getStorageAt', [SAFE, GUARD_SLOT, block]), a.HASH32, gate='rpc_result_safe_state_eth_getStorageAt')
     a.need('safe_guard', guard, a.ZERO32)
     codes = {who: code(rpc, who, block) for who in sorted({SAFE, DEPLOYER, *owners})}
     a.need('safe_runtime', codes[SAFE] != '0x' and not codes[SAFE].startswith('0xef0100'), True)
@@ -204,7 +204,7 @@ def pending_operations(rpc, start, block):
     for log in logs:
         topics = log['topics']
         a.need('operation_topics', len(topics), 2 if topics[0] == cancelled else 3)
-        op = a.typed(topics[1], a.HASH32)
+        op = a.typed(topics[1], a.HASH32, gate='rpc_result_pending_operations_1')
         if topics[0] == scheduled:
             outstanding.setdefault(op, []).append(log)
         else:
@@ -249,8 +249,8 @@ def runtime(rpc, name, target, block, immutable_values=None):
                             values={k: int(v, 16).to_bytes(32, 'big') for k, v in immutable_values.items()})
 
 
-def governance(rpc, block, start):
-    runtime(rpc, 'TimelockController', TL, block)
+def governance(rpc, block, start, identity):
+    a.verify_runtime(rpc, {'timelockRuntimeIdentity': identity}, code(rpc, TL, block), 'TimelockController')
     a.need('timelock_delay', a.word(rpc, TL, 'getMinDelay()', block=block), DELAY)
     # Reuse the reviewed event-history role reconciliation with a pinned read-only view.
     def pinned(method, params):
@@ -289,7 +289,7 @@ def a3a_gate(rpc, block):
     a.need('a3a_timelock_code', code(rpc, TL, block) != '0x', True)
     start = creation(rpc, TL, block)
     timelock_creation(rpc, start)
-    governance(rpc, block, start)
+    governance(rpc, block, start, build()['contracts']['TimelockController']['runtime'])
     capped = a.address(rpc, SP, 'pendingAPNTsToken()', block)
     a.need('a3a_s7_pending_token', capped != a.ZERO, True)
     # A3a's token deployment at the frozen nonce is part of the author-selected packet.
@@ -306,7 +306,7 @@ def initial_guardian(rpc, block):
     matches = [entry for entry in layout if entry['label'] == 'guardian']
     a.need('guardian_layout', len(matches), 1)
     entry = matches[0]
-    value = int(a.typed(rpc('eth_getStorageAt', [SP, hex(int(entry['slot'])), block]), a.HASH32), 16)
+    value = int(a.typed(rpc('eth_getStorageAt', [SP, hex(int(entry['slot'])), block]), a.HASH32, gate='rpc_result_initial_guardian_eth_getStorageAt'), 16)
     # 5.4.2 has no guardian getter. Its future guardian/pause slot must be unused and zero.
     a.need('initial_guardian_pause_slot', value, 0)
     return addr_word((value >> (8*entry['offset'])) & (2**160-1))
@@ -465,7 +465,7 @@ def validate_gas(step):
         a.exact_keys('rr_witness_keys', witness, ('engineCommit', 'transactionHash', 'gasLimit',
                                                'stepIndex', 'pc', 'depth', 'gas', 'stateGasReservoir'))
         a.need('rr_witness_engine', witness['engineCommit'], a.COMMIT)
-        a.typed(witness['transactionHash'], a.HASH32)
+        a.typed(witness['transactionHash'], a.HASH32, gate='rpc_result_validate_gas_transactionHash')
         a.need('rr_witness_gas_limit', witness['gasLimit'], limit)
         a.need('rr_first_step', witness['stepIndex'], 0)
         a.need('rr_first_depth', witness['depth'], 1)
@@ -585,7 +585,7 @@ def probe(rpc, tx, gas, timestamp, witness=False):
 def admission_gas(tx):
     # Type-2, no access/authorization list. Stay above intrinsic AND EIP-7623 calldata
     # floor so the search probes mined failures rather than invalid RPC submissions.
-    data = bytes.fromhex(a.typed(tx['data'], a.HEXDATA)[2:])
+    data = bytes.fromhex(a.typed(tx['data'], a.HEXDATA, gate='rpc_result_admission_gas_data')[2:])
     tokens = sum(1 if b == 0 else 4 for b in data)
     intrinsic = 21000+4*tokens
     if tx['to'] is None:
@@ -727,7 +727,7 @@ def validate_pin(pin):
     for field in ('block', 'stateBlock'):
         a.qty(pin[field])
     for field in ('blockHash', 'stateBlockHash'):
-        a.typed(pin[field], a.HASH32)
+        a.typed(pin[field], a.HASH32, gate='rpc_result_validate_pin_field')
     a.exact_keys('senders', pin['senders'], a.SENDERS)
     for label, who in a.SENDERS.items():
         sender = pin['senders'][label]
@@ -742,7 +742,7 @@ def validate_pin(pin):
     a.need('pin_safe_owner_count', len(owners), 3)
     a.need('pin_safe_signers', {a.APPROVER, a.EXECUTOR} <= set(owners), True)
     for who in owners:
-        a.typed(who, a.ADDRESS_RX)
+        a.typed(who, a.ADDRESS_RX, gate='rpc_result_validate_pin_who')
     a.need('pin_modules', pin['safe']['modules'], [])
     a.need('pin_guard', pin['safe']['guard'], a.ZERO32)
     a.exact_keys('safe_codes', pin['safe']['codes'], {SAFE, DEPLOYER, *owners})
@@ -752,7 +752,7 @@ def validate_pin(pin):
         values = pin[key]
         a.need('pin_sorted_'+key, values, sorted(set(values)))
         for who in values:
-            a.typed(who, a.ADDRESS_RX)
+            a.typed(who, a.ADDRESS_RX, gate='rpc_result_validate_pin_who_2')
             a.need('pin_address_lower', who, who.lower())
             a.need('pin_nonzero_address', who != a.ZERO, True)
     a.need('pin_union', pin['pauseList'], sorted(set(pin['holders']) | set(pin['historicalOperators'])))
@@ -763,7 +763,7 @@ def validate_pin(pin):
     a.need('pin_active', cfg['isActive'], True)
     a.exact_keys('pin_immutables', pin['immutables'], ('entryPoint', 'REGISTRY', 'ETH_USD_PRICE_FEED'))
     for who in pin['immutables'].values():
-        a.typed(who, a.ADDRESS_RX)
+        a.typed(who, a.ADDRESS_RX, gate='rpc_result_validate_pin_who_3')
     a.need('pin_registry', pin['immutables']['REGISTRY'], REG)
     a.need('pin_guardian', pin['guardianBefore'], a.ZERO)
     a.need('pin_capped', pin['capped'], a.create_address(DEPLOYER, 12133))
@@ -847,7 +847,7 @@ def pre_send(step, rpc, plan, check_gas=True):
     pin, sid, tx = plan['pin'], step['id'], copy.deepcopy(step['tx'])
     a.need('pre_send_chain', a.qty(rpc('eth_chainId', [])), a.CHAIN)
     a.need('pre_send_safe_state', safe_state(rpc, 'latest'), pin['safe'])
-    governance(rpc, 'latest', pin['timelockCreation'])
+    governance(rpc, 'latest', pin['timelockCreation'], plan['rebuild']['contracts']['TimelockController']['runtime'])
     a.need('pre_send_sender_nonce', a.nonce(rpc, tx['from']), a.qty(tx['nonce']))
     a.need('pre_send_pending_nonce', a.nonce(rpc, tx['from'], 'pending'), a.qty(tx['nonce']))
     a.need('pre_send_safe_nonce', a.word(rpc, SAFE, 'nonce()'), step['safeNonce'])
@@ -901,7 +901,7 @@ def final_gate(rpc, plan):
     upgrade_readback(rpc, plan, activated=True)
     check_inventory(rpc, plan['pin'])
     a.need('final_safe', safe_state(rpc, 'latest'), plan['pin']['safe'])
-    governance(rpc, 'latest', plan['pin']['timelockCreation'])
+    governance(rpc, 'latest', plan['pin']['timelockCreation'], plan['rebuild']['contracts']['TimelockController']['runtime'])
     for op in plan['operations'].values():
         operation_state(rpc, op, 3)
     a.need('final_pending_operations', pending_operations(rpc, plan['pin']['timelockCreation'],

@@ -582,3 +582,29 @@ Known residual (also for the paper's disclosure):
   containers: no enumeration of on-chain proposals, `executeWithProof` only for ids from
   the node's own round, audit execution disabled). DSR has not re-verified this.
 
+
+## Earlier timelock precondition and residual
+
+Sepolia has an earlier 48h timelock 0x86c8...9564, orphaned; it holds no authority in scope, verified continuously by old_timelock_holds_nothing at the pin and at closing.
+
+The full legacy address is `0x86c86c789edc099801cc6a5f48334f1d67dc9564`.
+Execution requires `old_timelock_tl_roles`, `old_timelock_authority`, and
+`old_timelock_safe` to pass at each phase's single block. The reads are retained
+in `pin.oldTimelock` and the closing result's `oldTimelock`. The authority scope
+is the pinned isolation inventory, including pending owners, configured/event
+roles and address-to-bool authority mappings. This does not prove absence of
+powers outside the isolation scope or between the two observations.
+
+See [canonical source correction and config reader impact](OLD_TIMELOCK_CORRECTION.md).
+
+### Old-owner isolation: never-granted ANODE/KMS disclosure
+
+See [the isolation design](../../../script/upgrade/OLD_OWNER_ISOLATION.md#declared-never-granted-roles-and-residual-community-exposure).
+Registry `safeMintForRole` (`a839347e:416-440`) lets any COMMUNITY holder grant any
+active role to any user, including OLD, subject to registration checks. DSR reports
+9 COMMUNITY grants, and not all holders are controlled. This exposure cannot be
+excluded in advance; the pre-send/closing re-read detects a changed holder row and
+STOPs. Within `contracts/src`, ROLE_ANODE/ROLE_KMS gate no access control; beyond
+their declarations, their uses are Registry.sol role arrays and `_syncExitFeeForRole`.
+The fixed never-granted set and AST-proven mapping control path include only ANODE
+and KMS. ROLE_ENDUSER awaits DSR review of the pin pauseList.
