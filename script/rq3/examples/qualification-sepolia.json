@@ -1,0 +1,11 @@
+{
+  "payload": {
+    "schema": "rq3-qualification-v1",
+    "chain": "sepolia",
+    "block_period_seconds": 12,
+    "max_elapsed_seconds": 120,
+    "receipt_timeout_seconds": 180,
+    "confirmation_depth": 3
+  },
+  "sha256": "1b706f88cc9062d4379ed0c2785f6a55a9f5487d82912239999d7ed728148fcc"
+}

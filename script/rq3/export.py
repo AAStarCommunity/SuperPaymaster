@@ -13,19 +13,12 @@ spec.loader.exec_module(gate)
 COLUMNS = sorted(gate.REQUIRED_COLUMNS | set(gate.OPTIONAL_INT_COLUMNS) |
                  {'sender', 'precheck_refused', 'failure_reason', 'retry_of', 'contextLength',
                   'C_POSTOP', 'C_WRAP', 'bufGas', 'feeSnap', 'price', 'decimals', 'aPriceUSD',
-                  'unverified_columns'})
-# Columns computed from a supplied postOp state snapshot whose provenance is not proven (README
-# "UNVERIFIED"): TPM refund constant / cached price, and the live fee of a context without a fee
-# snapshot. Exported empty unless include_unverified, and always named in unverified_columns.
-TPM_UNVERIFIED = ('refundPostopCost', 'tokenChargeWei')
-LEGACY_FEE_UNVERIFIED = ('feeBps', 'chargeHatAPNTs')
-
-
+                  'unverified_columns', 'unusedGasPenaltyMin', 'unusedGasPenaltyMax',
+                  'gasBeforePenaltyCandidates', 'actualTokenPriceWithMarkup', 'stop_reason', 'diagnostic',
+                  'tokenChargeWeiVerified', 'reserveDeltaVerified'})
 def unverified(row):
-    if row['arm'] == 'TokenPaymaster':
-        return [k for k in TPM_UNVERIFIED if row[k] not in ('', None)]
-    if row['arm'] == 'SP' and str(row['feeSnap']) == '0':
-        return [k for k in LEGACY_FEE_UNVERIFIED if row[k] not in ('', None)]
+    if row['arm'] == 'TokenPaymaster' and row.get('tokenChargeWeiVerified') is not True:
+        return ['tokenChargeWei'] if row['tokenChargeWei'] not in ('', None) else []
     return []
 
 
@@ -33,6 +26,10 @@ def normalized(records, include_unverified=False):
     rows = []
     for record in records:
         row = {key: record.get(key, '') for key in COLUMNS}
+        if row['stop_reason']:
+            raise ValueError('window_stop: ' + row['stop_reason'])
+        if row['arm'] == 'SP' and str(row['feeSnap']) == '0':
+            raise ValueError('window_stop: legacy_sp_context')
         # Always recomputed here; an incoming value is never trusted.
         flagged = unverified(row)
         row['unverified_columns'] = ';'.join(flagged)

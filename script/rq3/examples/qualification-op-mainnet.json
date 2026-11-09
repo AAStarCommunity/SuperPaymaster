@@ -1,0 +1,11 @@
+{
+  "payload": {
+    "schema": "rq3-qualification-v1",
+    "chain": "op-mainnet",
+    "block_period_seconds": 2,
+    "max_elapsed_seconds": 20,
+    "receipt_timeout_seconds": 120,
+    "confirmation_depth": 10
+  },
+  "sha256": "8aee47a98e92d113567c72c46d7ec701633d9a19c2d720de211193349cc8e536"
+}

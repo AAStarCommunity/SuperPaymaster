@@ -15,7 +15,14 @@ def digest(value):
     return hashlib.sha256(canonical(value)).hexdigest()
 
 
-def generate(seed, accounts, slot_period=30, max_elapsed=20):
+def generate(seed, accounts, slot_period=None, max_elapsed=None, chain="op-mainnet"):
+    from manifests import qualification
+    frozen = qualification(chain)
+    bound = frozen["payload"]["max_elapsed_seconds"]
+    slot_period = slot_period if slot_period is not None else (30 if chain == "op-mainnet" else 130)
+    max_elapsed = bound if max_elapsed is None else max_elapsed
+    if max_elapsed != bound:
+        raise ValueError("elapsed bound must match frozen chain parameters")
     if not isinstance(seed, str) or not seed or len(accounts) != 3 or len(set(accounts)) != 3:
         raise ValueError('public seed and three distinct accounts required')
     if slot_period <= 0 or max_elapsed < 0 or max_elapsed >= slot_period:
@@ -35,7 +42,7 @@ def generate(seed, accounts, slot_period=30, max_elapsed=20):
                           deadline_seconds=i * slot_period + max_elapsed, order=order,
                           senders={arm: accounts[(j + i) % 3] for j, arm in enumerate(ARMS)}))
     payload = dict(schema='rq3-schedule-v1', seed=seed, accounts=accounts,
-                   slot_period_seconds=slot_period, max_elapsed_seconds=max_elapsed, slots=slots)
+                   qualification=frozen, slot_period_seconds=slot_period, max_elapsed_seconds=max_elapsed, slots=slots)
     return dict(payload=payload, sha256=digest(payload))
 
 
@@ -43,7 +50,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--seed', required=True)
     parser.add_argument('--accounts', nargs=3, required=True)
-    parser.add_argument('--slot-period', type=int, default=30)
-    parser.add_argument('--max-elapsed', type=int, default=20)
+    parser.add_argument('--slot-period', type=int)
+    parser.add_argument('--max-elapsed', type=int)
+    parser.add_argument("--chain", choices=("op-mainnet", "sepolia"), default="op-mainnet")
     args = parser.parse_args()
-    print(json.dumps(generate(args.seed, args.accounts, args.slot_period, args.max_elapsed), indent=2))
+    print(json.dumps(generate(args.seed, args.accounts, args.slot_period, args.max_elapsed, args.chain), indent=2))

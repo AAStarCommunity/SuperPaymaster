@@ -7,10 +7,22 @@ import tempfile
 import unittest
 from collections import Counter
 from schedule import generate, digest, ARMS
-from precheck import POLICY_GATES, before_sp_attempt, broadcast_disabled, stop_reason, timing_check, account_available
+from precheck import POLICY_GATES, before_sp_attempt as raw_before_sp_attempt, broadcast_disabled, stop_reason, timing_check, account_available
 from export import export, normalized, write_csv, validate_csv, build_inventory, gate, VENDOR
 
+from manifests import (qualification, build_window, validate_window, check_plan,
+                       WindowStop, receipt_status)
+
 ROOT = Path(__file__).parent
+
+
+def before_sp_attempt(rpcs, plans, sender, helper, refusals):
+    # Legacy precheck unit cases use a minimal already-frozen envelope.
+    entries={s:digest(p) for s,p in plans.items()}
+    for s in ['fixture-b','fixture-c']: entries[s]=digest({'phaseC':{'addresses':{'S':s}}})
+    payload = dict(plan_sha256=entries)
+    return raw_before_sp_attempt(rpcs, plans, sender, helper, refusals,
+                                 manifest=dict(payload=payload, sha256=digest(payload)))
 
 
 class ScheduleTests(unittest.TestCase):
@@ -33,6 +45,59 @@ class ScheduleTests(unittest.TestCase):
             self.assertTrue(all(s['deadline_seconds']-s['start_seconds']==20 for s in slots))
         with self.assertRaises(ValueError):
             generate('seed',['a','b','c'],20,1)
+
+
+class ManifestTests(unittest.TestCase):
+    def test_window_freeze_and_plan_checks(self):
+        schedule=generate('seed',['a','b','c'])
+        plans={s:{'phaseC':{'addresses':{'S':s}}} for s in ['a','b','c']}
+        q=qualification('op-mainnet')
+        baseline=dict(tpm_runtime_codehash='synthetic',frozen_build_sha256='synthetic')
+        m=build_window('w',schedule,plans,q,baseline)
+        validate_window(m,schedule,plans,q,baseline)
+        for s in plans: check_plan(m,s,plans[s])
+        with self.assertRaisesRegex(WindowStop,'plan_sender_mismatch'):
+            check_plan(m,'a',plans['b'])
+        with self.assertRaisesRegex(WindowStop,'plan_hash_mismatch'):
+            check_plan(m,'a',dict(plans['a'],changed=True))
+        with self.assertRaisesRegex(WindowStop,'window_manifest_mismatch'):
+            check_plan(dict(m,sha256='bad'),'a',plans['a'])
+        with self.assertRaisesRegex(WindowStop,'window_manifest_mismatch'):
+            validate_window(dict(m,sha256='bad'),schedule,plans,q,baseline)
+        with self.assertRaisesRegex(WindowStop,'three_sender_plans_required'):
+            build_window('w',schedule,{'a':plans['a']},q,baseline)
+        with self.assertRaisesRegex(WindowStop,'tpm_baseline_binding_missing'):
+            build_window('w',schedule,plans,q,{})
+        # A mismatch stops before invoking either endpoint/helper.
+        with self.assertRaisesRegex(WindowStop,'plan_sender_mismatch'):
+            raw_before_sp_attempt([None,None],{'a':plans['b']},'a',None,Exception,manifest=m)
+
+    def test_chain_timing_confirmation_and_timeout(self):
+        for chain,bound,timeout,depth in [('op-mainnet',20,120,10),('sepolia',120,180,3)]:
+            q=qualification(chain)
+            schedule=generate('seed',['a','b','c'],chain=chain)
+            self.assertEqual(schedule['payload']['max_elapsed_seconds'],bound)
+            self.assertEqual(q['payload']['block_period_seconds']*10,bound)
+            receipt=dict(blockNumber=5,blockHash='h')
+            self.assertEqual(receipt_status(q,0,timeout),dict(success=False,failure_reason='receipt_timeout',supplemental_only=False))
+            self.assertTrue(receipt_status(q,0,timeout+1,receipt)['supplemental_only'])
+            self.assertTrue(receipt_status(q,0,10,receipt,5+depth-1)['pending'])
+            self.assertTrue(receipt_status(q,0,10,receipt,5+depth,'h')['ready'])
+            self.assertEqual(receipt_status(q,0,10,receipt,5+depth,'changed')['invalid_reason'],'chain_reorg')
+            with self.assertRaisesRegex(ValueError,'reread required'):
+                receipt_status(q,0,10,receipt,5+depth)
+            bad=copy.deepcopy(q);bad['payload']['max_elapsed_seconds']+=1
+            with self.assertRaisesRegex(WindowStop,'qualification_manifest_mismatch'):
+                receipt_status(bad,0,1)
+            with self.assertRaisesRegex(ValueError,'frozen chain parameters'):
+                generate('seed',['a','b','c'],max_elapsed=bound+1,chain=chain)
+            slot=schedule['payload']['slots'][0]
+            starts={a:i for i,a in enumerate(slot['order'])}
+            finishes={a:i+1 for i,a in enumerate(slot['order'])}
+            timing_check(slot,starts,finishes,{})
+            finishes[slot['order'][-1]]=bound+1
+            with self.assertRaisesRegex(ValueError,'elapsed bound'):
+                timing_check(slot,starts,finishes,{})
 
 
 class Refusal(Exception):
@@ -76,7 +141,7 @@ class PrecheckTests(unittest.TestCase):
         # a non-Gate exception is a defect: it propagates instead of being logged as a refusal
         with self.assertRaises(KeyError):
             run([rpc(reply='bug'),rpc()])
-        with self.assertRaises(KeyError):
+        with self.assertRaisesRegex(WindowStop,'plan_sender_missing'):
             run([rpc(),rpc()],'bob')
         with self.assertRaises(NotImplementedError):
             broadcast_disabled()
@@ -194,21 +259,24 @@ class ExportTests(unittest.TestCase):
     def test_supplied_state_columns_are_flagged_and_blank_by_default(self):
         tpm=[r for r in self.records if r['arm']=='TokenPaymaster' and r.get('tokenChargeWei') not in (None,'')]
         self.assertTrue(tpm)
-        rows=normalized(copy.deepcopy(self.records))
+        records=copy.deepcopy(self.records)
+        for r in records:
+            if r['arm']=='TokenPaymaster': r['tokenChargeWeiVerified']=False
+        rows=normalized(records)
         out=[r for r in rows if r['arm']=='TokenPaymaster' and r['unverified_columns']]
         self.assertEqual(len(out),len(tpm))
         self.assertTrue(all(r['tokenChargeWei']=='' and 'tokenChargeWei' in r['unverified_columns'].split(';') for r in out))
-        kept=normalized(copy.deepcopy(self.records),include_unverified=True)
+        kept=normalized(copy.deepcopy(records),include_unverified=True)
         self.assertTrue(all(r['tokenChargeWei'] not in ('',None) for r in kept if r['unverified_columns']))
         # an incoming claim is ignored: the exporter recomputes the flag
-        forged=copy.deepcopy(self.records); forged[0]['unverified_columns']=''
+        forged=copy.deepcopy(records); forged[0]['unverified_columns']=''
         self.assertEqual([r['unverified_columns'] for r in normalized(forged)],[r['unverified_columns'] for r in rows])
         legacy=copy.deepcopy(self.records)
         sp=next(r for r in legacy if r['arm']=='SP' and r.get('feeBps') not in (None,''))
         sp['feeSnap']=0
-        flagged=next(r for r in normalized(legacy) if r['userOpHash']==sp['userOpHash'])
-        self.assertEqual(flagged['feeBps'],'')
-        self.assertIn('feeBps',flagged['unverified_columns'])
+        with self.assertRaisesRegex(ValueError,'window_stop: legacy_sp_context'):
+            normalized(legacy)
+        self.assertTrue(all('refundPostopCost' not in r['unverified_columns'] for r in rows))
 
     def test_vendor_hashes(self):
         for file,sha in json.loads((ROOT/'vendor/SHA256SUMS.json').read_text()).items():

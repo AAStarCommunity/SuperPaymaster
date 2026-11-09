@@ -1,5 +1,6 @@
 """Dependency-injected precheck design; deliberately no transport or send path."""
 from copy import deepcopy
+from manifests import check_plan, WindowStop
 
 
 # Exactly the gates sp_attempt_precheck can raise: manifest_exec.py:2710,2717,2722-2725 and its
@@ -19,7 +20,7 @@ def as_int(block):
     return None
 
 
-def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusal_types, flags=0):
+def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusal_types, flags=0, *, manifest=None):
     """Run the existing helper exactly once per endpoint, including after refusal.
 
     Only allowlisted Gate records count as policy refusals; other errors propagate.
@@ -32,9 +33,10 @@ def before_sp_attempt(rpcs, plans_by_sender, sender, sp_attempt_precheck, refusa
     """
     if len(rpcs) != 2:
         raise ValueError('exactly two injected RPC callables required')
+    if sender not in plans_by_sender:
+        raise WindowStop('plan_sender_missing')
     plan = plans_by_sender[sender]
-    if plan['phaseC']['addresses']['S'].lower() != sender.lower():
-        raise ValueError('plan S is not the rotating sender')
+    check_plan(manifest, sender, plan)
     records, pinned, reorg = [], None, False
     pins = []
     for rpc in rpcs:

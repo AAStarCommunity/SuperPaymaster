@@ -7,6 +7,17 @@
       "0x0000000000000000000000000000000000000003",
       "0x0000000000000000000000000000000000000004"
     ],
+    "qualification": {
+      "payload": {
+        "schema": "rq3-qualification-v1",
+        "chain": "op-mainnet",
+        "block_period_seconds": 2,
+        "max_elapsed_seconds": 20,
+        "receipt_timeout_seconds": 120,
+        "confirmation_depth": 10
+      },
+      "sha256": "8aee47a98e92d113567c72c46d7ec701633d9a19c2d720de211193349cc8e536"
+    },
     "slot_period_seconds": 30,
     "max_elapsed_seconds": 20,
     "slots": [
@@ -972,5 +983,5 @@
       }
     ]
   },
-  "sha256": "8fcbbda4d529f294cd6f74f077b17cc48be3f95aa923873f134161e483c567c0"
+  "sha256": "bf661687e2a487db7163393e5369a75fae592e0c26d3820eebf78dd966f2a4fd"
 }
