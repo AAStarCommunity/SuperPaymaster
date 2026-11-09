@@ -465,3 +465,8 @@ test('a late receipt keeps its block number for window coverage (review r10)',()
   const r=extract(a); assert.equal(r.failure_reason,'receipt_timeout'); assert.equal(r.blockNumber,a.receipt.blockNumber);
   assert.equal(r.txGasUsed,null);
 });
+
+test('an invalid row keeps its receipt block for window coverage (review r11)',()=>{
+  const a=fixture(); a.trace.transactionHash='0x'+'ee'.repeat(32);
+  const r=extract(a); assert.equal(r.invalid_reason,'collector_corruption'); assert.equal(r.blockNumber,a.receipt.blockNumber);
+});

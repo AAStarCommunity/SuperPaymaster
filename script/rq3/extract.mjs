@@ -301,7 +301,10 @@ export function extract(archive) {
       callGasLimit:archive.operation.callGasLimit, paymasterPostOpGasLimit:archive.operation.paymasterPostOpGasLimit,
       preVerificationGas:archive.operation.preVerificationGas, success:false,
       invalid_reason:error.invalid_reason || '', stop_reason:error.stop_reason || '',
-      failure_reason:error.stop_reason || error.invalid_reason, diagnostic:error.message};
+      failure_reason:error.stop_reason || error.invalid_reason, diagnostic:error.message,
+      // Any archived receipt block stays in the window-coverage check, even on an invalid row
+      // (Codex r11). Over-inclusion can only make the export stop, never skip a block.
+      blockNumber: Number.isSafeInteger(archive.receipt?.blockNumber) ? archive.receipt.blockNumber : null};
   }
 }
 
