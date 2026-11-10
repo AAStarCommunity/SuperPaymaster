@@ -10,6 +10,12 @@ optimizer = true
 optimizer_runs = 500
 via_ir = true
 evm_version = "cancun"
+# ERC-7562 opcode gates (contracts/test/v2/SuperPaymasterV55.t.sol, test_OP011_*) call
+# vm.startDebugTraceRecording, which forge only enables at verbosity >= 3. Pinning it
+# here keeps the gates live under every CI invocation (`forge test`, `-vvv`,
+# `--fuzz-runs`, `--evm-version prague`); without it they fail closed by design. A CLI -v or -vv
+# overrides this and also fails them closed, so CI uses -vvv. Output only, no bytecode effect.
+verbosity = 3
 # Always emit storage layout so the UUPS storage-drift guard
 # (scripts/check_storage_layout.py) can read it from artifacts.
 extra_output = ["storageLayout"]
@@ -62,6 +68,7 @@ optimizer = true
 optimizer_runs = 500
 via_ir = true
 evm_version = "cancun"
+verbosity = 3  # see [profile.default]
 
 # Exclude all non-V3 contracts
 # skip = [
@@ -114,6 +121,7 @@ optimizer = true
 optimizer_runs = 500
 via_ir = true
 evm_version = "cancun"
+verbosity = 3  # see [profile.default]
 remappings = [
     "@openzeppelin-v5.0.2/=singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/",
     "@account-abstraction-v7/=singleton-paymaster/lib/account-abstraction-v7/contracts/",
