@@ -2,6 +2,7 @@
 """Machine checks of broad exception handlers reachable from run_manifest."""
 import ast
 import unittest
+from unittest.mock import patch
 import swallow_audit as s
 from gate_assertions import assert_stop
 
@@ -48,6 +49,60 @@ class SwallowTests(unittest.TestCase):
     def test_allowlist_identity_ignores_line_numbers(self):
         texts = {name: '\n\n'+text for name, text in s.sources().items()}
         s.assert_no_swallow(texts, s.reviewed_allowlist())
+
+
+class DeadlinePropagationTests(unittest.TestCase):
+    def invoke(self, fault=None, elapsed=0, alive=False):
+        # A response may be decoded before context-manager cleanup fails. This
+        # supplies both body and error, just as the real worker can produce them.
+        class Response:
+            def __enter__(self):
+                return self
+
+            def read(self):
+                return b'{"result": "decoded"}'
+
+            def __exit__(self, *args):
+                if fault is not None:
+                    raise fault
+
+        class Worker:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+            def join(self, timeout):
+                pass
+
+            def is_alive(self):
+                return alive
+
+        a = s.u.a
+        with patch.object(a.urllib.request, 'urlopen', return_value=Response()), \
+             patch.object(a.threading, 'Thread', Worker), \
+             patch.object(a.time, 'monotonic', side_effect=[0, elapsed]):
+            return a.RPC('http://offline.invalid')._post_with_deadline({})
+
+    def test_worker_exception_identity(self):
+        class WorkerFault(Exception):
+            pass
+
+        for fault in (KeyError('arbitrary'), WorkerFault('custom')):
+            with self.subTest(kind=type(fault).__name__):
+                with self.assertRaises(type(fault), msg='rpc_deadline_reraise') as caught:
+                    self.invoke(fault=fault)
+                self.assertIs(caught.exception, fault, 'rpc_deadline_reraise')
+
+    def test_expired_deadline(self):
+        for alive in (False, True):
+            with self.subTest(alive=alive):
+                with self.assertRaises(TimeoutError, msg='rpc_deadline_timeout'):
+                    self.invoke(elapsed=s.u.a.RPC_TOTAL_DEADLINE_SECONDS + 1, alive=alive)
+
+    def test_completed_response(self):
+        self.assertEqual(self.invoke(), {'result': 'decoded'})
 
 
 if __name__ == '__main__':

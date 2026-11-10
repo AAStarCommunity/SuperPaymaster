@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import sp_upgrade_exec as u
 import old_owner_isolation as isolation
+import execution_reads
 
 a = u.a
 ANNI = '0xecaacb915f7d92e9916f449f7ad42bd0408733c9'
@@ -891,9 +892,13 @@ def old_pointers(rpc, d, old, block):
     return bindings
 
 
+def old_timelock_section(pin):
+    return pin['oldTimelock']
+
+
 def validate_old_timelock(pin):
     a.need('old_timelock_required', 'oldTimelock' in pin, True)
-    section = pin['oldTimelock']
+    section = old_timelock_section(pin)
     a.need('old_timelock_schema', isinstance(section, dict) and set(section) == {'block', 'reads', 'approvalOwners'}
            and isinstance(section.get('approvalOwners'), dict)
            and isinstance(section.get('reads'), list) and all(isinstance(r, dict) and
@@ -1084,7 +1089,7 @@ def closing_timelock_inventory(rpc, pin, block):
 def post_pin_delta(rpc, pin, block):
     section = pin['oldOwnerIsolation']
     start, stop = a.qty(pin['stateBlock'])+1, a.qty(block)
-    owners = copy.deepcopy(pin['oldTimelock']['approvalOwners'])
+    owners = copy.deepcopy(old_timelock_section(pin)['approvalOwners'])
     counts, checked, canonical = {}, {}, {}
     spender = '0x'+isolation.OLD_TIMELOCK[2:].zfill(64)
     approval = a.keccak('Approval(address,address,uint256)')
@@ -1115,7 +1120,7 @@ def post_pin_delta(rpc, pin, block):
         for log in scan(token, [approval, None, spender]):
             holders.add(u.addr_word(int(log['topics'][1], 16)))
         owners[token] = sorted(holders)
-        for holder in sorted(holders - set(pin['oldTimelock']['approvalOwners'].get(token, []))):
+        for holder in sorted(holders - set(old_timelock_section(pin)['approvalOwners'].get(token, []))):
             a.need('old_timelock_delta_allowance', u.uints(a.call(rpc, token, 'allowance(address,address)', holder, isolation.OLD_TIMELOCK, block=block)), [0])
     configured_roles = {log['topics'][1] for log in scan(u.REG, [configured])}
     for name, target in [*sorted(section['targets'].items()), *(('xPNTsToken', t) for t in section['xpnts'])]:
@@ -1202,7 +1207,8 @@ def dvt_closing(rpc, plan):
     # Every read is bound to one block (DSR #606 L2); all three A8 pointers are re-read (L1).
     d = plan['externalInputs']['data']
     dvt, block = d['dvt'], a.block_data(rpc, 'latest')['number']
-    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {})
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {},
+                                       plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'])
     coverage = discovery_coverage(plan, {s['id'] for s in plan['steps']})
     never_granted = isolation.never_granted_recheck(rpc, coverage, block)
     expected = plan['pin']['oldAggregator'] if plan['stage'] == 'a7' else plan['addresses']['BLSAggregator']
@@ -1942,7 +1948,9 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     a.need('stake_not_unlocking', pin['withdrawTime'], 0)
     # Isolation records discovery calls, bounded role-event history and canonical blocks
     # so build_plan can replay every new inventory gate on both endpoint transcripts.
-    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    callsite_source = isolation.callsite_target_source()
+    pin['oldOwnerIsolation'] = isolation.collect_deployed(rpc, pin, inputs['data'].get('deployedSources'), callsite_source['expected'], fork=isolation.local_control_fork(), pending=inputs['data'].get('pendingDsrRuling'))
+    pin['oldOwnerIsolation']['callsiteTargetSource'] = callsite_source
     pin['oldTimelock'] = old_timelock_holds_nothing(rpc, pin, block)
     if stage in PC_STAGES:
         pin['phaseC'] = collect_phase_c(rpc, block, inputs, pin)
@@ -2146,6 +2154,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     for label, who in a.SENDERS.items():
         a.need('sender_'+label, pin['senders'][label]['address'], who)
     arts = copy.deepcopy(rebuild())
+    isolation.validate_callsite_source(pin['oldOwnerIsolation'], arts['commit'])
     a.need('old_owner_control_cases_binding',pin.get('isolationControlCases',{}),d.get('isolationControlCases',{}))
     isolation.validate_deployed(pin.get('oldOwnerIsolation'), pin, d.get('deployedSources'), pending=d.get('pendingDsrRuling'))
     validate_old_timelock(pin)
@@ -2162,6 +2171,7 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     def finish():
         plan = dict(schema='3.1', route='manifest-A-B-D', stage=stage, final=stage == 'full', stageSources=sources,
             pin=copy.deepcopy(pin), externalInputs=copy.deepcopy(inputs), rebuild=arts,
+            timelockRuntimeIdentity=copy.deepcopy(u.build()['contracts']['TimelockController']['runtime']),
             creationMetadataLayouts={'OverIssueFraudProofVerifier': copy.deepcopy(VERIFIER_METADATA_LAYOUT)},
             addresses=addresses, implementation=impl, extension=extension, operations=operations,
             steps=steps, controls=CONTROLS+(PC_CONTROLS if stage in PC_STAGES else []),
@@ -2878,9 +2888,10 @@ def budget(plan):
     plan['budgetsWei'] = result
 
 
-def validate_plan(plan, inputs, frozen=False):
+def validate_plan(plan, inputs, frozen=False, *, expected=None):
     a.need('external_inputs_match', plan['externalInputs'], inputs)
-    expected = build_plan(plan['pin'], inputs, plan.get('stage', 'full'), plan.get('stageSources'))
+    if expected is None:
+        expected = build_plan(plan['pin'], inputs, plan.get('stage', 'full'), plan.get('stageSources'))
     a.exact_keys('manifest_keys', plan, set(expected) | ({'budgetsWei'} if frozen else set()))
     for key in set(expected)-{'steps'}:
         a.need('manifest_'+key, plan[key], expected[key])
@@ -2923,6 +2934,8 @@ def validate_plan(plan, inputs, frozen=False):
         checked = copy.deepcopy(plan)
         budget(checked)
         a.need('manifest_budget', checked['budgetsWei'], plan['budgetsWei'])
+
+    return copy.deepcopy(expected)
 
 
 def owner_gas_gate(step):
@@ -3210,7 +3223,8 @@ def assert_manifest_frozen(rpc, pin, registry_handed_over=False):
 def pre_send(rpc, plan, step, context, measured=False):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
     block = a.block_data(rpc,'latest')['number']
-    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {})
+    isolation.registry_callsite_targets(lambda target, sig: a.address(rpc, target, sig, block), {},
+                                       plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'])
     # Before every send, not only at closing: a post-pin allowance, role or authority of the orphaned timelock.
     coverage = discovery_coverage(plan, context.get('passed', set()))
     isolation.never_granted_recheck(rpc, coverage, block)
@@ -3227,7 +3241,7 @@ def pre_send(rpc, plan, step, context, measured=False):
     a.need('pending_nonce', a.nonce(rpc, tx['from'], 'pending'), a.qty(tx['nonce']))
     a.need('safe_nonce', a.word(rpc, u.SAFE, 'nonce()'), step['safeNonce'])
     a.need('safe_state', u.safe_state(rpc, 'latest'), plan['pin']['safe'])
-    u.governance(rpc, 'latest', plan['pin']['timelockCreation'])
+    u.governance(rpc, 'latest', plan['pin']['timelockCreation'], plan['timelockRuntimeIdentity'])
     for target, expected in plan['pin']['bindings'].items():
         a.need('bound_runtime', u.code(rpc, target, 'latest'), expected)
     unchanged_old_activity(rpc, plan, a.block_data(rpc, 'latest')['number'])
@@ -3280,7 +3294,7 @@ def mint_trace(rpc, step, receipt):
                (u.SAFE, step['inner'], False))
 
 
-def unbacked_swap_control(rpc, plan):
+def unbacked_swap_control(rpc, plan, expected=None):
     """Execute the real 6d operation without B2a on a reverted local snapshot."""
     snap = rpc('evm_snapshot', [])
     try:
@@ -3301,10 +3315,11 @@ def unbacked_swap_control(rpc, plan):
             a.need('unbacked_refusal_gate', error.record['gate'], 'B2_capped_buffer')
         else:
             raise a.Gate('unbacked_build_refusal', 'accepted', 'B2 rejection')
-        candidate = build_plan(plan['pin'], plan['externalInputs'])
+        expected = expected if expected is not None else build_plan(plan['pin'], plan['externalInputs'])
+        candidate = copy.deepcopy(expected)
         candidate['steps'] = [s for s in candidate['steps'] if not s['id'].startswith('B2a_')]
         try:
-            validate_plan(candidate, plan['externalInputs'])
+            validate_plan(candidate, plan['externalInputs'], expected=expected)
         except a.Gate as error:
             a.need('unbacked_plan_refusal_gate', error.record['gate'], 'manifest_length')
         else:
@@ -3346,7 +3361,7 @@ def early_swap_control(rpc, plan):
         a.need('early_swap_restore', rpc('evm_revert', [snap]), True)
 
 
-def controls_at(rpc, plan, sid, controls):
+def controls_at(rpc, plan, sid, controls, expected=None):
     agg = plan['addresses']['BLSAggregator']
     def negative(name, sender, target, sig, args, error, error_args=()):
         snap = rpc('evm_snapshot', [])
@@ -3379,7 +3394,7 @@ def controls_at(rpc, plan, sid, controls):
         finally:
             a.need('factory_control_restore', rpc('evm_revert', [snap]), True)
     if sid == 'B2a_approve':
-        controls.append(unbacked_swap_control(rpc, plan))
+        controls.append(unbacked_swap_control(rpc, plan, expected))
     if sid == 'activation_schedule_approve':
         negative('early_unpause', u.DEPLOYER, u.SP, 'setGlobalPaused(bool)', ('false',), 'Unauthorized()')
         negative('early_bls', u.TL, u.SP, 'applyBLSAggregator()', (), 'InvalidConfiguration()')
@@ -3398,9 +3413,25 @@ def controls_at(rpc, plan, sid, controls):
         negative('repeat_verifier', u.DEPLOYER, agg, 'applyFraudProofVerifier()', (), 'NoPendingVerifierRotation()')
 
 
+def execution_tree_gates(plan):
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT,
+                          capture_output=True, text=True, check=True).stdout.strip()
+    a.need('execution_head', head, plan['rebuild']['commit'])
+    state = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=u.ROOT,
+                           capture_output=True, text=True, check=True)
+    a.need('execution_clean_tree', state.stdout, '')
+
+
 def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.need('manifest_local_only', getattr(rpc, 'local', False), True)
-    validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
+    expected = validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
+    allowlist = execution_reads.reviewed_allowlist()
+    execution_tree_gates(plan)
+    with execution_reads.guard(allowlist):
+        return _run_manifest(remote, rpc, plan, out, calibrate, expected)
+
+
+def _run_manifest(remote, rpc, plan, out, calibrate, expected):
     for sender in plan['pin']['senders'].values():
         rpc('anvil_impersonateAccount', [sender['address']])
     pc = plan.get('phaseC')
@@ -3411,7 +3442,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     for step in plan['steps']:
         a.process_alive(rpc.engine_process)
         sid = step['id']
-        controls_at(rpc, plan, sid, controls)
+        controls_at(rpc, plan, sid, controls, expected)
         phase_c_controls(rpc, plan, sid, controls, context)
         if not calibrate:
             a.need('frozen_step_not_skipped', step['skipped'], False)
@@ -3428,7 +3459,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
             u.log(out, record)
             a.trace_overrides(rpc, record['receipt'], overrides)
             context['passed'].add(sid)
-            controls_at(rpc, plan, 'after_B4', controls)
+            controls_at(rpc, plan, 'after_B4', controls, expected)
             continue
         pre_send(rpc, plan, step, context)
         timestamp = a.qty(a.block_data(rpc, 'latest')['timestamp'])+1
@@ -3483,7 +3514,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         u.log(out, record)
         a.trace_overrides(rpc, r, overrides)
         if sid == 'upgrade_execute_exec':
-            controls_at(rpc, plan, 'after_upgrade_execute_exec', controls)
+            controls_at(rpc, plan, 'after_upgrade_execute_exec', controls, expected)
         if pc is not None and sid == pc['steps'][-1]:
             context['afterC'] = phase_c_accounting(rpc, plan)
             context['funding'] = funding_gate(rpc, plan)
@@ -3498,7 +3529,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
         readback = dict(stage_readback(plan, rpc), dvtClosing=closing)
         a.write_json(out/'stage-readback.json', readback)
         budget(plan)
-        validate_plan(plan, plan['externalInputs'], frozen=True)
+        validate_plan(plan, plan['externalInputs'], frozen=True, expected=expected)
         result = dict(status='PASS', stage=plan['stage'], steps=records, readback=readback)
         if pc is not None:
             result.update(phaseCAccounting=context['afterC'], phaseCFunding=context['funding'], spAttemptPrecheck=context['precheck'],
@@ -3523,7 +3554,7 @@ def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.write_json(out/'manifest-solvency.json', solvency)
     a.need('post_swap_solvency', solvency['allSolvent'], True)
     budget(plan)
-    validate_plan(plan, plan['externalInputs'], frozen=True)
+    validate_plan(plan, plan['externalInputs'], frozen=True, expected=expected)
     result = dict(status='PASS', scope='Phases A/B/C/D', steps=records, negativeControls=controls,
                   B2=context['B2'], postSwapAccounting=accounting, phaseCAccounting=context['afterC'],
                   phaseCFunding=context['funding'], handoverFunding=context.get('handoverFunding', []),

@@ -291,6 +291,7 @@ def old_timelock_rpc(pin, block, bad=None):
 
 class DeltaTests(unittest.TestCase):
     def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
         self.pin = pin()
         self.block = hex(a.qty(self.pin['stateBlock'])+1)
         self.role = a.keccak('POST_PIN_ROLE')
@@ -581,6 +582,9 @@ class DvtCiEvidenceTests(unittest.TestCase):
 
 
 class Round8Controls(unittest.TestCase):
+    def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
+
     def dvt_rebuild(self, mutate=None):
         creation = VERIFIER_CODE
         runtime = '0x6001'
@@ -771,7 +775,16 @@ class RebuiltScopeTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
     def setUp(self):
-        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,{k: ART['oldOwnerInventory'][k] for k in m.isolation.NAMES})))
+        from execution_git_fixture import clean_checkout
+        clean_checkout(self, ART['commit'])
+        timelock_build = patch.object(u, 'build', return_value=copy.deepcopy(base.ART))
+        timelock_build.start()
+        self.addCleanup(timelock_build.stop)
+        isolation_tests.patch_callsite_targets(self)
+        config_reader = patch.object(m.isolation, 'committed_callsite_config', return_value=isolation_tests.FIXTURE_CONFIG_BYTES)
+        config_reader.start()
+        self.addCleanup(config_reader.stop)
+        source_validation = patch.object(m.isolation,'validate_deployed',side_effect=lambda section,pin,sources,pending=None:(m.isolation.require_adopted_sources(pending),m.isolation.validate(section,pin,{k: ART['oldOwnerInventory'][k] for k in m.isolation.NAMES}, isolation_tests.FIXTURE_CALLSITE_TARGETS)))
         source_validation.start(); self.addCleanup(source_validation.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -1722,7 +1735,7 @@ class ManifestTests(unittest.TestCase):
                 context['B2'] = {'checked':True}
                 gates.append(len(sent))
             return step['tx']
-        def controls(r, plan, sid, output):
+        def controls(r, plan, sid, output, expected):
             if sid == 'after_upgrade_execute_exec':
                 self.assertEqual(sent[-1][0], 'upgrade_execute_exec')
             if sid == 'after_B4': output.extend(dict(control=x) for x in m.CONTROLS if x != 'owner_handover')
@@ -2006,15 +2019,49 @@ class ManifestTests(unittest.TestCase):
     def assert_timelock_build_gate(self, gate, mutate):
         changed = copy.deepcopy(self.pin)
         mutate(changed)
-        try:
-            with assert_stop(self, gate) as caught:
-                m.build_plan(changed, self.inputs)
-        except (KeyError, TypeError, IndexError) as error:
-            self.fail(f'Expected named gate {gate}, got {type(error).__name__}')
+        with assert_stop(self, gate) as caught:
+            m.build_plan(changed, self.inputs)
         self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_old_timelock_required(self):
-        self.assert_timelock_build_gate('old_timelock_required', lambda p: p.pop('oldTimelock'))
+        tree = ast.parse(Path(m.__file__).read_text())
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        # Conservatively count EVERY matching string constant, including get,
+        # membership, subscripts and unknown key consumers. Only direct Store
+        # subscripts are excluded: they write evidence, never read it. Locations
+        # keep even identical expressions at separate sites distinct.
+        sites = {(node.lineno, node.col_offset) for node in ast.walk(tree)
+                 if isinstance(node, ast.Constant) and node.value == 'oldTimelock'
+                 and not (isinstance(parents[node], ast.Subscript)
+                          and parents[node].slice is node
+                          and isinstance(parents[node].ctx, ast.Store))}
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        gate = functions['validate_old_timelock'].body[0].value.args[1].left
+        lookup = functions['old_timelock_section'].body[0].value.slice
+        self.assertEqual(sites, {(gate.lineno, gate.col_offset), (lookup.lineno, lookup.col_offset)},
+                         'old_timelock_read_sites: patch needs updating')
+        changed = json.loads(json.dumps(self.pin))
+        del changed['oldTimelock']
+        # Source: the valid evidence in this test's pin fixture. The patched
+        # accessor neither computes this value nor calls its fixture producer.
+        good_section = copy.deepcopy(self.pin['oldTimelock'])
+        with patch.object(m, 'old_timelock_section', return_value=good_section):
+            with assert_stop(self, 'old_timelock_required'):
+                m.build_plan(changed, self.inputs)
+
+    def test_old_timelock_read_sites(self):
+        original = Path.read_text
+        source = original(Path(m.__file__))
+        # Each form must independently invalidate the accessor patch inventory.
+        for expression in ("pin['oldTimelock']", "pin.get('oldTimelock')",
+                           "'oldTimelock' in pin", "consume('oldTimelock')"):
+            extra = source + '\ndef future_read(pin):\n    return ' + expression + '\n'
+            def read(path, *args, **kwargs):
+                return extra if path == Path(m.__file__) else original(path, *args, **kwargs)
+            with self.subTest(expression=expression), patch.object(Path, 'read_text', read):
+                with self.assertRaisesRegex(AssertionError, 'old_timelock_read_sites: patch needs updating',
+                                            msg='old_timelock_read_sites: count assertion not raised'):
+                    self.test_old_timelock_required()
 
     def test_old_timelock_schema(self):
         self.assert_timelock_build_gate('old_timelock_schema', lambda p: p['oldTimelock'].update(extra=True))
@@ -2306,7 +2353,7 @@ class ManifestTests(unittest.TestCase):
         def calls(fn, name):
             node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == fn)
             return sum(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == name for c in ast.walk(node))
-        self.assertEqual(calls('run_manifest', 'dvt_closing'), 2)
+        self.assertEqual(calls('_run_manifest', 'dvt_closing'), 2)
         self.assertEqual(calls('collect', 'old_pointers'), 1)
         self.assertEqual(calls('collect', 'dvt_activity'), 1)
 
@@ -2408,7 +2455,7 @@ class ManifestTests(unittest.TestCase):
         rpc = with_orphan_reads(rpc, self.plan['pin'], '0x200')
         with patch.object(a, 'nonce', return_value=a.qty(step['tx']['nonce'])), \
              patch.object(a, 'word', side_effect=word), \
-             patch.object(a, 'address', side_effect=lambda r,t,s,*args: m.isolation.callsite_target_expectations()[s[:-2]] if s[:-2] in m.isolation.callsite_target_expectations() else self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
+             patch.object(a, 'address', side_effect=lambda r,t,s,*args: self.plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'][s[:-2]] if s[:-2] in self.plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'] else self.pin['capped'] if s == 'pendingAPNTsToken()' else u.DEPLOYER), \
              patch.object(u, 'safe_state', return_value=self.pin['safe']), patch.object(u, 'governance'), \
              patch.object(u, 'code', side_effect=lambda r,t,*args:'0xdead' if bad_runtime else self.pin['bindings'][t]), \
              patch.object(m, 'old_activity', return_value={}), patch.object(m, 'dvt_activity', return_value=[]), \
@@ -2996,6 +3043,40 @@ class ManifestTests(unittest.TestCase):
             validate.reset_mock()
             with self.assertRaises(a.Gate): m.history_steps(self.pin, bad)
             validate.assert_not_called()
+
+    def source_stop(self, field, value, gate):
+        altered = copy.deepcopy(self.pin)
+        altered['oldOwnerIsolation']['callsiteTargetSource'][field] = value
+        with assert_stop(self, gate):
+            m.build_plan(altered, self.inputs)
+
+    def test_callsite_source_path(self):
+        self.source_stop('path', 'deployments/other.json', 'callsite_source_path')
+
+    def test_callsite_source_commit(self):
+        self.source_stop('commit', 'b'*40, 'callsite_source_commit')
+
+    def test_callsite_source_sha256(self):
+        self.source_stop('sha256', '0'*64, 'callsite_source_sha256')
+
+    def test_callsite_source_expected(self):
+        wrong = dict(isolation_tests.FIXTURE_CALLSITE_TARGETS, MYSBT='0x'+'ab'*20)
+        self.source_stop('expected', wrong, 'callsite_source_expected')
+
+    def test_callsite_config_byte_changes_plan_digest(self):
+        # Model git-show bytes for a committed one-byte whitespace change.
+        changed = isolation_tests.FIXTURE_CONFIG_BYTES + b' '
+        with patch.object(m.isolation, 'committed_callsite_config', return_value=changed):
+            with assert_stop(self, 'callsite_source_sha256'):
+                m.build_plan(self.pin, self.inputs)
+            fresh = copy.deepcopy(self.pin)
+            fresh['oldOwnerIsolation']['callsiteTargetSource'] = m.isolation.callsite_target_source(ART['commit'])
+            updated = m.build_plan(fresh, self.inputs)
+        first, second = Path(self.tmp.name)/'source-before', Path(self.tmp.name)/'source-after'
+        first.mkdir(); second.mkdir()
+        u.save_plan(first, self.plan)
+        u.save_plan(second, updated)
+        self.assertNotEqual((first/'plan.json.sha256').read_text(), (second/'plan.json.sha256').read_text())
 
     def test_collect_direct_fake_chain(self):
         history = self.history_rpc()
@@ -3832,6 +3913,16 @@ class SafeGovernanceTests(unittest.TestCase):
 
 
 class NamedStopAssertionTests(unittest.TestCase):
+    def test_timelock_wrapper_propagates_unexpected_exceptions(self):
+        case = ManifestTests('test_old_timelock_required')
+        case.pin, case.inputs = {}, {}
+        for kind in (KeyError, TypeError, IndexError):
+            fault = kind('unrelated failure')
+            with self.subTest(kind=kind.__name__), patch.object(m, 'build_plan', side_effect=fault):
+                with self.assertRaises(kind) as caught:
+                    case.assert_timelock_build_gate('old_timelock_required', lambda pin: None)
+                self.assertIs(caught.exception, fault)
+
     def test_expected_gate(self):
         with assert_stop(self, 'expected'):
             a.need('expected', False, True)
@@ -3857,6 +3948,7 @@ class NamedStopAssertionTests(unittest.TestCase):
 
 class GasGateControls(unittest.TestCase):
     def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
         self.step = dict(id='approve', executionTimestamp=100,
             tx={'from': a.APPROVER, 'to': a.SAFE, 'data': '0x', 'value': '0x0',
                 'nonce': '0x63', 'chainId': hex(a.CHAIN),
@@ -4151,6 +4243,9 @@ class GasProbeReportingTests(unittest.TestCase):
 
 
 class OldExitExemptionTests(unittest.TestCase):
+    def setUp(self):
+        isolation_tests.patch_callsite_targets(self)
+
     guardian = '0xf36c9317765634e4995ce1e7210b5738225425b0'
 
     def fixture(self, **kw):
@@ -4289,7 +4384,8 @@ class OldExitExemptionTests(unittest.TestCase):
         p['oldActivity'] = m.old_activity(good, OLD, p['stateBlock'], [])
         p = dict(pin(), **p)
         p.update(bindings={}, safe={})
-        plan = dict(pin=p, steps=[], externalInputs=dict(data=dict(pop=[])))
+        plan = dict(pin=p, steps=[], externalInputs=dict(data=dict(pop=[])),
+                    timelockRuntimeIdentity=copy.deepcopy(base.ART['contracts']['TimelockController']['runtime']))
         step = dict(tx={'from':u.DEPLOYER, 'nonce':'0x0'}, safeNonce=0)
         bad = old_exit_rpc(p, self.guardian, occupied=13)
         def rpc(method, params):
@@ -4534,7 +4630,7 @@ class F05BuildPlanGates(F05Fixture):
 class F05CollectGates(F05Fixture):
     def test_positive_control(self): self.check(None)
 
-    def check(self, gate):
+    def check(self, gate, collector=None):
         legacy = old_timelock_rpc(self.pin, self.pin['stateBlock'])
         def rpc(method, params):
             if method in ('eth_call', 'eth_getLogs'): return legacy(method, params)
@@ -4561,15 +4657,26 @@ class F05CollectGates(F05Fixture):
                 patch.object(m, 'dvt_activity', return_value=[]), patch.object(m, 'old_pointers', return_value={}),
                 patch.object(m, 'balances', return_value={}),
                 patch.object(m, 'collect_phase_c', return_value=self.pin['phaseC']),
-                patch.object(m.isolation, 'collect_deployed', return_value=self.pin['oldOwnerIsolation'])]:
+                patch.object(m.isolation, 'collect_deployed', side_effect=collector, return_value=self.pin['oldOwnerIsolation'])]:
                 stack.enter_context(item)
-            self.stop(gate, lambda:m.collect(rpc, self.pin['block'], self.inputs))
+            return self.stop(gate, lambda:m.collect(rpc, self.pin['block'], self.inputs))
 
     def test_old_aggregator_owner(self): self.check('old_aggregator_owner')
 
     def test_anni_eoa(self): self.check('anni_eoa')
 
     def test_stake_not_unlocking(self): self.check('stake_not_unlocking')
+
+    def test_collect_callsite_source_single_read_shared_with_audit(self):
+        source = copy.deepcopy(self.pin['oldOwnerIsolation']['callsiteTargetSource'])
+        collector = m.isolation.collect_deployed
+        with patch.object(m.isolation, 'callsite_target_source', return_value=source) as reader, \
+             patch.object(m.isolation, 'inventory_source', return_value={}), \
+             patch.object(m.isolation, 'audit', return_value=copy.deepcopy(self.pin['oldOwnerIsolation'])) as audit:
+            result = self.check(None, collector)
+        reader.assert_called_once_with()
+        self.assertIs(result['oldOwnerIsolation']['callsiteTargetSource'], source)
+        self.assertIs(audit.call_args.args[3], source['expected'])
 
 
 class F05MainGates(F05Fixture):
@@ -5077,6 +5184,8 @@ class ExceptionStopTests(unittest.TestCase):
                 patch.object(m, 'external', return_value={}),
                 patch.object(m, 'collect_pair', return_value=plan['pin']),
                 patch.object(m, 'build_plan', return_value=plan), patch.object(m, 'validate_plan'),
+                # The HEAD/clean-tree gates have their own tests and probes; this fixture targets fault handling.
+                patch.object(m, 'execution_tree_gates'),
                 patch.object(a, 'process_alive'), patch.object(m, 'controls_at'), patch.object(m, 'phase_c_controls'),
                 patch.object(m, 'pre_send', side_effect=pre), patch.object(u, 'measure_step', side_effect=measure),
                 patch.object(u, 'fresh_gas', return_value={}), patch.object(u, 'receipt', side_effect=receipt),
@@ -5136,7 +5245,7 @@ class TargetReadTests(unittest.TestCase):
 
     def changed_rpc(self, signature, closing=False):
         base = self.rpc(passed=self.passed if closing else set())
-        value = m.isolation.callsite_target_expectations()[signature[:-2]]
+        value = self.plan['pin']['oldOwnerIsolation']['callsiteTargetSource']['expected'][signature[:-2]]
         wrong = value[:20] + ('ff' if value[20:22] != 'ff' else '00') + value[22:]
         def rpc(method, params):
             if method == 'eth_call':
@@ -5156,14 +5265,17 @@ class TargetReadTests(unittest.TestCase):
         for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
             rpc = self.changed_rpc(signature)
             for step in self.plan['steps']:
-                with self.subTest(signature=signature, step=step['id']), patch.object(m, 'handover_gate'):
+                with self.subTest(signature=signature, step=step['id']), patch.object(m, 'handover_gate'), \
+                     patch.object(m.isolation, 'callsite_target_source', side_effect=AssertionError('execution config read')):
                     self.gate('old_owner_role_callsite_target', lambda: m.pre_send(
                         rpc, self.plan, step, dict(passed=set())))
 
     def test_closing_target_change(self):
         for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
             with self.subTest(signature=signature):
-                self.gate('old_owner_role_callsite_target', lambda: self.closing(self.changed_rpc(signature, closing=True)))
+                rpc = self.changed_rpc(signature, closing=True)
+                with patch.object(m.isolation, 'callsite_target_source', side_effect=AssertionError('execution config read')):
+                    self.gate('old_owner_role_callsite_target', lambda: self.closing(rpc))
 
 
 class PrerequisiteCallTests(F05Fixture):
@@ -5185,22 +5297,92 @@ class PrerequisiteCallTests(F05Fixture):
 
 
 class DiscoveryCallTests(unittest.TestCase):
-    """Deletion controls bind each caller to its named behavioral gate above."""
-    pass
+    """Behavioural caller controls; remaining source-only controls are marked below."""
+    setUpClass = classmethod(DiscoveryTests.setUpClass.__func__)
+    setUp = DiscoveryTests.setUp
+    rpc = DiscoveryTests.rpc
+    closing = DiscoveryTests.closing
 
+    def pre(self, rpc):
+        # Complete the unrelated continuation so removing a check reaches return.
+        self.pin['oldActivity']['dvtProposals'] = []
+        step = dict(id='discovery.control', tx=dict(from_=u.DEPLOYER, nonce='0x0'), safeNonce=0)
+        step['tx']['from'] = step['tx'].pop('from_')
+        real_call, real_address, real_code, real_word = a.call, a.address, u.code, a.word
+        def call(r, target, sig, *args, block=None):
+            if block is not None:
+                return real_call(r, target, sig, *args, block=block)
+            if sig == 'getRoleConfig(bytes32)': return self.pin['roleConfig']
+            return real_call(r, target, sig, *args, block=self.block)
+        def address(r, target, sig, block=None):
+            if block is not None: return real_address(r, target, sig, block)
+            if sig == 'owner()': return u.TL if target == u.REG else u.DEPLOYER
+            return real_address(r, target, sig, self.block)
+        def complete(method, params):
+            if method == 'eth_chainId': return hex(a.CHAIN)
+            return rpc(method, params)
+        complete.local = True
+        with contextlib.ExitStack() as stack:
+            for item in (
+                patch.object(m, 'handover_gate'),
+                patch.object(a, 'nonce', return_value=0),
+                patch.object(a, 'word', side_effect=lambda r,t,s,*args,**kw: 0 if s == 'nonce()' else real_word(r,t,s,*args,**kw)),
+                patch.object(a, 'call', side_effect=call),
+                patch.object(a, 'address', side_effect=address),
+                patch.object(u, 'safe_state', return_value=self.pin['safe']),
+                patch.object(u, 'governance'),
+                patch.object(u, 'code', side_effect=lambda r,t,b='latest': self.pin['bindings'][t] if b == 'latest' else real_code(r,t,b)),
+                patch.object(m, 'unchanged_old_activity'),
+                patch.object(m, 'dvt_activity', return_value=self.pin['oldActivity']['dvtProposals']),
+            ): stack.enter_context(item)
+            return m.pre_send(complete, self.plan, step, dict(passed=self.passed, activated=True))
 
+    def check_authority(self, closing=False):
+        factory = self.plan['addresses']['xPNTsFactoryV2']
+        rpc = self.rpc(bad=(factory, 'owner()', [], int(m.isolation.OLD, 16)))
+        with assert_stop(self, 'discovery_old_authority'):
+            (self.closing if closing else self.pre)(rpc)
+
+    def check_owner(self, closing=False):
+        token = a.create_address(self.plan['addresses']['xPNTsFactoryV2'], 1)
+        # A newly discovered token must reject the former owner.
+        rpc = self.rpc(bad=(token, 'communityOwner()', [], int(m.isolation.OLD, 16)))
+        with assert_stop(self, 'old_owner_xpnts_owner_recheck'):
+            (self.closing if closing else self.pre)(rpc)
+
+    def check_allowance(self, closing=False):
+        token = self.pin['oldOwnerIsolation']['xpnts'][0]
+        rpc = self.rpc(bad=(token, 'allowance(address,address)', [u.DEPLOYER, m.isolation.OLD_TIMELOCK], 1))
+        with assert_stop(self, 'old_timelock_allowance'):
+            (self.closing if closing else self.pre)(rpc)
+
+    def test_call_9(self): self.check_authority(closing=True)
+    def test_call_12(self): self.check_authority()
+    def test_call_13(self): self.check_owner()
+    def test_call_14(self): self.check_owner(closing=True)
+    def test_call_21(self): self.check_allowance()
+    def test_call_22(self): self.check_allowance(closing=True)
+
+    def test_clean_callers_accept(self):
+        self.assertEqual(self.pre(self.rpc())['from'], u.DEPLOYER)
+        self.assertEqual(self.closing(self.rpc())['block'], self.block)
+
+# Retained pending controls: these are source inventory checks, not behavioural
+# acceptance evidence. Do not count them toward item D completion.
 def discovery_call_test(function, expression, gate):
     def test(self):
         source = Path(m.__file__).read_text()
         tree = ast.parse(source)
-        fn = next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name == function)
-        sites = [n for n in ast.walk(fn) if isinstance(n,ast.Call) and ast.get_source_segment(source,n) == expression]
-        self.assertEqual(len(sites),1,gate)
+        fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == function)
+        sites = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and ast.get_source_segment(source, n) == expression]
+        self.assertEqual(len(sites), 1, gate)
     return test
 
 
 for _i, (_function, _expression, _gate) in enumerate(DISCOVERY_CALLS):
-    setattr(DiscoveryCallTests,'test_call_'+str(_i),discovery_call_test(_function,_expression,_gate))
+    if not hasattr(DiscoveryCallTests, 'test_call_' + str(_i)):
+        setattr(DiscoveryCallTests, 'test_call_' + str(_i), discovery_call_test(_function, _expression, _gate))
+
 
 if __name__ == '__main__':
     unittest.main()
