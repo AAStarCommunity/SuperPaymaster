@@ -374,6 +374,9 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     function test_Withdraw_DecreasesAPNTsBalance() public {
         uint128 before = _getAPNTsBalance(operator);
         vm.prank(operator);
+        sp.requestWithdraw(500 ether);
+        vm.warp(block.timestamp + sp.OPERATOR_WITHDRAWAL_DELAY());
+        vm.prank(operator);
         sp.withdraw(500 ether);
         assertEq(before - _getAPNTsBalance(operator), 500 ether, "withdraw must decrease aPNTsBalance");
     }

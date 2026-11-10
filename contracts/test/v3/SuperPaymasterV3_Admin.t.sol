@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -28,10 +28,11 @@ contract MockEntryPoint {
  */
 contract MockPriceFeed {
     int256 public price = 2000 * 1e8;
-    
+
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, 2000e8, 0, block.timestamp, 1); // $2000
     }
+
     function decimals() external pure returns (uint8) {
         return 8;
     }
@@ -42,7 +43,7 @@ contract MockPriceFeed {
  */
 contract MockAPNTs is ERC20 {
     constructor() ERC20("AAStar Points", "aPNTs") {}
-    
+
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
@@ -67,44 +68,50 @@ contract SuperPaymaster_Admin_Test is Test {
     address public treasury = address(0x2);
     address public operator1 = address(0x3);
     address public user1 = address(0x5);
-    
+
     bytes32 public constant ROLE_PAYMASTER_SUPER = keccak256("PAYMASTER_SUPER");
     bytes32 public constant ROLE_COMMUNITY = keccak256("COMMUNITY");
-    
+
     function setUp() public {
         vm.startPrank(owner);
-        
+
         gtoken = new GToken(21_000_000 ether);
         entryPoint = new MockEntryPoint();
         priceFeed = new MockPriceFeed();
         apnts = new MockAPNTs();
-        
+
         address mockStaking = address(0x999);
         address mockSBT = address(0x888);
         registry = UUPSDeployHelper.deployRegistryProxy(owner, mockStaking, mockSBT);
 
-        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(priceFeed), owner, address(apnts), treasury, 3600);
-        
+        paymaster = UUPSDeployHelper.deploySuperPaymasterProxy(
+            IEntryPoint(address(entryPoint)),
+            IRegistry(address(registry)),
+            address(priceFeed),
+            owner,
+            address(apnts),
+            treasury,
+            3600
+        );
+
         // Fix: Update Price Cache (Warp to permit update)
         vm.warp(block.timestamp + 2 hours);
         paymaster.updatePrice();
-        
+
         // Use stdstore to set hasRole[ROLE_PAYMASTER_SUPER][operator1] = true
-        stdstore
-            .target(address(registry))
-            .sig("hasRole(bytes32,address)")
-            .with_key(ROLE_PAYMASTER_SUPER)
-            .with_key(operator1)
-            .checked_write(true);
+        stdstore.target(address(registry)).sig("hasRole(bytes32,address)").with_key(ROLE_PAYMASTER_SUPER)
+            .with_key(operator1).checked_write(true);
+
+        vm.mockCall(
+            mockStaking,
+            abi.encodeWithSignature("getLockedStake(address,bytes32)", operator1, ROLE_PAYMASTER_SUPER),
+            abi.encode(type(uint256).max)
+        );
 
         // Also set hasRole[ROLE_COMMUNITY][operator1] = true (Must be community to be paymaster)
-        stdstore
-            .target(address(registry))
-            .sig("hasRole(bytes32,address)")
-            .with_key(ROLE_COMMUNITY)
-            .with_key(operator1)
+        stdstore.target(address(registry)).sig("hasRole(bytes32,address)").with_key(ROLE_COMMUNITY).with_key(operator1)
             .checked_write(true);
-        
+
         apnts.mint(operator1, 10000 ether);
 
         // Deploy mock factory (P1-4 fix); operator1's token is bound below.
@@ -168,6 +175,21 @@ contract SuperPaymaster_Admin_Test is Test {
         assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
     }
 
+    function test_SetAPNTSPrice_NonDivisibleLowerBoundaryIsExact() public {
+        uint256 refPrice = 20_000_000_000_000_001;
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(refPrice);
+
+        uint256 exactLower = 18_000_000_000_000_001;
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        paymaster.setAPNTSPrice(exactLower - 1);
+
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(exactLower);
+        assertEq(paymaster.aPNTsPriceUSD(), exactLower, "ceil(90% reference) is accepted");
+    }
+
     function test_SetAPNTSPrice_OnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
@@ -177,7 +199,7 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_SetProtocolFee() public {
         vm.prank(owner);
         paymaster.setProtocolFee(500);
-        
+
         assertEq(paymaster.protocolFeeBPS(), 500);
     }
 
@@ -189,10 +211,10 @@ contract SuperPaymaster_Admin_Test is Test {
 
     function test_SetTreasury() public {
         address newTreasury = address(0x666);
-        
+
         vm.prank(owner);
         paymaster.setTreasury(newTreasury);
-        
+
         assertEq(paymaster.treasury(), newTreasury);
     }
 
@@ -205,7 +227,7 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_SetOperatorPaused() public {
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
-        
+
         (, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
     }
@@ -219,7 +241,7 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_SetOperatorPause() public {
         vm.prank(owner);
         paymaster.setOperatorPaused(operator1, true);
-        
+
         (, bool isConfigured, bool isPaused,,,,,,) = paymaster.operators(operator1);
         assertTrue(isPaused);
     }
@@ -240,7 +262,7 @@ contract SuperPaymaster_Admin_Test is Test {
         vm.prank(operator1);
         paymaster.configureOperator(address(v2Token), opTreasury);
 
-        (, bool isConfigured, bool isPaused, address token,,, address treas, , ) = paymaster.operators(operator1);
+        (, bool isConfigured, bool isPaused, address token,,, address treas,,) = paymaster.operators(operator1);
         assertTrue(isConfigured);
         assertEq(token, address(v2Token));
         assertEq(treas, opTreasury);
@@ -276,10 +298,10 @@ contract SuperPaymaster_Admin_Test is Test {
 
     function test_Deposit_Success() public {
         uint256 depositAmount = 100 ether;
-        
+
         vm.prank(operator1);
         paymaster.deposit(depositAmount);
-        
+
         (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, depositAmount);
     }
@@ -293,15 +315,18 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_Withdraw_Success() public {
         vm.prank(operator1);
         paymaster.deposit(100 ether);
-        
+
         uint256 balanceBefore = apnts.balanceOf(operator1);
-        
+
+        vm.prank(operator1);
+        paymaster.requestWithdraw(50 ether);
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
         vm.prank(operator1);
         paymaster.withdraw(50 ether);
-        
+
         uint256 balanceAfter = apnts.balanceOf(operator1);
         assertEq(balanceAfter - balanceBefore, 50 ether);
-        
+
         (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, 50 ether);
     }
@@ -309,10 +334,12 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_Withdraw_InsufficientBalance() public {
         vm.prank(operator1);
         paymaster.deposit(100 ether);
-        
+
         vm.prank(operator1);
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.InsufficientBalance.selector, 100 ether, 200 ether));
-        paymaster.withdraw(200 ether);
+        vm.expectRevert(
+            abi.encodeWithSelector(SuperPaymasterStorage.InsufficientBalance.selector, 100 ether, 200 ether)
+        );
+        paymaster.requestWithdraw(200 ether);
     }
 
     // ====================================
@@ -322,7 +349,7 @@ contract SuperPaymaster_Admin_Test is Test {
     function test_UpdateReputation() public {
         vm.prank(owner);
         paymaster.updateReputation(operator1, 500);
-        
+
         (,,,, uint32 reputation,,,,) = paymaster.operators(operator1);
         assertEq(reputation, 500);
     }
@@ -345,28 +372,18 @@ contract SuperPaymaster_Admin_Test is Test {
         vm.prank(owner);
         paymaster.queueSlash(operator1);
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "Test slash"
-        );
-        
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "Test slash");
+
         (uint128 aPNTsBalance,,,,,,,,) = paymaster.operators(operator1);
         assertEq(aPNTsBalance, 990 ether);
-        
+
         assertEq(paymaster.getSlashCount(operator1), 1);
     }
 
     function test_SlashOperator_OnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "Test"
-        );
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "Test");
     }
 
     // ====================================
@@ -381,13 +398,8 @@ contract SuperPaymaster_Admin_Test is Test {
         vm.prank(owner);
         paymaster.queueSlash(operator1);
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "First slash"
-        );
-        
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "First slash");
+
         ISuperPaymaster.SlashRecord[] memory history = paymaster.getSlashHistory(operator1);
         assertEq(history.length, 1);
         assertEq(history[0].amount, 10 ether);
@@ -403,13 +415,8 @@ contract SuperPaymaster_Admin_Test is Test {
         vm.prank(owner);
         paymaster.queueSlash(operator1);
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "Test"
-        );
-        
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "Test");
+
         assertEq(paymaster.getSlashCount(operator1), 1);
     }
 
@@ -421,13 +428,8 @@ contract SuperPaymaster_Admin_Test is Test {
         vm.prank(owner);
         paymaster.queueSlash(operator1);
         vm.prank(owner);
-        paymaster.slashOperator(
-            operator1,
-            ISuperPaymaster.SlashLevel.MINOR,
-            10 ether,
-            "Latest slash"
-        );
-        
+        paymaster.slashOperator(operator1, ISuperPaymaster.SlashLevel.MINOR, 10 ether, "Latest slash");
+
         ISuperPaymaster.SlashRecord memory latest = paymaster.getLatestSlash(operator1);
         assertEq(latest.amount, 10 ether);
         assertEq(latest.reason, "Latest slash");

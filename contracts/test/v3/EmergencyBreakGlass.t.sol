@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -30,20 +30,39 @@ contract MockOracleEBG {
     int256 public price = 2000e8;
     uint256 public updatedAt;
     bool public reverts;
-    constructor() { updatedAt = block.timestamp; }
-    function setPrice(int256 p) external { price = p; }
-    function setUpdatedAt(uint256 t) external { updatedAt = t; }
-    function setReverts(bool r) external { reverts = r; }
+
+    constructor() {
+        updatedAt = block.timestamp;
+    }
+
+    function setPrice(int256 p) external {
+        price = p;
+    }
+
+    function setUpdatedAt(uint256 t) external {
+        updatedAt = t;
+    }
+
+    function setReverts(bool r) external {
+        reverts = r;
+    }
+
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         if (reverts) revert("oracle down");
         return (1, price, 0, updatedAt, 1);
     }
-    function decimals() external pure returns (uint8) { return 8; }
+
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
 }
 
 contract MockTokenEBG is ERC20 {
     constructor() ERC20("aPNTs", "aPNTs") {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 contract EmergencyBreakGlassTest is Test {
@@ -51,6 +70,7 @@ contract EmergencyBreakGlassTest is Test {
     MockOracleEBG oracle;
     address owner = address(0xABCD);
     address attacker = address(0xBAD);
+    address blsAggregator = address(0xB15);
 
     function setUp() public {
         // Warp away from genesis so `block.timestamp - 2 hours` doesn't
@@ -126,6 +146,23 @@ contract EmergencyBreakGlassTest is Test {
         vm.prank(owner);
         paymaster.emergencySetPrice(2400e8);
         assertEq(paymaster.emergencyPendingPrice(), 2400e8);
+    }
+
+    function test_EmergencySetPrice_NonDivisibleLowerBoundaryIsExact() public {
+        int256 refPrice = 20_000_000_001;
+        oracle.setPrice(refPrice);
+        oracle.setUpdatedAt(block.timestamp);
+        paymaster.updatePrice();
+        oracle.setUpdatedAt(block.timestamp - 2 hours);
+
+        int256 exactLower = 16_000_000_001;
+        vm.prank(owner);
+        paymaster.emergencySetPrice(exactLower);
+        assertEq(paymaster.emergencyPendingPrice(), exactLower, "ceil(80% reference) is accepted");
+
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymasterStorage.EmergencyPriceOutOfRange.selector);
+        paymaster.emergencySetPrice(exactLower - 1);
     }
 
     function test_EmergencySetPrice_OpensWhenOracleReverts() public {
@@ -373,5 +410,112 @@ contract EmergencyBreakGlassTest is Test {
 
         // Step 4: emergencyActivatedAt must be reset.
         assertEq(paymaster.emergencyActivatedAt(), 0, "emergencyActivatedAt should be reset to 0");
+    }
+
+    function test_UpdatePriceDVT_BLSRejectsAboveCapAndAcceptsExactCap() public {
+        vm.prank(owner);
+        paymaster.initBLSAggregator(blsAggregator);
+        oracle.setReverts(true);
+
+        (, uint256 initialUpdatedAt,,) = paymaster.cachedPrice();
+
+        vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+        vm.prank(blsAggregator);
+        paymaster.updatePriceDVT(2400e8 + 1, initialUpdatedAt + 1, "", 0);
+
+        vm.prank(blsAggregator);
+        paymaster.updatePriceDVT(2400e8, initialUpdatedAt + 1, "", 0);
+
+        (int256 cachedPrice,,,) = paymaster.cachedPrice();
+        assertEq(cachedPrice, 2400e8);
+    }
+
+    function test_UpdatePriceDVT_FreshChainlinkDeviationIsExactForOwnerAndBLS() public {
+        vm.prank(owner);
+        paymaster.initBLSAggregator(blsAggregator);
+
+        address[2] memory callers = [owner, blsAggregator];
+        for (uint256 i; i < callers.length; ++i) {
+            uint256 dvtTimestamp = _resetFreshChainlinkPrice(1000e8);
+            vm.prank(callers[i]);
+            paymaster.updatePriceDVT(1200e8, dvtTimestamp, "", 0);
+
+            dvtTimestamp = _resetFreshChainlinkPrice(1000e8);
+            vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+            vm.prank(callers[i]);
+            paymaster.updatePriceDVT(1200e8 + 1, dvtTimestamp, "", 0);
+
+            dvtTimestamp = _resetFreshChainlinkPrice(1000e8);
+            vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+            vm.prank(callers[i]);
+            paymaster.updatePriceDVT(1209e8, dvtTimestamp, "", 0);
+        }
+    }
+
+    function test_UpdatePriceDVT_OwnerPrecedesOverlappingBLSRole() public {
+        vm.prank(owner);
+        paymaster.initBLSAggregator(owner);
+        oracle.setReverts(true);
+
+        (, uint256 initialUpdatedAt,,) = paymaster.cachedPrice();
+        vm.prank(owner);
+        paymaster.updatePriceDVT(100e8, initialUpdatedAt + 1, "", 0);
+
+        (int256 cachedPrice,,,) = paymaster.cachedPrice();
+        assertEq(cachedPrice, 100e8, "owner remains uncapped when also configured as BLS");
+    }
+
+    function _resetFreshChainlinkPrice(int256 price) internal returns (uint256 dvtTimestamp) {
+        uint256 oracleTimestamp = vm.getBlockTimestamp() + 1;
+        vm.warp(oracleTimestamp);
+        oracle.setPrice(price);
+        oracle.setUpdatedAt(oracleTimestamp);
+        paymaster.updatePrice();
+        dvtTimestamp = oracleTimestamp + 1;
+        vm.warp(dvtTimestamp);
+    }
+
+    function test_UpdatePriceDVT_OwnerMovesMaxToMinInOneCall() public {
+        int256 minPrice = 100e8;
+        int256 maxPrice = 100_000e8;
+
+        oracle.setPrice(maxPrice);
+        oracle.setUpdatedAt(block.timestamp);
+        paymaster.updatePrice();
+        (int256 cachedAtMax, uint256 maxUpdatedAt,,) = paymaster.cachedPrice();
+        assertEq(cachedAtMax, maxPrice);
+
+        oracle.setReverts(true);
+        vm.warp(block.timestamp + 1);
+        vm.prank(owner);
+        paymaster.updatePriceDVT(minPrice, maxUpdatedAt + 1, "", 0);
+
+        (int256 cachedAtMin,,,) = paymaster.cachedPrice();
+        assertEq(cachedAtMin, minPrice);
+    }
+
+    function test_UpdatePriceDVT_BothCallersRejectBoundsAndNonIncreasingTimestamp() public {
+        int256 minPrice = 100e8;
+        int256 maxPrice = 100_000e8;
+
+        vm.prank(owner);
+        paymaster.initBLSAggregator(blsAggregator);
+        oracle.setReverts(true);
+
+        (, uint256 initialUpdatedAt,,) = paymaster.cachedPrice();
+        address[2] memory callers = [owner, blsAggregator];
+        for (uint256 i; i < callers.length; ++i) {
+            vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+            vm.prank(callers[i]);
+            paymaster.updatePriceDVT(maxPrice + 1, initialUpdatedAt + 1, "", 0);
+
+            vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+            vm.prank(callers[i]);
+            paymaster.updatePriceDVT(minPrice - 1, initialUpdatedAt + 1, "", 0);
+
+            vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+            vm.prank(callers[i]);
+            paymaster.updatePriceDVT(2000e8, initialUpdatedAt, "", 0);
+        }
     }
 }

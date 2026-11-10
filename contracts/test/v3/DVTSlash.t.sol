@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -44,7 +44,7 @@ contract DVTSlashTest is Test {
         // Wire into Registry
         registry.setStaking(address(staking));
         registry.setMySBT(address(sbt));
-        
+
         // Define new variables for the SuperPaymaster constructor
         address entryPoint = address(0x123); // Dummy non-zero address
         address oracle = address(0); // No price feed needed, so address(0)
@@ -63,10 +63,10 @@ contract DVTSlashTest is Test {
         vm.warp(block.timestamp + 24 hours + 1);
         paymaster.applyBLSAggregator();
         staking.setAuthorizedSlasher(dvtAggregator, true);
-        
+
         // Initialize reputation
         paymaster.updateReputation(operator, 100);
-        
+
         gtoken.mint(operator, 1000000 ether);
         vm.stopPrank();
     }
@@ -96,14 +96,9 @@ contract DVTSlashTest is Test {
         // 1. Register Operator
         vm.startPrank(operator);
         gtoken.approve(address(staking), 100 ether);
-        
-        bytes memory commData = abi.encode(
-            Registry.CommunityRoleData({
-                name: "OpComm",
-                ensName: "",
-                stakeAmount: 30 ether
-            })
-        );
+
+        bytes memory commData =
+            abi.encode(Registry.CommunityRoleData({name: "OpComm", ensName: "", stakeAmount: 30 ether}));
         registry.registerRole(keccak256("COMMUNITY"), operator, commData);
 
         bytes memory roleData = abi.encode(uint256(50 ether));
@@ -117,38 +112,29 @@ contract DVTSlashTest is Test {
         // HIGH-1: queue slash first (BLS_AGGREGATOR can call queueSlash)
         vm.startPrank(dvtAggregator);
         paymaster.queueSlash(operator);
-        paymaster.executeSlashWithBLS(
-            operator,
-            ISuperPaymaster.SlashLevel.MINOR,
-            "Tier 1 Penalty"
-        );
-        
+        paymaster.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "Tier 1 Penalty");
+
         // Verify rep loss (assuming starting rep is 100, MINOR loss is 20)
         (,,,, uint32 reputation,,,,) = paymaster.operators(operator);
         assertEq(reputation, 80);
 
         // 3. Perform Tier 2 Slash (GToken Stake) via GTokenStaking
-        staking.slashByDVT(
-            operator,
-            ROLE_PAYMASTER_SUPER,
-            10 ether,
-            "Tier 2 Penalty"
-        );
-        
+        staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 10 ether, "Tier 2 Penalty");
+
         // Verify GToken balance reduced (50 - 10 = 40)
         assertEq(staking.balanceOf(operator), 40 ether);
         assertEq(staking.totalStaked(), 40 ether);
-        
+
         vm.stopPrank();
     }
 
     function test_SlashByDVT_Unauthorized_Reverts() public {
         address hacker = address(0x1337);
         vm.startPrank(hacker);
-        
+
         vm.expectRevert(abi.encodeWithSelector(GTokenStaking.NotAuthorizedSlasher.selector));
         staking.slashByDVT(operator, ROLE_PAYMASTER_SUPER, 1 ether, "Hacked");
-        
+
         vm.stopPrank();
     }
 
@@ -169,9 +155,8 @@ contract DVTSlashTest is Test {
     function _registerOperatorForSlash() internal {
         vm.startPrank(operator);
         gtoken.approve(address(staking), 100 ether);
-        bytes memory commData = abi.encode(
-            Registry.CommunityRoleData({ name: "OpComm", ensName: "", stakeAmount: 30 ether })
-        );
+        bytes memory commData =
+            abi.encode(Registry.CommunityRoleData({name: "OpComm", ensName: "", stakeAmount: 30 ether}));
         registry.registerRole(keccak256("COMMUNITY"), operator, commData);
         bytes memory roleData = abi.encode(uint256(50 ether));
         registry.registerRole(ROLE_PAYMASTER_SUPER, operator, roleData);
@@ -340,6 +325,32 @@ contract DVTSlashTest is Test {
         vm.prank(owner);
         paymaster.queueSlash(operator);
         assertTrue(paymaster.isSlashPending(operator), "owner queue not blocked by floor");
+    }
+
+    function test_QueueSlash_OwnerPrecedenceWhenOwnerIsBlsAggregator() public {
+        vm.startPrank(owner);
+        paymaster.setGuardian(dao);
+        paymaster.primeBlsSlashCooldown();
+        paymaster.transferOwnership(dvtAggregator);
+        vm.stopPrank();
+
+        vm.prank(dvtAggregator);
+        paymaster.acceptOwnership();
+
+        vm.prank(dao);
+        paymaster.queueSlash(operator);
+        (address guardianActor, uint48 guardianQueuedAt, bool guardianQueued) = paymaster.slashQueues(operator);
+        assertEq(guardianActor, dao);
+        assertTrue(guardianQueued);
+
+        vm.warp(block.timestamp + 1);
+        vm.prank(dvtAggregator);
+        paymaster.queueSlash(operator);
+
+        (address actor, uint48 queuedAt, bool byGuardian) = paymaster.slashQueues(operator);
+        assertEq(actor, dvtAggregator, "overlapping owner/BLS uses owner precedence");
+        assertEq(queuedAt, guardianQueuedAt + 1, "owner overwrites queue time");
+        assertFalse(byGuardian, "owner overwrites guardian provenance");
     }
 
     /// @dev primeBlsSlashCooldown is owner-only.

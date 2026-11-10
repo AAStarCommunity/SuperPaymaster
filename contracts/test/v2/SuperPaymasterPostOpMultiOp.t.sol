@@ -22,7 +22,7 @@ contract PostOpMultiOpTest is PostOpProfileFixture {
     function setUp() public override {
         count = vm.envOr("MULTI_N", uint256(2));
         pattern = vm.envOr("MULTI_PATTERN", uint256(0));
-        distinct = vm.envOr("MULTI_DISTINCT", false);
+        distinct = vm.envOr("MULTI_DISTINCT", true);
         require((count == 2 || count == 3 || count == 5) && pattern < 4);
         fresh(true, false);
         target = new V55FuzzTarget();

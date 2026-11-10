@@ -60,6 +60,7 @@ contract MockRegistry {
             roleLockDuration: 0
         });
     }
+    function getEffectiveStake(address, bytes32) external pure returns (uint256) { return 0; }
 }
 
 /**

@@ -7,8 +7,11 @@ import "src/interfaces/IVersioned.sol";
  * @notice Interface for SuperPaymaster V3 with per-operator configuration
  */
 interface ISuperPaymaster is IVersioned {
-    
-    enum SlashLevel { WARNING, MINOR, MAJOR }
+    enum SlashLevel {
+        WARNING,
+        MINOR,
+        MAJOR
+    }
 
     struct OperatorConfig {
         // Slot 0: HOT (Validation Critical)
@@ -19,14 +22,14 @@ interface ISuperPaymaster is IVersioned {
         // isConfigured at byte 16 = old exchangeRate LSByte (e.g. 1e18 LSByte = 0x00 → false).
         // All operators would appear unconfigured.  In-place UUPS upgrade from v5.3.2 is NOT SAFE.
         // All affected deployments must be redeployed.  Sepolia was redeployed in PR #196.
-        uint128 aPNTsBalance;   // Cap: ~3.4e38 (Enough for 18 decimals)
+        uint128 aPNTsBalance; // Cap: ~3.4e38 (Enough for 18 decimals)
         bool isConfigured;
         bool isPaused;
 
         // Slot 1: WARM
         address xPNTsToken;
-        uint32 reputation;      // Max 4 billion
-        uint48 minTxInterval;   // Min interval between user ops
+        uint32 reputation; // Max 4 billion
+        uint48 minTxInterval; // Min interval between user ops
 
         // Slot 2: COLD
         address treasury;
@@ -76,10 +79,16 @@ interface ISuperPaymaster is IVersioned {
      */
     function depositFor(address targetOperator, uint256 amount) external;
 
+    function requestWithdraw(uint256 amount) external;
+
+    function cancelWithdraw() external;
+
     /**
      * @notice Withdraw aPNTs collateral
      */
     function withdraw(uint256 amount) external;
+
+    function pauseUnderstakedOperator(address operator) external;
 
     /**
      * @notice Get operator credit limit for a user
@@ -92,26 +101,29 @@ interface ISuperPaymaster is IVersioned {
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external;
 
     /**
-     * @notice Whether an operator currently has a slash queued (withdraw-blocking flag set).
-     * @dev O(1) authoritative read used by DVT peer-failover to detect a queued-but-unexecuted
-     *      slash without reconstructing state from events.
+     * @notice Whether an operator currently has an effective withdrawal-blocking slash status.
+     * @dev An expired guardian freeze returns false even though its unresolved provenance remains
+     *      available from slashQueues. O(1) authoritative read used by DVT peer-failover.
      */
     function isSlashPending(address operator) external view returns (bool);
 
     /**
      * @notice Get operator configuration
      */
-    function operators(address operator) external view returns (
-        uint128 aPNTsBalance,
-        bool isConfigured,
-        bool isPaused,
-        address xPNTsToken,
-        uint32 reputation,
-        uint48 minTxInterval,
-        address treasury,
-        uint256 totalSpent,
-        uint256 totalTxSponsored
-    );
+    function operators(address operator)
+        external
+        view
+        returns (
+            uint128 aPNTsBalance,
+            bool isConfigured,
+            bool isPaused,
+            address xPNTsToken,
+            uint32 reputation,
+            uint48 minTxInterval,
+            address treasury,
+            uint256 totalSpent,
+            uint256 totalTxSponsored
+        );
 
     function updateBlockedStatus(address operator, address[] calldata users, bool[] calldata statuses) external;
 
@@ -119,5 +131,4 @@ interface ISuperPaymaster is IVersioned {
 
     // V5.3: Dual-channel eligibility
     function isEligibleForSponsorship(address user) external view returns (bool);
-
 }

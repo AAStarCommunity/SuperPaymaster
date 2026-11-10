@@ -25,6 +25,9 @@ contract MockRegistrySec {
     function hasRole(bytes32 role, address account) external view returns (bool) {
         return roles[role][account];
     }
+
+    function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory config) { config.minStake = 0; }
+    function getEffectiveStake(address, bytes32) external pure returns (uint256) { return 0; }
     
     // Allow test to grant roles
     function grantRole(bytes32 role, address account) external {

@@ -170,6 +170,10 @@ contract SuperPaymasterFundHandler is Test {
         uint128 bal = _balanceOf(op);
         if (bal == 0) return;
         amount = bound(amount, 0, bal);
+        if (amount == 0) return;
+        vm.prank(op);
+        paymaster.requestWithdraw(amount);
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
         vm.prank(op);
         paymaster.withdraw(amount);
     }

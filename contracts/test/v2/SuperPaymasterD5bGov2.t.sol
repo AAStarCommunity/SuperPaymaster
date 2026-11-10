@@ -3,9 +3,9 @@ pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
-import { SuperPaymasterLens } from "src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol";
-import { Ownable2StepNamespaced } from "src/utils/Ownable2StepNamespaced.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterLens} from "src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol";
+import {Ownable2StepNamespaced} from "src/utils/Ownable2StepNamespaced.sol";
 import "src/core/Registry.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "@account-abstraction-v7/core/EntryPoint.sol";
@@ -13,16 +13,16 @@ import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { TimelockController } from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
-import { UUPSDeployHelper } from "../helpers/UUPSDeployHelper.sol";
-import { AOAProtocolRegistry } from "src/tokens/v2/AOAProtocolRegistry.sol";
-import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
-import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
-import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
-import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
-import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
-import { MockAgentIdentityRegistry } from "src/mocks/MockAgentIdentityRegistry.sol";
-import { V55Registry, V55PriceFeed, V55APNTs, IV2Ext } from "../helpers/V55TestFixtures.sol";
+import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {AOAProtocolRegistry} from "src/tokens/v2/AOAProtocolRegistry.sol";
+import {GlobalTierSource} from "src/tokens/v2/GlobalTierSource.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsTokenV2Ext} from "src/tokens/v2/xPNTsTokenV2Ext.sol";
+import {xPNTsFactoryV2} from "src/tokens/v2/xPNTsFactoryV2.sol";
+import {IxPNTsTokenV2} from "src/tokens/v2/IxPNTsTokenV2.sol";
+import {MockAgentIdentityRegistry} from "src/mocks/MockAgentIdentityRegistry.sol";
+import {V55Registry, V55PriceFeed, V55APNTs, IV2Ext} from "../helpers/V55TestFixtures.sol";
 
 using SuperPaymasterAdminCalls for SuperPaymaster;
 
@@ -65,7 +65,7 @@ contract SuperPaymasterD5bGov2Test is Test {
     bytes32 constant IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     /// @dev guardian (20 B) + paused (1 B) share this sequential slot (allowed append, storage-layout/).
     uint256 constant GOV2_SLOT = 40;
-    uint256 constant SP_LAYOUT_END = 65;       // first slot after SP's __gap (unchanged by D5b)
+    uint256 constant SP_LAYOUT_END = 65; // first slot after SP's __gap (unchanged by D5b)
     uint256 constant REGISTRY_LAYOUT_END = 74; // first slot after Registry's __gap
     uint256 constant CACHED_PRICE_SLOT = 10;
 
@@ -82,7 +82,13 @@ contract SuperPaymasterD5bGov2Test is Test {
         apnts = new V55APNTs();
         feed = new V55PriceFeed();
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(
-            IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed), owner, address(apnts), treasury, 3600
+            IEntryPoint(address(entryPoint)),
+            IRegistry(address(registry)),
+            address(feed),
+            owner,
+            address(apnts),
+            treasury,
+            3600
         );
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
@@ -90,7 +96,9 @@ contract SuperPaymasterD5bGov2Test is Test {
         aoa.bootstrapApprove(aoa.KIND_TIER_SOURCE(), address(tier).codehash);
         aoa.seal();
         xPNTsTokenV2Ext text = new xPNTsTokenV2Ext(address(aoa));
-        factory = new xPNTsFactoryV2(address(sp), address(registry), address(new xPNTsTokenV2(address(aoa), address(text))), address(tier));
+        factory = new xPNTsFactoryV2(
+            address(sp), address(registry), address(new xPNTsTokenV2(address(aoa), address(text))), address(tier)
+        );
         sp.setXPNTsFactory(address(factory));
         lens = new SuperPaymasterLens();
         vm.warp(block.timestamp + 2 hours);
@@ -142,7 +150,9 @@ contract SuperPaymasterD5bGov2Test is Test {
 
     function _rawSlots(address a, uint256 n) internal view returns (bytes32[] memory out) {
         out = new bytes32[](n);
-        for (uint256 i; i < n; i++) out[i] = vm.load(a, bytes32(i));
+        for (uint256 i; i < n; i++) {
+            out[i] = vm.load(a, bytes32(i));
+        }
     }
 
     function _registryProxy(address o) internal returns (Registry r) {
@@ -220,7 +230,8 @@ contract SuperPaymasterD5bGov2Test is Test {
     /// @notice B.3: `initialize` goes through _transferOwnership → a nomination planted before
     ///         initialisation is cleared (every owner-changing path voids a stale nomination).
     function test_gov2_sp_initialize_clears_stale_nomination() public {
-        SuperPaymaster impl = new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed));
+        SuperPaymaster impl =
+            new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed));
         address proxy = address(new ERC1967Proxy(address(impl), ""));
         vm.store(proxy, _pendingSlot(), bytes32(uint256(uint160(stranger))));
         assertEq(SuperPaymaster(payable(proxy)).pendingOwner(), stranger, "precondition: stale nomination");
@@ -232,9 +243,12 @@ contract SuperPaymasterD5bGov2Test is Test {
     }
 
     function test_gov2_sp_initialize_rejects_zero_owner() public {
-        SuperPaymaster impl = new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed));
+        SuperPaymaster impl =
+            new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed));
         vm.expectRevert(SuperPaymasterStorage.InvalidOwner.selector);
-        new ERC1967Proxy(address(impl), abi.encodeCall(SuperPaymaster.initialize, (address(0), address(apnts), treasury, 3600)));
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(SuperPaymaster.initialize, (address(0), address(apnts), treasury, 3600))
+        );
     }
 
     function test_gov2_sp_renounce_always_reverts() public {
@@ -250,13 +264,23 @@ contract SuperPaymasterD5bGov2Test is Test {
     /// @notice GOV-2 D: the ERC-7201 slot's POSITION (derived here from the namespace string) and
     ///         CONTENT, and that a nomination writes nothing in the sequential layout [0, end).
     function test_gov2_sp_pendingOwner_erc7201_slot() public {
-        assertEq(_pendingSlot(), bytes32(0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00), "slot constant == formula");
+        assertEq(
+            _pendingSlot(),
+            bytes32(0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00),
+            "slot constant == formula"
+        );
         bytes32[] memory before = _rawSlots(address(sp), SP_LAYOUT_END);
         vm.prank(owner);
         sp.transferOwnership(newOwner);
-        assertEq(vm.load(address(sp), _pendingSlot()), bytes32(uint256(uint160(newOwner))), "nominee stored in the ERC-7201 slot");
+        assertEq(
+            vm.load(address(sp), _pendingSlot()),
+            bytes32(uint256(uint160(newOwner))),
+            "nominee stored in the ERC-7201 slot"
+        );
         bytes32[] memory after_ = _rawSlots(address(sp), SP_LAYOUT_END);
-        for (uint256 i; i < SP_LAYOUT_END; i++) assertEq(after_[i], before[i], "sequential slot untouched by a nomination");
+        for (uint256 i; i < SP_LAYOUT_END; i++) {
+            assertEq(after_[i], before[i], "sequential slot untouched by a nomination");
+        }
         assertEq(vm.load(address(sp), bytes32(0)), bytes32(uint256(uint160(owner))), "_owner still at slot 0");
     }
 
@@ -281,8 +305,11 @@ contract SuperPaymasterD5bGov2Test is Test {
 
         vm.prank(guardian);
         sp.setGlobalPaused(true);
-        assertEq(vm.load(address(sp), bytes32(GOV2_SLOT)), bytes32(uint256(uint160(guardian)) | (uint256(1) << 160)),
-            "guardian + paused packed in ONE appended slot");
+        assertEq(
+            vm.load(address(sp), bytes32(GOV2_SLOT)),
+            bytes32(uint256(uint160(guardian)) | (uint256(1) << 160)),
+            "guardian + paused packed in ONE appended slot"
+        );
         assertEq(vm.load(address(sp), bytes32(GOV2_SLOT + 1)), bytes32(0), "gap starts right after");
     }
 
@@ -293,7 +320,7 @@ contract SuperPaymasterD5bGov2Test is Test {
         emit SuperPaymasterStorage.OperatorPaused(operator);
         vm.prank(guardian);
         sp.setOperatorPaused(operator, true);
-        (, , bool isPaused, , , , , , ) = sp.operators(operator);
+        (,, bool isPaused,,,,,,) = sp.operators(operator);
         assertTrue(isPaused);
         PackedUserOperation memory op = _op(0);
         (bytes memory ctx, uint256 vd) = _validate(op, entryPoint.getUserOpHash(op));
@@ -309,11 +336,11 @@ contract SuperPaymasterD5bGov2Test is Test {
         vm.prank(guardian);
         vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
         sp.setOperatorPaused(operator, false); // "guardian cannot unpause"
-        (, , bool isPaused, , , , , , ) = sp.operators(operator);
+        (,, bool isPaused,,,,,,) = sp.operators(operator);
         assertTrue(isPaused, "guardian cannot unpause: still paused");
         vm.prank(owner);
         sp.setOperatorPaused(operator, false);
-        (, , isPaused, , , , , , ) = sp.operators(operator);
+        (,, isPaused,,,,,,) = sp.operators(operator);
         assertFalse(isPaused, "owner (timelock) unpauses");
     }
 
@@ -347,11 +374,12 @@ contract SuperPaymasterD5bGov2Test is Test {
         sp.setGlobalPaused(true);
     }
 
-    /// @notice The guardian can ONLY pause: no upgrade, no funds, no parameters, no ownership.
+    /// @notice The guardian has pause + bounded slash-freeze power, but no execution or admin power.
     function test_gov2_guardian_has_no_other_power() public {
         vm.prank(owner);
         sp.setGuardian(guardian);
-        address newImpl = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        address newImpl =
+            address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
         bytes memory unauthorized = abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, guardian);
         vm.startPrank(guardian);
         vm.expectRevert(unauthorized);
@@ -370,8 +398,11 @@ contract SuperPaymasterD5bGov2Test is Test {
         sp.transferOwnership(guardian);
         vm.expectRevert(unauthorized);
         sp.setTreasury(guardian);
+        sp.queueSlash(operator);
         vm.expectRevert(unauthorized);
         sp.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 1, "x");
+        vm.expectRevert(unauthorized);
+        sp.cancelSlash(operator);
         vm.stopPrank();
     }
 
@@ -458,7 +489,7 @@ contract SuperPaymasterD5bGov2Test is Test {
         vm.prank(address(entryPoint));
         sp.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
         assertTrue(token.usedOpHashes(h), "settled while paused");
-        (address f, ) = sp.inflightOf(h);
+        (address f,) = sp.inflightOf(h);
         assertEq(f, address(0), "in-flight cleared while paused");
         assertGt(sp.protocolRevenue(), revBefore, "revenue booked while paused");
         assertEq(token.lockedOf(user), 0, "escrow consumed");
@@ -470,12 +501,12 @@ contract SuperPaymasterD5bGov2Test is Test {
         sp.setGuardian(guardian);
         PackedUserOperation memory op = _op(0);
         bytes32 h = entryPoint.getUserOpHash(op);
-        (uint128 opBefore, , , , , , , , ) = sp.operators(operator);
+        (uint128 opBefore,,,,,,,,) = sp.operators(operator);
         _validate(op, h); // postOp never runs
         vm.prank(guardian);
         sp.setGlobalPaused(true);
         sp.releaseStaleSponsorship(h); // new transaction (isolate): permissionless
-        (uint128 opAfter, , , , , , , , ) = sp.operators(operator);
+        (uint128 opAfter,,,,,,,,) = sp.operators(operator);
         assertEq(opAfter, opBefore, "operator a0 restored while paused");
         token.releaseStaleLock(user, h);
         assertEq(token.lockedOf(user), 0, "token-side stale release works while paused");
@@ -487,13 +518,13 @@ contract SuperPaymasterD5bGov2Test is Test {
 
     function test_d5b_fallback_is_non_payable() public {
         vm.deal(address(this), 1 ether);
-        (bool ok, ) = address(sp).call{value: 1}("");
+        (bool ok,) = address(sp).call{value: 1}("");
         assertFalse(ok, "plain ETH transfer still rejected (no receive, non-payable fallback)");
-        (ok, ) = address(sp).call{value: 1}(abi.encodeCall(SuperPaymasterAdmin.updatePrice, ()));
+        (ok,) = address(sp).call{value: 1}(abi.encodeCall(SuperPaymasterAdmin.updatePrice, ()));
         assertFalse(ok, "value on a routed (extension) selector rejected");
-        (ok, ) = address(sp).call(abi.encodeWithSelector(bytes4(0xdeadbeef)));
+        (ok,) = address(sp).call(abi.encodeWithSelector(bytes4(0xdeadbeef)));
         assertFalse(ok, "unknown selector reverts (extension has no fallback)");
-        (ok, ) = address(sp).call(abi.encodeCall(SuperPaymasterAdmin.updatePrice, ()));
+        (ok,) = address(sp).call(abi.encodeCall(SuperPaymasterAdmin.updatePrice, ()));
         assertTrue(ok, "control: the same routed call without value succeeds");
     }
 
@@ -504,7 +535,8 @@ contract SuperPaymasterD5bGov2Test is Test {
         assertEq(ext.owner(), address(0), "extension has no owner of its own");
 
         // no initializer on the extension
-        (bool ok, ) = address(ext).call(abi.encodeCall(SuperPaymaster.initialize, (address(this), address(apnts), treasury, 3600)));
+        (bool ok,) = address(ext)
+            .call(abi.encodeCall(SuperPaymaster.initialize, (address(this), address(apnts), treasury, 3600)));
         assertFalse(ok, "extension exposes no initializer");
 
         // privileged functions fail against the extension's own (empty) storage
@@ -530,7 +562,7 @@ contract SuperPaymasterD5bGov2Test is Test {
         assertFalse(sp.sbtHolders(someone), "proxy state untouched by a direct extension call");
         vm.prank(stranger);
         ext.updatePrice(); // permissionless keeper call: extension storage only
-        (, uint256 extUpdatedAt, , ) = ext.cachedPrice();
+        (, uint256 extUpdatedAt,,) = ext.cachedPrice();
         assertGt(extUpdatedAt, 0);
         assertEq(sp.paused(), false);
 
@@ -586,7 +618,9 @@ contract SuperPaymasterD5bGov2Test is Test {
         assertEq(r.pendingOwner(), newOwner);
         assertEq(vm.load(address(r), _pendingSlot()), bytes32(uint256(uint160(newOwner))), "Registry: ERC-7201 slot");
         bytes32[] memory after_ = _rawSlots(address(r), REGISTRY_LAYOUT_END);
-        for (uint256 i; i < REGISTRY_LAYOUT_END; i++) assertEq(after_[i], before[i], "Registry sequential slot untouched");
+        for (uint256 i; i < REGISTRY_LAYOUT_END; i++) {
+            assertEq(after_[i], before[i], "Registry sequential slot untouched");
+        }
 
         vm.prank(owner);
         r.transferOwnership(stranger);
@@ -611,7 +645,9 @@ contract SuperPaymasterD5bGov2Test is Test {
     function test_gov2_registry_initialize_rejects_zero_owner_and_clears_nomination() public {
         Registry impl = new Registry();
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
-        new ERC1967Proxy(address(impl), abi.encodeCall(Registry.initialize, (address(0), address(0x5701), address(0x5B7))));
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(Registry.initialize, (address(0), address(0x5701), address(0x5B7)))
+        );
 
         address proxy = address(new ERC1967Proxy(address(impl), ""));
         vm.store(proxy, _pendingSlot(), bytes32(uint256(uint160(stranger))));
@@ -632,11 +668,18 @@ contract SuperPaymasterD5bGov2Test is Test {
     }
 
     function test_d5b_sp_inplace_upgrade_from_previous_release_preserves_state() public {
-        address oldImpl = _deployFixture("contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex",
-            abi.encode(address(entryPoint), address(registry), address(feed)));
+        address oldImpl = _deployFixture(
+            "contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex",
+            abi.encode(address(entryPoint), address(registry), address(feed))
+        );
         vm.startPrank(owner);
-        SuperPaymaster p = SuperPaymaster(payable(address(new ERC1967Proxy(oldImpl,
-            abi.encodeCall(SuperPaymaster.initialize, (owner, address(apnts), treasury, 3600))))));
+        SuperPaymaster p = SuperPaymaster(
+            payable(address(
+                    new ERC1967Proxy(
+                        oldImpl, abi.encodeCall(SuperPaymaster.initialize, (owner, address(apnts), treasury, 3600))
+                    )
+                ))
+        );
         // populate state through the OLD implementation (its own selectors, no extension yet)
         p.setXPNTsFactory(address(factory));
         p.updatePrice();
@@ -649,12 +692,15 @@ contract SuperPaymasterD5bGov2Test is Test {
 
         bytes32[] memory before = _rawSlots(address(p), SP_LAYOUT_END);
         bytes32 sbt = vm.load(address(p), keccak256(abi.encode(user, uint256(7))));
-        address newImpl = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        address newImpl =
+            address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
         vm.prank(owner);
         p.upgradeToAndCall(newImpl, "");
         assertEq(address(uint160(uint256(vm.load(address(p), IMPL_SLOT)))), newImpl, "impl slot");
         bytes32[] memory after_ = _rawSlots(address(p), SP_LAYOUT_END);
-        for (uint256 i; i < SP_LAYOUT_END; i++) assertEq(after_[i], before[i], "raw sequential slot unchanged by the upgrade");
+        for (uint256 i; i < SP_LAYOUT_END; i++) {
+            assertEq(after_[i], before[i], "raw sequential slot unchanged by the upgrade");
+        }
         assertEq(vm.load(address(p), keccak256(abi.encode(user, uint256(7)))), sbt, "sbtHolders sample");
         assertEq(p.owner(), owner);
         assertEq(p.pendingOwner(), address(0));
@@ -672,8 +718,11 @@ contract SuperPaymasterD5bGov2Test is Test {
 
     function test_d5b_registry_inplace_upgrade_from_5_8_0_preserves_state() public {
         address oldImpl = _deployFixture("contracts/test/fixtures/registry-5.8.0-c30854f9-impl.creation.hex", "");
-        Registry r = Registry(address(new ERC1967Proxy(oldImpl,
-            abi.encodeCall(Registry.initialize, (owner, address(0x5701), address(0x5B7))))));
+        Registry r = Registry(
+            address(
+                new ERC1967Proxy(oldImpl, abi.encodeCall(Registry.initialize, (owner, address(0x5701), address(0x5B7))))
+            )
+        );
         assertEq(r.version(), "Registry-5.8.0", "precondition: previous release");
         vm.prank(owner);
         r.setSuperPaymaster(address(sp));
@@ -684,7 +733,9 @@ contract SuperPaymasterD5bGov2Test is Test {
         assertEq(address(uint160(uint256(vm.load(address(r), IMPL_SLOT)))), newImpl);
         assertEq(r.version(), "Registry-5.9.0");
         bytes32[] memory after_ = _rawSlots(address(r), REGISTRY_LAYOUT_END);
-        for (uint256 i; i < REGISTRY_LAYOUT_END; i++) assertEq(after_[i], before[i], "Registry raw slot unchanged by the upgrade");
+        for (uint256 i; i < REGISTRY_LAYOUT_END; i++) {
+            assertEq(after_[i], before[i], "Registry raw slot unchanged by the upgrade");
+        }
         assertEq(r.owner(), owner);
         assertEq(r.pendingOwner(), address(0));
         assertEq(r.SUPER_PAYMASTER(), address(sp));
@@ -741,7 +792,8 @@ contract SuperPaymasterD5bGov2Test is Test {
         assertEq(sp.guardian(), safe, "guardian set in the same batch");
         assertEq(tl.getMinDelay(), 48 hours);
         // negative: the former EOA owner lost upgrade power
-        address newImpl = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        address newImpl =
+            address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
         sp.upgradeToAndCall(newImpl, "");
@@ -771,7 +823,8 @@ contract SuperPaymasterD5bGov2Test is Test {
     // =====================================================================
 
     function test_gov2_upgrade_refused_while_nomination_pending() public {
-        address newImpl = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        address newImpl =
+            address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
         vm.prank(owner);
         sp.transferOwnership(stranger);
         vm.prank(owner);
@@ -795,8 +848,10 @@ contract SuperPaymasterD5bGov2Test is Test {
     /// @notice nominate → (rollback refused) → cancel → rollback to c30854f9 → owner change under the
     ///         single-step implementation → forward upgrade: the old nominee has nothing to accept.
     function test_gov2_rollback_cannot_carry_a_stale_nomination() public {
-        address oldImpl = _deployFixture("contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex",
-            abi.encode(address(entryPoint), address(registry), address(feed)));
+        address oldImpl = _deployFixture(
+            "contracts/test/fixtures/superpaymaster-5.5.0-c30854f9-impl.creation.hex",
+            abi.encode(address(entryPoint), address(registry), address(feed))
+        );
         vm.prank(owner);
         sp.transferOwnership(stranger);
         vm.prank(owner);
@@ -805,10 +860,11 @@ contract SuperPaymasterD5bGov2Test is Test {
         vm.startPrank(owner);
         sp.transferOwnership(address(0));
         sp.upgradeToAndCall(oldImpl, ""); // rollback to the single-step release
-        sp.transferOwnership(newOwner);    // OZ single-step under the old implementation
+        sp.transferOwnership(newOwner); // OZ single-step under the old implementation
         vm.stopPrank();
         assertEq(sp.owner(), newOwner, "precondition: single-step transfer under the previous release");
-        address d5b = address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
+        address d5b =
+            address(new SuperPaymaster(IEntryPoint(address(entryPoint)), IRegistry(address(registry)), address(feed)));
         vm.prank(newOwner);
         sp.upgradeToAndCall(d5b, "");
         assertEq(sp.pendingOwner(), address(0), "no stale nomination after the round trip");

@@ -111,7 +111,7 @@ contract SuperPaymasterPostOpGasMatrixTest is Test {
             apnts.approve(address(sp), type(uint256).max);
             sp.configureOperator(address(tok[t]), treasury);
             sp.deposit(1_000_000 ether);
-            sp.setOperatorLimits(60); // worst postOp path: fresh lastTimestamp write every bundle
+            sp.setOperatorLimits(0); // matrix intentionally repeats a sender in one bundle
             IMatrixToken(address(tok[t])).queueCreditPolicy(2);
             vm.stopPrank();
         }

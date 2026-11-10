@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
-import { VmSafe } from "forge-std/Vm.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
-import { UUPSDeployHelper } from "../helpers/UUPSDeployHelper.sol";
-import { AOAProtocolRegistry } from "src/tokens/v2/AOAProtocolRegistry.sol";
-import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
-import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
-import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
-import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
-import { IxPNTsTokenV2 } from "src/tokens/v2/IxPNTsTokenV2.sol";
-import { V55Registry, V55APNTs } from "../helpers/V55TestFixtures.sol";
-import { V55MutablePriceFeed, V55FuzzTarget, V55OwnerRelay } from "../helpers/V55FuzzFixtures.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {AOAProtocolRegistry} from "src/tokens/v2/AOAProtocolRegistry.sol";
+import {GlobalTierSource} from "src/tokens/v2/GlobalTierSource.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsTokenV2Ext} from "src/tokens/v2/xPNTsTokenV2Ext.sol";
+import {xPNTsFactoryV2} from "src/tokens/v2/xPNTsFactoryV2.sol";
+import {IxPNTsTokenV2} from "src/tokens/v2/IxPNTsTokenV2.sol";
+import {V55Registry, V55APNTs} from "../helpers/V55TestFixtures.sol";
+import {V55MutablePriceFeed, V55FuzzTarget, V55OwnerRelay} from "../helpers/V55FuzzFixtures.sol";
 
 /// @dev Typed view of the xPNTs v2 extension functions this suite drives (through the core's fallback).
 interface IG2Tok {
@@ -95,7 +95,7 @@ contract SuperPaymasterV55FuzzTest is Test {
 
     uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST(); // Queued deployment floor
     /// @dev Buffer constants of the charge oracle (exp/buffer). Defaults = the source values
-    ///      (C_POSTOP_GAS 170k, C_WRAP_GAS 5k; pinned by SuperPaymasterV55PostOpBoundTest and
+    ///      (C_POSTOP_GAS 180k, C_WRAP_GAS 5k; pinned by SuperPaymasterV55PostOpBoundTest and
     ///      V55Test R10M3). Env overrides exist ONLY for the negative control / m sweep, where the
     ///      source constant is changed in lock-step: G2_C_POSTOP, G2_C_WRAP; G2_BUF_OLD=true selects
     ///      the pre-experiment formula (postOpGasLimit + ... + 30k) for the OLD-vs-NEW comparison;
@@ -106,7 +106,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     bool private _countSubsidy;
     bool private _cPostopFromEnv;
     uint256 private _minPost; // SP gasParams().minPostOpGas (exp/params)
-    uint256 private _settle;  // SP gasParams().settleGasBound
+    uint256 private _settle; // SP gasParams().settleGasBound
     uint256 constant VERIF_GAS = 400_000;
     uint256 constant PM_VERIF_GAS = GasFixture.PM_VERIFICATION;
     uint256 constant PVG = 50_000;
@@ -152,7 +152,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     address beneficiary = address(0xBEEF);
     address sink = address(0x5111C);
 
-    uint256 private _rs;    // campaign RNG state (reset from the seed per campaign)
+    uint256 private _rs; // campaign RNG state (reset from the seed per campaign)
     uint256[3] private _nk; // next nonce key per account
 
     // ---- Raw per-op export (evidence only; default OFF). When the env var G2_EXPORT_PATH is set,
@@ -187,18 +187,18 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint8 t;
         uint8 exec;
         bool inject;
-        bool hardSP;     // rejected by an SP-side check before the solvency check
-        bool hardTok;    // rejected by a token-side check that is not funding-dependent
-        bool rejSolv;    // model: rejected by operator solvency
+        bool hardSP; // rejected by an SP-side check before the solvency check
+        bool hardTok; // rejected by a token-side check that is not funding-dependent
+        bool rejSolv; // model: rejected by operator solvency
         uint128 callGas;
         uint128 postGas;
         uint256 fee;
         uint256 maxCost;
-        uint256 a0;      // model: aPNTs reserved
-        uint256 x0;      // model: xPNTs locked (BALANCE)
-        uint8 expMode;   // model: 0 rejected / 1 BALANCE / 2 CREDIT
-        int256 moveTo;   // EX_MOVE: new ETH/USD answer (0 = none)
-        uint8 aSteps;    // EX_MOVE: aPNTs/USD owner steps
+        uint256 a0; // model: aPNTs reserved
+        uint256 x0; // model: xPNTs locked (BALANCE)
+        uint8 expMode; // model: 0 rejected / 1 BALANCE / 2 CREDIT
+        int256 moveTo; // EX_MOVE: new ETH/USD answer (0 = none)
+        uint8 aSteps; // EX_MOVE: aPNTs/USD owner steps
         bool aUp;
         bytes32 id;
         bytes32 h;
@@ -208,10 +208,10 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint8 mode;
         uint256 aRes;
         uint256 xLocked;
-        bool seen;       // UserOperationEvent found
+        bool seen; // UserOperationEvent found
         bool success;
-        uint256 G;       // UserOperationEvent.actualGasCost (taken from SP's EntryPoint deposit)
-        uint256 gUsed;   // UserOperationEvent.actualGasUsed (export only)
+        uint256 G; // UserOperationEvent.actualGasCost (taken from SP's EntryPoint deposit)
+        uint256 gUsed; // UserOperationEvent.actualGasUsed (export only)
         bool postReverted;
         uint256 nTS;
         uint256 tsAGas;
@@ -311,7 +311,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256[] largePpm; // same, only ops with postOpGasLimit in [1.0M, 1.5M]
         uint256 nLarge;
         uint256 sumLargePpm;
-        uint256 subsidyCnt;  // ops whose net-of-fee charge (ETH) < actualGasCost
+        uint256 subsidyCnt; // ops whose net-of-fee charge (ETH) < actualGasCost
         uint256 subsidyWei;
         uint256 maxSubsidyPpm;
         uint256 nTight;
@@ -373,12 +373,14 @@ contract SuperPaymasterV55FuzzTest is Test {
             apnts.approve(address(sp), type(uint256).max);
             sp.configureOperator(address(tok[t]), treasury);
             sp.deposit(1_000_000 ether);
-            sp.setOperatorLimits(60); // worst postOp path: fresh lastTimestamp write every bundle
+            sp.setOperatorLimits(0); // campaign intentionally permits repeated senders per bundle
             IG2Tok(address(tok[t])).queueCreditPolicy(2);
             vm.stopPrank();
         }
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
-        for (uint256 t; t < 2; t++) IG2Tok(address(tok[t])).executeCreditPolicy();
+        for (uint256 t; t < 2; t++) {
+            IG2Tok(address(tok[t])).executeCreditPolicy();
+        }
         sp.updatePrice();
 
         for (uint256 u; u < 3; u++) {
@@ -423,7 +425,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     /// @dev exp/params: the oracle uses exactly what SP says it uses (env overrides only for the
     ///      negative control / OLD-formula comparison of Part A).
     function _loadParams() internal {
-        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        (SuperPaymaster.GasParams memory g,) = sp.gasParams();
         _minPost = g.minPostOpGas;
         _settle = g.settleGasBound;
         _cPostop = vm.envOr("G2_C_POSTOP", uint256(g.cPostop));
@@ -431,13 +433,13 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     function _configureFloor() internal {
-        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (175_000, 155_000, 5_000, 175_000)));
+        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (180_000, 155_000, 5_000, 180_000)));
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
         _owner(abi.encodeCall(SuperPaymasterAdmin.executeGasParams, ()));
         sp.updatePrice();
         _loadParams();
         assertEq(_settle, 155_000, "precondition: all-floor tuple active");
-        assertEq(_minPost, 175_000, "precondition: all-floor tuple active");
+        assertEq(_minPost, 180_000, "precondition: all-floor tuple active");
     }
 
     /// @notice G2 inline fuzz: every run is one seeded campaign; all per-op / per-bundle /
@@ -500,10 +502,20 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertGt(st.rejMinMinus1, 0, "coverage: postOpGasLimit == MIN-1 rejected");
         assertGe(st.rejSolvency, 50, "coverage: >= 50 operator-solvency rejections (AA34)");
         assertGe(st.singleGroupSettled, 200, "coverage: >= 200 settled ops that are their user's only op on the token");
-        assertGe(st.postAfterEthMove, 100, "coverage: >= 100 settled ops whose postOp ran after a mid-bundle ETH/USD move");
-        assertGe(st.postAfterAMove, 100, "coverage: >= 100 settled ops whose postOp ran after a mid-bundle aPNTs/USD move");
-        assertGe(st.relLockShared, 40, "coverage: >= 40 stale-lock releases with another stale lock of the same user alive");
-        assertGe(st.relCreditShared, 40, "coverage: >= 40 stale-credit releases with another reservation of the same user alive");
+        assertGe(
+            st.postAfterEthMove, 100, "coverage: >= 100 settled ops whose postOp ran after a mid-bundle ETH/USD move"
+        );
+        assertGe(
+            st.postAfterAMove, 100, "coverage: >= 100 settled ops whose postOp ran after a mid-bundle aPNTs/USD move"
+        );
+        assertGe(
+            st.relLockShared, 40, "coverage: >= 40 stale-lock releases with another stale lock of the same user alive"
+        );
+        assertGe(
+            st.relCreditShared,
+            40,
+            "coverage: >= 40 stale-credit releases with another reservation of the same user alive"
+        );
         assertGt(st.evBlacklist, 0, "coverage: blacklist events");
         assertGt(st.evPolicy, 0, "coverage: policy switches");
         assertGt(st.evTier, 0, "coverage: tier changes");
@@ -542,26 +554,36 @@ contract SuperPaymasterV55FuzzTest is Test {
         op.preVerificationGas = PVG;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(PM_VERIF_GAS), uint128(MIN_POST_OP_GAS), opr[0], type(uint256).max, address(tok[0]), uint8(0)
+            address(sp),
+            uint128(PM_VERIF_GAS),
+            uint128(MIN_POST_OP_GAS),
+            opr[0],
+            type(uint256).max,
+            address(tok[0]),
+            uint8(0)
         );
         bytes32 h = keccak256(abi.encode("no-oog", gasSeed, credit));
         vm.prank(EP);
         (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, h, 1e15);
         assertEq(vd & 1, 0, "validated");
-        assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, credit ? MODE_CREDIT : MODE_BALANCE, "precondition: mode");
-        vm.prank(EP);
-        (bool ok, bytes memory ret) = address(sp).call{gas: g}(
-            abi.encodeCall(sp.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
+        assertEq(
+            abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, credit ? MODE_CREDIT : MODE_BALANCE, "precondition: mode"
         );
+        vm.prank(EP);
+        (bool ok, bytes memory ret) =
+            address(sp).call{gas: g}(abi.encodeCall(sp.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei)));
         if (ok) {
-            (address f, ) = sp.inflightOf(h);
+            (address f,) = sp.inflightOf(h);
             assertEq(f, address(0), "no-OOG: success -> in-flight cleared");
             assertTrue(tok[0].usedOpHashes(h), "no-OOG: success -> token recorded the settlement");
             assertEq(tok[0].lockOf(h, u).locker, address(0), "no-OOG: success -> lock settled");
             assertEq(tok[0].creditReservationOf(h, u).locker, address(0), "no-OOG: success -> reservation settled");
         } else {
-            assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
-                "no-OOG band: a postOp that passed the SETTLE_GAS_BOUND entry check must complete");
+            assertEq(
+                ret,
+                abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
+                "no-OOG band: a postOp that passed the SETTLE_GAS_BOUND entry check must complete"
+            );
         }
     }
 
@@ -575,8 +597,10 @@ contract SuperPaymasterV55FuzzTest is Test {
                 uint256 g = uint256(GasFixture.SETTLE()) + d[i];
                 testFuzz_G2_noOOGBand_direct_postOp(g, c == 1);
                 if (i == d.length - 1) {
-                    assertTrue(tok[0].usedOpHashes(keccak256(abi.encode("no-oog", g, c == 1))),
-                        "SETTLE + 40k settles: the success band is sampled");
+                    assertTrue(
+                        tok[0].usedOpHashes(keccak256(abi.encode("no-oog", g, c == 1))),
+                        "SETTLE + 40k settles: the success band is sampled"
+                    );
                 }
                 vm.revertTo(snap);
             }
@@ -597,13 +621,19 @@ contract SuperPaymasterV55FuzzTest is Test {
             if (_r(100) < 35) {
                 uint256 amt = _opBal(t) - _r(3_000 ether);
                 vm.prank(opr[t]);
+                sp.requestWithdraw(amt);
+                vm.warp(block.timestamp + sp.OPERATOR_WITHDRAWAL_DELAY());
+                sp.updatePrice();
+                vm.prank(opr[t]);
                 sp.withdraw(amt);
                 low = true;
             }
         }
         if (low) st.lowOperatorRuns++;
         uint256 nb = 2 + _r(3);
-        for (uint256 b; b < nb; b++) _bundle(st, gh, b);
+        for (uint256 b; b < nb; b++) {
+            _bundle(st, gh, b);
+        }
         // campaign end (a later tx): release every remaining stale record, then nothing is left
         Rel memory rel;
         _releaseSome(st, rel, true);
@@ -612,7 +642,9 @@ contract SuperPaymasterV55FuzzTest is Test {
             assertEq(gh.unbAmt[t], 0, "I9: unbacked sponsorship amount per operator == 0");
             for (uint256 u; u < 3; u++) {
                 assertEq(tok[t].lockedOf(usr[u]), 0, "I10: lockedOf == 0 once every stale lock is released");
-                assertEq(tok[t].creditReservedOf(usr[u]), 0, "I10: creditReservedOf == 0 once every reservation is released");
+                assertEq(
+                    tok[t].creditReservedOf(usr[u]), 0, "I10: creditReservedOf == 0 once every reservation is released"
+                );
             }
         }
         st.runs++;
@@ -622,7 +654,7 @@ contract SuperPaymasterV55FuzzTest is Test {
         if (b > 0) _events(st);
         _normalizePrices();
         vm.warp(vm.getBlockTimestamp() + 61 + _r(540)); // past minTxInterval (validAfter)
-        sp.updatePrice();                               // fresh validUntil
+        sp.updatePrice(); // fresh validUntil
         B memory x = _plan(st);
         _build(x);
         _pre(x);
@@ -645,12 +677,14 @@ contract SuperPaymasterV55FuzzTest is Test {
     function _plan(Stats memory st) internal returns (B memory x) {
         uint256 n = 1 + _r(6);
         x.os = new Op[](n);
-        (int256 p, , , uint8 d) = sp.cachedPrice();
+        (int256 p,,, uint8 d) = sp.cachedPrice();
         x.price = uint256(p);
         x.dec = d;
         x.aPrice = sp.aPNTsPriceUSD();
         x.feeBps = sp.protocolFeeBPS();
-        for (uint256 t; t < 2; t++) x.rate[t] = tok[t].exchangeRate();
+        for (uint256 t; t < 2; t++) {
+            x.rate[t] = tok[t].exchangeRate();
+        }
         for (uint256 i; i < n; i++) {
             Op memory o = x.os[i];
             o.u = uint8(_r(3));
@@ -659,17 +693,17 @@ contract SuperPaymasterV55FuzzTest is Test {
             o.exec = e < 45 ? EX_OK : e < 63 ? EX_MOVE : e < 82 ? EX_REVERT : EX_OOG;
             uint256 pkd = _r(100);
             o.postGas = uint128(
-                pkd < 8 ? _minPost - 1
-                : pkd < 38 ? _minPost
-                : pkd < 80 ? _minPost + _r(50_001)
-                : 1_000_000 + _r(500_001)
+                pkd < 8
+                    ? _minPost - 1
+                    : pkd < 38 ? _minPost : pkd < 80 ? _minPost + _r(50_001) : 1_000_000 + _r(500_001)
             );
             o.callGas = uint128(
                 // EX_OK starts at the Amsterdam-measured success need; below it the call is not a success path
-                o.exec == EX_OK ? GasFixture.FUZZ_SUCCESS_CALL_MIN + _r(400_000)
-                : o.exec == EX_MOVE ? 400_000 + _r(200_000)
-                : o.exec == EX_REVERT ? 60_000 + _r(440_000)
-                : 40_000 + _r(160_000)
+                o.exec == EX_OK
+                    ? GasFixture.FUZZ_SUCCESS_CALL_MIN + _r(400_000)
+                    : o.exec == EX_MOVE
+                        ? 400_000 + _r(200_000)
+                        : o.exec == EX_REVERT ? 60_000 + _r(440_000) : 40_000 + _r(160_000)
             );
             o.fee = 1 gwei + _r(2 gwei);
             o.maxCost = (VERIF_GAS + o.callGas + PM_VERIF_GAS + o.postGas + PVG) * o.fee;
@@ -686,7 +720,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     function _hardReject(Op memory o) internal view returns (bool hardSP, bool hardTok) {
         address u = usr[o.u];
         xPNTsTokenV2 k = tok[o.t];
-        (, , bool paused, , , , , , ) = sp.operators(opr[o.t]);
+        (,, bool paused,,,,,,) = sp.operators(opr[o.t]);
         (, bool blocked) = sp.userOpState(opr[o.t], u);
         hardSP = o.postGas < _minPost || !sp.sbtHolders(u) || blocked || paused;
         hardTok = k.emergencyDisabled() || k.spenderDisabled(address(sp), u) || o.a0 > k.maxSingleTxLimit();
@@ -709,12 +743,16 @@ contract SuperPaymasterV55FuzzTest is Test {
                 uint256 kB = _r(L + 1);
                 uint256 kC = _r(L - kB + 1);
                 uint256 F;
-                for (uint256 j; j < kB; j++) F += x.os[idx[j]].x0;
+                for (uint256 j; j < kB; j++) {
+                    F += x.os[idx[j]].x0;
+                }
                 F += L > kB ? _r(x.os[idx[kB]].x0) : _r(50 ether);
                 _setBalance(t, usr[u], tok[t].lockedOf(usr[u]) + F);
                 if (L > kB && _r(100) < 85) {
                     uint256 need = tok[t].debts(usr[u]) + tok[t].creditReservedOf(usr[u]);
-                    for (uint256 j = kB; j < kB + kC; j++) need += x.os[idx[j]].a0;
+                    for (uint256 j = kB; j < kB + kC; j++) {
+                        need += x.os[idx[j]].a0;
+                    }
                     need += L > kB + kC ? _r(x.os[idx[kB + kC]].a0) : _r(100 ether);
                     if (need > BIG_CAP) need = BIG_CAP;
                     vm.prank(usr[u]);
@@ -755,12 +793,17 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256[2][3] memory cap;
         bool[2][3] memory init;
         uint256[2] memory opRun;
-        for (uint256 t; t < 2; t++) opRun[t] = _opBal(t);
+        for (uint256 t; t < 2; t++) {
+            opRun[t] = _opBal(t);
+        }
         for (uint256 i; i < x.os.length; i++) {
             Op memory o = x.os[i];
             if (o.hardSP) continue; // expMode = NONE
             (uint256 u, uint256 t) = (o.u, o.t);
-            if (opRun[t] < o.a0) { o.rejSolv = true; continue; } // solvency precedes every token call
+            if (opRun[t] < o.a0) {
+                o.rejSolv = true; // solvency precedes every token call
+                continue;
+            }
             if (o.hardTok) continue;
             if (!init[u][t]) {
                 address a = usr[u];
@@ -798,15 +841,19 @@ contract SuperPaymasterV55FuzzTest is Test {
                 if (kind != 1) {
                     // ETH/USD x0.4 .. x2.5 (never equal to the current answer)
                     int256 cur = feed.answer();
-                    int256 nv = _r(2) == 0 ? cur * int256(4_000 + _r(5_900)) / 10_000 : cur * int256(10_100 + _r(15_000)) / 10_000;
+                    int256 nv = _r(2) == 0
+                        ? cur * int256(4_000 + _r(5_900)) / 10_000
+                        : cur * int256(10_100 + _r(15_000)) / 10_000;
                     o.moveTo = nv;
                 }
                 if (kind != 0) {
                     o.aSteps = uint8(1 + _r(5));
                     o.aUp = _r(2) == 0;
                 }
-                inner = abi.encodeCall(V55FuzzTarget.hitMovePrice,
-                    (o.id, address(feed), address(sp), address(relay), o.moveTo, o.aSteps, o.aUp));
+                inner = abi.encodeCall(
+                    V55FuzzTarget.hitMovePrice,
+                    (o.id, address(feed), address(sp), address(relay), o.moveTo, o.aSteps, o.aUp)
+                );
             } else if (o.exec == EX_REVERT) {
                 inner = abi.encodeCall(V55FuzzTarget.hitRevert, (o.id));
             } else {
@@ -829,10 +876,16 @@ contract SuperPaymasterV55FuzzTest is Test {
             o.inject = o.expMode != MODE_NONE && _r(100) < (o.expMode == MODE_CREDIT ? 45 : 20);
             if (o.inject) {
                 // only THIS op's settlement reverts (calldata prefix = selector ‖ user ‖ opHash)
-                vm.mockCallRevert(address(tok[o.t]),
-                    abi.encodeWithSelector(IxPNTsTokenV2.settleLocked.selector, usr[o.u], o.h), "G2: injected settle failure");
-                vm.mockCallRevert(address(tok[o.t]),
-                    abi.encodeWithSelector(IxPNTsTokenV2.settleCredit.selector, usr[o.u], o.h), "G2: injected settle failure");
+                vm.mockCallRevert(
+                    address(tok[o.t]),
+                    abi.encodeWithSelector(IxPNTsTokenV2.settleLocked.selector, usr[o.u], o.h),
+                    "G2: injected settle failure"
+                );
+                vm.mockCallRevert(
+                    address(tok[o.t]),
+                    abi.encodeWithSelector(IxPNTsTokenV2.settleCredit.selector, usr[o.u], o.h),
+                    "G2: injected settle failure"
+                );
             }
         }
     }
@@ -864,7 +917,9 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 n = x.os.length;
         while (true) {
             uint256 m;
-            for (uint256 i; i < n; i++) if (!x.os[i].rejected) m++;
+            for (uint256 i; i < n; i++) {
+                if (!x.os[i].rejected) m++;
+            }
             if (m == 0) return false;
             PackedUserOperation[] memory ops = new PackedUserOperation[](m);
             uint256 k;
@@ -872,14 +927,21 @@ contract SuperPaymasterV55FuzzTest is Test {
             uint256 firstNi;
             for (uint256 i; i < n; i++) {
                 if (x.os[i].rejected) continue;
-                if (x.os[i].expMode == MODE_NONE && firstN == type(uint256).max) { firstN = k; firstNi = i; }
+                if (x.os[i].expMode == MODE_NONE && firstN == type(uint256).max) {
+                    firstN = k;
+                    firstNi = i;
+                }
                 ops[k++] = x.os[i].op;
             }
             bool ok;
             bytes memory err;
             vm.recordLogs();
             if (firstN == type(uint256).max) vm.startStateDiffRecording();
-            try entryPoint.handleOps(ops, payable(beneficiary)) { ok = true; } catch (bytes memory e) { err = e; }
+            try entryPoint.handleOps(ops, payable(beneficiary)) {
+                ok = true;
+            } catch (bytes memory e) {
+                err = e;
+            }
             Vm.Log[] memory logs = vm.getRecordedLogs();
             if (!ok) {
                 if (firstN == type(uint256).max) {
@@ -888,8 +950,11 @@ contract SuperPaymasterV55FuzzTest is Test {
                     console.logBytes(err);
                 }
                 assertTrue(firstN != type(uint256).max, "model: bundle rejected although every op was predicted valid");
-                assertEq(err, abi.encodeWithSelector(IEntryPoint.FailedOp.selector, firstN, "AA34 signature error"),
-                    "model: the first predicted-invalid op is rejected by SP (AA34) at its index (k-th op rejected)");
+                assertEq(
+                    err,
+                    abi.encodeWithSelector(IEntryPoint.FailedOp.selector, firstN, "AA34 signature error"),
+                    "model: the first predicted-invalid op is rejected by SP (AA34) at its index (k-th op rejected)"
+                );
                 x.os[firstNi].rejected = true;
                 st.rejected++;
                 if (x.os[firstNi].postGas < _minPost) st.rejMinMinus1++;
@@ -904,7 +969,9 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     function _find(B memory x, bytes32 h) internal pure returns (uint256) {
-        for (uint256 i; i < x.os.length; i++) if (x.os[i].h == h) return i;
+        for (uint256 i; i < x.os.length; i++) {
+            if (x.os[i].h == h) return i;
+        }
         return type(uint256).max;
     }
 
@@ -939,7 +1006,9 @@ contract SuperPaymasterV55FuzzTest is Test {
 
     function _tail4(bytes memory d) internal pure returns (bytes memory r) {
         r = new bytes(d.length - 4);
-        for (uint256 i; i < r.length; i++) r[i] = d[i + 4];
+        for (uint256 i; i < r.length; i++) {
+            r[i] = d[i + 4];
+        }
     }
 
     function _parse(B memory x, Vm.Log[] memory logs) internal view {
@@ -1019,8 +1088,10 @@ contract SuperPaymasterV55FuzzTest is Test {
             if (o.rejected) {
                 // L-1: a rejected op leaves no record anywhere
                 assertEq(tok[o.t].lockOf(o.h, u).locker, address(0), "L-1: rejected op left no lock");
-                assertEq(tok[o.t].creditReservationOf(o.h, u).locker, address(0), "L-1: rejected op left no reservation");
-                (address rf, ) = sp.inflightOf(o.h);
+                assertEq(
+                    tok[o.t].creditReservationOf(o.h, u).locker, address(0), "L-1: rejected op left no reservation"
+                );
+                (address rf,) = sp.inflightOf(o.h);
                 assertEq(rf, address(0), "L-1: rejected op left no in-flight sponsorship");
                 continue;
             }
@@ -1045,15 +1116,24 @@ contract SuperPaymasterV55FuzzTest is Test {
                 st.unbCnt++;
                 st.unbAmt += amt;
             }
-            assertFalse(unbacked, "I9: unbacked sponsorship per op == 0 (SP charged / execution kept without burn or debt)");
+            assertFalse(
+                unbacked, "I9: unbacked sponsorship per op == 0 (SP charged / execution kept without burn or debt)"
+            );
             assertEq(o.spCharge, o.tokCharge, "I9: SP charge == token-side charge (burn-equivalent aPNTs or debt)");
             assertLe(o.nTS, 1, "I9: at most one sponsorship record per op");
 
             // ---- I8 / B-1
-            if (o.kept) assertTrue(o.settled, "I8: user execution effect kept => op settled (usedOpHashes + Lock/CreditSettled)");
+            if (o.kept) {
+                assertTrue(
+                    o.settled, "I8: user execution effect kept => op settled (usedOpHashes + Lock/CreditSettled)"
+                );
+            }
             assertEq(o.settled, !o.inject, "I8/B-1: op settled iff its settlement was not made to fail");
-            assertEq(o.postReverted, o.inject,
-                "B-1: postOp reverts only on an injected settle failure (no OOG, incl. postOpGasLimit == MIN)");
+            assertEq(
+                o.postReverted,
+                o.inject,
+                "B-1: postOp reverts only on an injected settle failure (no OOG, incl. postOpGasLimit == MIN)"
+            );
             bool execOk = o.exec == EX_OK || o.exec == EX_MOVE;
             assertEq(o.kept, o.settled && execOk, "I8: effect kept iff settled and the execution succeeded");
             assertEq(o.success, o.settled && execOk, "EntryPoint success flag == kept");
@@ -1069,7 +1149,9 @@ contract SuperPaymasterV55FuzzTest is Test {
                 // ---- DSR (zero-tolerance hard gate, checked FIRST): the user's net-of-fee charge
                 //      covers what EntryPoint took from SP's deposit for this op
                 uint256 eth = _chargeEthNet(x, o.spCharge);
-                if (vm.envOr("TUPLE_ACCOUNTING", false) && (eth < o.G || (o.mode == MODE_CREDIT && o.exec == EX_REVERT))) {
+                if (
+                    vm.envOr("TUPLE_ACCOUNTING", false) && (eth < o.G || (o.mode == MODE_CREDIT && o.exec == EX_REVERT))
+                ) {
                     emit log_named_uint("tuple fee", o.fpg);
                     emit log_named_uint("tuple call limit", o.callGas);
                     emit log_named_uint("tuple post limit", o.postGas);
@@ -1085,13 +1167,16 @@ contract SuperPaymasterV55FuzzTest is Test {
                     if (sppm > st.maxSubsidyPpm) st.maxSubsidyPpm = sppm;
                 }
                 if (!_countSubsidy) {
-                    assertGe(eth, o.G, "DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost");
+                    assertGe(
+                        eth, o.G, "DSR no-subsidy: net-of-fee charge (ETH @ validation snapshot) >= op's actualGasCost"
+                    );
                 }
                 _checkExactCharge(x, o);
                 st.exactChecks++;
                 if (ethMoved) st.postAfterEthMove++;
                 if (aMoved) st.postAfterAMove++;
-                if (o.mode == MODE_BALANCE) st.settledB++; else st.settledC++;
+                if (o.mode == MODE_BALANCE) st.settledB++;
+                else st.settledC++;
                 if (!o.success) st.opReverted++;
                 if (o.exec == EX_OOG) st.oogSettled++;
                 if (o.kept) st.kept++;
@@ -1114,15 +1199,20 @@ contract SuperPaymasterV55FuzzTest is Test {
             } else {
                 // ---- I10 (inside the tx): nothing charged, escrow / reservation and a0 still parked
                 st.injected++;
-                if (o.mode == MODE_BALANCE) st.injB++; else st.injC++;
+                if (o.mode == MODE_BALANCE) st.injB++;
+                else st.injC++;
                 assertEq(o.nPost, 1, "I10: exactly one postOp call (it reverted: PostOpRevertReason)");
                 assertEq(o.xBurned, 0, "I10: failed postOp -> nothing burned");
                 assertEq(o.tokCharge, 0, "I10: failed postOp -> no debt");
-                assertLe(o.G, o.maxCost, "I10: EntryPoint cost of a failed-postOp op <= its prefund (borne by SP's deposit)");
+                assertLe(
+                    o.G, o.maxCost, "I10: EntryPoint cost of a failed-postOp op <= its prefund (borne by SP's deposit)"
+                );
                 if (o.mode == MODE_BALANCE) {
                     assertEq(tok[o.t].lockOf(o.h, u).xLocked, o.x0, "I10: lock left for stale release");
                 } else {
-                    assertEq(tok[o.t].creditReservationOf(o.h, u).amount, o.a0, "I10: reservation left for stale release");
+                    assertEq(
+                        tok[o.t].creditReservationOf(o.h, u).amount, o.a0, "I10: reservation left for stale release"
+                    );
                 }
                 (address f, uint256 fa) = sp.inflightOf(o.h);
                 assertEq(f, opr[o.t], "I10: operator a0 still in flight");
@@ -1136,7 +1226,10 @@ contract SuperPaymasterV55FuzzTest is Test {
         assertEq(bUnbCnt, 0, "I9: unbacked sponsorship count per bundle == 0");
         assertEq(bUnbAmt, 0, "I9: unbacked sponsorship amount per bundle == 0");
         for (uint256 u; u < 3; u++) {
-            if (perSender[u] > 1) { st.repeatBundles++; break; }
+            if (perSender[u] > 1) {
+                st.repeatBundles++;
+                break;
+            }
         }
     }
 
@@ -1167,10 +1260,13 @@ contract SuperPaymasterV55FuzzTest is Test {
             ? uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + 30_000
             : _cPostop + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + _cWrap;
         uint256 bufWei = bufGas * o.fpg;
-        uint256 aGasExp = Math.mulDiv((o.P + bufWei) * x.price, 1e18, (10 ** uint256(x.dec)) * x.aPrice, Math.Rounding.Ceil);
+        uint256 aGasExp =
+            Math.mulDiv((o.P + bufWei) * x.price, 1e18, (10 ** uint256(x.dec)) * x.aPrice, Math.Rounding.Ceil);
         uint256 chargeExp = Math.mulDiv(aGasExp, BPS + x.feeBps, BPS, Math.Rounding.Ceil);
         if (chargeExp > o.a0) chargeExp = o.a0;
-        assertEq(o.tsAGas, aGasExp, "R10-M3: aGas == ceil((P + bufWei) x price_snap x 1e18 / (10^dec x aPrice_snap)) (exact)");
+        assertEq(
+            o.tsAGas, aGasExp, "R10-M3: aGas == ceil((P + bufWei) x price_snap x 1e18 / (10^dec x aPrice_snap)) (exact)"
+        );
         assertEq(o.spCharge, chargeExp, "charge == min(a0, ceil(aGas x (BPS + fee) / BPS)) (exact)");
         assertEq(o.tokCharge, chargeExp, "settlement event value (aCharged / debtAdded) == expected charge");
         o.chargeExp = chargeExp;
@@ -1205,45 +1301,80 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 bufGas = _bufOld
             ? uint256(o.postGas) + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + 30_000
             : _cPostop + Math.ceilDiv((uint256(o.callGas) + o.postGas) * 10, 100) + _cWrap;
-        string memory tag = _bufOld ? "OLD_postOpGasLimit_Cwrap30k" : string.concat(
-            "B_Cpostop", vm.toString(_cPostop / 1000), "k_Cwrap", vm.toString(_cWrap / 1000),
-            _settle == 160_000 && _minPost == 200_000 ? "k_default" : "k_configured");
+        string memory tag = _bufOld
+            ? "OLD_postOpGasLimit_Cwrap30k"
+            : string.concat(
+                "B_Cpostop",
+                vm.toString(_cPostop / 1000),
+                "k_Cwrap",
+                vm.toString(_cWrap / 1000),
+                _settle == 160_000 && _minPost == 200_000 ? "k_default" : "k_configured"
+            );
         uint256 eth = o.settled ? _chargeEthNet(x, o.spCharge) : 0;
         string memory s1 = string.concat(
-            '{"formula":"', tag, '","seedIndex":', vm.toString(_expSeedIdx),
-            ',"seed":"', vm.toString(bytes32(_expSeed)),
-            '","bundle":', vm.toString(_expBundle),
-            ',"op":', vm.toString(i),
-            ',"userOpHash":"', vm.toString(o.h),
-            '","mode":"', o.mode == MODE_BALANCE ? "BALANCE" : "CREDIT",
-            '","settled":', o.settled ? "true" : "false",
-            ',"injected":', o.inject ? "true" : "false"
+            '{"formula":"',
+            tag,
+            '","seedIndex":',
+            vm.toString(_expSeedIdx),
+            ',"seed":"',
+            vm.toString(bytes32(_expSeed)),
+            '","bundle":',
+            vm.toString(_expBundle),
+            ',"op":',
+            vm.toString(i),
+            ',"userOpHash":"',
+            vm.toString(o.h),
+            '","mode":"',
+            o.mode == MODE_BALANCE ? "BALANCE" : "CREDIT",
+            '","settled":',
+            o.settled ? "true" : "false",
+            ',"injected":',
+            o.inject ? "true" : "false"
         );
         string memory s2 = string.concat(
-            ',"exec":"', o.exec == EX_OK ? "OK" : o.exec == EX_MOVE ? "MOVE" : o.exec == EX_REVERT ? "REVERT" : "OOG",
-            '","ethMovedBeforePostOp":', ethMoved ? "true" : "false",
-            ',"aMovedBeforePostOp":', aMoved ? "true" : "false",
-            ',"postOpGasLimit":', vm.toString(uint256(o.postGas)),
-            ',"callGasLimit":', vm.toString(uint256(o.callGas)),
-            ',"feePerGas":"', vm.toString(o.fpg),
-            '","P":"', vm.toString(o.P),
-            '","bufGas":', vm.toString(bufGas)
+            ',"exec":"',
+            o.exec == EX_OK ? "OK" : o.exec == EX_MOVE ? "MOVE" : o.exec == EX_REVERT ? "REVERT" : "OOG",
+            '","ethMovedBeforePostOp":',
+            ethMoved ? "true" : "false",
+            ',"aMovedBeforePostOp":',
+            aMoved ? "true" : "false",
+            ',"postOpGasLimit":',
+            vm.toString(uint256(o.postGas)),
+            ',"callGasLimit":',
+            vm.toString(uint256(o.callGas)),
+            ',"feePerGas":"',
+            vm.toString(o.fpg),
+            '","P":"',
+            vm.toString(o.P),
+            '","bufGas":',
+            vm.toString(bufGas)
         );
         string memory s3 = string.concat(
-            ',"bufWei":"', vm.toString(bufGas * o.fpg),
-            '","a0":"', vm.toString(o.a0),
-            '","charge":"', vm.toString(o.spCharge),
-            '","charge_eth":"', vm.toString(eth),
-            '","G":"', vm.toString(o.G),
-            '","actualGasUsed":', vm.toString(o.gUsed),
-            ',"overpay_ppm":', o.settled ? vm.toString((eth - o.G) * 1e6 / o.G) : "null"
+            ',"bufWei":"',
+            vm.toString(bufGas * o.fpg),
+            '","a0":"',
+            vm.toString(o.a0),
+            '","charge":"',
+            vm.toString(o.spCharge),
+            '","charge_eth":"',
+            vm.toString(eth),
+            '","G":"',
+            vm.toString(o.G),
+            '","actualGasUsed":',
+            vm.toString(o.gUsed),
+            ',"overpay_ppm":',
+            o.settled ? vm.toString((eth - o.G) * 1e6 / o.G) : "null"
         );
         string memory s4 = string.concat(
-            ',"ethUsd":"', vm.toString(x.price),
-            '","ethUsdDecimals":', vm.toString(uint256(x.dec)),
-            ',"aPriceUSD":"', vm.toString(x.aPrice),
-            '","feeBps":', vm.toString(x.feeBps),
-            '}'
+            ',"ethUsd":"',
+            vm.toString(x.price),
+            '","ethUsdDecimals":',
+            vm.toString(uint256(x.dec)),
+            ',"aPriceUSD":"',
+            vm.toString(x.aPrice),
+            '","feeBps":',
+            vm.toString(x.feeBps),
+            "}"
         );
         vm.writeLine(_expPath, string.concat(s1, s2, s3, s4));
     }
@@ -1296,8 +1427,14 @@ contract SuperPaymasterV55FuzzTest is Test {
 
         // this record, exactly
         if (p.mode == MODE_BALANCE) {
-            assertEq(tok[p.t].lockedOf(u), lk[p.u][p.t] - p.x0, "I10: releaseStaleLock lowers lockedOf by exactly the record's x0");
-            assertEq(tok[p.t].creditReservedOf(u), rs[p.u][p.t], "I10: releaseStaleLock leaves creditReservedOf untouched");
+            assertEq(
+                tok[p.t].lockedOf(u),
+                lk[p.u][p.t] - p.x0,
+                "I10: releaseStaleLock lowers lockedOf by exactly the record's x0"
+            );
+            assertEq(
+                tok[p.t].creditReservedOf(u), rs[p.u][p.t], "I10: releaseStaleLock leaves creditReservedOf untouched"
+            );
             assertEq(tok[p.t].lockOf(p.h, u).locker, address(0), "I10: stale lock record deleted");
             (, uint256 ua) = tok[p.t].autoAllowance(u, address(sp));
             (, uint256 ub) = tok[p.t].userTotal(u);
@@ -1308,8 +1445,11 @@ contract SuperPaymasterV55FuzzTest is Test {
             st.relLock++;
             if (shared) st.relLockShared++;
         } else {
-            assertEq(tok[p.t].creditReservedOf(u), rs[p.u][p.t] - p.a0,
-                "I10: releaseStaleCredit lowers creditReservedOf by exactly the record's a0");
+            assertEq(
+                tok[p.t].creditReservedOf(u),
+                rs[p.u][p.t] - p.a0,
+                "I10: releaseStaleCredit lowers creditReservedOf by exactly the record's a0"
+            );
             assertEq(tok[p.t].lockedOf(u), lk[p.u][p.t], "I10: releaseStaleCredit leaves lockedOf untouched");
             assertEq(tok[p.t].creditReservationOf(p.h, u).locker, address(0), "I10: stale reservation record deleted");
             (, uint256 ua) = tok[p.t].autoAllowance(u, address(sp));
@@ -1321,10 +1461,13 @@ contract SuperPaymasterV55FuzzTest is Test {
             if (shared) st.relCreditShared++;
         }
         assertEq(tok[p.t].balanceOf(u), bal, "I10: release moves no tokens (user net 0)");
-        assertEq(_opBal(p.t) - ob[p.t], p.a0,
-            "I10: releaseStaleSponsorship restores the operator's in-flight a0 after the tx boundary");
+        assertEq(
+            _opBal(p.t) - ob[p.t],
+            p.a0,
+            "I10: releaseStaleSponsorship restores the operator's in-flight a0 after the tx boundary"
+        );
         assertEq(_opBal(1 - p.t), ob[1 - p.t], "I10: the other operator is untouched");
-        (address f, ) = sp.inflightOf(p.h);
+        (address f,) = sp.inflightOf(p.h);
         assertEq(f, address(0), "I10: in-flight record deleted");
         sp.releaseStaleSponsorship(p.h); // idempotent
         assertEq(_opBal(p.t) - ob[p.t], p.a0, "I10: releaseStaleSponsorship is idempotent");
@@ -1335,7 +1478,9 @@ contract SuperPaymasterV55FuzzTest is Test {
             for (uint256 v; v < 3; v++) {
                 if (v == p.u && t == p.t) continue;
                 assertEq(tok[t].lockedOf(usr[v]), lk[v][t], "I10: other users' / tokens' lockedOf untouched");
-                assertEq(tok[t].creditReservedOf(usr[v]), rs[v][t], "I10: other users' / tokens' creditReservedOf untouched");
+                assertEq(
+                    tok[t].creditReservedOf(usr[v]), rs[v][t], "I10: other users' / tokens' creditReservedOf untouched"
+                );
             }
         }
         for (uint256 j; j < n; j++) {
@@ -1398,24 +1543,46 @@ contract SuperPaymasterV55FuzzTest is Test {
             ethSettled += _chargeEthNet(x, o.chargeExp);
         }
         for (uint256 t; t < 2; t++) {
-            assertEq(_opBal(t) + sumC[t] + newInjA[t], x.opBal0[t] + rel.opA[t],
-                "conservation: operator aPNTs == pre - sum(charge) - a0(failed, still parked) + a0(released)");
+            assertEq(
+                _opBal(t) + sumC[t] + newInjA[t],
+                x.opBal0[t] + rel.opA[t],
+                "conservation: operator aPNTs == pre - sum(charge) - a0(failed, still parked) + a0(released)"
+            );
             assertEq(x.supply0[t] - tok[t].totalSupply(), sumX[t], "conservation: xPNTs burned (supply) == sum(xc)");
             for (uint256 u; u < 3; u++) {
                 address a = usr[u];
                 (, uint256 ua) = tok[t].autoAllowance(a, address(sp));
                 (, uint256 ub) = tok[t].userTotal(a);
-                assertEq(x.bal0[u][t] - tok[t].balanceOf(a), burnUT[u][t],
-                    "I10/conservation: user pays exactly the xc of its settled ops (net 0 for a failed postOp)");
-                assertEq(tok[t].debts(a) - x.debt0[u][t], debtUT[u][t], "conservation: debt delta == sum(expected CREDIT charges)");
-                assertEq(tok[t].lockedOf(a) + rel.lockX[u][t], x.lock0[u][t] + lockUT[u][t],
-                    "I10: lockedOf == pre + x0(failed, parked) - x0(released)");
-                assertEq(tok[t].creditReservedOf(a) + rel.credA[u][t], x.res0[u][t] + resUT[u][t],
-                    "I10: creditReservedOf == pre + a0(failed, parked) - a0(released)");
-                assertEq(ua + rel.allowA[u][t], x.usedA0[u][t] + allowUT[u][t],
-                    "A-4: SP auto-allowance used == pre + charge(settled) + a0(failed, parked) - a0(released)");
-                assertEq(ub + rel.allowA[u][t], x.usedB0[u][t] + allowUT[u][t],
-                    "A-4: user total budget used == pre + charge(settled) + a0(failed, parked) - a0(released)");
+                assertEq(
+                    x.bal0[u][t] - tok[t].balanceOf(a),
+                    burnUT[u][t],
+                    "I10/conservation: user pays exactly the xc of its settled ops (net 0 for a failed postOp)"
+                );
+                assertEq(
+                    tok[t].debts(a) - x.debt0[u][t],
+                    debtUT[u][t],
+                    "conservation: debt delta == sum(expected CREDIT charges)"
+                );
+                assertEq(
+                    tok[t].lockedOf(a) + rel.lockX[u][t],
+                    x.lock0[u][t] + lockUT[u][t],
+                    "I10: lockedOf == pre + x0(failed, parked) - x0(released)"
+                );
+                assertEq(
+                    tok[t].creditReservedOf(a) + rel.credA[u][t],
+                    x.res0[u][t] + resUT[u][t],
+                    "I10: creditReservedOf == pre + a0(failed, parked) - a0(released)"
+                );
+                assertEq(
+                    ua + rel.allowA[u][t],
+                    x.usedA0[u][t] + allowUT[u][t],
+                    "A-4: SP auto-allowance used == pre + charge(settled) + a0(failed, parked) - a0(released)"
+                );
+                assertEq(
+                    ub + rel.allowA[u][t],
+                    x.usedB0[u][t] + allowUT[u][t],
+                    "A-4: user total budget used == pre + charge(settled) + a0(failed, parked) - a0(released)"
+                );
             }
         }
         // per-op STATE: where a user has exactly one admitted op on a token, that op alone explains
@@ -1427,15 +1594,24 @@ contract SuperPaymasterV55FuzzTest is Test {
             if (nUT[o.u][o.t] == 1) {
                 bool b = o.settled && o.mode == MODE_BALANCE;
                 bool c = o.settled && o.mode == MODE_CREDIT;
-                assertEq(x.bal0[o.u][o.t] - tok[o.t].balanceOf(a), b ? o.xcExp : 0,
-                    "per-op state: the user's balance delta == this op's expected xc");
-                assertEq(tok[o.t].debts(a) - x.debt0[o.u][o.t], c ? o.chargeExp : 0,
-                    "per-op state: the user's debt delta == this op's expected CREDIT charge");
+                assertEq(
+                    x.bal0[o.u][o.t] - tok[o.t].balanceOf(a),
+                    b ? o.xcExp : 0,
+                    "per-op state: the user's balance delta == this op's expected xc"
+                );
+                assertEq(
+                    tok[o.t].debts(a) - x.debt0[o.u][o.t],
+                    c ? o.chargeExp : 0,
+                    "per-op state: the user's debt delta == this op's expected CREDIT charge"
+                );
                 if (o.settled) st.singleGroupSettled++;
             }
             if (nTok[o.t] == 1) {
-                assertEq(x.supply0[o.t] - tok[o.t].totalSupply(), (o.settled && o.mode == MODE_BALANCE) ? o.xcExp : 0,
-                    "per-op state: the token's supply delta == this op's expected xc");
+                assertEq(
+                    x.supply0[o.t] - tok[o.t].totalSupply(),
+                    (o.settled && o.mode == MODE_BALANCE) ? o.xcExp : 0,
+                    "per-op state: the token's supply delta == this op's expected xc"
+                );
                 if (o.settled) st.singleTokenSettled++;
             }
         }
@@ -1443,7 +1619,11 @@ contract SuperPaymasterV55FuzzTest is Test {
         uint256 depDelta = x.dep0 - entryPoint.balanceOf(address(sp));
         assertEq(depDelta, gAll, "EP: SP deposit delta == sum(UserOperationEvent.actualGasCost) over the bundle");
         if (!_countSubsidy) {
-            assertGe(ethSettled, gSettled, "DSR no-subsidy: bundle sum(net charge in ETH) >= sum(actualGasCost) of settled ops");
+            assertGe(
+                ethSettled,
+                gSettled,
+                "DSR no-subsidy: bundle sum(net charge in ETH) >= sum(actualGasCost) of settled ops"
+            );
         }
         st.sumDepDelta += depDelta;
     }
@@ -1463,7 +1643,11 @@ contract SuperPaymasterV55FuzzTest is Test {
         for (uint256 k; k < 40; k++) {
             uint256 ap = sp.aPNTsPriceUSD();
             if (ap >= 0.01 ether && ap <= 0.05 ether) break;
-            _owner(abi.encodeWithSignature("setAPNTSPrice(uint256)", ap < 0.01 ether ? ap * 11_000 / 10_000 : ap * 9_000 / 10_000));
+            _owner(
+                abi.encodeWithSignature(
+                    "setAPNTSPrice(uint256)", ap < 0.01 ether ? ap * 11_000 / 10_000 : Math.ceilDiv(ap * 9_000, 10_000)
+                )
+            );
         }
     }
 
@@ -1502,7 +1686,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 st.evPolicy++;
             }
             // operator pause / unpause (SP owner)
-            (, , bool paused, , , , , , ) = sp.operators(opr[t]);
+            (,, bool paused,,,,,,) = sp.operators(opr[t]);
             if (paused ? _r(100) < 60 : _r(100) < 6) {
                 _owner(abi.encodeCall(SuperPaymasterAdmin.setOperatorPaused, (opr[t], !paused)));
                 st.evPause++;
@@ -1565,7 +1749,8 @@ contract SuperPaymasterV55FuzzTest is Test {
             uint256 np = cur * (9_500 + _r(1_001)) / 10_000;
             if (np < 0.01 ether) np = 0.01 ether;
             if (np > 0.05 ether) np = 0.05 ether;
-            if (np < cur * 9_000 / 10_000) np = cur * 9_000 / 10_000;   // SP delta guard (±10%)
+            uint256 lower = Math.ceilDiv(cur * 9_000, 10_000);
+            if (np < lower) np = lower; // SP delta guard (exact ±10%)
             if (np > cur * 11_000 / 10_000) np = cur * 11_000 / 10_000;
             _owner(abi.encodeWithSignature("setAPNTSPrice(uint256)", np));
             st.evPrice++;
@@ -1582,7 +1767,7 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     function _opBal(uint256 t) internal view returns (uint256 b) {
-        (b, , , , , , , , ) = sp.operators(opr[t]);
+        (b,,,,,,,,) = sp.operators(opr[t]);
     }
 
     function _newStats(uint256 cap) internal pure returns (Stats memory st) {
@@ -1601,9 +1786,13 @@ contract SuperPaymasterV55FuzzTest is Test {
         console.log("  settled after mid-bundle ETH move / aPNTs move", st.postAfterEthMove, st.postAfterAMove);
         console.log("  injected settle failures (BALANCE / CREDIT)", st.injB, st.injC);
         console.log("  stale releases lock / credit", st.relLock, st.relCredit);
-        console.log("  ... with a same-user same-token record alive (lock / credit)", st.relLockShared, st.relCreditShared);
+        console.log(
+            "  ... with a same-user same-token record alive (lock / credit)", st.relLockShared, st.relCreditShared
+        );
         console.log("  bundles with a repeated sender", st.repeatBundles);
-        console.log("  single-op groups settled: per user+token / per token", st.singleGroupSettled, st.singleTokenSettled);
+        console.log(
+            "  single-op groups settled: per user+token / per token", st.singleGroupSettled, st.singleTokenSettled
+        );
         console.log("  ops at postOpGasLimit == MIN: admitted / settled", st.atMinIncluded, st.atMinSettled);
         console.log("  opReverted settled (of which OOG)", st.opReverted, st.oogSettled);
         console.log("  executions kept", st.kept);
@@ -1611,11 +1800,25 @@ contract SuperPaymasterV55FuzzTest is Test {
         console.log("  events: pause / top-up / E-1 disable", st.evPause, st.evTopUp, st.evDisable);
         console.log("  events: emergency / rate / price", st.evEmergency, st.evRate, st.evPrice);
         console.log("  I9 unbacked count / amount", st.unbCnt, st.unbAmt);
-        console.log("  EP deposit delta (wei) / sum G settled / sum G injected", st.sumDepDelta, st.sumGSettled, st.sumGInjected);
+        console.log(
+            "  EP deposit delta (wei) / sum G settled / sum G injected", st.sumDepDelta, st.sumGSettled, st.sumGInjected
+        );
         console.log("  sum net charge (ETH wei) over settled ops", st.sumChargeEth);
-        _dist("  R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n =", st.ratioPpm, st.nRatio, st.sumRatioPpm);
-        _dist("  R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n =", st.tightPpm, st.nTight, st.sumTightPpm);
-        _dist("  R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n =", st.largePpm, st.nLarge, st.sumLargePpm);
+        _dist(
+            "  R1-8 overcharge (chargeEthNet - G)/G, all settled ops, ppm; n =", st.ratioPpm, st.nRatio, st.sumRatioPpm
+        );
+        _dist(
+            "  R1-8 overcharge, settled ops with postOpGasLimit <= MIN+50k, ppm; n =",
+            st.tightPpm,
+            st.nTight,
+            st.sumTightPpm
+        );
+        _dist(
+            "  R1-8 overcharge, settled ops with postOpGasLimit in [1.0M, 1.5M], ppm; n =",
+            st.largePpm,
+            st.nLarge,
+            st.sumLargePpm
+        );
         console.log("  buffer: C_POSTOP / C_WRAP / old formula", _cPostop, _cWrap, _bufOld ? 1 : 0);
         console.log("  SUBSIDY: ops / total wei / max ppm", st.subsidyCnt, st.subsidyWei, st.maxSubsidyPpm);
     }

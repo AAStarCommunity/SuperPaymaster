@@ -174,6 +174,8 @@ contract APNTsCappedSPIntegrationTest is Test {
         vm.startPrank(operator);
         apnts.approve(address(sp), 100 ether);
         sp.deposit(100 ether);
+        sp.requestWithdraw(30 ether);
+        vm.warp(block.timestamp + sp.OPERATOR_WITHDRAWAL_DELAY());
         sp.withdraw(30 ether);
         vm.stopPrank();
         assertEq(_opBal(), 70 ether, "withdraw debits the operator");

@@ -189,8 +189,8 @@ abstract contract PostOpProfileFixture is Test {
                             : [uint256(460528), 460251, 350507, 129680, 276883, 374602, 263303, 261127];
                     } else {
                         expected = credit
-                            ? [uint256(467728), 467451, 445727, 400940, 350391, 350190, 326911, 324735]
-                            : [uint256(467728), 467451, 445727, 400940, 356803, 356602, 333323, 331147];
+                            ? [uint256(467706), 467429, 445705, 400918, 350369, 349006, 325707, 323530]
+                            : [uint256(467706), 467429, 445705, 400918, 356781, 355418, 332119, 329942];
                     }
                     uint256 low = g[0];
                     for (uint256 j; j < 8; j++) {
@@ -239,7 +239,7 @@ abstract contract PostOpProfileFixture is Test {
 
 abstract contract PostOpProfileBoundary is PostOpProfileFixture {
     function directMinimum() internal returns (uint256) {
-        return vm.envOr("PROFILE_AMSTERDAM", false) ? 469305 : 461990;
+        return vm.envOr("PROFILE_AMSTERDAM", false) ? 469305 : 462035;
     }
 
     function test_entrypoint_minimum() public {
@@ -257,7 +257,9 @@ abstract contract PostOpProfileBoundary is PostOpProfileFixture {
     function test_direct_minimum_minus_one() public {
         assertFalse(sample(directMinimum() - 1, creditMode(), false, false));
         // The failure just below the minimum is the entry guard itself, not an out-of-gas past it.
-        assertEq(lastDirectRet, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "guard, not OOG");
+        assertEq(
+            lastDirectRet, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "guard, not OOG"
+        );
     }
 
     /// @dev Amsterdam only: the stable-engine guard boundary (461,990) is still rejected by the guard,
@@ -265,7 +267,9 @@ abstract contract PostOpProfileBoundary is PostOpProfileFixture {
     function test_direct_stable_boundary_is_guard_on_amsterdam() public {
         if (!vm.envOr("PROFILE_AMSTERDAM", false)) return;
         assertFalse(sample(461990, creditMode(), false, false));
-        assertEq(lastDirectRet, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "guard, not OOG");
+        assertEq(
+            lastDirectRet, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "guard, not OOG"
+        );
     }
 
     function test_search_sample() public {

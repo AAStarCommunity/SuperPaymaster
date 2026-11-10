@@ -3,7 +3,7 @@
 pragma solidity 0.8.33;
 import "./BasePaymasterUpgradeable.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
-import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "../../../interfaces/ISuperPaymaster.sol";
@@ -15,9 +15,12 @@ import "../../../interfaces/ISuperPaymaster.sol";
  * @dev    Both contracts inherit exactly this chain — BasePaymasterUpgradeable(Ownable2StepNamespaced
  *         → Ownable, Initializable, UUPSUpgradeable) + ReentrancyGuard + the state below — so they
  *         agree on every slot by construction; scripts/check-sp-layout.py re-checks it on the
- *         compiled artifacts. The sequential layout is the UUPS proxy layout of SuperPaymaster 5.5.0
- *         (+ Part B) with ONE appended slot (guardian + paused); scripts/check_storage_layout.py
- *         allows only that listed append.
+ *         compiled artifacts. The deployed 5.4.2 baseline ends at `_blsSlashCdFloor` in slot 36
+ *         and has its gap at slots 37..64. The 5.5.x layout uses exactly slots 37 `_inflight`,
+ *         38 `_gasParams`, 39 `_pendingGasParams`, 40 `guardian` + `paused`, 41
+ *         `pendingWithdrawals`, 42 `slashQueues`, and 43 `inflightReserved`; the remaining gap
+ *         starts at slot 44 and preserves the old end slot. scripts/check_storage_layout.py allows
+ *         only those listed appends against the deployed baseline.
  *
  *         RULES
  *         - Declaration ORDER below is the storage order. Never insert, reorder or resize; append
@@ -30,6 +33,8 @@ import "../../../interfaces/ISuperPaymaster.sol";
  *           its extension in its own constructor (D5b-design §2.2).
  */
 abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyGuard {
+    bytes32 internal constant INFLIGHT_SEED = keccak256("SP.v5.5.inflight.live");
+
     struct PriceCache {
         int256 price;
         uint256 updatedAt;
@@ -37,10 +42,15 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
         uint8 decimals;
     }
 
-    /// @dev 5.5.0: operator reservation between validation and postOp (R10-M1b).
+    /// @dev Operator reservation between validation and postOp (R10-M1b). No target chain ever
+    ///      ran the 5.5.0 layout: Sepolia's deployed 5.4.2 gap begins at slot 37 and OP is a fresh
+    ///      deployment. Consequently every target-chain record is created with `counted = true`.
+    ///      The false branch remains only as defensive decoder compatibility for non-target forks.
     struct Inflight {
         address operator;
         uint96 a0;
+        // Appended to the unreleased 5.5.0 shape. A false value cannot exist on target chains.
+        bool counted;
     }
 
     /// @dev GOV-5: owner-settable gas parameters, one slot (4 x uint32).
@@ -62,8 +72,19 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
 
     struct UserOperatorState {
         uint48 lastTimestamp; // 6 bytes
-        bool isBlocked;       // 1 byte
+        bool isBlocked; // 1 byte
         // 25 bytes remaining in slot
+    }
+
+    struct PendingWithdrawal {
+        uint128 amount;
+        uint48 readyAt;
+    }
+
+    struct SlashQueue {
+        address queuedBy;
+        uint48 queuedAt;
+        bool guardianQueued;
     }
 
     // ====================================
@@ -71,8 +92,8 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     // ====================================
 
     IRegistry public immutable REGISTRY;
-    address public APNTS_TOKEN;            // aPNTs (AAStar Token) - Mutable to allow updates
-    address public xpntsFactory;           // xPNTs Factory for dynamic pricing
+    address public APNTS_TOKEN; // aPNTs (AAStar Token) - Mutable to allow updates
+    address public xpntsFactory; // xPNTs Factory for dynamic pricing
     AggregatorV3Interface public immutable ETH_USD_PRICE_FEED;
     address public treasury; // Protocol Treasury for fees
 
@@ -152,15 +173,29 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     GasParams internal _gasParams;
     PendingGasParams internal _pendingGasParams;
 
-    // D5b GOV-2 (spec 03 §10.7b A): emergency guardian + global sponsorship pause, ONE slot
-    // (address 20 B + bool 1 B), appended; __gap 25 -> 24, end slot unchanged.
-    /// @notice May ONLY pause (an operator, or all sponsorship). Unpausing is owner-only.
+    // D5b GOV-2 + 5.5.1: four appended slots shrink __gap 25 -> 21; end slot unchanged.
+    // Guardian + global sponsorship pause share one slot (address 20 B + bool 1 B).
+    /// @notice May pause and queue a time-bounded slash freeze. Unpausing is owner-only.
     address public guardian;
     /// @notice Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,
     ///         checked before anything in the op is parsed. postOp / release are unaffected.
     bool public paused;
 
-    uint256[24] private __gap;
+    // 5.5.1: delayed operator withdrawals remain in aPNTsBalance and slashable until execution.
+    mapping(address => PendingWithdrawal) public pendingWithdrawals;
+
+    // 5.5.1: queue provenance makes a guardian freeze time-bounded without changing legacy flags.
+    mapping(address => SlashQueue) public slashQueues;
+
+    /// @notice Aggregate a0 still reserved between validation and settlement/release per operator.
+    /// @dev Sepolia upgrades directly from deployed 5.4.2, whose `__gap` starts at slot 37; OP is
+    ///      freshly deployed. Thus `inflightReserved == 0` genuinely means there is no reservation
+    ///      on either target chain, rather than an uncounted pre-5.5.1 reservation.
+    ///      ERC-7562: validation writes only this staked paymaster's own storage, keyed by the
+    ///      sponsoring operator. This is the same STO-031 class as operators[operator].aPNTsBalance.
+    mapping(address => uint256) public inflightReserved;
+
+    uint256[21] private __gap;
 
     // ====================================
     // Constants
@@ -178,8 +213,8 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     uint256 internal constant POSTOP_GAS_OFFSET = 36; // start of paymasterPostOpGasLimit (uint128)
     uint256 internal constant TOKEN_OFFSET = 104;
     uint256 internal constant FLAGS_OFFSET = 124;
-    uint8 internal constant FLAG_SP_RENEW = 1;       // SP relays a K-bounded renewal (D-13)
-    uint8 internal constant FLAG_ACCOUNT_RENEW = 2;  // consumed by the account itself (option A); SP ignores it
+    uint8 internal constant FLAG_SP_RENEW = 1; // SP relays a K-bounded renewal (D-13)
+    uint8 internal constant FLAG_ACCOUNT_RENEW = 2; // consumed by the account itself (option A); SP ignores it
     uint8 internal constant MODE_NONE = 0;
     uint8 internal constant MODE_BALANCE = 1;
     uint8 internal constant MODE_CREDIT = 2;
@@ -189,16 +224,16 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     //   MIN_POST_OP_GAS (C-04 floor for paymasterPostOpGasLimit), SETTLE_GAS_BOUND (B-1 / R10-H1
     //   postOp entry guard), C_WRAP_GAS (R10-M3 EntryPoint wrapper), C_POSTOP_GAS (whole postOp
     //   frame upper bound; G-layer rule C_POSTOP >= W_postop x 1.15).
-    //   SETTLE in [155k, 1M]; MIN in [SETTLE + 20k, 2M]; C_POSTOP in [175k, MIN]; C_WRAP in [5k, 50k].
+    //   SETTLE in [155k, 1M]; MIN in [SETTLE + 20k, 2M]; C_POSTOP in [180k, MIN]; C_WRAP in [5k, 50k].
     uint256 internal constant MIN_POST_OP_GAS = 200_000;
     uint256 internal constant SETTLE_GAS_BOUND = 160_000;
     uint256 internal constant C_WRAP_GAS = 5_000;
-    uint256 internal constant C_POSTOP_GAS = 175_000;
+    uint256 internal constant C_POSTOP_GAS = 180_000;
     uint256 internal constant GP_SETTLE_MIN = 155_000;
     uint256 internal constant GP_SETTLE_MAX = 1_000_000;
     uint256 internal constant GP_MINPOST_OVER_SETTLE = 20_000;
     uint256 internal constant GP_MINPOST_MAX = 2_000_000;
-    uint256 internal constant GP_CPOSTOP_MIN = 175_000;
+    uint256 internal constant GP_CPOSTOP_MIN = 180_000;
     uint256 internal constant GP_CWRAP_MIN = 5_000;
     uint256 internal constant GP_CWRAP_MAX = 50_000;
     uint256 internal constant GP_TIMELOCK = 48 hours;
@@ -209,6 +244,13 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     uint256 internal constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
     /// @notice Minimum protocolRevenue that must remain after any withdrawal.
     uint256 internal constant PROTOCOL_REVENUE_BUFFER = 0.1 ether;
+    /// @notice Must exceed the worst case from "misbehaviour detectable" to a slash freeze on
+    ///         chain via the guardian route: detection + guardian queueSlash signing, plus OP
+    ///         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.
+    ///         The BLS quorum route is NOT the basis: it has no measured latency today.
+    uint48 public constant OPERATOR_WITHDRAWAL_DELAY = 48 hours;
+    /// @notice Guardian-queued freezes expire unless owner or BLS confirms within this window.
+    uint48 public constant GUARDIAN_SLASH_FREEZE = 7 days;
 
     // ====================================
     // Events
@@ -261,6 +303,9 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     // D5b GOV-2
     event GuardianSet(address indexed previousGuardian, address indexed newGuardian);
     event GlobalPauseSet(address indexed by, bool isPaused);
+    event OperatorWithdrawalRequested(address indexed operator, uint256 amount, uint48 readyAt);
+    event OperatorWithdrawalCancelled(address indexed operator, uint256 amount);
+    event WithdrawalRequestAdjusted(address indexed operator, uint256 oldAmount, uint256 newAmount);
 
     // ====================================
     // Errors
@@ -289,7 +334,14 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     error EmergencyExpired();
     error InvalidOwner();
     error SlashPending();
+    error SlashBlockedByInflight(uint256 reserved);
     error SlashCooldown();
+    error GuardianSlashUnresolved();
+    error OperatorNotConfigured();
+    error OperatorMeetsMinimumStake();
+    error WithdrawalPending();
+    error NoPendingWithdrawal();
+    error WithdrawalNotReady(uint48 readyAt);
 
     // ====================================
     // Constructor
@@ -307,9 +359,68 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     // Shared internals
     // ====================================
 
-    /// @dev Reverts with Unauthorized if `account` is not a registered ROLE_PAYMASTER_SUPER member
+    /// @dev Reverts unless `account` has the role and its live stake meets the current minimum.
     function _requireSuperOperatorRoleFor(address account) internal view {
-        if (!REGISTRY.hasRole(keccak256("PAYMASTER_SUPER"), account)) revert Unauthorized();
+        if (!_hasEffectiveSuperStake(account)) revert Unauthorized();
+    }
+
+    function _hasEffectiveSuperStake(address account) internal view returns (bool) {
+        if (!REGISTRY.hasRole(ROLE_PAYMASTER_SUPER, account)) return false;
+        IRegistry.RoleConfig memory config = REGISTRY.getRoleConfig(ROLE_PAYMASTER_SUPER);
+        return REGISTRY.getEffectiveStake(account, ROLE_PAYMASTER_SUPER) >= config.minStake;
+    }
+
+    function _capPendingWithdrawal(address operator, uint256 balance) internal {
+        PendingWithdrawal storage pending = pendingWithdrawals[operator];
+        uint256 oldAmount = pending.amount;
+        if (oldAmount <= balance) return;
+        if (balance == 0) delete pendingWithdrawals[operator];
+        else pending.amount = uint128(balance);
+        emit WithdrawalRequestAdjusted(operator, oldAmount, balance);
+    }
+
+    /// @dev The only deletion path for an in-flight record. Only 5.5.1 records entered the aggregate.
+    function _clearInflight(bytes32 opHash) internal {
+        Inflight memory f = _inflight[opHash];
+        if (f.operator == address(0)) return;
+        if (f.counted) inflightReserved[f.operator] -= f.a0;
+        delete _inflight[opHash];
+    }
+
+    function _inflightSlot(bytes32 opHash) private pure returns (bytes32) {
+        return keccak256(abi.encode(opHash, INFLIGHT_SEED));
+    }
+
+    function _setInflightLive(bytes32 opHash, bool on) internal {
+        bytes32 slot = _inflightSlot(opHash);
+        uint256 v = on ? 1 : 0;
+        assembly { tstore(slot, v) }
+    }
+
+    function _isInflightLive(bytes32 opHash) private view returns (bool live) {
+        bytes32 slot = _inflightSlot(opHash);
+        assembly { live := tload(slot) }
+    }
+
+    function _releaseStaleSponsorship(bytes32 opHash) internal {
+        Inflight memory f = _inflight[opHash];
+        if (f.operator == address(0)) return;
+        if (_isInflightLive(opHash)) revert SponsorshipInFlight();
+        _clearInflight(opHash);
+        operators[f.operator].aPNTsBalance += uint128(f.a0);
+        emit SponsorshipReleased(opHash, f.operator, f.a0);
+    }
+
+    /// @dev Legacy flags remain effective. Only an unconfirmed guardian queue expires.
+    function _isSlashPending(address operator) internal view returns (bool) {
+        if (!_pendingSlash[operator]) return false;
+        SlashQueue memory q = slashQueues[operator];
+        return !q.guardianQueued || block.timestamp < uint256(q.queuedAt) + GUARDIAN_SLASH_FREEZE;
+    }
+
+    function _clearSlashQueue(address operator) internal {
+        _pendingSlash[operator] = false;
+        delete slashQueues[operator];
     }
 
     /// @dev The GasParams slot as one word (minPostOpGas | settle << 32 | cWrap << 64 | cPostop << 96);

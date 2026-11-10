@@ -73,6 +73,8 @@ contract AdvRegistry {
     mapping(address => uint256) public creditLimit;
     function setRole(bytes32 role, address a, bool v) external { roles[role][a] = v; }
     function hasRole(bytes32 role, address a) external view returns (bool) { return roles[role][a]; }
+    function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory config) { config.minStake = 0; }
+    function getEffectiveStake(address, bytes32) external pure returns (uint256) { return 0; }
     function getCreditLimit(address u) external view returns (uint256) { return creditLimit[u]; }
     function setCreditLimit(address u, uint256 v) external { creditLimit[u] = v; }
     function setBlocked(address sp, address operator, address user, bool b) external {
