@@ -4,7 +4,7 @@
     "Only the seven 5.5.x slots carved from the old slot-37 uint256[28] gap are allowed; the gap now starts at 44 with length 21, preserving end slot 65.",
     "Inflight.counted is part of the allowed slot-37 mapping value shape. The self-test proves that changing or removing this appended struct member is rejected.",
     "SuperPaymasterStorage is the current declaring scope for structs formerly declared by SuperPaymaster; aliases normalize scope names only, never members.",
-    "Registry has no sequential change (pendingOwner uses ERC-7201 namespaced storage).",
+    "Registry 5.10.0 (rc.8 C3-02): pendingSBTBurn @31 and pendingMembershipCleanup @32 appended before __gap (43 -> 41, end slot 74 unchanged); the snapshot stays the deployed 5.9.0 baseline. pendingOwner lives in the ERC-7201 slot, checked by vm.load tests.",
     "baseline_sha256 pins each deployed snapshot so `update` cannot silently bless drift."
   ],
   "SuperPaymaster": {
@@ -86,7 +86,29 @@
     "baseline_sha256": "ac3d211c58b59bd03cb4fb23e52b3dccd25de75b1b00fc9b612affd13d905d87"
   },
   "Registry": {
-    "struct_scope_aliases": {}, "appended": [],
+    "struct_scope_aliases": {},
+    "appended": [
+      {
+        "label": "pendingSBTBurn",
+        "slot": "31",
+        "offset": 0,
+        "type": {
+          "mapping": "mapping(address => bool)",
+          "key": "address",
+          "value": "bool"
+        }
+      },
+      {
+        "label": "pendingMembershipCleanup",
+        "slot": "32",
+        "offset": 0,
+        "type": {
+          "mapping": "mapping(address => bool)",
+          "key": "address",
+          "value": "bool"
+        }
+      }
+    ],
     "baseline_sha256": "d79ff83efeba8849c53c132b63f912c920b7cd89d2cf9bbc7104f41d3bb38182"
   }
 }

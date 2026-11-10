@@ -249,8 +249,8 @@ def runtime(rpc, name, target, block, immutable_values=None):
                             values={k: int(v, 16).to_bytes(32, 'big') for k, v in immutable_values.items()})
 
 
-def governance(rpc, block, start):
-    runtime(rpc, 'TimelockController', TL, block)
+def governance(rpc, block, start, identity):
+    a.verify_runtime(rpc, {'timelockRuntimeIdentity': identity}, code(rpc, TL, block), 'TimelockController')
     a.need('timelock_delay', a.word(rpc, TL, 'getMinDelay()', block=block), DELAY)
     # Reuse the reviewed event-history role reconciliation with a pinned read-only view.
     def pinned(method, params):
@@ -289,7 +289,7 @@ def a3a_gate(rpc, block):
     a.need('a3a_timelock_code', code(rpc, TL, block) != '0x', True)
     start = creation(rpc, TL, block)
     timelock_creation(rpc, start)
-    governance(rpc, block, start)
+    governance(rpc, block, start, build()['contracts']['TimelockController']['runtime'])
     capped = a.address(rpc, SP, 'pendingAPNTsToken()', block)
     a.need('a3a_s7_pending_token', capped != a.ZERO, True)
     # A3a's token deployment at the frozen nonce is part of the author-selected packet.
@@ -847,7 +847,7 @@ def pre_send(step, rpc, plan, check_gas=True):
     pin, sid, tx = plan['pin'], step['id'], copy.deepcopy(step['tx'])
     a.need('pre_send_chain', a.qty(rpc('eth_chainId', [])), a.CHAIN)
     a.need('pre_send_safe_state', safe_state(rpc, 'latest'), pin['safe'])
-    governance(rpc, 'latest', pin['timelockCreation'])
+    governance(rpc, 'latest', pin['timelockCreation'], plan['rebuild']['contracts']['TimelockController']['runtime'])
     a.need('pre_send_sender_nonce', a.nonce(rpc, tx['from']), a.qty(tx['nonce']))
     a.need('pre_send_pending_nonce', a.nonce(rpc, tx['from'], 'pending'), a.qty(tx['nonce']))
     a.need('pre_send_safe_nonce', a.word(rpc, SAFE, 'nonce()'), step['safeNonce'])
@@ -901,7 +901,7 @@ def final_gate(rpc, plan):
     upgrade_readback(rpc, plan, activated=True)
     check_inventory(rpc, plan['pin'])
     a.need('final_safe', safe_state(rpc, 'latest'), plan['pin']['safe'])
-    governance(rpc, 'latest', plan['pin']['timelockCreation'])
+    governance(rpc, 'latest', plan['pin']['timelockCreation'], plan['rebuild']['contracts']['TimelockController']['runtime'])
     for op in plan['operations'].values():
         operation_state(rpc, op, 3)
     a.need('final_pending_operations', pending_operations(rpc, plan['pin']['timelockCreation'],

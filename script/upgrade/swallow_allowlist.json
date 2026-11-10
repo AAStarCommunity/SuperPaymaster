@@ -1,0 +1,10 @@
+[
+  {
+    "module": "a3a_exec",
+    "function": "RPC._post_with_deadline.work",
+    "exception": "Exception",
+    "body_sha256": "15a0fb0c037bd1cbc065647524c5eb1c4177a1a0c4517a86ac5c0eb3da456932",
+    "reason": "The worker thread transfers the exception to the waiting caller in box['error']; the caller raises it before returning a response.",
+    "continues_when": "Only the worker thread returns. The RPC caller must raise box['error'] after join, or raise TimeoutError if the deadline expired; no successful RPC result is returned."
+  }
+]

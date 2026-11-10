@@ -36,6 +36,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x05072850` | `setPaymasterStatus(address,bool)` | IPaymasterRouter |
 | `0x055b8e7b` | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | PolicyRegistry |
 | `0x055b8e7b` | `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | IPolicyRegistry |
+| `0x056c8a98` | `reconcileMembershipDeactivation(address)` | Registry |
 | `0x0579b6bc` | `DRYRUN_OPERATOR_NOT_CONFIGURED()` | SuperPaymasterLens |
 | `0x05e44aaf` | `executeGuardianSlash(uint256,address[],bytes)` | BLSAggregator |
 | `0x0618f104` | `implementations(string)` | PaymasterFactory |
@@ -111,6 +112,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x0b3167cd` | `receiveWithAuthorization(address,address,uint256,uint256,uint256,bytes32,address,bytes)` | GTokenAuthorization |
 | `0x0bb8bcaf` | `extensionCodehash()` | xPNTsFactoryV2 |
 | `0x0c2fd48b` | `cancelSP()` | xPNTsTokenV2Ext |
+| `0x0c4752d2` | `getTargetSpend(address,address,address)` | PolicyRegistry |
+| `0x0c4752d2` | `getTargetSpend(address,address,address)` | IPolicyRegistry |
 | `0x0c883112` | `cancelEmergencyPrice()` | SuperPaymasterAdmin |
 | `0x0cfb14b0` | `totalDeployed()` | PaymasterFactory |
 | `0x0d8b9eab` | `permissionlessBLSRegistration()` | BLSAggregator |
@@ -297,8 +300,6 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x355274ea` | `cap()` | GTokenAuthorization |
 | `0x358064a8` | `updatePrediction(uint256,uint256,string,uint256)` | xPNTsFactoryV2 |
 | `0x358064a8` | `updatePrediction(uint256,uint256,string,uint256)` | xPNTsFactory |
-| `0x35cefaa8` | `getContractScope(address,address)` | PolicyRegistry |
-| `0x35cefaa8` | `getContractScope(address,address)` | IPolicyRegistry |
 | `0x35fa61fa` | `predictions(address)` | xPNTsFactoryV2 |
 | `0x35fa61fa` | `predictions(address)` | xPNTsFactory |
 | `0x362f6582` | `inflightOf(bytes32)` | SuperPaymaster |
@@ -353,8 +354,6 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x3d63f215` | `emergencyActivatedAt()` | SuperPaymasterStorage |
 | `0x3e3e6842` | `mintForRole(address,bytes32,bytes)` | IMySBT |
 | `0x3e3e6842` | `mintForRole(address,bytes32,bytes)` | MySBT |
-| `0x3ef43aff` | `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | PolicyRegistry |
-| `0x3ef43aff` | `setContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | IPolicyRegistry |
 | `0x3f4ba83a` | `unpause()` | Paymaster |
 | `0x3f4ba83a` | `unpause()` | PaymasterBase |
 | `0x3f4ba83a` | `unpause()` | MySBT |
@@ -411,6 +410,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x47b77308` | `historicalSP(address)` | xPNTsTokenV2 |
 | `0x47b77308` | `historicalSP(address)` | xPNTsTokenV2Ext |
 | `0x47b77308` | `historicalSP(address)` | xPNTsV2Base |
+| `0x4841328e` | `pendingMembershipCleanup(address)` | Registry |
 | `0x48567aab` | `revokeCredit()` | xPNTsTokenV2Ext |
 | `0x4915a858` | `setPriceStalenessThreshold(uint256)` | Paymaster |
 | `0x4915a858` | `setPriceStalenessThreshold(uint256)` | PaymasterBase |
@@ -570,6 +570,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x5fa7b584` | `removeToken(address)` | Paymaster |
 | `0x5fa7b584` | `removeToken(address)` | PaymasterBase |
 | `0x60153d92` | `queueSlashWithProof(address,uint8,uint256,bytes)` | DVTValidator |
+| `0x607004dd` | `pendingSBTBurn(address)` | Registry |
 | `0x60a9139b` | `pendingAPNTsToken()` | SuperPaymaster |
 | `0x60a9139b` | `pendingAPNTsToken()` | SuperPaymasterAdmin |
 | `0x60a9139b` | `pendingAPNTsToken()` | SuperPaymasterStorage |
@@ -751,6 +752,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x7aadef8b` | `TIMELOCK()` | xPNTsTokenV2 |
 | `0x7aadef8b` | `TIMELOCK()` | xPNTsTokenV2Ext |
 | `0x7aadef8b` | `TIMELOCK()` | xPNTsV2Base |
+| `0x7ac0774b` | `getTargetScope(address,address)` | PolicyRegistry |
+| `0x7ac0774b` | `getTargetScope(address,address)` | IPolicyRegistry |
 | `0x7ade132c` | `setSuperPaymasterAddress(address)` | xPNTsFactoryV2 |
 | `0x7ade132c` | `setSuperPaymasterAddress(address)` | xPNTsFactory |
 | `0x7ade132c` | `setSuperPaymasterAddress(address)` | xPNTsToken |
@@ -791,6 +794,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x7f39a939` | `setMinThreshold(uint256)` | BLSAggregator |
 | `0x7f6b337b` | `GTOKEN()` | GTokenStaking |
 | `0x7f6b337b` | `GTOKEN()` | MySBT |
+| `0x7f6f42f0` | `tightenContractScope(address,address,(bool,bool,uint64,bytes4[]))` | PolicyRegistry |
+| `0x7f6f42f0` | `tightenContractScope(address,address,(bool,bool,uint64,bytes4[]))` | IPolicyRegistry |
 | `0x7fd6327a` | `usedOpHashes(bytes32)` | xPNTsTokenV2 |
 | `0x7fd6327a` | `usedOpHashes(bytes32)` | xPNTsTokenV2Ext |
 | `0x7fd6327a` | `usedOpHashes(bytes32)` | xPNTsV2Base |
@@ -955,6 +960,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x9bb0f599` | `hasToken(address)` | xPNTsFactoryV2 |
 | `0x9bb0f599` | `hasToken(address)` | xPNTsFactory |
 | `0x9bb97111` | `ACT_SET_MODE()` | xPNTsTokenV2Ext |
+| `0x9c227a36` | `reconcileSBTBurn(address)` | Registry |
 | `0x9c4b3436` | `calculateReputation(address,address,uint256)` | IReputationCalculator |
 | `0x9c4b3436` | `calculateReputation(address,address,uint256)` | ReputationSystem |
 | `0x9c664f84` | `proposeSpender(address)` | xPNTsTokenV2Ext |
@@ -1035,6 +1041,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xab798449` | `industryMultipliers(string)` | xPNTsFactoryV2 |
 | `0xab798449` | `industryMultipliers(string)` | xPNTsFactory |
 | `0xabcd5a04` | `mySBT()` | GTokenAuthorization |
+| `0xac0a0e81` | `tightenTargetVelocity(address,address,address,uint128)` | PolicyRegistry |
+| `0xac0a0e81` | `tightenTargetVelocity(address,address,address,uint128)` | IPolicyRegistry |
 | `0xad1c98d7` | `queueSlash(address)` | ISuperPaymasterSlash |
 | `0xad1c98d7` | `queueSlash(address)` | SuperPaymasterAdmin |
 | `0xad3358fc` | `maxAggregateCreditUpliftPerProposal()` | Registry |
@@ -1198,6 +1206,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xc23a5cea` | `withdrawStake(address)` | PaymasterBase |
 | `0xc23f001f` | `balances(address,address)` | Paymaster |
 | `0xc23f001f` | `balances(address,address)` | PaymasterBase |
+| `0xc28b58c1` | `setContractScope(address,address,(bool,bool,uint64,bytes4[]))` | PolicyRegistry |
+| `0xc28b58c1` | `setContractScope(address,address,(bool,bool,uint64,bytes4[]))` | IPolicyRegistry |
 | `0xc2e7cbdd` | `getBLSPublicKey(address)` | BLSAggregator |
 | `0xc312b093` | `slashThresholds(uint8)` | IBLSAggregator |
 | `0xc312b093` | `slashThresholds(uint8)` | MockBLSAggregator |
@@ -1242,10 +1252,10 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xca7f9c4a` | `setAutoAllowance(address,uint256)` | xPNTsTokenV2Ext |
 | `0xca9f8d7b` | `setIssuanceCap(uint256)` | xPNTsTokenV2Ext |
 | `0xca9f8d7b` | `setIssuanceCap(uint256)` | xPNTsToken |
+| `0xcb9fa794` | `getTargetVelocity(address,address,address)` | PolicyRegistry |
+| `0xcb9fa794` | `getTargetVelocity(address,address,address)` | IPolicyRegistry |
 | `0xcc1fb85d` | `MAX_AUTH_VALIDITY()` | GTokenAuthorization |
 | `0xccbc10d0` | `reputationCalculator()` | MySBT |
-| `0xccd7129f` | `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | PolicyRegistry |
-| `0xccd7129f` | `tightenContractScope(address,address,(bool,bool,uint128,uint64,bytes4[]))` | IPolicyRegistry |
 | `0xcd5d1e74` | `setMySBT(address)` | Registry |
 | `0xcd5d1e74` | `setMySBT(address)` | GTokenAuthorization |
 | `0xce05a1ad` | `creditPopulationTotal()` | Registry |
@@ -1484,6 +1494,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xf7e8cb0d` | `sbtHolders(address)` | SuperPaymaster |
 | `0xf7e8cb0d` | `sbtHolders(address)` | SuperPaymasterAdmin |
 | `0xf7e8cb0d` | `sbtHolders(address)` | SuperPaymasterStorage |
+| `0xf8f33e86` | `setTargetVelocity(address,address,address,uint128)` | PolicyRegistry |
+| `0xf8f33e86` | `setTargetVelocity(address,address,address,uint128)` | IPolicyRegistry |
 | `0xf8f78c88` | `KIND_TIER_SOURCE()` | AOAProtocolRegistry |
 | `0xf901ac57` | `MAX_ATTEST_ANCHOR_AGE()` | LivenessRegistry |
 | `0xf901ac57` | `MAX_ATTEST_ANCHOR_AGE()` | ILivenessRegistry |
@@ -1527,6 +1539,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x03a16256` | `TotalStakeExceedsCap()` | GTokenStaking |
 | `0x0418cb66` | `ProposalExecutionFailed(uint256,bytes)` | BLSAggregator |
 | `0x0590fb9f` | `AmountOverflow()` | MicroPaymentChannel |
+| `0x071caaf1` | `VelocityDisabled()` | PolicyRegistry |
 | `0x07df4537` | `BurnExceedsAllowance()` | xPNTsTokenV2 |
 | `0x0819bdcd` | `SignatureExpired()` | xPNTsTokenV2 |
 | `0x08a5d5c0` | `VerifierIsDelegatedEoa(address)` | BLSAggregator |
@@ -1652,7 +1665,6 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x6b049335` | `EmergencyPriceOutOfRange()` | SuperPaymaster |
 | `0x6ce8826d` | `CapNotLowered(uint256,uint256)` | APNTsCapped |
 | `0x6dd4f06c` | `RoleAlreadyGranted(bytes32,address)` | Registry |
-| `0x6dfcc650` | `SafeCastOverflowedUintDowncast(uint8,uint256)` | PolicyRegistry |
 | `0x6f12f3dc` | `InvalidMultiplier()` | xPNTsFactoryV2 |
 | `0x70f2db9a` | `OnlyRegistryOrAuthorized()` | GTokenStaking |
 | `0x71b4da4a` | `TotalCreditExposureExceeded(uint256,uint256)` | Registry |
@@ -1922,6 +1934,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x5ce6898a418ad55caa812016e4cdd4a200158714e584a9627d17df3369316ef3` | `ReputationEpochTriggered(uint256,uint256)` | BLSAggregator |
 | `0x5d1f56e31e5dc1f29354822b887b1463ececf7edfad7c39216980b7dfd7ea97d` | `MinLockAmountUpdated(uint256,uint256,uint256)` | MySBT |
 | `0x5d4bb2355e56aab4ce3c351d050e2a54fb3096e84130577503d5f4b940e0e59e` | `SuperPaymasterPropagationFailed(address,address)` | xPNTsFactoryV2 |
+| `0x5d9b9bcdce2cd939b17ac423b2aa97770271ecebda7bf7c45e7db25d980c52ae` | `AssetPolicySet(address,address,uint128,uint128,uint256,uint64)` | PolicyRegistry |
 | `0x5db9ee0a495bf2e6ff9c91a7834c1ba4fdd244a5e8aa4e537bd38aeae4b073aa` | `Unpaused(address)` | Paymaster |
 | `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` | SuperPaymaster |
 | `0x5e767addaf0688fadc4c3c7cfdbbef3f4e2d54783f402f6eecfffc4a410bed68` | `GuardianExitConsumed(address)` | BLSAggregator |
@@ -1953,6 +1966,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x78b2b518370694dbabbd3a63a8babdbff376dff74a1b2b09c8c23f0f265cd161` | `SBTStatusSyncFailed(address,bytes32)` | Registry |
 | `0x798353030d4251a345706609acf9ea7527f2ace26f73150a098c0fae89e5886d` | `DebtRepaid(address,uint256,uint256)` | xPNTsTokenV2 |
 | `0x7b32f4d45974a956aea3042047d08a8ebd626d4d7a9c58c200f7bde19ec4919f` | `CreditPolicyCancelled()` | xPNTsTokenV2 |
+| `0x7d7723bde2fdf2e4f1526e8af4d7888b8c98f69c0a4dfc3a51a4e6e1fe75fe65` | `SBTBurnReconciled(address)` | Registry |
 | `0x7e684e0b76ed13bc9cf7e4fbac7d11873036be9c9a83f9958382721eeda46010` | `CreditTierUpdated(uint256,uint256)` | Registry |
 | `0x7f6bf87ac1bc178bfcd6d6e057cd4722382aa04c508035f7caf9724ac0ccff97` | `CreditExposureResynced(uint256)` | Registry |
 | `0x80140d6bcee83a25999242a95412ea6b9754c623fc171e8d4c86c8392c053ad9` | `StatsUpdated(address,uint256,uint256)` | IPaymasterRouter |
@@ -1966,20 +1980,19 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x8580ef248ca1d6bb850bdefe489be0582d571973a1276ac11455204a7f901160` | `LivenessWindowUpdated(uint256,uint256)` | LivenessRegistry |
 | `0x868a11f79934bfa7243fd979d39bf00f37050e24b3ffc20a11f12a8b7e48d995` | `RuleUpdated(address,bytes32,uint256,uint256)` | ReputationSystem |
 | `0x876b000c101c27e7aaff6a3254ea503d0e9bf516112d43803bd82989b1355235` | `ProposalCreated(uint256,address,uint8)` | DVTValidator |
+| `0x8a59deaaeec963ad08ce31dd8b1991b2056af25b7b38f8180d04cc9024f77469` | `MembershipDeactivationReconciled(address)` | Registry |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` | GTokenStaking |
 | `0x8c48ef656e85255b7e51330f2d5bca7663b2f2f34d2d812c43f780c7c852fd17` | `SuperPaymasterAddressUpdated(address,address)` | xPNTsFactoryV2 |
 | `0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925` | `Approval(address,address,uint256)` | MockUSDT |
 | `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` | SuperPaymaster |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` | xPNTsTokenV2 |
 | `0x90de8705b1aaf3966be0e8ec8acf9aed10a6d3d0d572ec8f96112409e2820c61` | `DAOMultisigUpdated(address,address,uint256)` | MySBT |
-| `0x92249bcccf66629d53d2829a1c6769f4d5d74bc9d8bc6aa08ab9f00c7f89fcfc` | `ContractScopeSet(address,address,bool,bool,uint128,uint64)` | PolicyRegistry |
 | `0x9255a7c0ff8f13508480e90b4262cef466dd9c1bf72a08ab689bbf3fe2083a5c` | `SpenderDisabledByUser(address,address,bool)` | xPNTsTokenV2 |
 | `0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec` | `AgentRegistriesUpdated(address,address)` | SuperPaymaster |
 | `0x93cbbbde8af84d8fc357f6ab6d867a7ec6262f8e613b727c93efe93f8a07fd07` | `FeedbackReceived(uint256,int128,bytes32,bytes32)` | MockAgentReputationRegistry |
 | `0x945c1c4e99aa89f648fbfe3df471b916f719e16d960fcec0737d4d56bd696838` | `PriceUpdated(uint256,uint256)` | Paymaster |
 | `0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5` | `AuthorizationUsed(address,bytes32)` | GTokenAuthorization |
 | `0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c` | `APNTsTokenChangeQueued(address,uint256)` | SuperPaymaster |
-| `0x9984473f7cade7b75b6eb54c38d7958684489452a04379c6d91de87da74375fe` | `AssetPolicySet(address,address,uint128,uint128,uint256)` | PolicyRegistry |
 | `0x998bd266e22a58386d64689f6092b25e25384562fd9b151e05dab5788a888abf` | `SpenderDailyCapForUpdated(address,uint256,uint256)` | xPNTsTokenV2 |
 | `0x9995b9b78ccf8754a92553c09d3f85d1c27ec162113bb629069fe1d73a6c3384` | `GasParamsExecuted(uint32,uint32,uint32,uint32)` | SuperPaymaster |
 | `0x99cf5cc1e3146bd15204f8eae4fe16c690d6123fbdac32515502fe688b86b8f5` | `DebtRecorded(address,uint256)` | xPNTsToken |
@@ -1988,8 +2001,10 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x9b6bf5a61deb3c460999ea46c3ff444018a6f424eb8807d5e7e7ca031461cb98` | `FacilitatorFeeUpdated(uint256,uint256)` | X402Facilitator |
 | `0x9cadbc33680e22a2f04ed8eb0d7cc7f218ee9231b3473ed05904c7ec5e2d483d` | `StakeUnlocked(address,bytes32,uint256,uint256,uint256,uint256)` | GTokenStaking |
 | `0x9d06dee325dc997b1cc3dc4dc4c7e23d437834b142552cec7fe2875786b50480` | `RenewalModeSet(address,uint8)` | xPNTsTokenV2 |
+| `0x9da60c6786d525ccc6003f478437c74ad59a8b556fb0fd5dec6dcd6f267c16c2` | `ContractScopeSet(address,address,bool,bool,uint64)` | PolicyRegistry |
 | `0x9fd5c1db29e4aeb4f968f62fc18602aad1cca0f99be64b456a6c4f4052d63b14` | `CloseRequested(bytes32,uint64)` | MicroPaymentChannel |
 | `0xa02c50e0f4c9c39686d753f1483900ff6da6ffaf49134611fdcfc0986e1e6f8c` | `CapRatioBpsSet(uint16,uint16)` | xPNTsFactoryV2 |
+| `0xa0cc9fdb8f54d3382e30589f0ae0733455166be350b0d2db1aa8e4f2e4b91b21` | `TargetVelocitySet(address,address,address,uint128)` | PolicyRegistry |
 | `0xa1ff1ed230517376e0a7481a00b4dfc8f2f2e212bccebd933d567bf5640494c0` | `PaymasterDeployed(address,address,string,uint256)` | PaymasterFactory |
 | `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` | SuperPaymaster |
 | `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` | ISuperPaymaster |
@@ -2007,6 +2022,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xbbb759660e3239a80c3b3a0326287b69c8a5388b2ba43876c6b91c7c85f21fb8` | `APNTsTokenChangeExecuted(address,address,uint256)` | SuperPaymaster |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` | Registry |
 | `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` | `SenderFrozen(address,address)` | PolicyRegistry |
+| `0xbd9ff2407526546b1e2709150d0af5a1e673decc84b2f1ca3a2ac7bbb45f0638` | `MembershipDeactivationFailed(address)` | Registry |
 | `0xbee963043b15401a5f01418733a5739b29c9d9e128ecfadc5b2078bffe8ba917` | `SpenderRateLimitWindowReset(address,uint64)` | xPNTsTokenV2 |
 | `0xc01e569e10d83e340f392c404e4d6006701961fc894f6ac91d65194b023f5ccc` | `SignatureAggregated(uint256,bytes,uint256)` | BLSAggregator |
 | `0xc36616a9c50da57d0592dd04dfa275b5553b8ec92ea04115c963a66f6ffbe178` | `CapLowered(uint256,uint256,address)` | APNTsCapped |

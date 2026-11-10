@@ -1,10 +1,12 @@
 """Offline L-1 controls, using synthetic compiler ASTs and strict RPC replies."""
 import copy
+from collections import UserDict
+from gate_assertions import assert_stop
+import hashlib
 import json
 import os
 import subprocess
 import tempfile
-import traceback
 import unittest
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +23,22 @@ CBOR = 'a164736f6c6343000821000a'
 IMPL = a.create_address(FACTORY,1)
 CLONE = '0x363d3d373d3d3d363d73'+IMPL[2:]+'5af43d82803e903d91602b57fd5bf3'
 OP_TYPES = ['uint128','bool','bool','address','uint32','uint48','address','uint256','uint256']
+# Offline fixtures use synthetic staking/SBT addresses; the real config binding is tested separately.
+REAL_COMMITTED_CALLSITE_CONFIG = o.committed_callsite_config
+
+
+def real_callsite_config():
+    with patch.object(o, 'committed_callsite_config', REAL_COMMITTED_CALLSITE_CONFIG):
+        return o.callsite_target_source()['expected']
+
+FIXTURE_CALLSITE_TARGETS = dict(GTOKEN_STAKING=STAKING, MYSBT=SBT, SUPER_PAYMASTER=u.SP.lower())
+FIXTURE_CONFIG_BYTES = json.dumps(dict(staking=STAKING, sbt=SBT, superPaymaster=u.SP)).encode()
+
+
+def patch_callsite_targets(test):
+    fixture = patch.object(o, 'committed_callsite_config', return_value=FIXTURE_CONFIG_BYTES)
+    fixture.start()
+    test.addCleanup(fixture.stop)
 
 
 def registry_write_ast(roles=None):
@@ -34,16 +52,16 @@ def registry_write_ast(roles=None):
                        initialValue=dict(nodeType='TupleExpression', isInlineArray=True, components=[
                            dict(nodeType='Identifier', referencedDeclaration=r['id']) for r in constants]))
     ref = dict(nodeType='Identifier', referencedDeclaration=1001)
-    index = dict(nodeType='IndexAccess', baseExpression=ref)
+    index = dict(nodeType='IndexAccess', baseExpression=ref, indexExpression=dict(nodeType='Identifier', referencedDeclaration=1300))
     write = dict(nodeType='Assignment', leftHandSide=index)
-    return [
+    nodes = [
         dict(nodeType='VariableDeclaration', id=1001, name='roleConfigs', stateVariable=True),
         dict(nodeType='EventDefinition', id=1002, name='RoleConfigured'),
-        dict(nodeType='FunctionDefinition', id=1003, name='_initRole', visibility='internal',
+        dict(nodeType='FunctionDefinition', id=1003, name='_initRole', visibility='internal', parameters=dict(parameters=[dict(id=1300, typeDescriptions=dict(typeString='bytes32'))]),
              body=[copy.deepcopy(write)]),
-        dict(nodeType='FunctionDefinition', id=1004, name='configureRole', visibility='external',
+        dict(nodeType='FunctionDefinition', id=1004, name='configureRole', visibility='external', parameters=dict(parameters=[dict(id=1300, typeDescriptions=dict(typeString='bytes32'))]),
              body=[copy.deepcopy(write), dict(nodeType='EmitStatement',
-                   eventCall=dict(expression=dict(referencedDeclaration=1002)))]),
+                   eventCall=dict(expression=dict(referencedDeclaration=1002), arguments=[dict(nodeType='Identifier', referencedDeclaration=1300)]))]),
         *(constants if roles is None else []),
         dict(nodeType='FunctionDefinition', id=1005, name='initialize', visibility='external',
              modifiers=[dict(modifierName=dict(name='initializer'))],
@@ -52,12 +70,40 @@ def registry_write_ast(roles=None):
                        nodeType='Identifier', referencedDeclaration=1200))])]),
     ]
 
+    nodes[3]['parameters']['parameters'][0]['id'] = 1400
+    nodes[3]['body'][0]['leftHandSide']['indexExpression']['referencedDeclaration'] = 1400
+    nodes[3]['body'][1]['eventCall']['arguments'][0]['referencedDeclaration'] = 1400
+    real = archived_registry_build()
+    original = next(n for n in real['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes']
+                    if n.get('name') == 'Registry')
+    initializer = next(n for n in original['nodes'] if n.get('name') == 'initialize')
+    configure = next(n for n in original['nodes'] if n.get('name') == 'configureRole')
+    nodes[-1]['modifiers'] = copy.deepcopy(initializer['modifiers'])
+    nodes[3]['modifiers'] = copy.deepcopy(configure['modifiers'])
+    call = next(stmt for stmt in configure['body']['statements']
+                if stmt.get('expression', {}).get('expression', {}).get('memberName') == 'setRoleExitFee')
+    nodes[3]['body'].insert(-1, copy.deepcopy(call))
+    return nodes
+
+
+def role_writes(nodes):
+    real = archived_registry_build()
+    declarations = {n['id']: (p, n) for p, src in real['output']['sources'].items()
+                    for n in o.ast_walk(src['ast']) if 'id' in n}
+    return o.registry_role_writes([('', n) for n in nodes], real['input']['sources'], declarations)
+
+
+@lru_cache(maxsize=1)
+def archived_registry_build():
+    path = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT/'out/build-info/e34c552b450719a1.json'
+    return json.loads(path.read_text())
+
 
 def fixture_ast(tree):
     sources, inputs, artifacts = {}, {}, {}
     counter = 0
     for name in o.NAMES:
-        path = 'contracts/src/'+name+'.sol'
+        path = 'contracts/src/'+('core/' if name == 'Registry' else '')+name+'.sol'
         members, abi = [], []
         def function(label, ins, outs):
             abi.append(dict(type='function', name=label, inputs=[dict(type=t) for t in ins], outputs=[dict(type=t) for t in outs]))
@@ -106,6 +152,37 @@ def fixture_ast(tree):
         sources[path] = dict(ast=dict(nodes=[node]))
         inputs[path] = dict(content='// one\ncontract fixture {}')
         artifacts[name] = dict(abi=abi)
+    # Retain the small role-enumeration fixture, but use real reviewed call sites,
+    # storage writers, modifier declarations and source identities for the call proof.
+    real = archived_registry_build()
+    real_sources = real['output']['sources']
+    registry_path = 'contracts/src/core/Registry.sol'
+    original = next(n for n in real_sources[registry_path]['ast']['nodes']
+                    if n.get('nodeType') == 'ContractDefinition' and n.get('name') == 'Registry')
+    root = sources[registry_path]['ast']['nodes'][0]
+    root['linearizedBaseContracts'] += original['linearizedBaseContracts'][1:]
+    roots = {n['id']: p for p, src in real_sources.items() for n in src['ast']['nodes']
+             if n.get('nodeType') == 'ContractDefinition'}
+    for base in original['linearizedBaseContracts'][1:]:
+        path = roots[base]
+        # Import only inherited OZ files; synthetic role constants stay enumerated.
+        if '/openzeppelin-' in path:
+            sources[registry_path]['ast']['nodes'].append(dict(nodeType='ImportDirective', absolutePath=path))
+    for path, src in real_sources.items():
+        if path != registry_path and path in o.REGISTRY_AST_NODE_TYPES['sourceKeccaks']:
+            sources.setdefault(path, copy.deepcopy(src))
+    inputs.update({path: copy.deepcopy(real['input']['sources'][path]) for path in o.REGISTRY_AST_NODE_TYPES['sourceKeccaks']})
+    wanted = {'GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER', '_safeSetRoleExitFee',
+              'setStaking', 'setMySBT', 'setSuperPaymaster', 'exitRole'}
+    root['nodes'].extend(copy.deepcopy(n) for n in original['nodes'] if n.get('name') in wanted)
+    init = next(n for n in root['nodes'] if n.get('name') == 'initialize')
+    real_init = next(n for n in original['nodes'] if n.get('name') == 'initialize')
+    init['src'], init['modifiers'] = real_init['src'], copy.deepcopy(real_init['modifiers'])
+    target_ids = {n['id'] for n in original['nodes'] if n.get('name') in wanted and n.get('stateVariable')}
+    init['body'].extend(copy.deepcopy(n) for n in real_init['body']['statements']
+                        if n.get('expression', {}).get('leftHandSide', {}).get('referencedDeclaration') in target_ids)
+    for label in ('GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER'):
+        artifacts['Registry']['abi'].append(dict(type='function', name=label, inputs=[], outputs=[dict(type='address')]))
     directory = tree/'out/build-info'
     directory.mkdir(parents=True)
     (directory/'test.json').write_text(json.dumps(dict(input=dict(sources=inputs),output=dict(sources=sources))))
@@ -154,7 +231,7 @@ def fixture_rpc(pin, overrides=None, factory_token=TOKEN):
         for row in inventory()[name]['mappings']:
             for who in {o.OLD,o.NEW,o.OLD_TOKEN,u.SAFE,u.TL,u.SP,u.REG,u.DEPLOYER,a.APPROVER,a.EXECUTOR,*targets,*pin['pauseList']}:
                 put(target,row['signature'],[who],[int(who != o.OLD)])
-    for target,sig,value in [(u.REG,'GTOKEN_STAKING()',STAKING),(u.REG,'MYSBT()',SBT),
+    for target,sig,value in [(u.REG,'SUPER_PAYMASTER()',u.SP),(u.REG,'GTOKEN_STAKING()',STAKING),(u.REG,'MYSBT()',SBT),
                               (u.SP,'xpntsFactory()',FACTORY),(STAKING,'GTOKEN()',GTOKEN)]:
         put(target,sig,[],[int(value,16)])
     if factory_token != TOKEN:
@@ -266,35 +343,39 @@ def fixture_fork(pin):
 
 
 def evidence(pin):
-    value = o.audit(fixture_rpc(pin),pin,inventory())
+    value = o.audit(fixture_rpc(pin),pin,inventory(), FIXTURE_CALLSITE_TARGETS)
+    value['callsiteTargetSource'] = dict(path=o.CALLSITE_CONFIG_PATH, commit='a'*40,
+        sha256=hashlib.sha256(FIXTURE_CONFIG_BYTES).hexdigest(), expected=copy.deepcopy(FIXTURE_CALLSITE_TARGETS))
     value['endpointResults'] = dict(primary=copy.deepcopy(value['reads']),secondary=copy.deepcopy(value['reads']))
     return value
 
 
 def removed_probe(test, action, gate):
+    # Class A: acceptance or a wrong Gate must fail by assertion; crashes remain ERRORs.
     original = a.need
-    def removed(label,actual,expected):
+    def removed(label, actual, expected):
         if label != gate:
-            original(label,actual,expected)
-    with patch.object(a,'need',side_effect=removed):
-        try:
+            return original(label, actual, expected)
+    def control():
+        with assert_stop(test, gate):
             action()
-        except a.Gate as error:
-            test.assertNotEqual(error.record['gate'],gate)
-            outcome = 'caught_elsewhere:'+error.record['gate']
-        except (TypeError, KeyError, IndexError) as error:
-            outcome = 'crash:'+type(error).__name__
-        else:
-            outcome = 'accepted'
-    print('L1_PROBE '+gate+' removed=red '+outcome)
+    result = unittest.TestResult()
+    with patch.object(a, 'need', side_effect=removed):
+        unittest.FunctionTestCase(control).run(result)
+    test.assertFalse(result.errors, gate)
+    test.assertTrue(result.failures, gate)
+    test.assertTrue(any(gate in line for _, log in result.failures for line in log.splitlines()
+                        if line.startswith('AssertionError:')), gate)
+    print('L1_CONTROL '+gate+' removed=assertion-failure errors=0')
 
 
 class OldOwnerIsolationTests(unittest.TestCase):
     def setUp(self):
+        patch_callsite_targets(self)
         self.pin = dict(stateBlockHash=BLOCK_HASH,registryCreation=1,stateBlock='0x123', capped=CAPPED,pauseList=[u.DEPLOYER])
 
     def assert_gate(self, gate, action):
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, gate) as caught:
             action()
         self.assertEqual(caught.exception.record['gate'],gate)
 
@@ -320,7 +401,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def never_holder(self, holder):
         key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',o.ROLE_ANODE,holder)),self.pin['stateBlock']]))
-        self.assert_gate('old_owner_never_granted_holder',lambda:o.audit(fixture_rpc(self.pin,{key:raw([1])}),self.pin,inventory()))
+        self.assert_gate('old_owner_never_granted_holder',lambda:o.audit(fixture_rpc(self.pin,{key:raw([1])}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS))
 
     def test_never_granted_old_holder(self):
         self.never_holder(o.OLD)
@@ -334,7 +415,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            nodes = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['nodes']
+            nodes = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]['nodes']
             node = next(n for n in nodes if n['name'] == 'hasRole')
             node.clear()
             node.update(nodeType='FunctionDefinition',name='hasRole',src='7:1:0',
@@ -343,11 +424,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
             with patch.object(a,'raw_artifact',side_effect=lambda t,n:artifacts[n]):
                 spec = o.extract(tree)
             self.assertEqual(spec['Registry']['hasRoleGetter'],'function')
-            self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin),self.pin,spec))
+            self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin),self.pin,spec, FIXTURE_CALLSITE_TARGETS))
 
     def test_mapping_unlisted_role_still_requires_control(self):
         key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
-        self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory()))
+        self.assert_gate('old_owner_role_control_path',lambda:o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS))
 
     def enduser_audit(self, source, fault=None):
         # DSR 2026-11-05: ENDUSER has no control holder; the mapping-getter proof is its control path. `source`
@@ -394,20 +475,24 @@ class OldOwnerIsolationTests(unittest.TestCase):
             calls.append((target,role,result,seen[start:]))
             return result
         with patch.object(o,'mapping_control',side_effect=spy):
-            result = o.audit(rpc,self.pin,inventory())
+            result = o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(o.ROLE_ENDUSER in result['roleHistory'][u.REG], source == 'granted')
         self.assertIn(o.ROLE_ENDUSER, result['configuredRoles'])
         return [c for c in calls if c[:2] == (u.REG,o.ROLE_ENDUSER)]
 
     def assert_enduser_controls(self, enduser):
-        self.assertEqual([c[2] for c in enduser],[True])
+        self.assertEqual([c[2] for c in enduser],[True], 'old_owner_role_control_path')
         # This call's own controls: COMMUNITY read for DEPLOYER (positive) and OLD (negative).
         for who in (u.DEPLOYER,o.OLD):
-            self.assertIn(a.calldata('hasRole(bytes32,address)',o.ROLE_COMMUNITY,who),enduser[0][3])
+            self.assertIn(a.calldata('hasRole(bytes32,address)',o.ROLE_COMMUNITY,who),enduser[0][3],
+                          'old_owner_mapping_positive' if who == u.DEPLOYER else 'old_owner_mapping_negative')
 
     def test_mapping_enduser_without_control_holder(self):
         self.assertEqual(o.ROLE_ENDUSER, a.keccak('ENDUSER'))
-        self.assert_enduser_controls(self.enduser_audit('granted'))
+        try:
+            self.assert_enduser_controls(self.enduser_audit('granted'))
+        except a.Gate as fault:
+            self.fail(fault.record['gate'])
 
     def test_mapping_enduser_faults_stop_audit(self):
         # Codex P2: the caller must propagate every ENDUSER mapping-control failure, at both call sites.
@@ -415,33 +500,26 @@ class OldOwnerIsolationTests(unittest.TestCase):
             for fault, gate in (('getter','old_owner_role_control_path'),('positive','old_owner_mapping_positive'),
                                 ('negative','old_owner_mapping_negative')):
                 with self.subTest(source=source,fault=fault):
-                    self.assert_gate(gate,lambda:self.enduser_audit(source,fault))
+                    try:
+                        self.assert_gate(gate,lambda:self.enduser_audit(source,fault))
+                    except AssertionError as exc:
+                        if fault == 'getter':
+                            self.fail(f'old_owner_mapping_getter: {exc}')
+                        raise
 
     def test_mapping_enduser_configured_only(self):
         # Codex P2: the configured-non-standard call site of role_control must reach ENDUSER's controls too.
         self.assert_enduser_controls(self.enduser_audit('configured'))
 
     def test_role_control_case_without_path_gate(self):
-        # With the path gate only recording (diagnostic mode), a missing case still STOPs as a gate, not a TypeError.
-        key = ('eth_call',str([dict(to=u.REG,data=a.calldata('hasRole(bytes32,address)',CUSTOM_ROLE,u.SAFE)),self.pin['stateBlock']]))
-        original = a.need
-        def recording(name, observed, expected):
-            if name != 'old_owner_role_control_path':
-                return original(name, observed, expected)
-        # Catch any exception so that deleting the case gate fails this test by assertion, not by a TypeError error.
-        # assertRaises strips the traceback, so catch by hand: the failure names where the exception was raised,
-        # letting a probe tell a missing case gate from an unrelated failure.
-        with patch.object(a,'need',side_effect=recording):
-            try:
-                o.audit(fixture_rpc(self.pin,{key:raw([0])}),self.pin,inventory())
-            except Exception as exc:
-                caught = exc
-            else:
-                self.fail('audit returned without stopping')
-        origin = traceback.extract_tb(caught.__traceback__)[-1]
-        where = f'{type(caught).__name__} raised at {os.path.basename(origin.filename)}:{origin.name}'
-        self.assertIsInstance(caught,a.Gate,where)
-        self.assertEqual(caught.record['gate'],'old_owner_role_control_case')
+        key = ('eth_call', str([dict(to=u.REG, data=a.calldata('hasRole(bytes32,address)', CUSTOM_ROLE, u.SAFE)), self.pin['stateBlock']]))
+        # A mapping with valid contents violates the exact dict requirement but
+        # remains executable after deletion, so this probe cannot pass on a crash.
+        case = UserDict(dict(sender=u.SAFE, gate='old_owner_event_role_Registry',
+            transactions=[dict(target=u.REG, signature='grantRole(bytes32,address)', args=[CUSTOM_ROLE, '$ACCOUNT'])],
+            getter=dict(target=u.REG, signature='hasRole(bytes32,address)', args=[CUSTOM_ROLE, '$ACCOUNT'])))
+        self.pin['isolationControlCases'] = {u.REG+':'+CUSTOM_ROLE: case}
+        self.assert_gate('old_owner_role_control_case', lambda: o.audit(fixture_rpc(self.pin, {key: raw([0])}), self.pin, inventory(), FIXTURE_CALLSITE_TARGETS))
 
     # Codex P2: every listed role, by name, so a role-specific shortcut in mapping_control cannot pass.
     MAPPING_ROLES = ('ROLE_ANODE','ROLE_KMS','ROLE_ENDUSER')
@@ -464,7 +542,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for name in self.MAPPING_ROLES:
             with self.subTest(role=name):
                 self.assertIs(o.mapping_control(inventory()['Registry'],u.REG,getattr(o,name),self.mapping_word()),True)
-                self.assertIs(o.mapping_control(spec,u.REG,getattr(o,name),self.mapping_word()),False)
+                self.assertIs(o.mapping_control(spec,u.REG,getattr(o,name),self.mapping_word()),False, 'old_owner_mapping_getter')
 
     def test_imported_roles_without_has_role_remain_in_standard_union(self):
         spec = copy.deepcopy(inventory()['SuperPaymaster'])
@@ -489,7 +567,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                               logIndex=hex(a.qty(grant['logIndex'])+1))
                 return [*result, revoke]
             return result
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_owner_history_positive') as caught:
             o.role_history(rpc, self.pin, u.TL, spec, 1)
         self.assertEqual(caught.exception.record['gate'], 'old_owner_history_positive')
 
@@ -501,7 +579,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_extraction_and_no_has_role(self):
         data = inventory()
         self.assertEqual(data['Registry']['roles'][1]['name'],'ROLE_COMMUNITY')
-        self.assertEqual(data['Registry']['roles'][1]['line'],2)
+        self.assertEqual(data['Registry']['roles'][1]['line'],1)
         self.assertFalse(data['APNTsCapped']['hasRole'])
         self.assertIn('no hasRole',data['SuperPaymaster']['roleStatus'])
 
@@ -514,11 +592,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 artifacts = fixture_ast(tree)
                 path = tree/'out/build-info/test.json'
                 data = json.loads(path.read_text())
-                root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
-                labels = {r['name'] for r in inventory()['Registry'][category]}
+                subject = 'GToken' if category == 'authorities' else 'Registry'
+                source = 'contracts/src/GToken.sol' if subject == 'GToken' else 'contracts/src/core/Registry.sol'
+                root = data['output']['sources'][source]['ast']['nodes'][0]
+                labels = {r['name'] for r in inventory()[subject][category]}
                 root['nodes'] = [n for n in root['nodes'] if n['name'] not in labels]
                 path.write_text(json.dumps(data))
-                with patch.object(a,'raw_artifact',side_effect=lambda t,n:artifacts[n]), self.assertRaises(a.Gate) as caught:
+                with patch.object(a,'raw_artifact',side_effect=lambda t,n:artifacts[n]), assert_stop(self, gate) as caught:
                     o.extract(tree)
                 self.assertEqual(caught.exception.record['gate'],gate)
 
@@ -527,7 +607,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         key = ('eth_call', str([dict(to=TOKEN,data=a.calldata('communityOwner()')),self.pin['stateBlock']]))
         mapping = ('eth_call', str([dict(to=FACTORY,data=a.calldata('communityToToken(address)',o.NEW)),self.pin['stateBlock']]))
         try:
-            result = o.audit(fixture_rpc(self.pin,{key:raw([int(o.NEW,16)]),mapping:raw([0])}),self.pin,inventory())
+            result = o.audit(fixture_rpc(self.pin,{key:raw([int(o.NEW,16)]),mapping:raw([0])}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         except a.Gate as fault:
             self.fail(fault.record['gate'])
         self.assertIn(TOKEN,result['xpnts'])
@@ -537,7 +617,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_xpnts_owner_pin(self):
         for owner in (o.OLD,o.OLD_TIMELOCK):
             key = ('eth_call', str([dict(to=TOKEN,data=a.calldata('communityOwner()')),self.pin['stateBlock']]))
-            self.assert_gate('old_owner_xpnts_owner_pin',lambda:o.audit(fixture_rpc(self.pin,{key:raw([int(owner,16)])}),self.pin,inventory()))
+            self.assert_gate('old_owner_xpnts_owner_pin',lambda:o.audit(fixture_rpc(self.pin,{key:raw([int(owner,16)])}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS))
 
     def deployment_case(self, edit):
         base = fixture_rpc(self.pin)
@@ -549,8 +629,10 @@ class OldOwnerIsolationTests(unittest.TestCase):
         return lambda:o.token_deployment_community(rpc,self.pin,FACTORY,TOKEN)
 
     def test_xpnts_deployment_count(self):
-        for edit in (lambda rows:[],lambda rows:rows*2):
-            self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(edit))
+        self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(lambda rows: rows*2))
+
+    def test_xpnts_deployment_empty(self):
+        self.assert_gate('old_owner_xpnts_deployment_count',self.deployment_case(lambda rows: []))
 
     def test_xpnts_deployment_log(self):
         for field, value in (('address',o.NEW),('removed',True),('blockHash',a.ZERO32),
@@ -567,7 +649,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         def rpc(method,params):
             if method == 'eth_getLogs' and params[0]['topics'][0] == a.keccak(o.TOKEN_EVENT): return []
             return base(method,params)
-        self.assert_gate('old_owner_xpnts_deployment_count',lambda:o.audit(rpc,self.pin,inventory()))
+        self.assert_gate('old_owner_xpnts_deployment_count',lambda:o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS))
 
     def test_role_event_abi_and_inventory_source_seam(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -578,7 +660,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 with self.assertRaises(a.Gate): o.inventory_source(tree)
                 event = next(f for f in artifacts['Registry']['abi'] if f['type'] == 'event')
                 event['inputs'][1]['components'][0]['type'] = 'address'
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'old_owner_role_event_signature') as caught:
                     o.extract(tree)
                 self.assertEqual(caught.exception.record['gate'],'old_owner_role_event_signature')
 
@@ -588,7 +670,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            source = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes']
+            source = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes']
             root = source[0]
             role = root['nodes'].pop(0)
             source.append(role)
@@ -599,19 +681,20 @@ class OldOwnerIsolationTests(unittest.TestCase):
             path.write_text(json.dumps(data))
             with patch.object(a,'raw_artifact',side_effect=lambda t,n:artifacts[n]):
                 result = o.extract(tree)
-            self.assertEqual(result['Registry'], inventory()['Registry'])
+            self.assertEqual({k:v for k,v in result['Registry'].items() if k != 'astProofInputs'},
+                         {k:v for k,v in inventory()['Registry'].items() if k != 'astProofInputs'})
 
     def test_pair_and_independent_endpoint_failure(self):
         import manifest_exec as m
         value = dict(self.pin, oldActivityReads=dict(primary=[]),
-                     oldOwnerIsolation=o.audit(fixture_rpc(self.pin),self.pin,inventory()))
+                     oldOwnerIsolation=o.audit(fixture_rpc(self.pin),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS))
         with patch.object(m,'collect',side_effect=[copy.deepcopy(value),copy.deepcopy(value)]) as collect:
             paired = m.collect_pair('primary','secondary','0x123',{})
             self.assertEqual(collect.call_count,2)
-            o.validate(paired['oldOwnerIsolation'],self.pin,inventory())
+            o.validate(paired['oldOwnerIsolation'],self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         bad = copy.deepcopy(value)
         bad['oldOwnerIsolation']['reverseAllowances'][0]['value'] += 1
-        with patch.object(m,'collect',side_effect=[value,bad]), self.assertRaises(a.Gate) as caught:
+        with patch.object(m,'collect',side_effect=[value,bad]), assert_stop(self, 'independent_pin') as caught:
             m.collect_pair('primary','secondary','0x123',{})
         self.assertEqual(caught.exception.record['gate'],'independent_pin')
 
@@ -632,17 +715,17 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_offline_replay_and_reverse_allowances(self):
         value = evidence(self.pin)
-        o.validate(value,self.pin,inventory())
+        o.validate(value,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertTrue(all(r['value'] == 123 for r in value['reverseAllowances']))
         for key in ('inventory','reads','tokens','reverseAllowances','endpointResults'):
             bad = copy.deepcopy(value)
             bad[key] = {} if isinstance(value[key],dict) else []
             with self.subTest(key=key), self.assertRaises(a.Gate):
-                o.validate(bad,self.pin,inventory())
+                o.validate(bad,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         bad = copy.deepcopy(value)
         bad['endpointResults']['secondary'][0]['block'] = '0x124'
         with self.assertRaises(a.Gate):
-            o.validate(bad,self.pin,inventory())
+            o.validate(bad,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
 
     def mutations(self):
         def query(target,sig,args):
@@ -676,20 +759,20 @@ class OldOwnerIsolationTests(unittest.TestCase):
         original = a.need
         for gate,key,value in self.mutations():
             rpc = fixture_rpc(self.pin,{key:value})
-            with self.subTest(gate=gate), self.assertRaises(a.Gate) as caught:
-                o.audit(rpc,self.pin,inventory())
+            with self.subTest(gate=gate), assert_stop(self, gate) as caught:
+                o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
             self.assertEqual(caught.exception.record['gate'],gate)
-            removed_probe(self,lambda:o.audit(rpc,self.pin,inventory()),gate)
+            removed_probe(self,lambda:o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS),gate)
 
     def test_factory_only_token_and_operator_union(self):
         token = '0x'+'39'*20
         rpc = fixture_rpc(self.pin,factory_token=token)
-        value = o.audit(rpc,self.pin,inventory())
+        value = o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(value['xpnts'],sorted([TOKEN,token,*o.ROUND_CLONES]))
         self.assertIn(GTOKEN,value['tokens'])
         query = ('eth_call',str([dict(to=token,data=a.calldata('autoApprovedSpenders(address)',o.OLD)),self.pin['stateBlock']]))
-        with self.assertRaises(a.Gate) as caught:
-            o.audit(fixture_rpc(self.pin,{query:raw([1])},factory_token=token),self.pin,inventory())
+        with assert_stop(self, 'old_owner_mapping_xPNTsToken_autoApprovedSpenders') as caught:
+            o.audit(fixture_rpc(self.pin,{query:raw([1])},factory_token=token),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(caught.exception.record['gate'],'old_owner_mapping_xPNTsToken_autoApprovedSpenders')
 
     def test_decoded_arguments_both_cast_formats(self):
@@ -698,7 +781,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(o.decoded_arguments(dict(schema_version=1, success=True, data=values, errors=[], warnings=[])), values)
         for bad in (dict(success=False, data=values, errors=[]), dict(success=True, data=values, errors=['x']),
                     dict(success=True, data='x', errors=[]), 'x', None):
-            with self.subTest(bad=bad), self.assertRaises(a.Gate) as caught:
+            with self.subTest(bad=bad), assert_stop(self, 'old_owner_calldata_decode') as caught:
                 o.decoded_arguments(bad)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_calldata_decode')
 
@@ -710,7 +793,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             def cast(*args):
                 return json.dumps(bad) if args[0] == 'decode-calldata' else original(*args)
             with self.subTest(output=bad), patch.object(a,'cast',side_effect=cast):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'old_owner_calldata_decode') as caught:
                     o.assert_manifest_calldata(steps,[signature])
                 self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_decode')
 
@@ -725,8 +808,8 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for gate,method,params,value in cases:
             with self.subTest(gate=gate):
                 rpc = fixture_rpc(self.pin,{(method,str(params)):value})
-                action = lambda:o.audit(rpc,self.pin,inventory())
-                with self.assertRaises(a.Gate) as caught:
+                action = lambda:o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
+                with assert_stop(self, gate) as caught:
                     action()
                 self.assertEqual(caught.exception.record['gate'],gate)
                 removed_probe(self,action,gate)
@@ -741,7 +824,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     log['topics'][2] = '0x'+o.OLD[2:].zfill(64)
             return result
         action = lambda:o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_owner_history_old_filter') as caught:
             action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_history_old_filter')
         removed_probe(self,action,'old_owner_history_old_filter')
@@ -749,7 +832,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         def removed(label,actual,expected):
             if label != 'old_owner_history_old_filter':
                 original(label,actual,expected)
-        with patch.object(a,'need',side_effect=removed), self.assertRaises(a.Gate) as caught:
+        with patch.object(a,'need',side_effect=removed), assert_stop(self, 'old_owner_uncancelled_grants') as caught:
             action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
 
@@ -781,8 +864,8 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for listed in ([], [o.ROUND_CLONES[0]]):
             with self.subTest(listed=listed):
                 answer = raw([32,len(listed),*[int(t,16) for t in listed]])
-                for run in (lambda rpc: o.audit(rpc,self.pin,inventory()), lambda rpc: o.discover_targets(rpc,self.pin)):
-                    with self.assertRaises(a.Gate) as caught:
+                for run in (lambda rpc: o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS), lambda rpc: o.discover_targets(rpc,self.pin)):
+                    with assert_stop(self, 'old_owner_factory_enumeration') as caught:
                         run(fixture_rpc(self.pin,{query:answer}))
                     self.assertEqual(caught.exception.record['gate'],'old_owner_factory_enumeration')
 
@@ -803,14 +886,14 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for gate,bad in cases:
             def rpc(method,params):
                 return (bad if params[0]['toBlock'] == self.pin['stateBlock'] else []) if method == 'eth_getLogs' and params[0]['topics'] == [a.keccak(o.ROLE_EVENT)] else baseline(method,params)
-            with self.subTest(gate=gate),self.assertRaises(a.Gate) as caught:
-                o.audit(rpc,self.pin,inventory())
+            with self.subTest(gate=gate),assert_stop(self, gate) as caught:
+                o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
             self.assertEqual(caught.exception.record['gate'],gate)
             def removed(label,actual,expected):
                 if label != gate:
                     original(label,actual,expected)
             rpc.fork = baseline.fork
-            removed_probe(self,lambda:o.audit(rpc,self.pin,inventory()),gate)
+            removed_probe(self,lambda:o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS),gate)
 
     def test_bisected_history_replay(self):
         baseline = fixture_rpc(self.pin)
@@ -826,12 +909,12 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 raise fault
             return baseline(method,[full]) if params[0]['toBlock'] == self.pin['stateBlock'] else []
         rpc.fork = baseline.fork
-        value = o.audit(rpc,self.pin,inventory())
+        value = o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(len(queries),5)
         self.assertEqual(queries[1]['toBlock'],'0x92')
         self.assertEqual(queries[2]['fromBlock'],'0x93')
         value['endpointResults'] = dict(primary=copy.deepcopy(value['reads']),secondary=copy.deepcopy(value['reads']))
-        o.validate(value,self.pin,inventory())
+        o.validate(value,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
 
     def test_config_history_drop_truncation_both_endpoints(self):
         baseline = fixture_rpc(self.pin)
@@ -845,28 +928,34 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     return raw(values)
                 return logs[:1] if method == 'eth_getLogs' and params[0] == full else logs
             bad.fork = baseline.fork
-            action = lambda:o.audit(bad,self.pin,inventory())
-            with self.subTest(endpoint=endpoint), self.assertRaises(a.Gate) as caught: action()
+            action = lambda:o.audit(bad,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
+            with self.subTest(endpoint=endpoint), assert_stop(self, 'old_owner_log_partition') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_log_partition')
             removed_probe(self,action,'old_owner_log_partition')
             section = evidence(self.pin)
             for row in section['endpointResults'][endpoint]:
                 if row.get('method') == 'eth_getLogs' and row['params'][0] == full:
                     row['result'] = row['result'][:1]
-            with self.assertRaises(a.Gate) as caught: o.validate(section,self.pin,inventory())
+            with assert_stop(self, 'old_owner_log_partition') as caught: o.validate(section,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
             self.assertEqual(caught.exception.record['gate'],'old_owner_log_partition')
         query = dict(full,fromBlock=self.pin['stateBlock'])
         action = lambda:o.bounded_history_logs(lambda m,p:[{}]*1000,query)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_log_limit') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_log_limit')
         removed_probe(self,action,'old_owner_log_limit')
 
     def test_legacy_timelock_source_targets(self):
         rpc, sources, build = self.source_fixture()
-        sources[o.OLD_TIMELOCK] = sources.pop(u.TL)
-        with patch.object(o, 'deployed_build', side_effect=build), self.assertRaises(a.Gate) as caught:
+        sources[o.OLD_TIMELOCK] = copy.deepcopy(sources[u.TL])
+        with patch.object(o, 'deployed_build', side_effect=build), assert_stop(self, 'old_owner_source_targets') as caught:
             o.deployed_inventory(rpc, self.pin, sources)
         self.assertEqual(caught.exception.record['gate'], 'old_owner_source_targets')
+
+    def test_legacy_timelock_cannot_replace_timelock(self):
+        rpc, sources, build = self.source_fixture()
+        sources[o.OLD_TIMELOCK] = sources.pop(u.TL)
+        with patch.object(o, 'deployed_build', side_effect=build), assert_stop(self, 'old_owner_source_targets'):
+            o.deployed_inventory(rpc, self.pin, sources)
 
     def test_all_inventory_targets_read_both_slots_at_pin(self):
         baseline,sources,build = self.source_fixture()
@@ -893,7 +982,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 return baseline(method,params)
             with self.subTest(slot=slot),patch.object(o,'deployed_build',side_effect=build):
                 action = lambda:o.deployed_inventory(rpc,self.pin,changed)
-                with self.assertRaises(a.Gate) as caught: action()
+                with assert_stop(self, 'unexpected_proxy') as caught: action()
                 self.assertEqual(caught.exception.record['gate'],'unexpected_proxy')
                 removed_probe(self,action,'unexpected_proxy')
         def clone_rpc(method,params):
@@ -905,7 +994,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             return result
         with patch.object(o,'deployed_build',side_effect=clone_build):
             action = lambda:o.deployed_inventory(clone_rpc,self.pin,sources)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_undeclared_clone') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_undeclared_clone')
             removed_probe(self,action,'old_owner_undeclared_clone')
 
@@ -919,7 +1008,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 return result
             rpc.fork = baseline.fork
             try:
-                result = o.audit(rpc, self.pin, inventory())
+                result = o.audit(rpc, self.pin, inventory(), FIXTURE_CALLSITE_TARGETS)
             except a.Gate as fault:
                 self.fail(fault.record['gate'])
             self.assertEqual(set(result['configuredRoles']),
@@ -938,8 +1027,8 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     return raw(values)
                 return result
             rpc.fork = baseline.fork
-            with self.assertRaises(a.Gate) as caught:
-                o.audit(rpc, self.pin, inventory())
+            with assert_stop(self, 'old_owner_role_config_control') as caught:
+                o.audit(rpc, self.pin, inventory(), FIXTURE_CALLSITE_TARGETS)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_config_control')
 
     def test_role_write_sites(self):
@@ -956,9 +1045,81 @@ class OldOwnerIsolationTests(unittest.TestCase):
                         dict(nodeType='Assignment', leftHandSide=dict(nodeType='MemberAccess',
                              expression=dict(nodeType='Identifier', referencedDeclaration=1010)))]
             nodes.append(dict(nodeType='FunctionDefinition', id=1006, name='other', body=body))
-            with self.assertRaises(a.Gate) as caught:
-                o.registry_role_writes([('', n) for n in nodes])
+            with assert_stop(self, 'old_owner_role_write_sites') as caught:
+                role_writes(nodes)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_write_sites')
+
+    def test_role_write_key(self):
+        for mode in ('literal', 'copy', 'assignment', 'unary', 'alias', 'other_parameter', 'assembly_parameter'):
+            nodes = registry_write_ast()
+            fn = nodes[2]
+            index = fn['body'][0]['leftHandSide']
+            if mode == 'literal':
+                extra = copy.deepcopy(fn['body'][0])
+                extra['leftHandSide']['indexExpression'] = dict(nodeType='Literal', value='42')
+                fn['body'].append(extra)
+            elif mode == 'copy':
+                fn['body'].insert(0, dict(nodeType='VariableDeclarationStatement', declarations=[dict(id=1301)],
+                    initialValue=dict(nodeType='Identifier', referencedDeclaration=1300)))
+                index['indexExpression']['referencedDeclaration'] = 1301
+            elif mode in ('assignment', 'unary'):
+                target = dict(nodeType='Identifier', referencedDeclaration=1300)
+                fn['body'].insert(0, dict(nodeType='Assignment', leftHandSide=target) if mode == 'assignment' else
+                                  dict(nodeType='UnaryOperation', operator='delete', subExpression=target))
+            elif mode == 'assembly_parameter':
+                fn['body'].insert(0, dict(nodeType='InlineAssembly', externalReferences=[dict(declaration=1300)],
+                    AST=dict(nodeType='YulAssignment', variableNames=[dict(name='role')], value=dict(value='42'))))
+            elif mode == 'other_parameter':
+                nodes[3]['body'][0]['leftHandSide']['indexExpression']['referencedDeclaration'] = 1300
+            else:
+                index['indexExpression'] = dict(nodeType='Literal', value='42')
+                fn['body'] = [dict(nodeType='VariableDeclarationStatement', initialValue=index,
+                    declarations=[dict(nodeType='VariableDeclaration', id=1302, storageLocation='storage')]),
+                    dict(nodeType='Assignment', leftHandSide=dict(nodeType='Identifier', referencedDeclaration=1302))]
+            with self.subTest(mode=mode):
+                self.assert_gate('old_owner_role_write_key', lambda: role_writes(nodes))
+
+    def test_role_configure_emit_wrong_parameter(self):
+        nodes = registry_write_ast()
+        nodes[3]['body'][-1]['eventCall']['arguments'][0]['referencedDeclaration'] = 9999
+        self.assert_gate('old_owner_role_configure_emit', lambda: role_writes(nodes))
+
+    def test_role_assembly(self):
+        for opcode in ('sstore', 'delegatecall', 'call', 'callcode', 'create', 'create2'):
+            fn = dict(nodeType='FunctionDefinition', body=dict(nodeType='InlineAssembly', externalReferences=[],
+                      AST=dict(nodeType='YulFunctionCall', functionName=dict(name=opcode))))
+            self.assert_gate('old_owner_role_assembly', lambda: o.registry_opaque_writes([('Registry.sol', fn)], {}))
+
+    def test_role_opaque_extraction_call(self):
+        for kind, gate in (('assembly', 'old_owner_role_assembly'), ('call', 'old_owner_role_lowlevel_call')):
+            with tempfile.TemporaryDirectory() as directory:
+                tree = Path(directory)
+                artifacts = fixture_ast(tree)
+                path = tree/'out/build-info/test.json'
+                data = json.loads(path.read_text())
+                root = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
+                body = (dict(nodeType='InlineAssembly', externalReferences=[], AST=dict(name='sstore')) if kind == 'assembly'
+                        else dict(nodeType='MemberAccess', memberName='delegatecall'))
+                root['nodes'].append(dict(nodeType='FunctionDefinition', id=9000, name='opaque', body=body))
+                path.write_text(json.dumps(data))
+                with patch.object(a, 'raw_artifact', side_effect=lambda t,n: artifacts[n]):
+                    self.assert_gate(gate, lambda: o.extract(tree))
+
+    def test_role_assembly_hash_changed(self):
+        path = next(iter(o.REGISTRY_AST_ALLOWLIST))
+        fn = dict(nodeType='FunctionDefinition', body=[])
+        self.assert_gate('old_owner_role_assembly', lambda: o.registry_opaque_writes([(path, fn)], {path:dict(content='changed')}))
+
+    def test_role_lowlevel_call(self):
+        for path in ('Registry.sol', 'UnreviewedBase.sol'):
+            for member in ('delegatecall', 'call', 'staticcall'):
+                fn = dict(nodeType='FunctionDefinition', body=dict(nodeType='FunctionCall', expression=dict(
+                    nodeType='MemberAccess', memberName=member), arguments=[dict(nodeType='FunctionCall',
+                    expression=dict(nodeType='MemberAccess', memberName='encodeWithSelector'))]))
+                self.assert_gate('old_owner_role_lowlevel_call', lambda: o.registry_opaque_writes([(path, fn)], {}))
+
+    def test_registry_source_commit(self):
+        self.assert_gate('old_owner_registry_source_commit', lambda: o.deployed_build('0'*40, 'Registry'))
 
     def test_role_initializer_only(self):
         for mode in ('external', 'indirect', 'reinitializer'):
@@ -974,15 +1135,15 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     nodes.append(dict(nodeType='FunctionDefinition', id=1007, name='helper', visibility='internal',
                                       body=[dict(nodeType='FunctionCall', expression=dict(referencedDeclaration=1003),
                                             arguments=[dict(nodeType='Identifier', referencedDeclaration=1100)])]))
-            with self.assertRaises(a.Gate) as caught:
-                o.registry_role_writes([('', n) for n in nodes])
+            with assert_stop(self, 'old_owner_role_initializer_only') as caught:
+                role_writes(nodes)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_initializer_only')
 
     def test_role_configure_emit(self):
         nodes = registry_write_ast()
         nodes[3]['body'].pop()
-        with self.assertRaises(a.Gate) as caught:
-            o.registry_role_writes([('', n) for n in nodes])
+        with assert_stop(self, 'old_owner_role_configure_emit') as caught:
+            role_writes(nodes)
         self.assertEqual(caught.exception.record['gate'], 'old_owner_role_configure_emit')
 
     def test_role_init_ids(self):
@@ -996,14 +1157,14 @@ class OldOwnerIsolationTests(unittest.TestCase):
             else:
                 body.append(dict(nodeType='Assignment', leftHandSide=dict(
                     nodeType='Identifier', referencedDeclaration=1200), rightHandSide=dict(nodeType='Literal')))
-            with self.assertRaises(a.Gate) as caught:
-                o.registry_role_writes([('', n) for n in nodes])
+            with assert_stop(self, 'old_owner_role_init_ids') as caught:
+                role_writes(nodes)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_init_ids')
 
     def test_role_init_direct_constant(self):
         nodes = registry_write_ast()
         nodes[-1]['body'][1]['arguments'][0] = dict(nodeType='Identifier', referencedDeclaration=1100)
-        self.assertEqual(o.registry_role_writes([('', n) for n in nodes]), {'ROLE_COMMUNITY'})
+        self.assertEqual(role_writes(nodes), {'ROLE_COMMUNITY'})
 
     def test_role_init_standard(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1011,22 +1172,22 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            nodes = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['nodes']
+            nodes = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]['nodes']
             initialize = next(n for n in nodes if n.get('name') == 'initialize')
             initialize['body'][0]['initialValue']['components'].pop()
             path.write_text(json.dumps(data))
             with patch.object(a, 'raw_artifact', side_effect=lambda t,n: artifacts[n]):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'old_owner_role_init_standard') as caught:
                     o.extract(tree)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_init_standard')
 
     def test_role_init_real_build_info(self):
-        tree = Path(__file__).resolve().parents[2]
-        self.assertTrue(list((tree/'out/build-info').glob('*.json')), 'real build-info required')
-        spec = o.extract(tree, ('Registry',))
-        self.assertEqual({r['name'] for r in spec['Registry']['roles']}, {
-            'ROLE_PAYMASTER_AOA', 'ROLE_PAYMASTER_SUPER', 'ROLE_COMMUNITY',
-            'ROLE_ENDUSER', 'ROLE_DVT', 'ROLE_ANODE', 'ROLE_KMS'})
+        tree = Path('/private/tmp/l1-builds')/o.REGISTRY_SOURCE_COMMIT
+        self.assertTrue(list((tree/'out/build-info').glob('*.json')), 'a839347e build-info required')
+        result = o.extract(tree, ('Registry',))
+        matches = result['Registry']['astProofInputs']['callSites']
+        self.assertEqual(len(matches), 3)
+        self.assertEqual({m['src'] for m in matches}, {r['src'] for r in o.REGISTRY_AST_ALLOWLIST['callSites']})
 
     def test_role_write_extraction_call(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1034,11 +1195,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            nodes = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]['nodes']
+            nodes = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]['nodes']
             next(n for n in nodes if n.get('name') == 'configureRole')['body'].pop()
             path.write_text(json.dumps(data))
             with patch.object(a, 'raw_artifact', side_effect=lambda t,n: artifacts[n]):
-                with self.assertRaises(a.Gate) as caught:
+                with assert_stop(self, 'old_owner_role_configure_emit') as caught:
                     o.extract(tree)
             self.assertEqual(caught.exception.record['gate'], 'old_owner_role_configure_emit')
 
@@ -1057,13 +1218,29 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 return logs[:1]
             return baseline(method,params)
         rpc.fork = baseline.fork
-        o.audit(rpc,self.pin,inv)
+        o.audit(rpc,self.pin,inv, FIXTURE_CALLSITE_TARGETS)
         empty = True
-        with self.assertRaises(a.Gate) as caught: o.audit(rpc,self.pin,inv)
+        with assert_stop(self, 'old_owner_role_extraction_empty') as caught: o.audit(rpc,self.pin,inv, FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(caught.exception.record['gate'],'old_owner_role_extraction_empty')
-        removed_probe(self,lambda:o.audit(rpc,self.pin,inv),'old_owner_role_extraction_empty')
+        removed_probe(self,lambda:o.audit(rpc,self.pin,inv, FIXTURE_CALLSITE_TARGETS),'old_owner_role_extraction_empty')
+
+    def test_proxy_runtime_length(self):
+        self.proxy_runtime_control('old_owner_runtime_length', '0x6312345678506000')
+
+    def test_proxy_runtime_parity(self):
+        self.proxy_runtime_control('old_owner_runtime_parity', '0x6001')
 
     def test_proxy_runtime_extra_selector_stops(self):
+        from probe_phase_c_gates import run
+        for kind in ('length', 'parity'):
+            name, gate = 'test_proxy_runtime_'+kind, 'old_owner_runtime_'+kind
+            baseline, _, log = run(type(self), name)
+            self.assertTrue(baseline, log)
+            invalid, matched, log = run(type(self), name, gate)
+            self.assertTrue(matched and not invalid, gate+'\n'+log)
+            print(f'STRICT_CONTROL {gate} matches=1 baseline=OK failures>=1 errors=0 named_assertion=True')
+
+    def proxy_runtime_control(self, gate, code):
         baseline,sources,build = self.source_fixture()
         # Implementation remains correct; only the proxy bytecode is changed.
         impl = '0x'+'ab'*20
@@ -1072,18 +1249,12 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for target in (u.REG,u.SP):
             def rpc(method,params):
                 if method == 'eth_getStorageAt' and params[0] in (u.REG,u.SP) and params[1] == o.IMPLEMENTATION_SLOT: return raw([int(impl,16)])
-                if method == 'eth_getCode' and params == [target,self.pin['stateBlock']]: return '0x6312345678506000'+CBOR
+                if method == 'eth_getCode' and params == [target,self.pin['stateBlock']]: return code+CBOR
                 return baseline(method,params)
             with patch.object(o,'deployed_build',side_effect=build):
                 action = lambda:o.deployed_inventory(rpc,self.pin,sources)
-                with self.assertRaises(a.Gate) as caught: action()
-                self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_length')
-                removed_probe(self,action,'old_owner_runtime_length')
-                original = a.need
-                def removed(label,actual,expected):
-                    if label not in ('old_owner_runtime_length','old_owner_runtime_parity'): original(label,actual,expected)
-                with patch.object(a,'need',side_effect=removed): action()
-                print('L1_PROBE proxy_runtime_all_parity_gates removed=red accepted')
+                with assert_stop(self, gate):
+                    action()
 
     def test_deployment_record_binding_and_gate_removals(self):
         fragment = json.loads((Path(__file__).parent/'fixtures/old-owner/deployed-sources.json').read_text())
@@ -1092,25 +1263,39 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for field,value,gate in [
             ('sha256','0'*64,'old_owner_record_sha256'),
             ('commit','b'*40,'old_owner_record_commit'),
-            ('contractAddress',TOKEN,'old_owner_record_address'),
-            ('txHash',a.ZERO32,'old_owner_record_receipt')]:
+            ('contractAddress',TOKEN,'old_owner_record_address')]:
             bad = copy.deepcopy(spec); bad['deploymentRecord'][field] = value
             action = lambda:o.verify_deployment_record(bad)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, gate) as caught: action()
             self.assertEqual(caught.exception.record['gate'],gate)
             removed_probe(self,action,gate)
+        missing = copy.deepcopy(spec)
+        missing['deploymentRecord']['txHash'] = a.ZERO32
+        self.assert_gate('old_owner_record_receipt', lambda: o.verify_deployment_record(missing))
+        duplicate = copy.deepcopy(spec)
+        receipt_ref = duplicate['deploymentRecord'].pop('receipt')
+        receipt = o.committed_record(receipt_ref['path'], receipt_ref['sha256'])
+        record = dict(commit=spec['commit'], receipts=[receipt, copy.deepcopy(receipt)])
+        with patch.object(o, 'committed_record', return_value=record):
+            action = lambda: o.verify_deployment_record(duplicate)
+            self.assert_gate('old_owner_record_receipt', action)
+            removed_probe(self, action, 'old_owner_record_receipt')
         bad = copy.deepcopy(spec); bad['commit']='b'*40; bad['deploymentRecord']['commit']='b'*40
         action = lambda:o.verify_deployment_record(bad)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_record_source_commit') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_record_source_commit')
         removed_probe(self,action,'old_owner_record_source_commit')
         rpc,sources,build = self.source_fixture()
         sources[u.SP]['claim']='deployment-record + runtime parity'
         with patch.object(o,'deployed_build',side_effect=build):
             action = lambda:o.deployed_inventory(rpc,self.pin,sources)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_record_required') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_record_required')
-            removed_probe(self,action,'old_owner_record_required')
+        typed = copy.deepcopy(spec)
+        typed['deploymentRecord'] = UserDict(typed['deploymentRecord'])
+        action = lambda: o.verify_deployment_record(typed)
+        self.assert_gate('old_owner_record_required', action)
+        removed_probe(self,action,'old_owner_record_required')
 
     def test_optional_fork_harness_with_mock_rpc(self):
         baseline = fixture_fork(self.pin)
@@ -1149,15 +1334,15 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 if predicate(row):
                     key = ('eth_call',str([dict(to=row['target'],data=a.calldata(row['signature'],*row['args'])),self.pin['stateBlock']]))
                     overrides[key] = replacement
-            with self.subTest(gate=gate), self.assertRaises(a.Gate) as caught:
+            with self.subTest(gate=gate), assert_stop(self, gate) as caught:
                 rpc = fixture_rpc(self.pin,overrides)
-                o.audit(rpc,self.pin,inventory())
+                o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
             self.assertEqual(caught.exception.record['gate'],gate)
             original = a.need
             def removed(label,actual,expected):
                 if label != gate:
                     original(label,actual,expected)
-            removed_probe(self,lambda:o.audit(rpc,self.pin,inventory()),gate)
+            removed_probe(self,lambda:o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS),gate)
 
     def source_fixture(self):
         baseline = fixture_rpc(self.pin)
@@ -1178,14 +1363,15 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_deployed_source_collection_replay_and_missing_source(self):
         rpc,sources,build = self.source_fixture()
         with patch.object(o,'deployed_build',side_effect=build):
-            value = o.collect_deployed(rpc,self.pin,sources)
+            value = o.collect_deployed(rpc,self.pin,sources, FIXTURE_CALLSITE_TARGETS)
+            value['callsiteTargetSource'] = dict(expected=FIXTURE_CALLSITE_TARGETS)
             value['endpointResults'] = dict(primary=copy.deepcopy(value['reads']),secondary=copy.deepcopy(value['reads']))
             value['endpointIdentities'] = dict(primary=a.ZERO32,secondary=BLOCK_HASH)
             o.validate_deployed(value,self.pin,sources)
             duplicate = copy.deepcopy(value)
             duplicate['endpointIdentities']['secondary'] = duplicate['endpointIdentities']['primary']
             action = lambda:o.validate_deployed(duplicate,self.pin,sources)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_endpoint_distinct') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_distinct')
             removed_probe(self,action,'old_owner_endpoint_distinct')
             self.assertEqual(len(value['inventory']['deployedSources']),12)
@@ -1195,12 +1381,12 @@ class OldOwnerIsolationTests(unittest.TestCase):
             for r in bad['sourceReads']:
                 if r['method'] == 'eth_getCode' and r['params'][1] == self.pin['stateBlock'] and r['params'][0] not in (TOKEN,*o.ROUND_CLONES):
                     r['result'] = '0x6001'+CBOR
-            with self.assertRaises(a.Gate) as caught: o.validate_deployed(bad,self.pin,sources)
+            with assert_stop(self, 'old_owner_runtime_parity') as caught: o.validate_deployed(bad,self.pin,sources)
             self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_parity')
             removed_probe(self,lambda:o.validate_deployed(bad,self.pin,sources),'old_owner_runtime_parity')
-            with self.assertRaises(a.Gate): o.collect_deployed(rpc,self.pin,{})
+            with self.assertRaises(a.Gate): o.collect_deployed(rpc,self.pin,{}, FIXTURE_CALLSITE_TARGETS)
             with patch.object(o,'deployed_build',side_effect=a.Gate('old_owner_deployed_build','missing','source required')):
-                with self.assertRaises(a.Gate) as caught: o.collect_deployed(rpc,self.pin,sources)
+                with assert_stop(self, 'old_owner_deployed_build') as caught: o.collect_deployed(rpc,self.pin,sources, FIXTURE_CALLSITE_TARGETS)
                 self.assertEqual(caught.exception.record['gate'],'old_owner_deployed_build')
 
     def test_registry_adopted_behavioral_claim(self):
@@ -1210,10 +1396,10 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(fragment['deployedSources'][u.REG]['claim'], 'behavioral-equivalence')
         rpc, sources, build = self.source_fixture()
         with patch.object(o, 'deployed_build', side_effect=build):
-            o.collect_deployed(rpc, self.pin, sources)
+            o.collect_deployed(rpc, self.pin, sources, FIXTURE_CALLSITE_TARGETS)
             sources[u.REG]['claim'] = 'deployment-record + runtime parity'
-            action = lambda:o.collect_deployed(rpc, self.pin, sources)
-            with self.assertRaises(a.Gate) as caught: action()
+            action = lambda:o.collect_deployed(rpc, self.pin, sources, FIXTURE_CALLSITE_TARGETS)
+            with assert_stop(self, 'old_owner_source_claim') as caught: action()
             self.assertEqual(caught.exception.record['gate'], 'old_owner_source_claim')
             removed_probe(self, action, 'old_owner_source_claim')
 
@@ -1223,7 +1409,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             artifacts = fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+            root = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
             root['nodes'].append(dict(nodeType='VariableDeclaration',name='extraOwner',src='7:1:0',
                 stateVariable=True,visibility='public',typeDescriptions=dict(typeString='address')))
             artifacts['Registry']['abi'].append(dict(type='function',name='extraOwner',inputs=[],outputs=[dict(type='address')]))
@@ -1236,7 +1422,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             if method == 'eth_call' and params[0]['data'] == a.calldata('extraOwner()'):
                 raise a.Gate('rpc_revert', 'execution reverted', 'successful getter')
             return baseline(method, params)
-        with self.assertRaises(a.Gate) as caught: o.audit(rpc,self.pin,extracted)
+        with assert_stop(self, 'rpc_revert') as caught: o.audit(rpc,self.pin,extracted, FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(caught.exception.record['gate'], 'rpc_revert')
 
     def test_immutable_address_negative_controls_and_removals(self):
@@ -1247,7 +1433,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(run(good)['immutables'][0]['value'], good)
         for value,gate in [(o.OLD,'old_owner_immutable_not_old'),(TOKEN,'old_owner_immutable_expected')]:
             action = lambda:run(value)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, gate) as caught: action()
             self.assertEqual(caught.exception.record['gate'],gate)
             removed_probe(self,action,gate)
         artifact['immutableDeclarations']['7']['name'] = 'unknownAddress'
@@ -1255,15 +1441,15 @@ class OldOwnerIsolationTests(unittest.TestCase):
         with self.assertRaises(a.Gate): action()
         removed_probe(self,action,'old_owner_immutable_not_old')
         action = lambda:run(TOKEN)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_immutable_expectation_missing') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_expectation_missing')
         removed_probe(self,action,'old_owner_immutable_expectation_missing')
         artifact['immutableDeclarations']['7']['type'] = 'uint256'
         self.assertEqual(run(TOKEN)['immutables'][0]['expected'],'no expected value')
         artifact['immutableDeclarations'] = {}
-        with self.assertRaises(a.Gate) as caught: run(good)
+        with assert_stop(self, 'old_owner_immutable_ast') as caught: run(good)
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_ast')
-        removed_probe(self,lambda:run(good),'old_owner_immutable_ast')
+        removed_probe(self,lambda:o.validate_immutable_inputs('7', [bytes(32)], artifact),'old_owner_immutable_ast')
 
     def test_pin_time_immutable_gates(self):
         baseline,sources,build = self.source_fixture()
@@ -1286,7 +1472,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     row = next(r for r in result['deployedSources'] if r['contract']=='Registry')
                     self.assertEqual(row['parity']['immutables'][0]['result'],'PASS')
                 else:
-                    with self.assertRaises(a.Gate) as caught: action()
+                    with assert_stop(self, gate) as caught: action()
                     self.assertEqual(caught.exception.record['gate'],gate)
                     removed_probe(self,action,gate)
 
@@ -1296,23 +1482,24 @@ class OldOwnerIsolationTests(unittest.TestCase):
             fixture_ast(tree)
             path = tree/'out/build-info/test.json'
             data = json.loads(path.read_text())
-            root = data['output']['sources']['contracts/src/Registry.sol']['ast']['nodes'][0]
+            root = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
             root['nodes'].append(dict(nodeType='VariableDeclaration',id=7,name='entryPoint',mutability='immutable',
                 typeDescriptions=dict(typeString='contract IEntryPoint')))
             path.write_text(json.dumps(data))
             declarations = o.immutable_declarations(tree)
-        self.assertEqual(declarations, {'7':dict(name='entryPoint',type='contract IEntryPoint')})
+        self.assertEqual(declarations, {'7':dict(name='entryPoint',type='contract IEntryPoint'),
+                                        '162357':dict(name='__self',type='address')})
         artifact = dict(immutableDeclarations=declarations,
             deployedBytecode=dict(object='0x'+'00'*32+CBOR,immutableReferences={'7':[dict(start=0,length=32)]}))
         action = lambda:o.runtime_parity(raw([2**160])+CBOR,artifact)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_immutable_address_encoding') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_address_encoding')
         removed_probe(self,action,'old_owner_immutable_address_encoding')
         artifact['deployedBytecode']['immutableReferences']['7'] = []
         action = lambda:o.runtime_parity(artifact['deployedBytecode']['object'],artifact)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_immutable_values') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_values')
-        removed_probe(self,action,'old_owner_immutable_values')
+        removed_probe(self,lambda:o.validate_immutable_inputs('7', [], artifact),'old_owner_immutable_values')
 
     def test_clone_identity_and_factory_origin_controls(self):
         factory = '0x67422d2e44a33c8da99b3b776841bf316bd209a2'
@@ -1328,7 +1515,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             (lambda:o.verify_clone(code.replace(impl[2:],TOKEN[2:]),factory,impl),'old_owner_clone_implementation')]
         for action,gate in cases:
             with self.subTest(gate=gate):
-                with self.assertRaises(a.Gate) as caught: action()
+                with assert_stop(self, gate) as caught: action()
                 self.assertEqual(caught.exception.record['gate'],gate)
                 removed_probe(self,action,gate)
 
@@ -1346,7 +1533,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     return rpc(method,params)
                 for action in (lambda:o.deployed_inventory(bad,self.pin,sources),
                                lambda:o.post_upgrade_clones(bad,self.pin,tokens,before)):
-                    with self.assertRaises(a.Gate) as caught: action()
+                    with assert_stop(self, gate) as caught: action()
                     self.assertEqual(caught.exception.record['gate'],gate)
                     removed_probe(self,action,gate)
             # A second valid factory/clone pair still cannot change the shared impl.
@@ -1361,7 +1548,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     return raw([int(other_factory,16)])
                 return rpc(method,params)
             action = lambda:o.deployed_inventory(different,self.pin,changed)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_clone_same_implementation') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_clone_same_implementation')
             removed_probe(self,action,'old_owner_clone_same_implementation')
 
@@ -1373,8 +1560,8 @@ class OldOwnerIsolationTests(unittest.TestCase):
                      ('allowance(address,address)',[u.SAFE,o.OLD],1,'old_owner_allowance_'+token+'_'+u.SAFE)]
             for signature,args,value,gate in cases:
                 key = ('eth_call',str([dict(to=token,data=a.calldata(signature,*args)),self.pin['stateBlock']]))
-                action = lambda:o.audit(fixture_rpc(self.pin,{key:raw([value])}),self.pin,inventory())
-                with self.assertRaises(a.Gate) as caught: action()
+                action = lambda:o.audit(fixture_rpc(self.pin,{key:raw([value])}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
+                with assert_stop(self, gate) as caught: action()
                 self.assertEqual(caught.exception.record['gate'],gate)
                 removed_probe(self,action,gate)
 
@@ -1385,15 +1572,15 @@ class OldOwnerIsolationTests(unittest.TestCase):
         parity = o.runtime_parity(code,artifact)
         self.assertEqual(parity['cbor'],dict(solc='0.8.33',ipfs='1220'+'11'*32))
         changed = code.replace('11'*32,'22'*32)
-        with self.assertRaises(a.Gate) as caught: o.runtime_parity(changed,artifact)
+        with assert_stop(self, 'old_owner_source_rule4') as caught: o.runtime_parity(changed,artifact)
         self.assertEqual(caught.exception.record['gate'],'old_owner_source_rule4')
         removed_probe(self,lambda:o.runtime_parity(changed,artifact),'old_owner_source_rule4')
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_owner_runtime_parity') as caught:
             o.runtime_parity(changed,artifact,dict(resolvedCommit='a'*40))
         self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_parity')
         artifact['deployedBytecode']['immutableReferences'] = {'7':[dict(start=12,length=32)]}
         action = lambda:o.runtime_parity(code,artifact)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_metadata_unmasked') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_metadata_unmasked')
         removed_probe(self,action,'old_owner_metadata_unmasked')
 
@@ -1403,7 +1590,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for field in ('metadataUnmasked','metadataEqual','equal'):
             comparison = dict(exact,**{field:False})
             action = lambda:o.source_provenance(comparison,None)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_source_rule4') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_source_rule4')
             removed_probe(self,action,'old_owner_source_rule4')
             o.source_provenance(comparison,dict(resolvedCommit='a'*40))
@@ -1412,7 +1599,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         artifact = dict(immutableDeclarations={'7':dict(name='fixture',type='uint256')},deployedBytecode=dict(object='0x60'+'00'*32+'00'+CBOR,immutableReferences={'7':[dict(start=1,length=32)]}))
         self.assertTrue(o.runtime_parity('0x60'+'11'*32+'00'+CBOR,artifact)['equal'])
         for data,gate in [('0x61'+'11'*32+'00'+CBOR,'old_owner_runtime_parity'),('0x60','old_owner_runtime_length')]:
-            with self.assertRaises(a.Gate) as caught: o.runtime_parity(data,artifact)
+            with assert_stop(self, gate) as caught: o.runtime_parity(data,artifact)
             self.assertEqual(caught.exception.record['gate'],gate)
         artifact['deployedBytecode']['immutableReferences']['7'][0]['length'] = 33
         with self.assertRaises(a.Gate): o.runtime_parity('0x60'+'11'*32+'00'+CBOR,artifact)
@@ -1421,7 +1608,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         artifact = dict(immutableDeclarations={'7':dict(name='fixture',type='uint256')},deployedBytecode=dict(object='0x'+'00'*64+CBOR,
                         immutableReferences={'7':[dict(start=0,length=32),dict(start=32,length=32)]}))
         self.assertTrue(o.runtime_parity('0x'+'11'*64+CBOR,artifact)['equal'])
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_owner_immutable_consistency') as caught:
             o.runtime_parity('0x'+'11'*32+'22'*32+CBOR,artifact)
         self.assertEqual(caught.exception.record['gate'],'old_owner_immutable_consistency')
 
@@ -1443,7 +1630,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             for target in (u.REG,u.SP):
                 bad = copy.deepcopy(sources)
                 bad[target]['implementation'] = target
-                with self.assertRaises(a.Gate) as caught: o.deployed_inventory(rpc,self.pin,bad)
+                with assert_stop(self, 'old_owner_implementation') as caught: o.deployed_inventory(rpc,self.pin,bad)
                 self.assertEqual(caught.exception.record['gate'],'old_owner_implementation')
 
     def test_recursive_manifest_abi_controls(self):
@@ -1458,13 +1645,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
             data = a.calldata(safe,u.TL,0,data,0,0,0,0,a.ZERO,a.ZERO,'0x')
             return [dict(tx=dict(to=u.SAFE,data=data))]
         self.assertGreaterEqual(len(o.assert_manifest_calldata(steps(o.NEW),signatures)),3)
-        with self.assertRaises(a.Gate) as caught: o.assert_manifest_calldata(steps(o.OLD),signatures)
+        with assert_stop(self, 'old_owner_calldata_bytes') as caught: o.assert_manifest_calldata(steps(o.OLD),signatures)
         self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_bytes')
         removed_probe(self,lambda:o.assert_manifest_calldata(steps(o.OLD),signatures),'old_owner_calldata_bytes')
         data = a.calldata(nested,'[('+o.OLD+',0x)]')
         with self.assertRaises(a.Gate): o.assert_manifest_calldata([dict(tx=dict(to=u.REG,data=data))],signatures)
         data = a.calldata(schedule,u.REG,0,'0x12345678',a.ZERO32,a.ZERO32,1)
-        with self.assertRaises(a.Gate) as caught: o.assert_manifest_calldata([dict(tx=dict(to=u.TL,data=data))],signatures)
+        with assert_stop(self, 'old_owner_calldata_abi') as caught: o.assert_manifest_calldata([dict(tx=dict(to=u.TL,data=data))],signatures)
         self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_abi')
         ctor = dict(signature='c(address)',bytecode='0x6000')
         with self.assertRaises(a.Gate):
@@ -1479,7 +1666,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for name,gate,steps,signatures in cases:
             action = lambda:o.assert_manifest_calldata(steps,signatures)
             with self.subTest(case=name):
-                with self.assertRaises(a.Gate) as caught: action()
+                with assert_stop(self, gate) as caught: action()
                 self.assertEqual(caught.exception.record['gate'],gate)
                 removed_probe(self,action,gate)
 
@@ -1490,13 +1677,13 @@ class OldOwnerIsolationTests(unittest.TestCase):
             if label != 'old_owner_calldata_payload':
                 original(label,actual,expected)
         with patch.object(a,'need',side_effect=removed):
-            with self.assertRaises(a.Gate) as caught:
+            with assert_stop(self, 'old_owner_calldata_payload_shape') as caught:
                 o.assert_manifest_calldata(steps,['execute(uint256)'])
         self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_payload_shape')
 
     def test_endpoint_without_hostname(self):
         from types import SimpleNamespace
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_owner_endpoint_host') as caught:
             o.endpoint_identity(SimpleNamespace(url='https:///rpc'),'primary')
         self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_host')
 
@@ -1509,7 +1696,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                     if log['topics'][0] == a.keccak(o.REGISTERED):
                         log['data'] = raw([123])
             return result
-        with self.assertRaises(a.Gate) as caught:
+        with assert_stop(self, 'old_owner_history_data') as caught:
             o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
         self.assertEqual(caught.exception.record['gate'],'old_owner_history_data')
 
@@ -1536,7 +1723,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for kind in (o.GRANTED,o.REGISTERED):
             with self.subTest(regrant=kind):
                 extra.append(event(kind,103))
-                with self.assertRaises(a.Gate) as caught: action()
+                with assert_stop(self, 'old_owner_uncancelled_grants') as caught: action()
                 self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
                 extra.pop()
         extra[-1] = event(o.REVOKED,102)
@@ -1548,7 +1735,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         second = o.endpoint_identity(SimpleNamespace(url='https://rpc.example/b'),'secondary')
         self.assertEqual(first,second)
         action = lambda:o.assert_endpoint_identities(dict(primary=first,secondary=second))
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_endpoint_distinct') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_distinct')
         removed_probe(self,action,'old_owner_endpoint_distinct')
         o.assert_endpoint_identities(dict(primary=first,secondary=o.endpoint_identity(SimpleNamespace(url='https://other.example'),'secondary')))
@@ -1556,7 +1743,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         value = dict(oldActivityReads=dict(primary=[]), oldOwnerIsolation=dict(reads=[],sourceSelection={}))
         with patch.object(m,'collect',side_effect=lambda *args:copy.deepcopy(value)):
             action = lambda:m.collect_pair(SimpleNamespace(url='https://rpc.example/a'),SimpleNamespace(url='https://rpc.example/b'),'0x123',{})
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_endpoint_distinct') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_endpoint_distinct')
             removed_probe(self,action,'old_owner_endpoint_distinct')
 
@@ -1576,7 +1763,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 result += extra
             return result
         action = lambda:o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_uncancelled_grants') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
         removed_probe(self,action,'old_owner_uncancelled_grants')
         extra.append(event(o.EXITED,101))
@@ -1584,7 +1771,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertIn(role,action())
         # Exit for a different role cannot cancel OLD's registration.
         extra[0]['topics'][1] = a.ZERO32
-        with self.assertRaises(a.Gate) as caught: action()
+        with assert_stop(self, 'old_owner_uncancelled_grants') as caught: action()
         self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
         # Standard roles may be evidenced solely by registerRole history.
         def registered_only(method,params):
@@ -1610,7 +1797,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
             return logs[1:] if len(q['topics']) == 3 else logs
         self.assertEqual(o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1),sorted([role,CUSTOM_ROLE,*o.NEVER_GRANTED[u.REG]]))
         logs.pop()
-        with self.assertRaises(a.Gate) as caught: o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
+        with assert_stop(self, 'old_owner_uncancelled_grants') as caught: o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1)
         self.assertEqual(caught.exception.record['gate'],'old_owner_uncancelled_grants')
         removed_probe(self,lambda:o.role_history(rpc,self.pin,u.REG,inventory()['Registry'],1),'old_owner_uncancelled_grants')
         logs.append(event(o.REVOKED,2))
@@ -1619,18 +1806,18 @@ class OldOwnerIsolationTests(unittest.TestCase):
             if method == 'eth_getLogs' and params[0]['fromBlock'] == '0x1' and params[0]['toBlock'] == self.pin['stateBlock']:
                 return result[:1]
             return result
-        with self.assertRaises(a.Gate) as caught: o.role_history(truncated,self.pin,u.REG,inventory()['Registry'],1)
+        with assert_stop(self, 'old_owner_log_partition') as caught: o.role_history(truncated,self.pin,u.REG,inventory()['Registry'],1)
         self.assertEqual(caught.exception.record['gate'],'old_owner_log_partition')
         removed_probe(self,lambda:o.role_history(truncated,self.pin,u.REG,inventory()['Registry'],1),'old_owner_log_partition')
 
     def test_missing_fork_and_bad_live_getter_stop(self):
         rpc = fixture_rpc(self.pin)
         rpc.fork = None
-        with self.assertRaises(a.Gate) as caught: o.audit(rpc,self.pin,inventory())
+        with self.assertRaises(a.Gate) as caught: o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(caught.exception.record['observed'],'unverified')
         for response in ('0x','0x01'):
             query = ('eth_call',str([dict(to=u.SAFE,data=a.calldata('isModuleEnabled(address)',o.OLD)),self.pin['stateBlock']]))
-            with self.assertRaises(a.Gate): o.audit(fixture_rpc(self.pin,{query:response}),self.pin,inventory())
+            with self.assertRaises(a.Gate): o.audit(fixture_rpc(self.pin,{query:response}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         value = evidence(self.pin)
         self.assertEqual([c['status'] for c in value['forkControls']],['verified','verified'])
         for control in value['forkControls']:
@@ -1666,7 +1853,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_release_source_hook_and_negative_controls(self):
         import manifest_exec as m
         value = evidence(self.pin)
-        report = o.negative_controls(value,self.pin,inventory())
+        report = o.negative_controls(value,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
         self.assertEqual(len(report),sum('negativeControl' in row for row in value['reads']))
         self.assertTrue(all(row['status'] == 'STOP' for row in report))
         expanded = copy.deepcopy(inventory())
@@ -1704,11 +1891,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 if len(params[0]['topics']) == 3 or a.qty(params[0]['toBlock']) < a.qty(self.pin['stateBlock']): return []
                 return [bad]
             action = lambda:o.role_history(rpc,self.pin,u.REG,spec,1)
-            with self.subTest(gate=gate),self.assertRaises(a.Gate) as caught: action()
+            with self.subTest(gate=gate),assert_stop(self, gate) as caught: action()
             self.assertEqual(caught.exception.record['gate'],gate)
             removed_probe(self,action,gate)
         empty = lambda method,params: [] if method == 'eth_getLogs' else baseline(method,params)
-        with self.assertRaises(a.Gate) as caught: o.role_history(empty,self.pin,u.REG,spec,1)
+        with assert_stop(self, 'old_owner_history_positive') as caught: o.role_history(empty,self.pin,u.REG,spec,1)
         self.assertEqual(caught.exception.record['gate'],'old_owner_history_positive')
         removed_probe(self,lambda:o.role_history(empty,self.pin,u.REG,spec,1),'old_owner_history_positive')
 
@@ -1718,12 +1905,12 @@ class OldOwnerIsolationTests(unittest.TestCase):
             bad = copy.deepcopy(sources)
             bad[u.REG]['implementation'] = TOKEN
             action = lambda:o.inventory_source(rpc=rpc,pin=self.pin,sources=bad)
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_implementation') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_implementation')
             removed_probe(self,action,'old_owner_implementation')
             bad[u.REG]['implementation'] = u.REG
             bad[u.REG]['creationBlock'] = 2
-            with self.assertRaises(a.Gate) as caught: action()
+            with assert_stop(self, 'old_owner_creation_before') as caught: action()
             self.assertEqual(caught.exception.record['gate'],'old_owner_creation_before')
             removed_probe(self,action,'old_owner_creation_before')
 
@@ -1739,10 +1926,312 @@ class OldOwnerIsolationTests(unittest.TestCase):
             def rpc(m,p): return result if m == method else baseline(m,p)
             rpc.local = True
             action = lambda:o.fork_probe(rpc,self.pin,case)
-            with self.subTest(gate=gate),self.assertRaises(a.Gate) as caught: action()
+            with self.subTest(gate=gate),assert_stop(self, gate) as caught: action()
             self.assertEqual(caught.exception.record['gate'],gate)
             removed_probe(self,action,gate)
 
+
+@lru_cache(maxsize=1)
+def registry_proof_template():
+    data = archived_registry_build()
+    sources = data['output']['sources']
+    contracts = {n['id']: (p, n) for p, s in sources.items() for n in s['ast']['nodes']
+                 if n.get('nodeType') == 'ContractDefinition'}
+    _, root = next((p, n) for p, n in contracts.values() if n.get('name') == 'Registry')
+    paths = set(o.REGISTRY_AST_NODE_TYPES['sourceKeccaks'])
+    entries = [(p, n) for base in root['linearizedBaseContracts'] for p, c in [contracts[base]] for n in c['nodes']]
+    entries += [(p, n) for p in paths for c in sources[p]['ast']['nodes']
+                if c.get('contractKind') == 'library' for n in c['nodes']]
+    entries += [(p, n) for p in paths for n in sources[p]['ast']['nodes'] if n.get('nodeType') == 'VariableDeclaration']
+    inputs = {p: data['input']['sources'][p] for p in paths}
+    declarations = {n['id']: (p, n) for p in paths for n in o.ast_walk(sources[p]['ast']) if 'id' in n}
+    return entries, inputs, declarations
+
+
+class RegistryASTProofTests(unittest.TestCase):
+    def setUp(self):
+        patch_callsite_targets(self)
+        self.entries, self.inputs, self.declarations = copy.deepcopy(registry_proof_template())
+        self.functions = {n.get('name'): n for p, n in self.entries if p == 'contracts/src/core/Registry.sol'
+                          and n.get('nodeType') == 'FunctionDefinition'}
+        self.body = self.functions['configureRole']['body']['statements']
+
+    def opaque(self):
+        return o.registry_opaque_writes(self.entries, self.inputs, self.declarations)
+
+    def roles(self):
+        return o.registry_role_writes(self.entries, self.inputs, self.declarations)
+
+    def extra(self, node):
+        self.entries.append(('contracts/src/core/Registry.sol', node))
+
+    def stop(self, gate, action=None):
+        with assert_stop(self, gate):
+            (action or self.opaque)()
+
+    def test_real_positive(self):
+        matched = self.opaque()
+        self.assertEqual(len(matched), 3)
+        self.assertEqual({m['target'] for m in matched}, {'GTOKEN_STAKING', 'MYSBT', 'SUPER_PAYMASTER'})
+        self.assertEqual(len(self.roles()), 7)
+        data = archived_registry_build()
+        self.assertEqual(data['id'], o.REGISTRY_AST_NODE_TYPES['buildInfoId'])
+        self.assertEqual({p: a.keccak(v['content']) for p, v in self.inputs.items()}, o.REGISTRY_AST_NODE_TYPES['sourceKeccaks'])
+        actual = {n['nodeType'] for _, fn in self.entries if fn.get('nodeType') in ('FunctionDefinition','ModifierDefinition')
+                  for n in o.ast_walk(fn.get('body')) if 'nodeType' in n and not n['nodeType'].startswith('Yul')}
+        self.assertEqual(actual, set(o.REGISTRY_AST_NODE_TYPES['solidityBodyNodeTypes']))
+        self.assertEqual(o.REGISTRY_AST_NODE_TYPES['registryYulNodeTypes'], [])
+
+    def test_node_type(self):
+        self.body.append(dict(nodeType='UnmodelledStatement'))
+        self.stop('old_owner_role_node_type')
+
+    def test_free_function(self):
+        self.extra(dict(nodeType='FunctionDefinition', kind='freeFunction', id=-101, body=[]))
+        self.body.append(dict(nodeType='ExpressionStatement', expression=dict(nodeType='Identifier', referencedDeclaration=-101)))
+        self.stop('old_owner_role_free_function')
+
+    def test_using_for(self):
+        self.extra(dict(nodeType='UsingForDirective'))
+        self.stop('old_owner_role_storage_escape')
+
+    def test_storage_receiver(self):
+        self.extra(dict(nodeType='FunctionDefinition', id=-102, parameters=dict(parameters=[dict(storageLocation='storage')]), body=[]))
+        self.body.append(dict(nodeType='ExpressionStatement', expression=dict(nodeType='MemberAccess', referencedDeclaration=-102)))
+        self.stop('old_owner_role_storage_escape')
+
+    def test_storage_return(self):
+        self.extra(dict(nodeType='FunctionDefinition', returnParameters=dict(parameters=[dict(storageLocation='storage')]), body=[]))
+        self.stop('old_owner_role_storage_return')
+
+    def test_yul_terminator(self):
+        self.body.append(dict(nodeType='InlineAssembly', AST=dict(nodeType='YulFunctionCall', functionName=dict(name='return'))))
+        self.stop('old_owner_role_yul_terminator')
+
+    def test_missing_allowlisted_source(self):
+        del self.inputs[next(p for p in self.inputs if p.endswith('/StorageSlot.sol'))]
+        self.stop('old_owner_role_allowlisted_source')
+
+    def test_extra_writer(self):
+        setter = self.functions['setStaking']
+        assignment = next(n for n in o.ast_walk(setter['body']) if n.get('nodeType') == 'Assignment')
+        self.body.append(dict(nodeType='ExpressionStatement', expression=copy.deepcopy(assignment)))
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_setter_without_owner(self):
+        self.functions['setMySBT']['modifiers'] = []
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_setter_non_oz_owner(self):
+        modifier = self.functions['setSuperPaymaster']['modifiers'][0]['modifierName']['referencedDeclaration']
+        _, decl = self.declarations[modifier]
+        self.declarations[modifier] = ('EvilOwnable.sol', decl)
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_missing_writer(self):
+        self.functions['setStaking']['body']['statements'] = []
+        self.stop('old_owner_callsite_target_writers')
+
+    def test_initializer_declaration(self):
+        fn = self.functions['initialize']
+        fn['modifiers'][0]['modifierName']['referencedDeclaration'] = -103
+        self.stop('old_owner_role_initializer_only', self.roles)
+
+    def test_configure_guard(self):
+        self.functions['configureRole']['modifiers'] = []
+        self.stop('old_owner_role_configure_guard', self.roles)
+
+    def test_modifier_post_termination(self):
+        modifier = self.functions['configureRole']['modifiers'][0]['modifierName']['referencedDeclaration']
+        self.declarations[modifier][1]['body']['statements'].append(dict(nodeType='Return'))
+        self.stop('old_owner_role_configure_guard', self.roles)
+
+    def test_emit_nested_write(self):
+        write = next(s for s in self.body if s.get('expression', {}).get('nodeType') == 'Assignment')
+        self.body.append(dict(nodeType='IfStatement', trueBody=copy.deepcopy(write)))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_early_return(self):
+        self.body.insert(0, dict(nodeType='Return'))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_before_write(self):
+        self.body.insert(0, self.body.pop())
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_internal_call(self):
+        self.body.insert(-1, dict(nodeType='ExpressionStatement', expression=dict(nodeType='FunctionCall', expression=dict(nodeType='Identifier', name='helper'))))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_two_calls(self):
+        self.body.insert(-1, copy.deepcopy(self.body[-2]))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_try(self):
+        self.body.insert(-1, dict(nodeType='TryStatement'))
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_different_target(self):
+        target = next(n for p, n in self.entries if n.get('name') == 'MYSBT')
+        self.body[-2]['expression']['expression']['expression']['referencedDeclaration'] = target['id']
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_emit_different_function(self):
+        self.body[-2]['expression']['expression']['referencedDeclaration'] = -104
+        self.stop('old_owner_role_configure_emit', self.roles)
+
+    def test_extra_call(self):
+        self.body.append(dict(nodeType='ExpressionStatement', expression=dict(nodeType='FunctionCall', expression=dict(nodeType='MemberAccess', memberName='call'))))
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_delegatecall(self):
+        member = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('memberName') == 'call')
+        member['memberName'] = 'delegatecall'
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_call_value(self):
+        self.call_options('value')
+
+    def test_call_gas(self):
+        self.call_options('gas')
+
+    def call_options(self, name):
+        call = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('expression', {}).get('memberName') == 'call')
+        call['expression'] = dict(nodeType='FunctionCallOptions', expression=call['expression'], names=[name], options=[dict(nodeType='Literal', value='1')])
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_call_wrong_target(self):
+        member = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('memberName') == 'call')
+        member['expression']['arguments'][0]['referencedDeclaration'] = -105
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_call_wrong_interface(self):
+        call = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('expression', {}).get('memberName') == 'encodeCall')
+        call['arguments'][0]['referencedDeclaration'] = -106
+        self.stop('old_owner_role_lowlevel_call')
+
+    def test_src_offset(self):
+        member = next(n for n in o.ast_walk(self.functions['_safeSetRoleExitFee']) if n.get('memberName') == 'call')
+        member['src'] = '1:1:29'
+        self.stop('old_owner_role_callsite_count')
+
+    def test_allowlist_two(self):
+        self.count(2)
+
+    def test_allowlist_four(self):
+        self.count(4)
+
+    def count(self, size):
+        allow = copy.deepcopy(o.REGISTRY_AST_ALLOWLIST)
+        allow['callSites'] = (allow['callSites']*2)[:size]
+        with patch.object(o, 'REGISTRY_AST_ALLOWLIST', allow):
+            self.stop('old_owner_role_callsite_count')
+
+    def test_pin_target_middle_byte(self):
+        targets = {}
+        expected = dict(GTOKEN_STAKING=STAKING, MYSBT=SBT, SUPER_PAYMASTER=u.SP)
+        wrong = STAKING[:20] + 'ff' + STAKING[22:]
+        self.assertEqual(wrong[:10], STAKING[:10])
+        self.assertEqual(wrong[-8:], STAKING[-8:])
+        def addr(target, sig):
+            self.assertEqual(target, u.REG)
+            return wrong if sig == 'GTOKEN_STAKING()' else expected[sig[:-2]]
+        self.stop('old_owner_role_callsite_target', lambda: o.registry_callsite_targets(addr, targets, expected))
+
+    def test_pin_target_rpc_mismatch(self):
+        pin = dict(stateBlockHash=BLOCK_HASH, registryCreation=1, stateBlock='0x123', capped=CAPPED, pauseList=[u.DEPLOYER])
+        key = ('eth_call', str([dict(to=u.REG, data=a.calldata('SUPER_PAYMASTER()')), pin['stateBlock']]))
+        wrong = u.SP[:20] + ('ff' if u.SP[20:22] != 'ff' else '00') + u.SP[22:]
+        rpc = fixture_rpc(pin, {key: raw([int(wrong, 16)])})
+        self.stop('old_owner_role_callsite_target', lambda: o.audit(rpc, pin, inventory(), FIXTURE_CALLSITE_TARGETS))
+
+    def test_pin_target_real_config(self):
+        # DSR full 40-hex values read at block 12068600 via Registry proxy 0xf5bf37ca...8e71.
+        self.assertEqual(real_callsite_config(), dict(
+            GTOKEN_STAKING='0x472297b557c1d0f030f281a5bb8a535f6c5ab65e',
+            MYSBT='0x4867b4302bf4c7818b71f55e53a3520ee1855aa7',
+            SUPER_PAYMASTER='0x09df0d2e3722ec0e401fe3819e64278a42ae4de9'))
+
+    def audit_target_middle_byte(self, signature, value):
+        pin = dict(stateBlockHash=BLOCK_HASH, registryCreation=1, stateBlock='0x123', capped=CAPPED, pauseList=[u.DEPLOYER])
+        key = ('eth_call', str([dict(to=u.REG, data=a.calldata(signature)), pin['stateBlock']]))
+        wrong = value[:20] + ('ff' if value[20:22] != 'ff' else '00') + value[22:]
+        self.assertEqual((wrong[:10], wrong[-8:]), (value[:10], value[-8:]))
+        base = fixture_rpc(pin, {key: raw([int(wrong, 16)])})
+        def rpc(method, params):
+            # The look-alike answers as the real target, so deleting the gate leads to acceptance.
+            if method in ('eth_call', 'eth_getCode', 'eth_getStorageAt', 'eth_getBalance') and params:
+                first = params[0]
+                if isinstance(first, dict):
+                    to = value if str(first.get('to', '')).lower() == wrong else first.get('to')
+                    data = first.get('data', '').replace(wrong[2:], value[2:])
+                    params = [dict(first, to=to, data=data), *params[1:]]
+                elif isinstance(first, str) and first.lower() == wrong:
+                    params = [value, *params[1:]]
+            return base(method, params)
+        self.stop('old_owner_role_callsite_target', lambda: o.audit(rpc, pin, inventory(), FIXTURE_CALLSITE_TARGETS))
+
+    def test_pin_target_audit_staking_middle_byte(self):
+        # The expected value must not come from the getter under test.
+        self.audit_target_middle_byte('GTOKEN_STAKING()', STAKING)
+
+    def test_pin_target_audit_sbt_middle_byte(self):
+        self.audit_target_middle_byte('MYSBT()', SBT)
+
+    def test_pin_target_sp_constant(self):
+        wrong = dict(FIXTURE_CALLSITE_TARGETS, SUPER_PAYMASTER='0x'+'99'*20)
+        self.stop('old_owner_role_callsite_sp', lambda: o.registry_callsite_targets(lambda t, s: wrong[s[:-2]], {}, wrong))
+
+    def test_pin_target_evidence(self):
+        pin = dict(stateBlockHash=BLOCK_HASH, registryCreation=1, stateBlock='0x123', capped=CAPPED, pauseList=[u.DEPLOYER])
+        result = o.audit(fixture_rpc(pin), pin, inventory(), FIXTURE_CALLSITE_TARGETS)
+        self.assertEqual(result['registryCallsiteTargets'], dict(GTOKEN_STAKING=STAKING, MYSBT=SBT, SUPER_PAYMASTER=u.SP))
+        for signature in ('GTOKEN_STAKING()', 'MYSBT()', 'SUPER_PAYMASTER()'):
+            rows = [r for r in result['reads'] if r.get('signature') == signature and r.get('target') == u.REG]
+            self.assertTrue(rows)
+            self.assertTrue(all(r['block'] == pin['stateBlock'] for r in rows))
+
+    def test_canonical_target_sources(self):
+        config = json.loads((Path(__file__).resolve().parents[2]/'deployments/config.sepolia.json').read_text())
+        self.assertEqual(config['staking'].lower(), '0x472297b557c1d0f030f281a5bb8a535f6c5ab65e')
+        self.assertEqual(config['sbt'].lower(), '0x4867b4302bf4c7818b71f55e53a3520ee1855aa7')
+        self.assertEqual(config['superPaymaster'].lower(), '0x09df0d2e3722ec0e401fe3819e64278a42ae4de9')
+        self.assertEqual(config['superPaymaster'].lower(), u.SP)
+
+    def test_free_function_assembly_scope(self):
+        self.scope('freeFunction', 'old_owner_role_assembly')
+
+    def test_modifier_delegatecall_scope(self):
+        self.scope('ModifierDefinition', 'old_owner_role_lowlevel_call')
+
+    def test_library_assembly_scope(self):
+        self.scope('library', 'old_owner_role_assembly')
+
+    def test_using_library_assembly_scope(self):
+        self.scope('usingLibrary', 'old_owner_role_storage_escape')
+
+    def scope(self, category, gate):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            artifacts = fixture_ast(tree)
+            path = tree/'out/build-info/test.json'
+            data = json.loads(path.read_text())
+            reg = data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'][0]
+            fn = dict(nodeType='FunctionDefinition', kind='freeFunction', id=-200, body=dict(nodeType='InlineAssembly', AST=dict(nodeType='YulFunctionCall', functionName=dict(name='sstore'))))
+            if category == 'usingLibrary':
+                reg['nodes'].append(dict(nodeType='UsingForDirective', libraryName=dict(referencedDeclaration=-201)))
+            if category == 'ModifierDefinition':
+                fn.update(nodeType=category, body=dict(nodeType='MemberAccess', memberName='delegatecall'))
+                reg['nodes'].append(fn)
+            else:
+                source = 'Extra.sol'
+                data['output']['sources']['contracts/src/core/Registry.sol']['ast']['nodes'].append(dict(nodeType='ImportDirective', absolutePath=source))
+                nodes = [fn] if category == 'freeFunction' else [dict(nodeType='ContractDefinition', id=-201, contractKind='library', name='Extra', nodes=[fn])]
+                data['output']['sources'][source] = dict(ast=dict(nodes=nodes))
+                data['input']['sources'][source] = dict(content='// adverse scope fixture')
+            path.write_text(json.dumps(data))
+            with patch.object(a, 'raw_artifact', side_effect=lambda t, n: artifacts[n]):
+                self.stop(gate, lambda: o.extract(tree))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

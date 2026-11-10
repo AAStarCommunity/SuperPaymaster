@@ -1,8 +1,8 @@
 # rc.8 Daybreak fix set — 2026-11-09
 
-Worktree: `/Users/jason/Dev/aastar/sp-wt/rc8`, branch `cc125/rc8-daybreak-fixes`.
+Branch `cc125/rc8-daybreak-fixes`.
 Input: `C4-report.md`, `C2-report.md`, `C1-report.md` in
-`/Users/jason/Dev/aastar/manifest-live/daybreak-2026-11-09/`.
+the Daybreak review archive (2026-11-09, held by the maintainer and DSR).
 The initial `git diff 8de39026 -- contracts/src` was empty. No network, chain,
 key access, ABI regeneration, commits, or Git metadata writes were performed.
 The pre-existing OpenZeppelin v5.1.0 `package-lock.json` edit was preserved.
@@ -81,13 +81,76 @@ value in `SlashExecutedWithProof`. The regression deposits 1,000 aPNTs and check
 that a MAJOR slash emits 300, leaves 700, credits 300 revenue and records 300 in
 history. SuperPaymaster core/Admin storage is untouched.
 
+### Registry ENDUSER membership cleanup
+
+`MySBT.deactivateAllMemberships` cannot attribute a membership to the role that
+created it: it iterates every membership stored for the user's SBT and deactivates
+every active entry. Therefore `Registry.exitRole(ROLE_ENDUSER)` calls it only when
+`userRoleCount[user] == 0` after role removal. If another role remains, all
+memberships remain intact. In particular, a per-community membership can outlive
+the ENDUSER role while another role is held. Integrators must not treat
+`MySBT.verifyCommunityMembership(user, community)` as sufficient authorization;
+they must also require `Registry.hasRole(ROLE_ENDUSER, user)`.
+
+A later final-role exit burns the SBT and deactivates its memberships through
+`MySBT.burnSBT`. If a final non-ENDUSER exit occurs while MySBT is paused, the burn
+fails non-fatally and sets `pendingSBTBurn`; after unpausing MySBT, anyone can call
+`reconcileSBTBurn(user)`. The permissionless
+`reconcileMembershipDeactivation` retry applies the same zero-role condition, so
+a stale pending flag cannot deactivate memberships while any role remains. If a
+third party adds COMMUNITY, ANODE, DVT, KMS, PAYMASTER_AOA, or PAYMASTER_SUPER
+(e.g. via a community's `safeMintForRole`) before that retry, recovery requires
+the holder to exit every remaining role. COMMUNITY has a zero default lock; the
+operator roles use `block.timestamp >= lockedAt + 30 days` (and DVT also requires
+its guardian-exit authorization). Exit and reconciliation are separate
+transactions, so a sponsor that keeps funding grants can re-grant a role after
+each exit and before the retry, delaying recovery indefinitely while it keeps
+paying; recovery is therefore not bounded against an actively funded sponsor.
+Precondition for any of this: a MySBT cleanup call must first have FAILED
+(e.g. MySBT paused or replaced by a reverting implementation). Once `userRoleCount == 0`, call
+`reconcileMembershipDeactivation(user)`; if the final burn also failed, unpause
+MySBT and call `reconcileSBTBurn(user)`. ENDUSER registration remains blocked until
+the membership-cleanup flag is cleared.
+
+This is the documented fallback because the targeted cleanup implementation did
+not fit EIP-170: the round-6 Registry measured 24,509 B, a behavior-preserving
+counter simplification reclaimed 29 B (24,480 B), and the minimal implementation
+then measured 25,002 B, 426 B over the 24,576 B limit. The attempted code and
+reclamation were reverted.
+
+REG-R5-02 does not require a migration: the Sepolia Registry has never emitted
+`SBTBurnFailed` (verified by the evidence script on `cc125/rc8-reg-evidence`), and
+the Optimism deployment is fresh.
+
+### PolicyRegistry velocity and spend reads
+
+PolicyRegistry 3.0.2 rejects `setTargetVelocity` and `tightenTargetVelocity` while
+the target velocity window is zero. Disabling a window invalidates all prior
+per-asset limits; re-enabling it remains fail-closed until each asset receives a
+fresh timelocked `setTargetVelocity`, which also starts a fresh target counter.
+`getTargetVelocity` reports stale/disabled entries as unconfigured, and no setter
+or tightening event is emitted for a rejected zero-window call.
+
+`getAssetSpend` now returns effective spend (zero once its configured window has
+expired). The new `getTargetSpend(sender, target, asset)` returns the same
+window-aware value for target velocity, including zero for disabled, stale, or
+expired entries.
+
+### I3 release requirement
+
+Any future validation-time consumer of `PolicyRegistry` must pass the ERC-7562
+tracer gate before release. This is a documented release requirement even when
+the consumer's direct unit and integration tests pass.
+
 ### Version propagation
 
 - BLSAggregator: 4.12.0 → 4.13.0.
-- SuperPaymaster: 5.5.0 → 5.5.1.
+- SuperPaymaster: stays `SuperPaymaster-5.5.0`. Its ABI is unchanged; 5.5.0 has never been deployed on a live chain, and build identity is the commit plus runtime codehash (03-final-spec §6), not the version string.
 - xPNTsTokenV2: XPNTs-4.0.0 → XPNTs-4.0.1.
-- SuperPaymasterLens: 1.2.0 → 1.2.1; its exact SP-version gate follows 5.5.1.
+- SuperPaymasterLens: stays `SuperPaymasterLens-1.2.0` (its SP-version gate stays 5.5.0).
 - xPNTsFactoryV2: 3.0.0-v2 → 3.0.1-v2; its exact template-version gate follows 4.0.1.
+- PolicyRegistry: 3.0.1 → 3.0.2; ABI adds `getTargetSpend(address,address,address)`
+  and `VelocityDisabled()` while preserving existing function signatures.
 
 The last two changes are required to keep diagnostics and token creation working
 with the new versions. Current-version assertions and the experimental
@@ -97,7 +160,7 @@ constant/events before release. No downstream notifications were sent.
 
 ## Verification
 
-Engine: `/Users/jason/.foundry/bin/forge` 1.7.1, Solidity 0.8.33, default profile.
+Engine: forge 1.7.1, Solidity 0.8.33, default profile.
 `FOUNDRY_OFFLINE=true` keeps compiler resolution offline. Test runs explicitly set
 `SEPOLIA_FORK_RPC=''` so the opt-in Sepolia fork suites cannot connect to a chain.
 `nice -n 10` was attempted but the sandbox returned
@@ -120,7 +183,7 @@ updated. The invariant model now clears a promoted standby and independently
 asserts that standby is never current SP. No production behavior was weakened to
 satisfy the old model. Subsequent final results are recorded below.
 
-Final BLSAggregator runtime: **24,223 B**, headroom **353 B**; **122 B smaller**
+Final BLSAggregator runtime: **24,387 B**, headroom **189 B** (the C4-L-01 change was reverted after re-review; C4-L-02 adds one SSTORE)
 than rc.7 despite the challenge-period addition. All measurements use Cancun,
 optimizer 500 runs, via-IR and Solidity 0.8.33. Prague outputs/cache are isolated
 under `out/prague` and `cache/prague`; the size gate reads only default/Cancun
@@ -128,7 +191,7 @@ artifacts and verifies source hashes and compiler settings.
 
 | Deployable | Runtime bytes | EIP-170 headroom |
 |---|---:|---:|
-| BLSAggregator | 24,223 | 353 |
+| BLSAggregator | 24,387 | 189 |
 | SuperPaymaster | 13,744 | 10,832 |
 | SuperPaymasterAdmin | 17,975 | 6,601 |
 | SuperPaymasterLens | 5,413 | 19,163 |
@@ -148,7 +211,7 @@ No file in `abis/` was modified.
   `abis/SuperPaymasterLens.json`, `abis/xPNTsFactoryV2.json`: unchanged ABI
   signatures, changed embedded bytecode/version behavior.
 - `abis/SuperPaymaster.full.json`: combined ABI signatures remain unchanged,
-  but its note still names 5.5.0 and should be refreshed to 5.5.1.
+  its note names 5.5.0, which stays correct.
 
 `abis/BLSAggregator-4.11.0.deployed.json` is historical deployed evidence and must
 remain unchanged. This task does not regenerate deployment manifests or historical
@@ -248,7 +311,7 @@ python3 scripts/check_storage_layout.py
 
 ```text
 OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 entries)
-OK  Registry storage layout = snapshot (unchanged) (32 entries)
+OK  Registry storage layout = deployed 5.9.0 snapshot + 2 allowed appended mappings (34 entries)
 ```
 
 The default build that compiled the production fixes reported `Compiler run successful with warnings:`; the final cached build confirms the final tree.
