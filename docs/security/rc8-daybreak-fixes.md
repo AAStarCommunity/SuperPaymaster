@@ -81,6 +81,67 @@ value in `SlashExecutedWithProof`. The regression deposits 1,000 aPNTs and check
 that a MAJOR slash emits 300, leaves 700, credits 300 revenue and records 300 in
 history. SuperPaymaster core/Admin storage is untouched.
 
+### Registry ENDUSER membership cleanup
+
+`MySBT.deactivateAllMemberships` cannot attribute a membership to the role that
+created it: it iterates every membership stored for the user's SBT and deactivates
+every active entry. Therefore `Registry.exitRole(ROLE_ENDUSER)` calls it only when
+`userRoleCount[user] == 0` after role removal. If another role remains, all
+memberships remain intact. In particular, a per-community membership can outlive
+the ENDUSER role while another role is held. Integrators must not treat
+`MySBT.verifyCommunityMembership(user, community)` as sufficient authorization;
+they must also require `Registry.hasRole(ROLE_ENDUSER, user)`.
+
+A later final-role exit burns the SBT and deactivates its memberships through
+`MySBT.burnSBT`. If a final non-ENDUSER exit occurs while MySBT is paused, the burn
+fails non-fatally and sets `pendingSBTBurn`; after unpausing MySBT, anyone can call
+`reconcileSBTBurn(user)`. The permissionless
+`reconcileMembershipDeactivation` retry applies the same zero-role condition, so
+a stale pending flag cannot deactivate memberships while any role remains. If a
+third party adds COMMUNITY, ANODE, DVT, KMS, PAYMASTER_AOA, or PAYMASTER_SUPER
+(e.g. via a community's `safeMintForRole`) before that retry, recovery requires
+the holder to exit every remaining role. COMMUNITY has a zero default lock; the
+operator roles use `block.timestamp >= lockedAt + 30 days` (and DVT also requires
+its guardian-exit authorization). Exit and reconciliation are separate
+transactions, so a sponsor that keeps funding grants can re-grant a role after
+each exit and before the retry, delaying recovery indefinitely while it keeps
+paying; recovery is therefore not bounded against an actively funded sponsor.
+Precondition for any of this: a MySBT cleanup call must first have FAILED
+(e.g. MySBT paused or replaced by a reverting implementation). Once `userRoleCount == 0`, call
+`reconcileMembershipDeactivation(user)`; if the final burn also failed, unpause
+MySBT and call `reconcileSBTBurn(user)`. ENDUSER registration remains blocked until
+the membership-cleanup flag is cleared.
+
+This is the documented fallback because the targeted cleanup implementation did
+not fit EIP-170: the round-6 Registry measured 24,509 B, a behavior-preserving
+counter simplification reclaimed 29 B (24,480 B), and the minimal implementation
+then measured 25,002 B, 426 B over the 24,576 B limit. The attempted code and
+reclamation were reverted.
+
+REG-R5-02 does not require a migration: the Sepolia Registry has never emitted
+`SBTBurnFailed` (verified by the evidence script on `cc125/rc8-reg-evidence`), and
+the Optimism deployment is fresh.
+
+### PolicyRegistry velocity and spend reads
+
+PolicyRegistry 3.0.2 rejects `setTargetVelocity` and `tightenTargetVelocity` while
+the target velocity window is zero. Disabling a window invalidates all prior
+per-asset limits; re-enabling it remains fail-closed until each asset receives a
+fresh timelocked `setTargetVelocity`, which also starts a fresh target counter.
+`getTargetVelocity` reports stale/disabled entries as unconfigured, and no setter
+or tightening event is emitted for a rejected zero-window call.
+
+`getAssetSpend` now returns effective spend (zero once its configured window has
+expired). The new `getTargetSpend(sender, target, asset)` returns the same
+window-aware value for target velocity, including zero for disabled, stale, or
+expired entries.
+
+### I3 release requirement
+
+Any future validation-time consumer of `PolicyRegistry` must pass the ERC-7562
+tracer gate before release. This is a documented release requirement even when
+the consumer's direct unit and integration tests pass.
+
 ### Version propagation
 
 - BLSAggregator: 4.12.0 → 4.13.0.
@@ -88,6 +149,8 @@ history. SuperPaymaster core/Admin storage is untouched.
 - xPNTsTokenV2: XPNTs-4.0.0 → XPNTs-4.0.1.
 - SuperPaymasterLens: stays `SuperPaymasterLens-1.2.0` (its SP-version gate stays 5.5.0).
 - xPNTsFactoryV2: 3.0.0-v2 → 3.0.1-v2; its exact template-version gate follows 4.0.1.
+- PolicyRegistry: 3.0.1 → 3.0.2; ABI adds `getTargetSpend(address,address,address)`
+  and `VelocityDisabled()` while preserving existing function signatures.
 
 The last two changes are required to keep diagnostics and token creation working
 with the new versions. Current-version assertions and the experimental
@@ -248,7 +311,7 @@ python3 scripts/check_storage_layout.py
 
 ```text
 OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 entries)
-OK  Registry storage layout = snapshot (unchanged) (32 entries)
+OK  Registry storage layout = deployed 5.9.0 snapshot + 2 allowed appended mappings (34 entries)
 ```
 
 The default build that compiled the production fixes reported `Compiler run successful with warnings:`; the final cached build confirms the final tree.

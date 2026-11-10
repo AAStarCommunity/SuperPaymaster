@@ -1,276 +1,221 @@
-# PolicyRegistry — Interface & Governance Design
+# PolicyRegistry 3.0.1 interface and governance design
 
-> **Status:** Interface draft for consumer alignment (no contract body yet).
-> **Owner / lead:** SuperPaymaster (DVT cross-repo program).
-> **Deliverable:** `contracts/src/interfaces/v3/IPolicyRegistry.sol` + this doc.
-> **Coordination hub:** `AAStarCommunity/YetAnotherAA-Validator#42` (single source of truth).
-> **Blocks:** `airaccount-contract#110` (consumer: account-side DVT gate) and `AirAccount#70`
-> (consumer: combined-signature verification). Both wait on this interface to build their reads.
-> **Companion threads:** SuperPaymaster `#283`, hub `#42` design item **#2** (policy governance),
-> aastar-sdk `#63` (owner-facing policy client).
+> **Status:** Implemented by `contracts/src/core/PolicyRegistry.sol` and
+> `contracts/src/interfaces/v3/IPolicyRegistry.sol`.
+> **Version:** `PolicyRegistry-3.0.1`.
+> **Deployment:** Deployed by the 5.5.0 manifest. No deployment address is assigned yet.
 
----
+## Purpose
 
-## 0. TL;DR
+`PolicyRegistry` is a standalone, non-upgradeable policy registry. It evaluates an action identified
+by `(sender, target, asset, amount, selector)` and returns `ALLOW`, `REQUIRE_DVT`, or `REJECT`.
 
-`PolicyRegistry` is a **single-instance, sender-keyed, governance-gated, on-chain** registry that
-answers one question cheaply at validation time:
+The registry keys every policy and counter by `sender`. A staked ERC-4337 consumer can therefore
+read the sender-associated state during validation under ERC-7562. Policy limits use native asset
+units. The registry has no price oracle and does not inspect signature wire formats.
 
-> For this `(sender, target, asset, amount, selector)`, is the op **ALLOW**ed,
-> does it **REQUIRE_DVT** co-sign, or must it be **REJECT**ed?
+The default is opt-in. An unconfigured asset and an unconfigured target impose no restrictions.
+A frozen sender always receives `REJECT`.
 
-It is the **single source of truth** for the DVT trigger policy: the same registry that DVT nodes
-read to decide "should I co-sign this op" is the one the **slash path** references to decide
-"was this op within policy" — so punishment is fair (node-policy-source == slash-policy-source).
+## Data model
 
-It deliberately stores limits in **asset-native units** (no USD oracle), and it is the on-chain,
-sender-keyed generalization of two primitives **already shipped** by `airaccount-contract`
-(`v0.18.0-beta.2`): `AAStarGlobalGuard.TokenConfig` (per-asset amount) and
-`SessionKeyValidator.Session` (per-contract / selector / velocity).
+### Asset policy
 
----
-
-## 1. Why a separate registry (the sender-keyed / ERC-7562 rationale)
-
-ERC-4337 bundlers reject a UserOp whose validation phase touches storage the `sender` does not
-"own" (ERC-7562 associated-storage rules). A paymaster or account can only read storage during
-validation if it is **sender-associated** — a `mapping(address sender => …)` slot — **and** the
-reading entity is **staked** at the EntryPoint (which buys the relaxed associated-storage grace).
-
-That is exactly why the DVT trigger state **cannot** live in `airaccount-contract`'s existing
-`AAStarGlobalGuard` (a per-account guard contract): reading another contract's `todaySpent` during
-validation is illegal, so in `v0.18` those amount tiers are enforced at **execution** time. To
-enforce the DVT trigger at **validation** time (decision **2a** in hub #42), the state must be:
-
-1. **keyed by `sender`** — every counter and policy entry is `mapping(address sender => …)`, so a
-   consumer reading `spent[sender]` is reading sender-associated storage → bundler-legal; and
-2. **read by a staked entity** — SuperPaymaster is staked
-   (`BasePaymasterUpgradeable.addStake`), AirAccount accounts validate their own ops.
-
-This **mirrors SuperPaymaster's existing pattern exactly.** SP already does sender-keyed,
-validation-time cap enforcement — the credit ceiling. In `_creditExceeded(token, user, charge)`
-(`contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`):
+`AssetPolicy` applies to `(sender, asset)`:
 
 ```solidity
-function _creditExceeded(address token, address user, uint256 charge) internal view returns (bool) {
-    uint256 used = IxPNTsToken(token).getDebt(user) + pendingDebts[token][user];
-    return used + charge > REGISTRY.getCreditLimit(user);
-}
-```
-
-Everything there is sender (`user`)-keyed, it is a `view`, and it is called inside
-`validatePaymasterUserOp` — legal **because SP is staked**. `PolicyRegistry.checkPolicy` is the same
-shape: a cheap, sender-keyed `view`, read at validation time by a staked consumer.
-
-> Decision **2a** from hub #42, verbatim intent: *"PolicyRegistry is a singleton + sender-keyed
-> mapping + staked → validation-period readable. The DVT trigger state MUST live here (SP mode),
-> not in the per-account guard, otherwise it's not validation-readable."*
-
----
-
-## 2. The interface
-
-### 2.1 Validation-time read (cheap `view`, sender-keyed)
-
-```solidity
-function checkPolicy(
-    address sender,
-    address target,
-    address asset,
-    uint256 amount,
-    bytes4 selector
-) external view returns (PolicyDecision decision, uint256 remainingDaily);
-
-enum PolicyDecision { ALLOW, REQUIRE_DVT, REJECT }
-```
-
-| Return | Meaning | Consumer action |
-|---|---|---|
-| `ALLOW` | within all caps, below DVT trigger, target+selector allowlisted, not frozen | proceed with the normal single (KMS/owner) signature |
-| `REQUIRE_DVT` | within the per-tx hard cap but `amount ≥ dvtTriggerAmount` (or target flagged `requireDVTAlways`) | additionally verify a ≥threshold **DVT BLS aggregate co-sign bound to this `userOpHash`** (SP #283 / AirAccount #70); if absent → reject |
-| `REJECT` | over `perTxHardCap`, not on the contract/selector allowlist, velocity/daily exhausted, or `sender` frozen | fail validation |
-
-`remainingDaily` returns the asset's remaining native-unit allowance in the current window after
-this `amount` would post (0 on a cap-based REJECT), so a consumer/UI gets headroom in one call.
-
-> A tri-state enum (not `(bool inPolicy, bool needsDVT)`) was chosen because the three outcomes
-> are genuinely distinct and a consumer branches on all three. The `(inPolicy, needsDVT)` mapping
-> is: `ALLOW=(true,false)`, `REQUIRE_DVT=(true,true)`, `REJECT=(false,*)`.
-
-### 2.2 Execution-time debit hook (`postOp` updates `spent[sender]`)
-
-```solidity
-function recordSpend(
-    address sender,
-    address target,
-    address asset,
-    uint256 amount,
-    bytes4 selector
-) external; // authorized staked consumers only
-```
-
-Called **after** execution (SP `postOp`, or the account post-call). It advances the per-asset and
-per-target sender-keyed counters, rolling the window when elapsed. Same key tuple as `checkPolicy`
-so per-target velocity can be charged. This is the **authoritative** debit: even though validation
-read a slightly-stale counter, `recordSpend` closes the drain-then-bypass window — the same
-belt-and-suspenders philosophy SP uses when it reconciles credit in `postOp`. `recordSpend` reverts
-unless `msg.sender` is an authorized (staked) consumer.
-
-### 2.3 Governance setters (asymmetric timelock + guardian)
-
-| Direction | Functions | Delay | Caller |
-|---|---|---|---|
-| **Loosen** (raise cap / widen scope / unfreeze) | `proposeAssetPolicy`, `proposeContractScope`, `proposeUnfreeze` → `executeProposal` | **2 days** (`LOOSEN_TIMELOCK`) | governance |
-| cancel a pending loosening | `cancelProposal` | immediate | governance **or guardian** |
-| **Tighten** (lower cap / narrow scope) | `tightenAssetPolicy`, `tightenContractScope` | **immediate** | governance |
-| **Freeze** (all ops → REJECT) | `freezeSender` | **immediate** | governance **or guardian** |
-| admin | `setGuardian`, `setConsumerAuthorization` | immediate | governance |
-
-`propose*` revert unless the params are *strictly looser* than current; `tighten*` revert unless
-*strictly tighter*. Direction is enforced on-chain — a CA/owner key can never bypass it.
-
-### 2.4 Config value types (reuse #110's shipped shapes)
-
-```solidity
-// per-(sender, asset) amount limits — mirrors AAStarGlobalGuard.TokenConfig
-//   struct TokenConfig { uint128 tier1Limit; uint128 tier2Limit; uint256 dailyLimit; }
 struct AssetPolicy {
-    uint128 dvtTriggerAmount; // ≈ tier2Limit: single-tx amount ≥ this → REQUIRE_DVT
-    uint128 perTxHardCap;     // single-tx amount > this → REJECT (CA-immutable upper bound)
-    uint256 dailyLimit;       // cumulative spend over the window → REJECT when exceeded
-    bool configured;
-}
-
-// per-(sender, target) scope — mirrors SessionKeyValidator.Session
-//   struct Session { address[] callTargets; bytes4[] selectorAllowlist;
-//                    velocityLimit; velocityWindow; ... }
-struct ContractScope {
-    bool allowed;          // target on the sender's call-target allowlist
-    bool requireDVTAlways; // this target always needs DVT co-sign, any amount
-    uint128 velocityLimit; // max cumulative amount to this target per window
-    uint64  velocityWindow;// window length, seconds (0 ⇒ none)
+    uint128 dvtTriggerAmount;
+    uint128 perTxHardCap;
+    uint256 dailyLimit;
+    uint64 windowSeconds;
     bool configured;
 }
 ```
 
-All amounts are **native asset units**. There is **no price oracle** and **no global USD
-threshold** — that is the frozen "asset-native amounts" requirement. (A global USD floor, if ever
-wanted, is a consumer-side fallback, not this registry's concern.)
+For a configured asset, `perTxHardCap` and `dailyLimit` are hard rejection limits.
+`dvtTriggerAmount == 0` disables the amount-based DVT trigger. `windowSeconds == 0` uses
+`DEFAULT_WINDOW`, which is one day.
 
-### 2.5 Storage shape (sender-keyed)
+### Target-global contract scope
+
+`ContractScope` applies to `(sender, target)`, independent of the asset:
 
 ```solidity
-// policy config (governance-gated)
-mapping(address sender => mapping(address asset  => AssetPolicy))            _assetPolicy;
-mapping(address sender => mapping(address target => ContractScope))          _contractScope;
-mapping(address sender => mapping(address target =>
-          mapping(bytes4 selector => bool)))                                 _selectorAllowed;
-mapping(address sender => bool)                                              _frozen;
-
-// sender-keyed cumulative spend / velocity counters ("todaySpent") — the
-// associated-storage that makes validation-time reads ERC-7562-legal
-struct SpendCounter { uint128 spentInWindow; uint64 windowStart; }
-mapping(address sender => mapping(address asset  => SpendCounter))           _assetSpend;
-mapping(address sender => mapping(address target => SpendCounter))           _targetSpend;
-
-// governance machinery
-mapping(bytes32 proposalId => uint64 eta)                                    _looseningEta;
-mapping(address consumer => bool)                                            _authorizedConsumer;
-address guardian;              // AirAccount 2-of-3 RecoveryService
-uint256 LOOSEN_TIMELOCK;       // = 2 days
+struct ContractScope {
+    bool allowed;
+    bool requireDVTAlways;
+    uint64 velocityWindow;
+    bool configured;
+}
 ```
 
-Every policy entry **and every counter is keyed by `sender` first** — that is the load-bearing
-property for ERC-7562 validation-time reads.
+The target-global scope controls whether the target is allowed, whether every call requires DVT,
+and whether target velocity enforcement is enabled. The selector allowlist is also keyed only by
+`(sender, target, selector)`.
 
----
+`ContractScope` does not contain a velocity limit. The limit is asset-specific:
 
-## 3. Governance model
+```solidity
+struct TargetVelocity {
+    uint128 limit;
+    bool configured;
+}
+```
 
-- **Governance** owns all policy mutation. Not a CA/owner EOA acting alone — the on-chain flow is
-  the only path, satisfying hub #42 命门 **②** (CA cannot change policy).
-- **Asymmetric timelock**:
-  - *Loosening* (raise a cap, widen an allowlist, lift a freeze) goes `propose → wait 2 days →
-    execute`. The delay is observable on-chain, so a stolen owner key cannot "raise the cap to
-    infinity then drain" — the victim/guardian sees the pending `LooseningProposed` and can
-    `cancelProposal` / `freezeSender` before ETA.
-  - *Tightening / freeze* is **immediate** — defense must never wait for an attacker's timelock.
-- **Guardian = AirAccount 2-of-3 RecoveryService**: may `freezeSender` and `cancelProposal`
-  immediately (incident response), but **cannot loosen** — unfreezing still goes through the
-  2-day `proposeUnfreeze → executeProposal` path.
-- **aastar-sdk #63** is a *client* only: it shows pending proposals + ETA and submits
-  propose/tighten/freeze txns. It can **never** apply a loosening by itself (no SDK/owner-key
-  short-circuit) — exactly the constraint the SDK owner called out in #42 ("must reflect on-chain
-  pending state, not self-adjudicate", the `resolveAPNTsToken` pattern).
+`TargetVelocity` applies to `(sender, target, asset)`. If a configured target has a nonzero
+`velocityWindow`, `checkPolicy` requires a configured velocity entry for the requested asset.
+A missing entry fails closed with `REJECT`.
 
-This mirrors SP's existing trust model: SP already reads credit tiers from the
-governance-controlled `Registry` (`getCreditLimit`), not from a per-tx caller — the PolicyRegistry
-generalizes that to per-(asset/contract/selector) DVT triggers.
+### Counters
 
----
+Both counters store a `uint256 spentInWindow`:
 
-## 4. node-policy-source == slash-policy-source (fair punishment)
+```solidity
+struct SpendCounter {
+    uint256 spentInWindow;
+    uint64 windowStart;
+}
 
-The DVT punishment loop must be **fair**: a node is only slashable for deviating from a policy that
-was *actually on-chain and in-force*. So both ends read the **same** registry:
+mapping(address sender => mapping(address asset => SpendCounter)) _assetSpend;
+mapping(address sender => mapping(address target =>
+    mapping(address asset => SpendCounter))) _targetSpend;
+```
 
-- **DVT nodes** (off-chain `PolicyService`, hub-repo) read `getAssetPolicy` / `getContractScope` /
-  `isSelectorAllowed` / `isFrozen` (plus index `AssetPolicySet` / `ContractScopeSet` /
-  `SenderFrozen` events) to decide whether to co-sign.
-- **The slash path** references the same registry:
-  - SuperPaymaster `executeSlashWithBLS(operator, level, proof)` and
-    `GTokenStaking.slashByDVT(...)` — when adjudicating a DVT-triggered slash — derive
-    "was this op within policy" from the **same** `checkPolicy` + `getAssetSpend` config, not from
-    any node-local or off-chain rule.
+The asset counter uses the asset policy's `windowSeconds`. The target counter uses the target
+scope's `velocityWindow`. When a window has elapsed, the effective spend is zero. `recordSpend`
+starts a new window at the current block timestamp before adding the amount.
 
-Practical note: on-chain history of a *past* decision is not stored, so the slash path references
-the **current deterministic config** for the `(sender, asset, target, selector)` in question plus
-the recorded counter. The frozen requirement is satisfied: the policy source the node reads is
-*the same contract/schema* the slash path reads. Where SP's slash references it is annotated in
-`executeSlashWithBLS` (the `proof` is bound to the op; the policy lookup is `checkPolicy`).
+`recordSpend` advances the asset counter only when the asset policy is configured. It advances the
+target counter only when the target scope is configured, its velocity window is nonzero, and the
+asset-specific target velocity is configured. A wholly unconfigured tuple changes no counter.
+`SpendRecorded` is still emitted.
 
----
+## Policy decision order
 
-## 5. How each repo consumes it
+`checkPolicy(address,address,address,uint256,bytes4)` applies these rules:
 
-| Repo / issue | Role | What it calls |
+1. `address(0)` is not a valid asset. ETH uses
+   `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`.
+2. A frozen sender returns `REJECT`.
+3. If the asset policy is configured, the function enforces the per-transaction cap, the projected
+   asset spend, and the amount-based DVT trigger.
+4. If the target scope is configured, the function requires `allowed`, requires the selector to be
+   allowed, and enforces the asset-specific target velocity when `velocityWindow != 0`.
+5. Any failed configured restriction returns `REJECT`. Otherwise, any active DVT trigger returns
+   `REQUIRE_DVT`. All other actions return `ALLOW`.
+
+For an unconfigured asset, `remainingDaily` is `type(uint256).max`. For a configured asset, it is
+the remaining allowance after the requested amount. A cap rejection returns zero.
+
+## Governance
+
+The contract delegates all delay and proposal state to an external OpenZeppelin
+`TimelockController`. PolicyRegistry has no `propose*` functions, `executeProposal`,
+`cancelProposal`, `looseningEta`, or `LOOSEN_TIMELOCK`.
+
+The external timelock schedules and executes calls to the `onlyTimelock` functions. The timelock's
+`minDelay` supplies the delay. Its `CANCELLER_ROLE` controls cancellation. Because these calls have
+already passed through the delayed path, the setters can either loosen or tighten policy.
+
+The guardian or the timelock can use the immediate tightening path:
+
+| Operation | Access | Implemented behavior |
 |---|---|---|
-| **SuperPaymaster** (this repo) | staked paymaster consumer | `checkPolicy` in `validatePaymasterUserOp` (alongside `_creditExceeded`); `recordSpend` in `postOp`; slash path references `checkPolicy` |
-| **airaccount-contract #110** | account-side DVT gate | `checkPolicy` in `validateUserOp` to decide if the combined sig must include a DVT aggregate; reads `getAssetPolicy`/`getContractScope` to surface limits |
-| **AirAccount #70** | combined-signature verifier | on `REQUIRE_DVT`, verify KMS main sig + ≥threshold DVT BLS aggregate bound to `userOpHash`; off-chain KMS gate reads the same registry to decide whether to demand a co-sign |
-| **aastar-sdk #63** | owner-facing policy client | `propose*` / `tighten*` / `freezeSender`, plus reads `looseningEta` + events to show pending state + ETA |
-| **DVT nodes** (hub repo) | policy reader + co-signer | `getAssetPolicy` / `getContractScope` / `isSelectorAllowed` / events |
+| `setAssetPolicy` | timelock only | Replaces the asset policy. |
+| `setContractScope` | timelock only | Replaces the target-global scalar fields and adds the listed selectors. It does not clear existing selectors. |
+| `setTargetVelocity` | timelock only | Replaces one asset-specific target velocity. |
+| `unfreezeSender` | timelock only | Removes a sender freeze. |
+| `tightenAssetPolicy` | guardian or timelock | Requires an existing policy. It cannot raise the effective DVT trigger, hard cap, or daily limit. It preserves `windowSeconds`. |
+| `tightenContractScope` | guardian or timelock | Requires an existing scope. It cannot newly allow a target or clear `requireDVTAlways`. It preserves `velocityWindow` and removes the listed selectors. |
+| `tightenTargetVelocity` | guardian or timelock | Requires an existing velocity entry and cannot raise its limit. |
+| `freezeSender` | guardian or timelock | Immediately freezes the sender. |
+| `setGuardian` | timelock only | Replaces the guardian with a nonzero address. |
+| `setConsumerAuthorization` | timelock only | Grants or revokes permission to call `recordSpend`. |
 
----
+For `tightenAssetPolicy`, a zero `dvtTriggerAmount` means disabled and is therefore the loosest
+value. The immediate path can change zero to a nonzero trigger, but cannot change a nonzero trigger
+to zero. For the other two limits, zero is the strictest value.
 
-## 6. Open questions for #110 alignment
+## Function selectors
 
-1. **`dvtTriggerAmount` ↔ `TokenConfig` tier mapping.** `TokenConfig` has `tier1Limit`,
-   `tier2Limit`, `dailyLimit`. This draft folds them into `dvtTriggerAmount` (≈ tier2),
-   `perTxHardCap`, `dailyLimit`. **Does #110 want both tiers exposed** (e.g. tier1 = "needs +1
-   factor", tier2 = "needs DVT"), or is a single DVT trigger + hard cap sufficient? If a
-   multi-factor ladder is needed, `PolicyDecision` may need a `REQUIRE_EXTRA` variant or a
-   `factorsRequired` return field.
+The signatures below use canonical ABI tuple syntax. Selectors were computed with
+`~/.foundry/bin/cast sig`.
 
-2. **Window semantics for `dailyLimit` / velocity.** Fixed UTC-day reset vs rolling-window vs
-   per-policy `windowSeconds`? `v0.18`'s `TokenConfig.dailyLimit` + `Session.velocityWindow` —
-   what exact reset rule do they use? This draft keeps `windowStart` + a `windowSeconds`
-   (rolling); confirm to match.
+### Reads and execution hooks
 
-3. **Selector set-semantics.** `ContractScopeInput.selectorAllowlist` is additive (marks listed
-   selectors allowed). `Session.selectorAllowlist` — is it a replace-set or additive? Replace-set
-   makes loosen/tighten direction ambiguous; confirm additive (loosen = add, tighten = remove via
-   `tightenContractScope`).
+| Function signature | Selector | Return type or effect |
+|---|---|---|
+| `DEFAULT_WINDOW()` | `0x43a0c39f` | `uint64` |
+| `ETH_SENTINEL()` | `0xb743be94` | `address` |
+| `checkPolicy(address,address,address,uint256,bytes4)` | `0x969cb5da` | `(uint8,uint256)` |
+| `recordSpend(address,address,address,uint256,bytes4)` | `0xa1a4a180` | Authorized consumer hook |
+| `getAssetPolicy(address,address)` | `0x29210a4b` | `(uint128,uint128,uint256,uint64,bool)` |
+| `getTargetScope(address,address)` | `0x7ac0774b` | `(bool,bool,uint64,bool)` |
+| `getTargetVelocity(address,address,address)` | `0xcb9fa794` | `(uint128,bool)` |
+| `isSelectorAllowed(address,address,bytes4)` | `0xb1655919` | `bool` |
+| `getAssetSpend(address,address)` | `0x715904dd` | `(uint256,uint64)` |
+| `isFrozen(address)` | `0xe5839836` | `bool` |
+| `isAuthorizedConsumer(address)` | `0x7df732ea` | `bool` |
+| `guardian()` | `0x452a9320` | `address` |
+| `timelock()` | `0xd33219b4` | `address` |
+| `version()` | `0x54fd4d50` | `string` |
 
-4. **ETH / native asset.** This draft uses `asset == address(0)` for ETH. Confirm #110's
-   convention (some use a sentinel like `0xEeee…`).
+### Governance mutations
 
-5. **Who is "governance".** Concretely: a Timelock/Governor contract, the SP `Registry` owner, or a
-   dedicated multisig? The asymmetric-timelock logic can live *inside* PolicyRegistry (as drafted)
-   or be delegated to an external OZ `TimelockController`. #110/#42 should ratify which, since it
-   sets whether `LOOSEN_TIMELOCK` is self-enforced or external.
+| Function signature | Selector | Access |
+|---|---|---|
+| `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | `0xbe29f491` | Timelock |
+| `setContractScope(address,address,(bool,bool,uint64,bytes4[]))` | `0xc28b58c1` | Timelock |
+| `setTargetVelocity(address,address,address,uint128)` | `0xf8f33e86` | Timelock |
+| `unfreezeSender(address)` | `0x53d8cb68` | Timelock |
+| `tightenAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | `0x055b8e7b` | Guardian or timelock |
+| `tightenContractScope(address,address,(bool,bool,uint64,bytes4[]))` | `0x7f6f42f0` | Guardian or timelock |
+| `tightenTargetVelocity(address,address,address,uint128)` | `0xac0a0e81` | Guardian or timelock |
+| `freezeSender(address)` | `0x7e19482e` | Guardian or timelock |
+| `setGuardian(address)` | `0x8a0dac4a` | Timelock |
+| `setConsumerAuthorization(address,bool)` | `0x6ef778ee` | Timelock |
 
-6. **Combined-signature wire format coupling.** On `REQUIRE_DVT`, #70 defines how the DVT aggregate
-   is packed into `UserOp.signature` (hub #42: align on existing `0x04/0x05/0x07` cumulative tiers,
-   do not invent a new format). PolicyRegistry only emits the *requirement*; confirm #70 owns the
-   wire format and PolicyRegistry stays format-agnostic (it should).
+## Event topics
+
+Topic 0 values were computed with `~/.foundry/bin/cast sig-event`.
+
+| Event signature | Indexed fields | Topic 0 |
+|---|---|---|
+| `AssetPolicySet(address,address,uint128,uint128,uint256,uint64)` | `sender`, `asset` | `0x5d9b9bcdce2cd939b17ac423b2aa97770271ecebda7bf7c45e7db25d980c52ae` |
+| `ContractScopeSet(address,address,bool,bool,uint64)` | `sender`, `target` | `0x9da60c6786d525ccc6003f478437c74ad59a8b556fb0fd5dec6dcd6f267c16c2` |
+| `TargetVelocitySet(address,address,address,uint128)` | `sender`, `target`, `asset` | `0xa0cc9fdb8f54d3382e30589f0ae0733455166be350b0d2db1aa8e4f2e4b91b21` |
+| `SelectorScopeSet(address,address,bytes4,bool)` | `sender`, `target`, `selector` | `0xdae56faaf89f401e21b133aee83453dde734ae5b8d6d672919900921f1e62780` |
+| `PolicyTightened(address,address)` | `sender`, `actor` | `0x4d156b5f26f59392a109b67021b0a170f0ea10ac562c1538dee681f1727151e6` |
+| `SenderFrozen(address,address)` | `sender`, `actor` | `0xbcc778b1735935d8f1de4988aa99c5a443739e2fb826dc7aa3f3bf64bb115fb8` |
+| `SenderUnfrozen(address)` | `sender` | `0xf70670b858d56ee8e00bdc112191de0411959259f47dcbc6977aace0aee11765` |
+| `SpendRecorded(address,address,address,uint256,bytes4)` | `sender`, `asset`, `target` | `0xc8e3d7812ff5ee9233152255de3b82224861baad07a1550a51ccd7174f1e7f88` |
+| `GuardianUpdated(address,address)` | `oldGuardian`, `newGuardian` | `0x064d28d3d3071c5cbc271a261c10c2f0f0d9e319390397101aa0eb23c6bad909` |
+| `ConsumerAuthorizationSet(address,bool)` | `consumer` | `0x5f7c8bcc9fe1f59809d268c8cf6b63a36c4aedb54e3a40628113344d5620dd45` |
+
+## Consumer requirements
+
+| Consumer | Required reads and writes |
+|---|---|
+| SuperPaymaster or account validation | Call `checkPolicy`. After execution, an authorized consumer calls `recordSpend`. |
+| SDK policy display | Read `getAssetPolicy`, `getTargetScope`, `getTargetVelocity`, `isSelectorAllowed`, `getAssetSpend`, and `isFrozen`. Decode `getAssetSpend.spentInWindow` as `uint256`. Read pending operations from the external `TimelockController`, not PolicyRegistry. |
+| DVT policy service | Read `getAssetPolicy`, `getTargetScope`, and `getTargetVelocity` together. Also read selector permissions, frozen state, and `getAssetSpend` with a `uint256 spentInWindow`. Index the scope, velocity, selector, freeze, and spend events. |
+| Slash-policy reader | Use the same `checkPolicy` schema and `getAssetSpend` counter type as validation and DVT nodes. |
+
+Reading `getTargetScope` without `getTargetVelocity` is incomplete when `velocityWindow != 0`.
+The scope supplies the window, while the velocity getter supplies the asset-specific limit and its
+`configured` flag.
+
+## ABI migration from PolicyRegistry 1.0.0
+
+PolicyRegistry 3.0.1 is a new deployment target, not an in-place upgrade.
+
+| Change | Migration requirement |
+|---|---|
+| `getAssetSpend(address,address)` keeps selector `0x715904dd`, but `spentInWindow` changed from `uint128` to `uint256`. | Update strict ABI decoders even though the selector did not change. |
+| `getContractScope(address,address)` was replaced by `getTargetScope(address,address)`. | Replace selector `0x35cefaa8` with `0x7ac0774b` and decode `(bool,bool,uint64,bool)`. |
+| The target velocity limit moved out of `ContractScope`. | Call `getTargetVelocity(address,address,address)` with selector `0xcb9fa794`. |
+| `setContractScope` and `tightenContractScope` lost the `uint128 velocityLimit` tuple field. | Use selectors `0xc28b58c1` and `0x7f6f42f0`, then call the separate target-velocity setter when needed. |
+
+The old `getContractScope` selector `0x35cefaa8`, old `setContractScope` selector `0x3ef43aff`, and
+old `tightenContractScope` selector `0xccd7129f` are not implemented by 3.0.1 and revert.
