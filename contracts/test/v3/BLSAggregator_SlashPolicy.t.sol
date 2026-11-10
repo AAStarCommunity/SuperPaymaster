@@ -67,8 +67,8 @@ contract BLSAggregator_SlashPolicyTest is Test {
 
     function test_CannotSetThresholdAboveMax() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashThresholdOutOfRange.selector, uint8(14)));
-        bls.setSlashThreshold(2, 14); // above MAX_VALIDATORS (13)
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashThresholdOutOfRange.selector, uint8(65)));
+        bls.setSlashThreshold(2, 65); // one past MAX_VALIDATORS (64)
     }
 
     function test_CannotSetThresholdForInvalidLevel() public {

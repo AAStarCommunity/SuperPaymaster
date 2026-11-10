@@ -100,7 +100,10 @@ contract MockSuperPaymaster {
     }
     // Mock the call signatures used by the two-step BLS slash.
     bool public queued;
-    function queueSlash(address) external { queued = true; }
+
+    function queueSlash(address) external {
+        queued = true;
+    }
     // executeSlashWithBLS(address,SlashLevel,bytes)
     function executeSlashWithBLS(address operator, SlashLevel level, bytes calldata proof) external {}
 }
@@ -159,7 +162,7 @@ contract DVTBLSTest is Test {
         sp = new MockSuperPaymaster();
 
         // Circular dependency handling
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
 
         dvt.setBLSAggregator(address(bls));
@@ -183,7 +186,25 @@ contract DVTBLSTest is Test {
         return abi.encode(signerMask, abi.encode(sig));
     }
 
-    function test_DVT_ProposalFlow() public {
+    function _expectedCommitment(uint256 key, bytes32 messageHash, uint256 signerMask) internal view returns (bytes32) {
+        address[] memory signers = new address[](7);
+        for (uint256 i; i < signers.length; ++i) {
+            signers[i] = address(uint160(101 + i));
+        }
+        return keccak256(
+            abi.encode(
+                bls.domainSeparator(),
+                bls.TAG_SIGNERS_COMMITMENT(),
+                key,
+                messageHash,
+                signerMask,
+                signers,
+                blockhash(block.number - 1)
+            )
+        );
+    }
+
+    function test_QueueSlashGeneric_OverlappingInputsKeepAllCommitments() public {
         vm.startPrank(address(101)); // Validator 1
         uint256 id = dvt.createProposal(op, 1, "Bad Operator");
         assertEq(id, 1);
@@ -200,14 +221,95 @@ contract DVTBLSTest is Test {
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         // 7 signers across slots 1..7 = bits 0..6 set = 0x7F.
-        bytes memory mockProof = _proofForMask(0x7F);
+        uint256 signerMask = 0x7F;
+        bytes memory mockProof = _proofForMask(signerMask);
 
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
+        uint256 epoch = id;
+        bytes32 queueMessage = keccak256(abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), epoch));
+        uint256 queueKey = uint256(queueMessage);
+        vm.expectEmit(true, false, false, true, address(bls));
+        emit BLSAggregator.SignersCommitted(queueKey, signerMask);
+        dvt.queueSlashWithProof(op, 1, epoch, mockProof);
+
+        bytes memory callData = abi.encodeWithSignature("queued()");
+        bytes32 genericMessage = keccak256(
+            abi.encode(bls.domainSeparator(), bls.TAG_PROPOSAL(), id, address(sp), keccak256(callData), uint256(3))
+        );
+        uint256 genericKey = uint256(keccak256(abi.encode(bls.TAG_PROPOSAL(), id)));
+        vm.stopPrank();
+        vm.prank(owner);
+        bls.executeProposal(id, address(sp), callData, 3, mockProof);
+
+        uint256 slashKey = id;
+        bytes32 slashMessage =
+            keccak256(abi.encode(bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), epoch, bytes32(0)));
+        vm.startPrank(address(101));
+        vm.expectEmit(true, false, false, true, address(bls));
+        emit BLSAggregator.SignersCommitted(slashKey, signerMask);
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), epoch, mockProof);
         vm.stopPrank();
 
         // Check proposal was executed
         (,,, bool executed,,) = dvt.proposals(id);
         assertTrue(executed, "Proposal should be executed");
+        assertEq(bls.proposalSignersCommitment(queueKey), _expectedCommitment(queueKey, queueMessage, signerMask));
+        assertEq(bls.proposalSignersCommitment(genericKey), _expectedCommitment(genericKey, genericMessage, signerMask));
+        assertEq(bls.proposalSignersCommitment(slashKey), _expectedCommitment(slashKey, slashMessage, signerMask));
+    }
+
+    function test_SlashRawIdEqualToGenericKeyCannotOverwriteGenericCommitment() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        uint256 signerMask = 0x7F;
+        bytes memory proof = _proofForMask(signerMask);
+        uint256 genericId = 8123;
+        uint256 genericKey = uint256(keccak256(abi.encode(bls.TAG_PROPOSAL(), genericId)));
+        bytes memory callData = abi.encodeWithSignature("queued()");
+
+        vm.prank(owner);
+        bls.executeProposal(genericId, address(sp), callData, 3, proof);
+        bytes32 genericCommitment = bls.proposalSignersCommitment(genericKey);
+
+        vm.mockCall(
+            address(dvt), abi.encodeWithSelector(DVTValidator.markProposalExecuted.selector, genericKey), bytes("")
+        );
+        vm.expectRevert(BLSAggregator.InvalidProposalId.selector);
+        vm.prank(owner);
+        bls.verifyAndExecute(genericKey, op, 1, new address[](0), new uint256[](0), 9, bytes32(uint256(0xE1D3)), proof);
+
+        assertEq(bls.proposalSignersCommitment(genericKey), genericCommitment, "generic commitment preserved");
+    }
+
+    /// @dev The reputation branch shares the raw-id namespace; it must be bounded too, or a
+    ///      reputation id equal to a generic typed key pre-consumes and overwrites that slot.
+    function test_ReputationRawIdEqualToGenericKeyCannotPreconsumeGenericSlot() public {
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        uint256 signerMask = 0x7F;
+        bytes memory proof = _proofForMask(signerMask);
+        uint256 genericId = 8124;
+        uint256 genericKey = uint256(keccak256(abi.encode(bls.TAG_PROPOSAL(), genericId)));
+        address[] memory users = new address[](1);
+        users[0] = address(0xBEEF);
+        uint256[] memory scores = new uint256[](1);
+        scores[0] = 10;
+
+        // Attack order: a reputation proposal FIRST, with its raw id set to the generic typed key.
+        vm.expectRevert(BLSAggregator.InvalidProposalId.selector);
+        vm.prank(owner);
+        bls.verifyAndExecute(genericKey, address(0), 0, users, scores, 9, bytes32(0), proof);
+        assertFalse(bls.executedProposals(genericKey), "generic replay slot not pre-consumed");
+        assertEq(bls.proposalSignersCommitment(genericKey), bytes32(0), "no commitment written at the generic key");
+
+        // The generic proposal still executes and owns its slot.
+        vm.prank(owner);
+        bls.executeProposal(genericId, address(sp), abi.encodeWithSignature("queued()"), 3, proof);
+        assertTrue(bls.executedProposals(genericKey));
+
+        // Boundary: 2^128-1 passes the bound (it may fail later, never with InvalidProposalId).
+        vm.prank(owner);
+        try bls.verifyAndExecute(type(uint128).max, address(0), 0, users, scores, 9, bytes32(0), proof) {}
+        catch (bytes memory err) {
+            assertTrue(bytes4(err) != BLSAggregator.InvalidProposalId.selector, "2^128-1 must pass the bound");
+        }
     }
 
     function test_QueueSlashWithConsensus_FlagsAndBlocksReplay() public {
@@ -221,9 +323,7 @@ contract DVTBLSTest is Test {
 
         // Replaying the SAME proof (same operator/level/epoch) reverts — a consumed
         // queue proof cannot re-flag after a cancel/execute cleared the flag.
-        bytes32 h = keccak256(
-            abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), uint256(42))
-        );
+        bytes32 h = keccak256(abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), uint256(42)));
         vm.prank(address(dvt));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashQueueProofAlreadyUsed.selector, h));
         bls.queueSlashWithConsensus(op, 1, 42, proof);
@@ -235,10 +335,18 @@ contract DVTBLSTest is Test {
 
     function test_QueueSlashWithProof_ForwarderFlags() public {
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
-        bytes memory proof = _proofForMask(0x7F);
+        uint256 signerMask = 0x7F;
+        bytes memory proof = _proofForMask(signerMask);
+        bytes32 messageHash =
+            keccak256(abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), uint256(7)));
+        uint256 key = uint256(messageHash);
+        bytes32 expected = _expectedCommitment(key, messageHash, signerMask);
+        vm.expectEmit(true, false, false, true, address(bls));
+        emit BLSAggregator.SignersCommitted(key, signerMask);
         vm.prank(address(101)); // active validator drives the forwarder
         dvt.queueSlashWithProof(op, 1, 7, proof);
         assertTrue(sp.queued(), "operator pre-flagged via DVTValidator forwarder");
+        assertEq(bls.proposalSignersCommitment(key), expected, "queue commitment exact tuple");
     }
 
     function test_BLS_ManualVerify() public {
@@ -259,6 +367,39 @@ contract DVTBLSTest is Test {
         bls.verifyAndExecute(id, op, 1, new address[](0), new uint256[](0), 123, bytes32(0), mockProof);
 
         assertTrue(bls.executedProposals(id));
+    }
+
+    function test_DVTRotation_ContinuesAfterExecutedProposalRange() public {
+        bytes memory proof = _proofForMask(0x7F);
+        uint256 lastExecutedId = 2;
+
+        for (uint256 expectedId = 1; expectedId <= lastExecutedId; ++expectedId) {
+            vm.prank(address(101));
+            uint256 id = dvt.createProposal(op, 1, "pre-rotation");
+            assertEq(id, expectedId);
+            vm.prank(address(101));
+            dvt.executeWithProof(id, new address[](0), new uint256[](0), id, proof);
+            assertTrue(bls.executedProposals(id));
+        }
+
+        vm.startPrank(owner);
+        DVTValidator replacement = new DVTValidator(address(registry), lastExecutedId + 1);
+        replacement.setBLSAggregator(address(bls));
+        replacement.addValidator(address(101));
+        bls.setDVTValidator(address(replacement));
+        vm.stopPrank();
+
+        vm.prank(address(101));
+        uint256 replacementId = replacement.createProposal(op, 1, "post-rotation");
+        assertEq(replacementId, lastExecutedId + 1);
+        vm.prank(address(101));
+        replacement.executeWithProof(
+            replacementId, new address[](0), new uint256[](0), replacementId, proof
+        );
+
+        assertTrue(bls.executedProposals(replacementId));
+        (,,, bool executed,,) = replacement.proposals(replacementId);
+        assertTrue(executed);
     }
 
     function test_Fail_NotValidator() public {

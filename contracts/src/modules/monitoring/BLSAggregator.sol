@@ -216,7 +216,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     uint256 public minThreshold = 3; // Floor for the GENERIC executeProposal path only
     uint256 public defaultThreshold = 7; // Default for the reputation consensus path
-    uint256 public constant MAX_VALIDATORS = 13;
+    uint256 public constant MAX_VALIDATORS = 64;
 
     /// @notice Absolute signature floor enforced inside `_checkSignatures` for
     ///         EVERY verification path (a hard safety net; no path may verify
@@ -476,6 +476,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     event BLSKeyBindingReleased(bytes32 indexed keyHash, address indexed previousOwner);
     event SignatureAggregated(uint256 indexed proposalId, bytes aggregatedSignature, uint256 count);
     event SlashExecuted(uint256 indexed proposalId, address indexed operator, uint8 level);
+    event SignersCommitted(uint256 indexed proposalId, uint256 signerMask);
     event ReputationEpochTriggered(uint256 epoch, uint256 userCount);
     event BLSVerificationStatus(uint256 indexed proposalId, bool success);
     event ProposalExecuted(uint256 indexed proposalId, address indexed target, bytes32 callDataHash);
@@ -841,9 +842,18 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         still be audited via `getBLSPublicKey`. Re-registration of the
     ///         same validator must use `registerBLSPublicKey` again, which will
     ///         pass `_validateG1Point` and either reuse or claim a new slot.
-    function revokeBLSPublicKey(address validator) external onlyOwner {
+    ///         The configured DVTValidator may also revoke a key so its
+    ///         owner-only removal clears voting power atomically, subject to
+    ///         the same committee-survival check as a voluntary exit. The
+    ///         timelocked owner remains the emergency eviction override.
+    function revokeBLSPublicKey(address validator) external {
+        if (msg.sender != owner() && msg.sender != DVT_VALIDATOR) revert UnauthorizedCaller(msg.sender);
+        if (msg.sender == DVT_VALIDATOR) _requireCommitteeSurvivesExit(validator);
         BLSValidatorKey storage existing = _blsKeys[validator];
-        if (!existing.isActive) revert KeyNotActive(validator);
+        if (!existing.isActive) {
+            if (msg.sender == DVT_VALIDATOR) return;
+            revert KeyNotActive(validator);
+        }
         uint8 slot = existing.index;
         existing.isActive = false;
         validatorAtSlot[slot] = address(0);
@@ -870,7 +880,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     function releaseKeyBinding(bytes32 keyHash) external onlyOwner {
         address boundTo = blsKeyOwner[keyHash];
         if (boundTo == address(0)) revert InvalidParameter("keyHash");
-        // Scan the (capped, 13-slot) active table rather than trusting `boundTo`'s own
+        // Scan the capped active table rather than trusting `boundTo`'s own
         // record: the key may have been rotated to a different address's slot, and the
         // property we need is "no ACTIVE slot holds this key", not "boundTo is idle".
         for (uint8 slot = 1; slot <= uint8(MAX_VALIDATORS);) {
@@ -951,8 +961,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         front-run window an atomic queue+execute would reopen.
     /// @dev    Dedicated (not the generic executeProposal) so it (a) is gated at the
     ///         per-severity slash threshold, (b) does NOT consume a proposalId /
-    ///         executedProposals slot (queueSlash is idempotent — re-flagging is a
-    ///         no-op), leaving the execute-step proposalId intact, and (c) requires a
+    ///         executedProposals slot, leaving the execute-step proposalId intact (a
+    ///         BLS re-queue is NOT a no-op on SP: it refreshes slashQueues provenance and
+    ///         timestamp, emits again, and may revert during the BLS cooldown), and (c) requires a
     ///         real quorum, so no single validator can DoS an operator's withdraw.
     ///         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof
     ///         can never be replayed as an execute proof.
@@ -972,6 +983,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // cancel/execute cleared the flag. A legitimate re-queue uses a new epoch.
         if (usedSlashQueueHashes[expectedMessageHash]) revert SlashQueueProofAlreadyUsed(expectedMessageHash);
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
+        uint256 signerMask = abi.decode(proof[:32], (uint256));
+        _commitSigners(uint256(expectedMessageHash), signerMask, expectedMessageHash);
         usedSlashQueueHashes[expectedMessageHash] = true;
         ISuperPaymasterSlash(SUPERPAYMASTER).queueSlash(operator);
         emit SlashPreQueued(operator, slashLevel, epoch, requiredThreshold);
@@ -991,6 +1004,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             revert UnauthorizedCaller(msg.sender);
         }
         if (proposalId == 0) revert InvalidProposalId();
+        // Raw ids (slash AND reputation) live below 2^128, providing 128-bit
+        // cryptographic separation from generic and queue keccak keys.
+        if (proposalId >> 128 != 0) revert InvalidProposalId();
         if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
@@ -1052,7 +1068,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         //     set NOW — after signatures verified, before any revoke can reassign a
         //     slot — so a later fraud proof can attribute this proposal to the real
         //     addresses that signed it. Covers BOTH branches (slash-only + rep).
-        proposalSignersCommitment[proposalId] = _computeSignersCommitment(proof, proposalId, expectedMessageHash);
+        uint256 signerMask = abi.decode(proof[:32], (uint256));
+        _commitSigners(proposalId, signerMask, expectedMessageHash);
 
         // 3. Update Global Reputation in Registry
         if (repUsers.length > 0) {
@@ -1115,7 +1132,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             }
         }
         if (proposalId == 0) revert InvalidProposalId();
-        if (executedProposals[proposalId]) revert ProposalAlreadyExecuted(proposalId);
+        uint256 replayKey = uint256(keccak256(abi.encode(TAG_PROPOSAL, proposalId)));
+        if (executedProposals[replayKey]) revert ProposalAlreadyExecuted(proposalId);
         if (requiredThreshold < minThreshold) revert InvalidParameter("Threshold below minimum");
         if (requiredThreshold > MAX_VALIDATORS) revert InvalidParameter("Threshold exceeds max");
 
@@ -1126,17 +1144,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // 3. Verify BLS Signatures with custom threshold
         _checkSignatures(proof, expectedMessageHash, requiredThreshold);
-        proposalSignersCommitment[proposalId] = _computeSignersCommitment(proof, proposalId, expectedMessageHash);
+        uint256 signerMask = abi.decode(proof[:32], (uint256));
+        _commitSigners(replayKey, signerMask, expectedMessageHash);
 
         // 4. Execute Call
         (bool success, bytes memory returnData) = target.call(callData);
         if (!success) revert ProposalExecutionFailed(proposalId, returnData);
 
         // 5. Mark as Executed
-        executedProposals[proposalId] = true;
-        if (DVT_VALIDATOR != address(0)) {
-            IDVTValidator(DVT_VALIDATOR).markProposalExecuted(proposalId);
-        }
+        executedProposals[replayKey] = true;
 
         emit ProposalExecuted(proposalId, target, keccak256(callData));
     }
@@ -1322,15 +1338,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         off-chain verifier sorting claimedSigners the same way reproduces the
     ///         identical commitment. signerMask is bound in too (slot layout), and the
     ///         encoding is domain-separated to prevent cross-proposal/chain/contract reuse.
-    function _computeSignersCommitment(bytes calldata proof, uint256 proposalId, bytes32 messageHash)
+    function _computeSignersCommitment(uint256 signerMask, uint256 key, bytes32 messageHash)
         internal
         view
         returns (bytes32)
     {
-        // proof = abi.encode(uint256 signerMask, bytes sigG2); its first 32-byte
-        // word is the mask value. Decode ONLY that slice so we don't copy the
-        // (unused here) sigG2 bytes — saves gas on this live consensus path.
-        uint256 signerMask = abi.decode(proof[:32], (uint256));
         // popcount → exact array size.
         uint256 n;
         {
@@ -1350,21 +1362,33 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
         // Insertion sort ascending by uint160(address) (n ≤ MAX_VALIDATORS).
         for (uint256 i = 1; i < n; i++) {
-            address key = signers[i];
+            address sortKey = signers[i];
             uint256 j = i;
-            while (j > 0 && uint160(signers[j - 1]) > uint160(key)) {
+            while (j > 0 && uint160(signers[j - 1]) > uint160(sortKey)) {
                 signers[j] = signers[j - 1];
                 unchecked {
                     j--;
                 }
             }
-            signers[j] = key;
+            signers[j] = sortKey;
         }
 
-        return
-            keccak256(
-                abi.encode(domainSeparator(), TAG_SIGNERS_COMMITMENT, proposalId, messageHash, signerMask, signers)
-            );
+        return keccak256(
+            abi.encode(
+                domainSeparator(),
+                TAG_SIGNERS_COMMITMENT,
+                key,
+                messageHash,
+                signerMask,
+                signers,
+                blockhash(block.number - 1)
+            )
+        );
+    }
+
+    function _commitSigners(uint256 key, uint256 signerMask, bytes32 messageHash) internal {
+        proposalSignersCommitment[key] = _computeSignersCommitment(signerMask, key, messageHash);
+        emit SignersCommitted(key, signerMask);
     }
 
     /// @notice Canonical reputation-batch pre-image. MUST stay byte-identical to

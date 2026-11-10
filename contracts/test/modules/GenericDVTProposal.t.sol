@@ -109,7 +109,10 @@ contract MockRegistryForProposal is IRegistry {
 contract MockDVTValidator {
     mapping(uint256 => bool) public executedProposals;
 
+    error ProposalDoesNotExist();
+
     function markProposalExecuted(uint256 proposalId) external {
+        if (!executedProposals[proposalId]) revert ProposalDoesNotExist();
         executedProposals[proposalId] = true;
     }
 }
@@ -175,7 +178,7 @@ contract GenericDVTProposalTest is Test {
 
         // P0-1: register validator keys into slots 1..MAX_VALIDATORS so the
         // aggregator can reconstruct pkAgg from on-chain state.
-        for (uint8 i = 1; i <= 13; i++) {
+        for (uint8 i = 1; i <= 64; i++) {
             address v = address(uint160(uint256(i) + 200));
             bls.registerBLSPublicKey(v, _stubKey(uint256(i)), i, _emptyPoP());
         }
@@ -196,22 +199,69 @@ contract GenericDVTProposalTest is Test {
     // ========================================
 
     function test_GenericCommitmentIsStoredBeforeTargetCall() public {
-        bytes memory callData = abi.encodeCall(MockTarget.observeCommitment, (901));
-        bytes32 messageHash = keccak256(abi.encode(
-            bls.domainSeparator(), keccak256("SuperPaymaster.BLS.Proposal.v1"),
-            uint256(901), address(target), keccak256(callData), uint256(3)
-        ));
+        uint256 key = uint256(keccak256(abi.encode(bls.TAG_PROPOSAL(), uint256(901))));
+        bytes memory callData = abi.encodeCall(MockTarget.observeCommitment, (key));
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                bls.domainSeparator(),
+                keccak256("SuperPaymaster.BLS.Proposal.v1"),
+                uint256(901),
+                address(target),
+                keccak256(callData),
+                uint256(3)
+            )
+        );
         address[] memory signers = new address[](3);
-        for (uint256 i; i < 3; ++i) signers[i] = address(uint160(201 + i));
-        bytes32 expected = keccak256(abi.encode(
-            bls.domainSeparator(), keccak256("SuperPaymaster.BLS.SignersCommitment.v1"),
-            uint256(901), messageHash, uint256(7), signers
-        ));
+        for (uint256 i; i < 3; ++i) {
+            signers[i] = address(uint160(201 + i));
+        }
+        bytes32 expected = keccak256(
+            abi.encode(
+                bls.domainSeparator(),
+                keccak256("SuperPaymaster.BLS.SignersCommitment.v1"),
+                key,
+                messageHash,
+                uint256(7),
+                signers,
+                blockhash(block.number - 1)
+            )
+        );
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         vm.prank(owner);
         bls.executeProposal(901, address(target), callData, 3, _createMockProof(3));
         assertEq(target.observedCommitment(), expected);
-        assertEq(bls.proposalSignersCommitment(901), expected);
+        assertEq(bls.proposalSignersCommitment(key), expected);
+    }
+
+    function test_C4_L_01_GenericTypedKeyOwnsReplayAndCommitment() public {
+        uint256 proposalId = 902;
+        bytes memory callData = abi.encodeCall(MockTarget.setValue, (902));
+        bytes memory proof = _createMockProof(3);
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
+        vm.prank(owner);
+        bls.executeProposal(proposalId, address(target), callData, 3, proof);
+
+        uint256 replayKey = uint256(keccak256(abi.encode(bls.TAG_PROPOSAL(), proposalId)));
+        assertTrue(bls.executedProposals(replayKey), "generic replay guard uses typed key");
+        assertFalse(bls.executedProposals(proposalId), "raw id remains outside generic replay map");
+        assertEq(bls.proposalSignersCommitment(proposalId), bytes32(0), "raw id must not read generic commitment");
+        assertTrue(bls.proposalSignersCommitment(replayKey) != bytes32(0), "commitment uses typed replay key");
+    }
+
+    function test_ExecuteProposal_EmitsProofSignerMask() public {
+        uint256 proposalId = 903;
+        uint256 signerMask = 0x15;
+        BLS.G2Point memory sig;
+        bytes memory proof = abi.encode(signerMask, abi.encode(sig));
+        bytes memory callData = abi.encodeCall(MockTarget.setValue, (903));
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
+        vm.expectEmit(true, false, false, true, address(bls));
+        uint256 key = uint256(keccak256(abi.encode(bls.TAG_PROPOSAL(), proposalId)));
+        emit BLSAggregator.SignersCommitted(key, signerMask);
+        vm.prank(owner);
+        bls.executeProposal(proposalId, address(target), callData, 3, proof);
     }
 
     function test_ExecuteProposal_Success() public {
@@ -227,8 +277,9 @@ contract GenericDVTProposalTest is Test {
         vm.prank(address(dvtValidator));
         bls.executeProposal(proposalId, address(target), callData, requiredThreshold, proof);
 
-        // Verify execution
-        assertTrue(bls.executedProposals(proposalId), "Proposal should be marked executed");
+        // Generic execution must not consume slash-only state at the same numeric ID.
+        assertFalse(bls.executedProposals(proposalId));
+        assertFalse(dvtValidator.executedProposals(proposalId));
         assertEq(target.lastValue(), 12345, "Target value should be set");
     }
 
@@ -277,7 +328,7 @@ contract GenericDVTProposalTest is Test {
 
     function test_ExecuteProposal_ThresholdExceedsMax_Reverts() public {
         uint256 proposalId = 301;
-        uint256 requiredThreshold = 14; // Above MAX_VALIDATORS (13)
+        uint256 requiredThreshold = 65; // One past MAX_VALIDATORS (64)
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1));
         bytes memory proof = _createMockProof(requiredThreshold);
 
@@ -302,7 +353,7 @@ contract GenericDVTProposalTest is Test {
 
     function test_ExecuteProposal_MaxThreshold_Success() public {
         uint256 proposalId = 303;
-        uint256 requiredThreshold = 13; // Exactly MAX_VALIDATORS
+        uint256 requiredThreshold = 64; // Exactly MAX_VALIDATORS
         bytes memory callData = abi.encodeCall(MockTarget.setValue, (1313));
 
         bytes memory proof = _createMockProof(requiredThreshold);
@@ -312,6 +363,16 @@ contract GenericDVTProposalTest is Test {
         bls.executeProposal(proposalId, address(target), callData, requiredThreshold, proof);
 
         assertEq(target.lastValue(), 1313);
+    }
+
+    function test_RegisterBLSPublicKey_HighestSlotAndOnePastCap() public {
+        address atCap = address(uint160(264));
+        (, uint8 slot, bool isActive) = bls.getBLSPublicKey(atCap);
+        assertEq(slot, 64);
+        assertTrue(isActive);
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(65)));
+        bls.registerBLSPublicKey(address(0xF065), _stubKey(6500), 65, _emptyPoP());
     }
 
     // ========================================

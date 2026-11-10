@@ -1,6 +1,6 @@
 {
   "$schema": "./cc115-b3-successor-manifest.README.md",
-  "_": "CC-115 B3 successor-stack deployment manifest. Every field below is a RECEIPT to be filled at deploy time, not a value to be copied from this file. Fields whose value is knowable before deployment are pre-filled and marked source:build; everything else is null and must be replaced with an on-chain observation. A null that survives into an evidence bundle is an UNRESOLVED item, never an implicit pass.",
+  "_": "HISTORICAL CC-115 B3 BLSAggregator-4.11.0 successor-stack deployment manifest. Every field below is a RECEIPT to be filled at deploy time, not a value to be copied from this file. Fields whose value is knowable before deployment are pre-filled and marked source:build; everything else is null and must be replaced with an on-chain observation. A null that survives into an evidence bundle is an UNRESOLVED item, never an implicit pass.",
   "manifest": {
     "task": "CC-115 B3",
     "producedAt": null,
@@ -66,6 +66,18 @@
         "deployTxHash": null
       }
     },
+    "DVTValidator": {
+      "version": "DVTValidator-0.7.0",
+      "versionSource": "build",
+      "constructorFirstProposalId": 1,
+      "_constructorFirstProposalId": "5.5.0 fresh-stack value. For a rotation, replace 1 with a value greater than every raw proposal id already executed by the retained aggregator and leave ample headroom below 2^128. Pending proposals on the old DVT are abandoned and must be re-proposed on the replacement.",
+      "onchain": {
+        "address": null,
+        "firstProposalIdObservedAsNextProposalId": null,
+        "owner": null,
+        "deployTxHash": null
+      }
+    },
     "GTokenStaking": {
       "onchain": {
         "address": null,
@@ -78,8 +90,8 @@
   "verifierArming": {
     "_": "SP 4.11 has no direct setter. The ONLY path is propose (owner) -> wait VERIFIER_ROTATION_DELAY -> apply (permissionless). Every receipt below is required; a manifest that jumps from deploy to an active verifier is describing a contract that does not exist.",
     "constants": {
-      "VERIFIER_ROTATION_DELAY": "4 days",
-      "_VERIFIER_ROTATION_DELAY": "BLSAggregator.sol:394 = GUARDIAN_SLASH_CASE_WINDOW; :386 = 4 days. Verify on-chain, do not trust this line: cast call <aggregator> 'VERIFIER_ROTATION_DELAY()(uint256)'."
+      "VERIFIER_ROTATION_DELAY": "4 days / 345600 seconds",
+      "_VERIFIER_ROTATION_DELAY": "HISTORICAL BLSAggregator-4.11.0 value. Verify on-chain, do not trust this line: cast call <aggregator> 'VERIFIER_ROTATION_DELAY()(uint256)'."
     },
     "dormantAtDeploy": {
       "fraudProofVerifierRead": null,
@@ -111,7 +123,7 @@
     }
   },
   "predecessorRevoke": {
-    "_": "NOT APPLICABLE to a fresh-isolated stack — leave every field null with reason 'n/a: fresh stack'. REQUIRED if manifest.stackKind is ever changed to in-place-migration, because of the following timing property.  WHY THE ORDERING MATTERS: During the 4-day arming window the successor is fail-closed (fraudProofVerifier == address(0)), so it can open no case. The DEPOSED predecessor, however, already has its verifier wired, its REGISTRY is immutable, and it never asks Registry whether it is still the registered aggregator — the slash path executeGuardianSlash -> REGISTRY.GTOKEN_STAKING() -> slashByDVT does not go through Registry at all. So for that whole window the only contract that can open a guardian-slash case is the one Registry no longer points at. The only switch that cuts it off is GTokenStaking.authorizedSlashers, which is step (4) of the upgrade batch.  THIS IS HISTORY, NOT THEORY: This is not theoretical. On Sepolia, 0xF51c0298... is STILL an authorized slasher: the 0x893b->0xF51c rotation revoked its predecessor by hand (tx 0x23562f9c...), and the very next rotation, 0xF51c->0x174b, forgot to. That is why the revoke is now an atomic step in the batch rather than a manual follow-up.",
+    "_": "NOT APPLICABLE to a fresh-isolated stack — leave every field null with reason 'n/a: fresh stack'. REQUIRED if manifest.stackKind is ever changed to in-place-migration, because of the following timing property.  WHY THE ORDERING MATTERS: During the historical 4-day arming window the successor is fail-closed (fraudProofVerifier == address(0)), so it can open no case. The DEPOSED predecessor, however, already has its verifier wired, its REGISTRY is immutable, and it never asks Registry whether it is still the registered aggregator — the slash path executeGuardianSlash -> REGISTRY.GTOKEN_STAKING() -> slashByDVT does not go through Registry at all. So for that whole window the only contract that can open a guardian-slash case is the one Registry no longer points at. The only switch that cuts it off is GTokenStaking.authorizedSlashers, which is step (4) of the upgrade batch.  THIS IS HISTORY, NOT THEORY: This is not theoretical. On Sepolia, 0xF51c0298... is STILL an authorized slasher: the 0x893b->0xF51c rotation revoked its predecessor by hand (tx 0x23562f9c...), and the very next rotation, 0xF51c->0x174b, forgot to. That is why the revoke is now an atomic step in the batch rather than a manual follow-up.",
     "predecessorAddress": null,
     "authorizedSlasherBeforeCutover": null,
     "authorizedSlasherAfterBatch": null,
@@ -176,6 +188,12 @@
       "expected": "<governance owner>",
       "observed": null,
       "atBlock": null
+    },
+    "dvtValidatorOwner": {
+      "expected": "<BLSAggregator.owner()>",
+      "observed": null,
+      "atBlock": null,
+      "_": "REQUIRED: DVTValidator.owner() must equal BLSAggregator.owner(). Both are the same Safe-compatible M-of-N boundary; DVT rotation is immediate while verifier rotation retains its contract-enforced delay."
     },
     "blsDomainSeparatorMatchesAggregator": {
       "expected": true,

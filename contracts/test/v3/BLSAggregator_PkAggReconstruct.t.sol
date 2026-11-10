@@ -227,12 +227,12 @@ contract BLSAggregatorPkAggReconstructTest is Test {
     }
 
     function test_Verify_RejectsBitsBeyondMaxValidators() public {
-        // Setting any bit beyond MAX_VALIDATORS (slot 14 ⇒ bit 13) must
+        // Setting any bit beyond MAX_VALIDATORS (slot 65 ⇒ bit 64) must
         // revert deterministically — otherwise a clever attacker could pad
         // with garbage bits hoping for silent truncation.
-        uint256 maskBeyondMax = (uint256(1) << 13); // bit 13 = slot 14
+        uint256 maskBeyondMax = (uint256(1) << 64); // bit 64 = slot 65
 
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(14)));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(65)));
         bls.verify(_msg(), maskBeyondMax, uint256(3), _sigBytes());
     }
 

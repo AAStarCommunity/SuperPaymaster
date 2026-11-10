@@ -8,7 +8,7 @@ import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 import {FraudProofVerifierConformance as Conformance} from "../helpers/FraudProofVerifierConformance.sol";
-import {OverIssueFraudProofVerifier} from "./vendor/OverIssueFraudProofVerifier.sol";
+import {AnchoredOverIssueFraudProofVerifier} from "./AnchoredOverIssueFraudProofVerifier.sol";
 
 /**
  * @title CC115CrossRepoConformance
@@ -97,7 +97,7 @@ contract CC115CrossRepoConformance is Test {
     XRegistry internal registry;
     XStaking internal staking;
     XToken internal token;
-    OverIssueFraudProofVerifier internal verifier;
+    AnchoredOverIssueFraudProofVerifier internal verifier;
 
     address internal owner = address(0x0BEE);
     uint256 internal constant MIN_STAKE = 30 ether;
@@ -152,7 +152,7 @@ contract CC115CrossRepoConformance is Test {
         }
 
         // The real DVT verifier, bound to aggA and this Registry.
-        verifier = new OverIssueFraudProofVerifier(address(aggA), address(registry));
+        verifier = new AnchoredOverIssueFraudProofVerifier(address(aggA), address(registry));
 
         // Drive SP's OWN consensus path so the aggregator writes a real
         // proposalSignersCommitment. The evidenceHash must be the DVT convention, because
@@ -274,9 +274,11 @@ contract CC115CrossRepoConformance is Test {
     }
 
     /// DVT's proof ABI: (proposalId, operator, slashLevel, epoch, disputedToken,
-    /// signerMask, claimedSigners).
+    /// signerMask, claimedSigners, anchorBlockHash).
     function _fraudProof() internal view returns (bytes memory) {
-        return abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians);
+        return abi.encode(
+            PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians, blockhash(block.number - 1)
+        );
     }
 
     function _blsProof(uint256 signerMask) internal pure returns (bytes memory) {

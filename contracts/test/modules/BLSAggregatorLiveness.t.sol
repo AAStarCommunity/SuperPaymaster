@@ -291,6 +291,18 @@ contract BLSAggregatorLivenessTest is Test {
         bls.revokeBLSPublicKey(slot1v);
     }
 
+    function test_RevokeBLSPublicKey_ConfiguredDVTCanRevoke() public {
+        address slot1v = address(uint160(uint256(1) + 0x100));
+        vm.prank(owner);
+        bls.setDefaultThreshold(6);
+        vm.prank(dvt);
+        bls.revokeBLSPublicKey(slot1v);
+
+        (,, bool active) = bls.getBLSPublicKey(slot1v);
+        assertFalse(active);
+        assertEq(bls.validatorAtSlot(1), address(0));
+    }
+
     function test_RevokeBLSPublicKey_RevertsWhen_KeyNotActive() public {
         address slot1v = address(uint160(uint256(1) + 0x100));
         vm.startPrank(owner);

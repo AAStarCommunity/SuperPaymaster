@@ -138,7 +138,7 @@ contract GuardianSlashTest is Test {
 
     function test_RevertWhen_TooManyGuardians() public {
         _wireVerifier();
-        address[] memory many = new address[](14); // > MAX_VALIDATORS (13)
+        address[] memory many = new address[](65); // one past MAX_VALIDATORS (64)
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "guiltyGuardians"));
         bls.queueGuardianSlash(1, many, "");
     }
@@ -199,6 +199,27 @@ contract GuardianSlashTest is Test {
         uint256 bps = uint256(bls.guardianSlashBps());
         assertEq(staking.lockAmt(guardian1), 30 ether - (30 ether * bps) / 10000);
         assertEq(staking.lockAmt(guardian2), 45 ether - (45 ether * bps) / 10000);
+    }
+
+    function test_Gas_Max64GuardianQueueAndExecution() public {
+        _wireVerifier();
+        address[] memory guardians = new address[](64);
+        for (uint256 i; i < guardians.length; ++i) {
+            guardians[i] = address(uint160(0x7000 + i));
+            staking.setLock(guardians[i], 30 ether);
+        }
+
+        uint256 gasBefore = gasleft();
+        bls.queueGuardianSlash(64, guardians, "");
+        uint256 queueGas = gasBefore - gasleft();
+        gasBefore = gasleft();
+        bls.executeGuardianSlash(64, guardians, "");
+        uint256 executeGas = gasBefore - gasleft();
+
+        emit log_named_uint("queueGuardianSlash gas (64 guardians, O(n^2) validation)", queueGas);
+        emit log_named_uint("executeGuardianSlash gas (64 guardians)", executeGas);
+        assertLt(queueGas, 30_000_000, "64-guardian queue must fit OP block gas limit");
+        assertLt(executeGas, 30_000_000, "64-guardian execution must fit OP block gas limit");
     }
 
     // ---- per-(proof,guardian) idempotency (replaces global-id replay) ----
