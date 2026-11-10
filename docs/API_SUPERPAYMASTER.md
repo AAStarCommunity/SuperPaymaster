@@ -555,6 +555,20 @@ function updatePriceDVT(
 
 ## SBT Registry Functions
 
+> **ENDUSER authorization:** a per-community MySBT membership can outlive the ENDUSER role while
+> another Registry role is held. Integrators must check both
+> `MySBT.verifyCommunityMembership(user, community)` and
+> `Registry.hasRole(ROLE_ENDUSER, user)`. If final-role cleanup is pending, wait for every
+> remaining operator role's lock (`block.timestamp >= lockedAt + roleLockDuration`; defaults to
+> 30 days, with the DVT guardian-exit gate also satisfied), exit to `userRoleCount == 0`, then call
+> `reconcileMembershipDeactivation(user)`. If `pendingSBTBurn` is set, unpause MySBT and call
+> `reconcileSBTBurn(user)`. Sepolia has no historical `SBTBurnFailed` events; Optimism is fresh.
+> A community can also grant COMMUNITY (zero default lock) or an operator role through
+> `safeMintForRole`. Exit and reconciliation are separate transactions, so a sponsor that keeps
+> funding grants can re-grant after each exit and delay recovery indefinitely; recovery is not
+> bounded against an actively funded sponsor. All of this requires a MySBT cleanup call to have
+> failed first (MySBT paused or a reverting implementation).
+
 ### updateSBTStatus
 
 Update the global SBT holder flag for a user (called by Registry on MySBT mint/burn events).
@@ -1016,18 +1030,18 @@ The old `getAssetSpend` output is `(uint128 spentInWindow, uint64 windowStart)`.
 `getContractScope` output is
 `(bool allowed, bool requireDVTAlways, uint128 velocityLimit, uint64 velocityWindow, bool configured)`.
 
-### PolicyRegistry 3.0.1
+### PolicyRegistry 3.0.2
 
 **Address:** Deployed by the 5.5.0 manifest. No address is assigned yet.
 
 **Type:** Standalone, non-upgradeable, and governed by an external `TimelockController` plus a
 guardian.
 
-PolicyRegistry 3.0.1 evaluates `(sender, target, asset, amount, selector)`. Its policy is opt-in.
+PolicyRegistry 3.0.2 evaluates `(sender, target, asset, amount, selector)`. Its policy is opt-in.
 An unconfigured asset or target adds no restriction, while a frozen sender always receives
 `REJECT`. ETH uses `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`; `address(0)` is invalid.
 
-#### 3.0.1 data model
+#### 3.0.2 data model
 
 - `AssetPolicy` is keyed by `(sender, asset)`. It contains `dvtTriggerAmount`,
   `perTxHardCap`, `dailyLimit`, `windowSeconds`, and `configured`.
@@ -1039,11 +1053,18 @@ An unconfigured asset or target adds no restriction, while a frozen sender alway
   `(sender, target, asset)`. Both use `uint256 spentInWindow` and `uint64 windowStart`.
 - If a configured scope has `velocityWindow != 0`, a missing velocity entry for the requested
   asset fails closed with `REJECT`.
+- A zero target velocity window disables velocity. `setTargetVelocity` and
+  `tightenTargetVelocity` revert with `VelocityDisabled()` while disabled. Disabling a window
+  invalidates all prior asset limits; after re-enabling, each asset needs a fresh timelocked
+  `setTargetVelocity` before it can be enforced again.
 
 `recordSpend` updates the asset counter only for a configured asset policy. It updates the target
 counter only for a configured scope with a nonzero velocity window and a configured target velocity.
 
-#### 3.0.1 function selectors
+`getAssetSpend` and `getTargetSpend` return effective, window-aware spend: the amount is zero
+after expiry. Target spend is also zero while velocity is disabled or its limit is stale.
+
+#### 3.0.2 function selectors
 
 The signatures use canonical ABI tuple syntax. Selectors were computed with
 `~/.foundry/bin/cast sig`.
@@ -1059,6 +1080,7 @@ The signatures use canonical ABI tuple syntax. Selectors were computed with
 | `getTargetVelocity(address,address,address)` | `0xcb9fa794` | `(uint128,bool)` |
 | `isSelectorAllowed(address,address,bytes4)` | `0xb1655919` | `bool` |
 | `getAssetSpend(address,address)` | `0x715904dd` | `(uint256,uint64)` |
+| `getTargetSpend(address,address,address)` | `0x0c4752d2` | `(uint256,uint64)` |
 | `isFrozen(address)` | `0xe5839836` | `bool` |
 | `isAuthorizedConsumer(address)` | `0x7df732ea` | `bool` |
 | `guardian()` | `0x452a9320` | `address` |
@@ -1078,14 +1100,15 @@ The signatures use canonical ABI tuple syntax. Selectors were computed with
 The timelock-only setters can loosen or tighten after the external timelock delay.
 `setContractScope` adds selectors without clearing the existing set. The guardian-or-timelock
 functions provide the immediate tightening path. `tightenContractScope` preserves the velocity
-window and removes its listed selectors. `tightenTargetVelocity` can only lower an existing limit.
+window and removes its listed selectors. `tightenTargetVelocity` can only lower a fresh existing
+limit and reverts while the window is zero.
 `unfreezeSender` is timelock-only.
 
 PolicyRegistry has no internal proposal queue. It does not implement `propose*`,
 `executeProposal`, `cancelProposal`, `looseningEta`, or `LOOSEN_TIMELOCK`. The external
 `TimelockController` owns scheduling, delay, execution, and cancellation.
 
-#### 3.0.1 event topics
+#### 3.0.2 event topics
 
 Topic 0 values were computed with `~/.foundry/bin/cast sig-event`.
 
