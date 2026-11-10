@@ -1,38 +1,92 @@
 {
   "_comment": [
-    "Reviewed, intentional layout changes against the committed snapshots (scripts/check_storage_layout.py).",
-    "The snapshots stay the LAST DEPLOYED-COMPATIBLE baseline; this file lists the ONLY differences the",
-    "current tree may have. Anything else (insert, reorder, resize, a different append, a gap that does not",
-    "shrink by exactly the appended slots, or a moved end slot) fails the gate.",
-    "D5b (spec 03 §10.7b GOV-2 A): SuperPaymaster appends guardian + paused in ONE slot before __gap",
-    "(25 -> 24, end slot 65 unchanged); its structs moved from SuperPaymaster to the shared",
-    "SuperPaymasterStorage base (declaring-scope rename only: every member slot/offset/type is compared).",
-    "Registry: no sequential change at all (pendingOwner lives in the ERC-7201 slot, checked by vm.load tests).",
-    "baseline_sha256 pins the snapshot file itself: `update` alone makes the gate fail until the pin is changed in the same reviewed change."
+    "SuperPaymaster is compared to the deployed v5.4.2 snapshot (`git show v5.4.2:storage-layout/SuperPaymaster.json`).",
+    "Only the seven 5.5.x slots carved from the old slot-37 uint256[28] gap are allowed; the gap now starts at 44 with length 21, preserving end slot 65.",
+    "Inflight.counted is part of the allowed slot-37 mapping value shape. The self-test proves that changing or removing this appended struct member is rejected.",
+    "SuperPaymasterStorage is the current declaring scope for structs formerly declared by SuperPaymaster; aliases normalize scope names only, never members.",
+    "Registry has no sequential change (pendingOwner uses ERC-7201 namespaced storage).",
+    "baseline_sha256 pins each deployed snapshot so `update` cannot silently bless drift."
   ],
   "SuperPaymaster": {
-    "struct_scope_aliases": {
-      "SuperPaymasterStorage": "SuperPaymaster"
-    },
+    "struct_scope_aliases": {"SuperPaymasterStorage": "SuperPaymaster"},
     "appended": [
       {
-        "label": "guardian",
-        "slot": "40",
-        "offset": 0,
-        "type": "address"
+        "label": "_inflight", "slot": "37", "offset": 0,
+        "type": {
+          "mapping": "mapping(bytes32 => struct SuperPaymaster.Inflight)", "key": "bytes32",
+          "value": {
+            "struct": "struct SuperPaymaster.Inflight",
+            "members": [
+              {"label": "operator", "slot": "0", "offset": 0, "type": "address"},
+              {"label": "a0", "slot": "0", "offset": 20, "type": "uint96"},
+              {"label": "counted", "slot": "1", "offset": 0, "type": "bool"}
+            ]
+          }
+        }
       },
       {
-        "label": "paused",
-        "slot": "40",
-        "offset": 20,
-        "type": "bool"
+        "label": "_gasParams", "slot": "38", "offset": 0,
+        "type": {
+          "struct": "struct SuperPaymaster.GasParams",
+          "members": [
+            {"label": "minPostOpGas", "slot": "0", "offset": 0, "type": "uint32"},
+            {"label": "settleGasBound", "slot": "0", "offset": 4, "type": "uint32"},
+            {"label": "cWrap", "slot": "0", "offset": 8, "type": "uint32"},
+            {"label": "cPostop", "slot": "0", "offset": 12, "type": "uint32"}
+          ]
+        }
+      },
+      {
+        "label": "_pendingGasParams", "slot": "39", "offset": 0,
+        "type": {
+          "struct": "struct SuperPaymaster.PendingGasParams",
+          "members": [
+            {"label": "minPostOpGas", "slot": "0", "offset": 0, "type": "uint32"},
+            {"label": "settleGasBound", "slot": "0", "offset": 4, "type": "uint32"},
+            {"label": "cWrap", "slot": "0", "offset": 8, "type": "uint32"},
+            {"label": "cPostop", "slot": "0", "offset": 12, "type": "uint32"},
+            {"label": "eta", "slot": "0", "offset": 16, "type": "uint64"}
+          ]
+        }
+      },
+      {"label": "guardian", "slot": "40", "offset": 0, "type": "address"},
+      {"label": "paused", "slot": "40", "offset": 20, "type": "bool"},
+      {
+        "label": "pendingWithdrawals", "slot": "41", "offset": 0,
+        "type": {
+          "mapping": "mapping(address => struct SuperPaymaster.PendingWithdrawal)", "key": "address",
+          "value": {
+            "struct": "struct SuperPaymaster.PendingWithdrawal",
+            "members": [
+              {"label": "amount", "slot": "0", "offset": 0, "type": "uint128"},
+              {"label": "readyAt", "slot": "0", "offset": 16, "type": "uint48"}
+            ]
+          }
+        }
+      },
+      {
+        "label": "slashQueues", "slot": "42", "offset": 0,
+        "type": {
+          "mapping": "mapping(address => struct SuperPaymaster.SlashQueue)", "key": "address",
+          "value": {
+            "struct": "struct SuperPaymaster.SlashQueue",
+            "members": [
+              {"label": "queuedBy", "slot": "0", "offset": 0, "type": "address"},
+              {"label": "queuedAt", "slot": "0", "offset": 20, "type": "uint48"},
+              {"label": "guardianQueued", "slot": "0", "offset": 26, "type": "bool"}
+            ]
+          }
+        }
+      },
+      {
+        "label": "inflightReserved", "slot": "43", "offset": 0,
+        "type": {"mapping": "mapping(address => uint256)", "key": "address", "value": "uint256"}
       }
     ],
-    "baseline_sha256": "40fb58ac5137b58ceb3007ad2912dfd7dbfdeb2133ab00c7aa418d3e8717fa3f"
+    "baseline_sha256": "ac3d211c58b59bd03cb4fb23e52b3dccd25de75b1b00fc9b612affd13d905d87"
   },
   "Registry": {
-    "struct_scope_aliases": {},
-    "appended": [],
+    "struct_scope_aliases": {}, "appended": [],
     "baseline_sha256": "d79ff83efeba8849c53c132b63f912c920b7cd89d2cf9bbc7104f41d3bb38182"
   }
 }

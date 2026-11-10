@@ -225,17 +225,23 @@ def self_test():
     cases["insert in the middle"] = m
     m = copy.deepcopy(good); m[1]["slot"] = str(int(m[1]["slot"]) + 1)
     cases["shift an existing slot"] = m
-    m = copy.deepcopy(good); m[-1]["type"] = {"array": f"uint256[{_gap_len(sp_old[-1])}]", "base": "uint256"}
+    m = copy.deepcopy(good); m[-1]["type"] = {"array": f"uint256[{_gap_len(good[-1]) + 1}]", "base": "uint256"}
     cases["gap not shrunk (end slot moves)"] = m
     m = copy.deepcopy(good); m.insert(-1, {"label": "extra", "slot": m[-1]["slot"], "offset": 0, "type": "address"})
     cases["an unlisted extra append"] = m
-    m = copy.deepcopy(good); m[-2]["offset"] = 0
+    m = copy.deepcopy(good); m[-2]["offset"] = 1
     cases["listed append with a different offset"] = m
     m = copy.deepcopy(good)
     for e in m:
         if isinstance(e["type"], dict) and e["type"].get("struct", "").endswith(".GasParams"):
             e["type"]["members"][0]["offset"] = 4
     cases["struct member moved (scope alias must not hide it)"] = m
+    m = copy.deepcopy(good)
+    for e in m:
+        t = e["type"]
+        if isinstance(t, dict) and t.get("mapping", "").endswith(".Inflight)"):
+            t["value"]["members"].pop()
+    cases["allowed appended struct member removed (Inflight.counted)"] = m
     # OZ Ownable2Step shape: _pendingOwner inserted after _owner, everything below shifts
     m = copy.deepcopy(good)
     m.insert(1, {"label": "_pendingOwner", "slot": "1", "offset": 0, "type": "address"})
