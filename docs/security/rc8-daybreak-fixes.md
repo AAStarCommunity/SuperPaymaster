@@ -4,7 +4,7 @@ Branch `cc125/rc8-daybreak-fixes`.
 Input: `C4-report.md`, `C2-report.md`, `C1-report.md` in
 the Daybreak review archive (2026-11-09, held by the maintainer and DSR).
 The initial `git diff 8de39026 -- contracts/src` was empty. No network, chain,
-key access, ABI regeneration, commits, or Git metadata writes were performed.
+key access, commits, or Git metadata writes were performed.
 The pre-existing OpenZeppelin v5.1.0 `package-lock.json` edit was preserved.
 
 ## Implementation
@@ -158,6 +158,80 @@ ProfilePaymaster test helper were updated; historical deployment fixtures remain
 historical. Downstream DVT/SDK consumers need the new withdrawal timing and ABI
 constant/events before release. No downstream notifications were sent.
 
+## BLS round 4
+
+### DVT proposal-id rotation
+
+`DVTValidator-0.7.0` takes `firstProposalId` in its constructor. The 5.5.0
+deployment scripts use `1` for a fresh aggregator. For every later
+DVT rotation, the selected value must exceed every raw proposal id the retained
+aggregator has executed and must leave ample room below `2^128` for the new
+deployment's expected lifetime. The constructor rejects zero and values at or
+above `2^128`; proposal creation also fails closed if that namespace is exhausted.
+
+Pending proposals belong to the old DVT and are abandoned at rotation. They are
+not migrated or executable through the replacement DVT and must be proposed again
+there, receiving ids from the replacement's new range.
+
+### Validator-removal quorum floor
+
+`DVTValidator.removeValidator` reaches `BLSAggregator.revokeBLSPublicKey` as the
+configured DVT. That route now uses the same committee-survival check as a
+voluntary guardian exit, including the maximum of `defaultThreshold` and every
+slash threshold. A direct aggregator-owner revocation deliberately remains the
+emergency eviction override and bypasses the check.
+
+The DVTValidator owner must be the same Safe-compatible M-of-N owner as the
+BLSAggregator. `setDVTValidator` remains an immediate owner call: rotating the
+DVT adds no power beyond the owner's existing direct `verifyAndExecute` route,
+and every DVT path still requires a BLS quorum of registered keys. Verifier
+rotation separately retains its contract-enforced five-day delay. Deployment
+scripts transfer both owners together and assert equality.
+
+### Reputation rule disablement
+
+`Reputation-0.5.0` records rule existence and active state separately. A rule
+configured with `baseScore == 0` is inactive and contributes no score; it does
+not receive the default rule. The default applies only to a first rule id that
+the community has never configured. Re-enabling updates the same listed rule
+without inserting a duplicate. The added private mapping is an append-only
+storage-layout change on this directly deployed, non-upgradeable contract.
+
+### NFT boost semantics
+
+NFT boost eligibility means **registration age plus current ownership**. The
+seven-day timestamp is not proof of uninterrupted ownership: a third-party NFT
+can be transferred away and reacquired before a permissionless watcher calls
+`resetNFTHoldStart`. Strict continuity is impossible here without collection
+transfer hooks, checkpoints, escrow, or authenticated acquisition history.
+
+### Raw-id separation wording
+
+Raw proposal ids remain below `2^128`. Their separation from unrestricted
+Keccak-derived generic and queue keys is a 128-bit cryptographic guarantee, not
+an absolute structural impossibility.
+
+## BLS round 7 — Daybreak re-review #4
+
+R4-01, R4-03, and R4-04 move to the dedicated manifest/executor PR. All scoped
+executor, schema, adapter, test, and release-design changes were restored to
+`origin/main`. The retained contract, deployment, test, historical-template,
+and security-report changes no longer reference that split implementation.
+
+R4-02 is fixed in every deployment path that previously transferred only the
+BLSAggregator owner: `DeployNewBLSModules`, `07b_DeployBLSModules`, and
+`DeployStandardV3` now transfer the paired DVTValidator to the same declared
+governance owner and assert `dvt.owner() == bls.owner()`. The other scripts that
+instantiate DVTValidator were checked: DeployLive, DeployAnvil, and
+DeployRepCreditSepolia already transfer both owners. Archive scripts contain no
+one-sided governance transfer; a fresh paired deployment leaves both contracts
+with the same broadcaster owner. A script-level regression covers
+DeployNewBLSModules. Removing its DVT transfer makes the test fail with
+`DeployNewBLSModules: DVT owner != BLS owner`.
+
+R4-05 provenance below was regenerated from final Cancun artifacts after the
+round-7 edits. No BLSAggregator contract code was changed in this round.
+
 ## Verification
 
 Engine: forge 1.7.1, Solidity 0.8.33, default profile.
@@ -173,7 +247,7 @@ The baseline artifact's source keccak was checked against `git show 8de39026`.
 Baseline BLSAggregator runtime: **24,345 B**, EIP-170 headroom **231 B**.
 FIX 1 only, same default compiler settings: **24,367 B**, headroom **209 B**.
 
-The final command results are recorded below; complete raw logs are in `/tmp/rc8-daybreak/`.
+The final command results are recorded below; round-7 raw logs are in `/tmp/rc8-bls-r7-*.log`.
 
 The first full Cancun run exposed two stale expectations: the central release
 version table still named the old SP/Lens versions, and the invariant handler's
@@ -183,15 +257,18 @@ updated. The invariant model now clears a promoted standby and independently
 asserts that standby is never current SP. No production behavior was weakened to
 satisfy the old model. Subsequent final results are recorded below.
 
-Final BLSAggregator runtime: **24,387 B**, headroom **189 B** (the C4-L-01 change was reverted after re-review; C4-L-02 adds one SSTORE)
-than rc.7 despite the challenge-period addition. All measurements use Cancun,
-optimizer 500 runs, via-IR and Solidity 0.8.33. Prague outputs/cache are isolated
-under `out/prague` and `cache/prague`; the size gate reads only default/Cancun
-artifacts and verifies source hashes and compiler settings.
+Final BLSAggregator runtime: **24,551 B**, headroom **25 B**. The final release
+artifacts for BLSAggregator, DVTValidator, and ReputationSystem all record
+Solidity **0.8.33+commit.64118f21**, optimizer enabled with **500 runs**, **via-IR
+enabled**, and EVM version **Cancun** in artifact metadata. Prague outputs/cache
+are isolated under `out/prague` and `cache/prague`; the size gate reads only
+default/Cancun artifacts and verifies source hashes and compiler settings.
 
 | Deployable | Runtime bytes | EIP-170 headroom |
 |---|---:|---:|
-| BLSAggregator | 24,387 | 189 |
+| BLSAggregator | 24,551 | 25 |
+| DVTValidator | 6,448 | 18,128 |
+| ReputationSystem | 7,675 | 16,901 |
 | SuperPaymaster | 13,744 | 10,832 |
 | SuperPaymasterAdmin | 17,975 | 6,601 |
 | SuperPaymasterLens | 5,413 | 19,163 |
@@ -199,9 +276,13 @@ artifacts and verifies source hashes and compiler settings.
 | xPNTsTokenV2 | 20,008 | 4,568 |
 | xPNTsTokenV2Ext | 22,543 | 2,033 |
 
-## ABIs for the release owner to regenerate
+The source files used for those three final artifacts are bound by SHA-256:
 
-No file in `abis/` was modified.
+| Artifact | Source file SHA-256 |
+|---|---|
+| BLSAggregator | `011cdd40a146ee0edcae99173598bafc8c144607d5c6449e1b4b6e85f86f26b5` |
+| DVTValidator | `6ed802f84b3a49fe8488f3ed20f1d93493d867c0e0f3aa3bc76fdf1a07b936ab` |
+| ReputationSystem | `597060791537136711ed0e413884f4ccc6dba4456378ecbbdd9e88fa9d75e714` |
 
 - `abis/BLSAggregator.json`: new `GUARDIAN_FRAUD_CHALLENGE()` getter and bytecode.
 - `abis/xPNTsTokenV2.json`, `abis/xPNTsTokenV2Ext.json`,
@@ -212,6 +293,15 @@ No file in `abis/` was modified.
   signatures, changed embedded bytecode/version behavior.
 - `abis/SuperPaymaster.full.json`: combined ABI signatures remain unchanged,
   its note names 5.5.0, which stays correct.
+
+## Release ABIs
+
+The release ABIs and manifest were regenerated from the final Cancun artifacts.
+F-07 changes only view implementation behavior, so ReputationSystem's ABI and
+`Reputation-0.5.0` version are unchanged; its embedded bytecode was refreshed.
+The BLSAggregator and DVTValidator bundles include the earlier round changes.
+`pnpm gen:abi-docs` regenerated the reference and selector documents, and both
+`pnpm gen:abi-docs:check` and `node scripts/check-abi-bundle.mjs` pass.
 
 `abis/BLSAggregator-4.11.0.deployed.json` is historical deployed evidence and must
 remain unchanged. This task does not regenerate deployment manifests or historical
@@ -271,28 +361,28 @@ python3 scripts/check-sp-size.py
 OK: SuperPaymaster core headroom 10832 B >= 1024; all 7 deployables <= EIP-170
 ```
 
-forge test --match-path <17 affected test files> (Cancun)
+forge test --match-path contracts/test/scripts/DeployLiveGovernance.t.sol (Cancun)
 
 ```text
-Ran 22 test suites in 4.18s (4.91s CPU time): 265 tests passed, 0 failed, 31 skipped (296 total tests)
+Ran 1 test suite in 7.37ms (3.59ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)
 ```
 
 forge test (full tree, Cancun)
 
 ```text
-Ran 165 test suites in 49.45s (240.03s CPU time): 1851 tests passed, 0 failed, 71 skipped (1922 total tests)
+Ran 167 test suites in 92.09s (530.18s CPU time): 1892 tests passed, 0 failed, 72 skipped (1964 total tests)
 ```
 
-forge test --evm-version prague --match-path <17 affected test files>
+forge test --evm-version prague --match-path contracts/test/scripts/DeployLiveGovernance.t.sol
 
 ```text
-Ran 22 test suites in 3.98s (8.02s CPU time): 211 tests passed, 0 failed, 20 skipped (231 total tests)
+Ran 1 test suite in 9.25ms (2.87ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)
 ```
 
 forge test --evm-version prague (full tree)
 
 ```text
-Ran 165 test suites in 54.95s (257.84s CPU time): 1731 tests passed, 0 failed, 43 skipped (1774 total tests)
+Ran 167 test suites in 87.12s (431.25s CPU time): 1758 tests passed, 0 failed, 49 skipped (1807 total tests)
 ```
 
 python3 scripts/check-sp-layout.py
@@ -314,7 +404,10 @@ OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 en
 OK  Registry storage layout = deployed 5.9.0 snapshot + 2 allowed appended mappings (34 entries)
 ```
 
-The default build that compiled the production fixes reported `Compiler run successful with warnings:`; the final cached build confirms the final tree.
+The forced default build that compiled the production fixes reported
+`Compiler run successful with warnings:`; the final cached build confirms the
+final tree. ABI verification ended with `abis/ matches the compiled contracts
+(full shape, not just names)`.
 
 Skips come from existing EVM-specific precompile/artifact guards and opt-in fork suites; no new test skips were added. Whole-suite setup skips account for the different total test counts across EVMs. The two allowed appended SP storage entries predate that verification round; its results are superseded where the re-review #3 addendum below differs. `git diff --check --ignore-submodules` passed.
 
