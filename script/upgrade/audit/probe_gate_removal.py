@@ -179,7 +179,16 @@ def child(line, failfast, select=None):
         print('FIRST_FAILING_TEST', first[0][0].id())
     for test, _ in result.failures:
         print('FAILED_TEST', test.id())
-    print('PROBE_RESULT', 'killed' if not result.wasSuccessful() else 'survived', 'ran', result.testsRun,
+    site = next((s for s in sites() if s['line'] == line), None)
+    label = site['gate'] if site else ''
+    # Dynamic gate families retain their literal prefix in assertion messages.
+    if label.startswith("'"):
+        label = label.split("'")[1]
+    from gate_assertions import assertion_mentions
+    named = any(assertion_mentions(log, label) for _, log in result.failures)
+    status = 'survived' if result.wasSuccessful() else 'killed' if result.failures and not result.errors and named else 'invalid'
+    print('STRICT_PROBE=1')
+    print('PROBE_RESULT', status, 'ran', result.testsRun,
           'failures', len(result.failures), 'errors', len(result.errors), 'expectedFailures', len(result.expectedFailures))
     return 0
 
@@ -200,7 +209,7 @@ def coverage(out):
 
 def run_one(site, out, env):
     log = out/f'probe-L{site["line"]:04d}.log'
-    if log.exists() and 'PROBE_RESULT' in log.read_text():
+    if log.exists() and 'STRICT_PROBE=1' in log.read_text():
         text = log.read_text()   # resume: keep the earlier actual run output
         status = next(r.split()[1] for r in text.splitlines() if r.startswith('PROBE_RESULT'))
         first = next((r.split(' ', 1)[1] for r in text.splitlines() if r.startswith('FIRST_FAILING_TEST')), None)
@@ -223,6 +232,11 @@ def run_one(site, out, env):
 
 def run_all(out, jobs):
     env = dict(os.environ)
+    baseline = subprocess.run([sys.executable, '-B', str(Path(__file__)), '--module', TARGET.stem, '--tests', TESTS, '--baseline'],
+                              cwd=ROOT, env=env, capture_output=True, text=True)
+    if baseline.returncode != 0 or 'PROBE_RESULT survived' not in baseline.stdout:
+        print('BASELINE FAILED', baseline.stdout, baseline.stderr)
+        return 1
     probe = sites()
     results = []
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
@@ -238,7 +252,7 @@ def run_all(out, jobs):
     (out/'summary.json').write_text(json.dumps(summary, indent=1)+'\n')
     print('PROBES total', summary['total'], 'killed', summary['killed'],
           'survived', len(summary['survived']), 'errors', len(summary['errors']))
-    return 0
+    return 0 if summary['killed'] == summary['total'] else 1
 
 
 def main():

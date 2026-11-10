@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """Phase C gate-removal probes: suppress one named gate, require its control to turn red.
 
-Production files are never modified: the probe replaces a3a_exec.need for exactly one gate
-name with a no-op ("replace the gate with pass") and runs that gate's named control. The
-control must have passed first, and the suppressed gate must actually have been reached.
+Production files are never modified: the baseline identifies the failing source
+statement, then the probe deletes exactly that AST statement in memory. A red
+probe has failures >= 1, zero errors, and a failing assertion naming the gate.
 The script also scans manifest_exec.py against a base revision and fails if a newly added
 gate literal has no probe case.
 """
 import sys
 sys.dont_write_bytecode = True
 import io
+import inspect
+import ast
 import re
 import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from gate_assertions import assertion_mentions
 import test_manifest_exec as base_tests
 import test_manifest_phase_c as tests
 
@@ -55,17 +58,17 @@ CASES += [
 CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
           ('old_timelock_holds_nothing', 'old_timelock_tl_roles', 'old_timelock_authority', 'old_timelock_safe')]
 CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
-          ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block', 'old_timelock_replay',
+          ('old_timelock_required', 'old_timelock_schema', 'old_timelock_block',
            'old_timelock_unused', 'old_timelock_allowance')]
 CASES += [(base_tests.ManifestTests, 'test_old_timelock_inventory_new_role', 'old_timelock_inventory'),
           (base_tests.ManifestTests, 'test_old_timelock_inventory_new_token', 'old_timelock_inventory')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_legacy_timelock_source_targets', 'old_owner_source_targets')]
-CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history', 'old_timelock_approval_history'),
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history_range', 'old_timelock_approval_history'),
           (base_tests.ManifestTests, 'test_old_timelock_external_approval', 'old_timelock_allowance'),
           (base_tests.ManifestTests, 'test_old_timelock_approval_incomplete', 'old_owner_log_partition')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_range_grant', 'old_owner_never_granted_set')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_control_holder', 'old_owner_never_granted_holder')]
-CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_function_falls_back', 'old_owner_mapping_getter')]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_function_getter_rejected_per_role', 'old_owner_mapping_getter')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_role_control_case_without_path_gate', 'old_owner_role_control_case')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_positive_zero', 'old_owner_mapping_positive')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_mapping_negative_one', 'old_owner_mapping_negative')]
@@ -79,7 +82,13 @@ CASES += [(base_tests.ManifestTests,'test_never_granted_pre_send_change','old_ow
 CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in ('test_old_role_closing_change', 'test_old_role_pre_send_change')]
 CASES += [(base_tests.DeltaTests, 'test_old_timelock_delta_'+g, 'old_timelock_delta_'+g) for g in base_tests.DELTA_CASES]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_history_standard_revoke_only', 'old_owner_history_positive')]
-C1_GATES = ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control')
+CASES += [(base_tests.ManifestTests, name, gate) for name, gate in (
+    ('test_old_timelock_replay_reads', 'old_timelock_replay'),
+    ('test_old_timelock_replay_owners', 'old_timelock_replay'),
+    ('test_old_timelock_approval_history_log', 'old_timelock_approval_history'))]
+CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_proxy_runtime_'+kind, 'old_owner_runtime_'+kind)
+          for kind in ('length', 'parity')]
+C1_GATES = ('role_write_key', 'role_assembly', 'role_lowlevel_call', 'registry_source_commit', 'role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control')
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C1_GATES]
 C2_GATES = ('xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin')
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_'+g, 'old_owner_'+g) for g in C2_GATES]
@@ -98,21 +107,76 @@ GATE = re.compile(r"""a\.(?:need|exact_keys)\(\s*['"]([A-Za-z0-9_]+)['"]""")
 FAMILIES = {'_gate': 'X_gate', '_restore': 'X_restore'}
 
 
+SITES = {}
+
+
 def run(cls, name, gate=None):
     original = a.need
-    suppressed = []
+    observed = {}
 
-    def without_gate(actual, *args, **kwargs):
-        if actual == gate:
-            suppressed.append(actual)
-            return None
-        return original(actual, *args, **kwargs)
+    def recording(actual, *args, **kwargs):
+        try:
+            return original(actual, *args, **kwargs)
+        except a.Gate:
+            frame = inspect.currentframe().f_back
+            while frame and Path(frame.f_code.co_filename).name not in ('manifest_exec.py', 'old_owner_isolation.py', 'sp_upgrade_exec.py'):
+                frame = frame.f_back
+            if frame:
+                observed.setdefault(actual, set()).add((frame.f_code.co_filename, frame.f_lineno))
+            raise
 
     stream = io.StringIO()
-    with patch.object(a, 'need', side_effect=without_gate):
-        # A suite (not a bare case) so class fixtures (setUpClass) run.
-        result = unittest.TextTestRunner(stream=stream).run(unittest.TestSuite([cls(name)]))
-    return result.wasSuccessful() or bool(gate in ASSERTION_ONLY_GATES and (result.errors or not result.failures)), bool(suppressed), stream.getvalue()
+    saved, module, matches = None, None, 0
+    aliases = []
+    if gate is not None:
+        sites = SITES.get((cls, name, gate), set())
+        if len(sites) != 1:
+            return True, False, f'{gate}: expected one failing source location, got {sites}'
+        filename, line = next(iter(sites))
+        source = Path(filename).read_text()
+        tree = ast.parse(source, filename)
+        candidates = [n for n in ast.walk(tree) if isinstance(n, ast.Expr) and n.lineno <= line <= n.end_lineno
+                      and isinstance(n.value, ast.Call)]
+        matches = len(candidates)
+        if matches != 1:
+            return True, False, f'{gate}: matches={matches}'
+        target = candidates[0]
+        class Delete(ast.NodeTransformer):
+            def visit_Expr(self, node):
+                return ast.copy_location(ast.Pass(), node) if node is target else self.generic_visit(node)
+        # Recompile only the containing top-level function. Re-executing a module
+        # discards unrelated fixture patches (notably committed target expectations).
+        owners = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                  and any(child is target for child in ast.walk(node))]
+        if len(owners) != 1:
+            return True, False, f'{gate}: expected one containing function, got {len(owners)}'
+        tree = ast.fix_missing_locations(ast.Module(body=[Delete().visit(owners[0])], type_ignores=[]))
+        module = next(m for m in (base_tests.m, base_tests.isolation_tests.o, base_tests.u) if Path(m.__file__).resolve() == Path(filename).resolve())
+        saved = module.__dict__.copy()
+        exec(compile(tree, filename, 'exec'), module.__dict__)
+        replacements = {id(value): module.__dict__[key] for key, value in saved.items()
+                        if callable(value) and key in module.__dict__ and module.__dict__[key] is not value}
+        for test_module in (tests, base_tests, base_tests.isolation_tests):
+            for key, value in list(test_module.__dict__.items()):
+                if id(value) in replacements:
+                    aliases.append((test_module, key, value))
+                    setattr(test_module, key, replacements[id(value)])
+    try:
+        with patch.object(a, 'need', side_effect=recording):
+            result = unittest.TextTestRunner(stream=stream).run(unittest.TestSuite([cls(name)]))
+    finally:
+        for test_module, key, value in aliases:
+            setattr(test_module, key, value)
+        if saved is not None:
+            module.__dict__.clear()
+            module.__dict__.update(saved)
+    if gate is None:
+        for actual, sites in observed.items():
+            SITES[(cls, name, actual)] = sites
+        return result.wasSuccessful(), False, stream.getvalue()
+    red = (matches == 1 and len(result.failures) >= 1 and not result.errors
+           and any(assertion_mentions(log, gate) for _, log in result.failures))
+    return not red, matches == 1, stream.getvalue()
 
 
 def new_gates(base):
@@ -143,8 +207,10 @@ def main(argv):
             print(f'BASELINE FAILED {name}\n{log}', file=sys.stderr)
             return 1
         ok, reached, log = run(cls, name, gate)
+        if ok:
+            print(f'NOT STRICT RED {cls.__name__}.{name} gate={gate} sites={SITES.get((cls,name,gate))}\n{log}', file=sys.stderr)
         rows.append((cls.__name__+'.'+name, gate, 'PASS', 'red' if not ok and reached else
-                     'NOT REACHED' if not reached else 'GREEN (gate not load-bearing)'))
+                     'NO SINGLE DELETION SITE' if not reached else 'NOT STRICT RED (see mutation result)'))
     print('| Control | Suppressed gate | Baseline | Gate removed |')
     print('|---|---|---|---|')
     for row in rows:
