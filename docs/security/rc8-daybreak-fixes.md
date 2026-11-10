@@ -253,6 +253,247 @@ OK  Registry storage layout = snapshot (unchanged) (32 entries)
 
 The default build that compiled the production fixes reported `Compiler run successful with warnings:`; the final cached build confirms the final tree.
 
-Skips come from existing EVM-specific precompile/artifact guards and opt-in fork suites; no new test skips were added. Whole-suite setup skips account for the different total test counts across EVMs. The two allowed appended SP storage entries predate this task; no storage entries were introduced here. `git diff --check --ignore-submodules` passed. ABI and tracked Python-cache diffs are empty.
+Skips come from existing EVM-specific precompile/artifact guards and opt-in fork suites; no new test skips were added. Whole-suite setup skips account for the different total test counts across EVMs. The two allowed appended SP storage entries predate that verification round; its results are superseded where the re-review #3 addendum below differs. `git diff --check --ignore-submodules` passed.
 
 The requested fixes, both conditional C4 lows, version propagation and all specified local verification are complete. The only execution adjustment was omitting `nice` after the sandbox refused it. No chain or deployment validation was attempted, as requested.
+
+## Daybreak re-review #3 — SP-551-07 through SP-551-11
+
+A slash now reverts with `SlashBlockedByInflight` while the operator has any counted reservation.
+Consequently every successful owner or BLS slash uses the liquid balance, which at that point equals
+total collateral. BLS MINOR and MAJOR derive their percentage from that same balance. The guardian
+can only queue a freeze; it cannot execute a separate penalty route.
+
+Validation does not inspect slash state: `_isSlashPending` depends on `block.timestamp`, which
+ERC-7562 OP-011 forbids in every validation entity. A reservation is live only in its originating
+`handleOps` transaction. After that transaction it is stale and `releaseStaleSponsorship(opHash)` is
+callable by any address immediately. The owner path exposes the atomic
+`slashOperatorAfterReleasing` variant: it releases supplied stale hashes, retains the same
+`SlashBlockedByInflight` check, and slashes in one transaction. Hashes are recoverable from public
+`handleOps` calldata; omitting a live or unknown stale record fails closed at the aggregate guard.
+
+`Inflight.counted` was appended after the original packed fields. Records created before 5.5.1 read
+`false`, so settling or releasing one cannot subtract from the new aggregate. New records set it to
+`true` and decrement exactly once. This changes an internal mapping-value layout only; top-level UUPS
+slots and the storage gap are unchanged. `totalSpent` retains its 5.5.0 meaning: validation adds the
+reserved `a0`, and settlement never adds it again.
+
+`GP_CPOSTOP_MIN` remains 180,000. The measured 154,262-gas worst path requires 177,402 gas at the
+15% safety rule, so 180,000 is the smallest rounded safe floor. Before upgrading SuperPaymaster, the
+executor must read the pending gas-parameter proposal and cancel/requeue it if `cPostop < 180000`.
+After the upgrade, the executor must assert active `cPostop >= 180000`; the release tuple
+`(480000,450000,5000,450000)` satisfies this requirement. `SuperPaymasterLens.version()` and the
+release pin now report `SuperPaymasterLens-1.2.1`.
+
+The OP-011-corrected remeasurement is lower but does not relax that conservative floor: validation uses
+272,723 of the 1,150,000 verification budget (877,277 headroom), and the measured worst postOp path
+uses 132,091 gas. Its 15% requirement is 151,905, so release `cPostop=450000` has 317,909 raw gas
+headroom (24,067 bps over the measured path). The maximum measured entry-guard bound is 462,035,
+leaving 17,965 under release `minPostOpGas=480000`.
+
+## Critical OP-011 correction — 2026-11-10
+
+The earlier SP L-01 claim is withdrawn. Validation no longer writes
+`userOpState[operator][sender].lastTimestamp`; doing so executed `TIMESTAMP`, which ERC-7562 OP-011
+forbids regardless of stake and caused real bundlers to reject every sponsored UserOp. `postOp`
+remains the sole timestamp writer. Validation computes `validAfter` from that stored value, matching
+the pre-rc.8 V3.6 behavior.
+
+The author formally approved this best-effort behavior as the 5.5.1 release scope on 2026-11-10.
+The reason is that strict validation-time timestamp accounting would execute `TIMESTAMP`, which
+ERC-7562 OP-011 forbids. The accepted residual is that a malicious bundler or a staked sender can
+admit two same-sender operations in one bundle before either `postOp` stores the timestamp; every
+admitted operation still reserves and pays independently. Honest bundlers include at most one
+operation per unstaked sender in a bundle. The regression demonstrates the residual through direct
+EntryPoint v0.7 `handleOps` and checks that both operations settle and are charged.
+
+An optional per-`(operator, sender)` `TSTORE` same-bundle marker is deferred to 5.5.x. It is gated on
+a real ERC-7562 bundler validation tracer accepting the complete `TLOAD`/`TSTORE` path; it must not be
+added based only on a local opcode hand trace.
+
+An opcode-level Foundry trace now covers `minTxInterval` zero/nonzero, queued-slash admission, and
+credit fallback through real EntryPoint v0.7. It scans the SP proxy validation frame and its complete
+call/delegatecall closure for OP-011 opcodes, and enforces OP-012 by allowing `GAS` only immediately
+before a CALL-family opcode.
+
+## Daybreak re-review #4 — SP-R4
+
+### BLS slash surface and reservation race (SP-R4-H-01)
+
+`executeSlashWithBLSAfterReleasing` has been removed from SP, its admin-call shim, ABI and tests.
+The sole BLS penalty route is `executeSlashWithBLS`, which reverts
+`SlashBlockedByInflight(reserved)` while any counted reservation is live. Any address may first call
+`releaseStaleSponsorship(opHash)`. This is intentionally not atomic with the BLS slash: a colluding
+operator can delay a BLS slash by creating a new stale record before each attempt, but each delay
+attempt costs a UserOperation whose `postOp` must fail. The owner route
+`slashOperatorAfterReleasing` remains atomic and is `onlyOwner`; tests prove both the configured
+`BLS_AGGREGATOR` and an arbitrary non-owner are rejected.
+
+The exact source-derived SP/SPAdmin selector set whose access decision admits `BLS_AGGREGATOR` is:
+
+- `0xad1c98d7` — `queueSlash(address)`
+- `0x53afb8be` — `updatePriceDVT(int256,uint256,bytes,uint8)`
+- `0x079d2d42` — `executeSlashWithBLS(address,uint8,bytes)`
+
+`SuperPaymasterBLSSelectorSurface.t.sol` parses both `SuperPaymaster.sol` and
+`SuperPaymasterAdmin.sol`, enumerates every function body that combines `msg.sender` with
+`BLS_AGGREGATOR`, and asserts that this is the complete set.
+The integrated tree must compare the BLSAggregator generic-path denylist against these three
+selectors; that denylist is owned by the BLS worktree.
+
+### Deployed storage baseline and no legacy inflight state (SP-R4-H-02 / M-02)
+
+The live Sepolia implementation is SuperPaymaster 5.4.2. The deployed tag evidence is
+`git show v5.4.2:storage-layout/SuperPaymaster.json`: `_blsSlashCdFloor` is slot 36 and
+`uint256[28] __gap` begins at slot 37. There is no `_inflight` mapping in that layout. OP is a fresh
+deployment. Therefore no target chain can contain a pre-5.5.1 `_inflight` record, and
+`inflightReserved == 0` genuinely means no reservation on both targets.
+
+The defensive 5.5.0 context/record decoder branches remain because removing them would add churn
+across settlement compatibility code without improving target-chain safety. They are unreachable on
+the target chains. In particular, target-chain `Inflight.counted` is always written `true`; a false
+value can arise only on a non-target fork that actually ran the unreleased 5.5.0 shape.
+
+The layout gate now pins that exact v5.4.2 snapshot (SHA-256
+`ac3d211c58b59bd03cb4fb23e52b3dccd25de75b1b00fc9b612affd13d905d87`) and allowlists exactly:
+slot 37 `_inflight` (including appended member `Inflight.counted`), slot 38 `_gasParams`, slot 39
+`_pendingGasParams`, slot 40 `guardian`/`paused`, slot 41 `pendingWithdrawals`, slot 42
+`slashQueues`, and slot 43 `inflightReserved`. The gap shrinks to `uint256[21]` at slot 44, so its
+end remains slot 65. Scope aliases normalize only `SuperPaymasterStorage` to the old
+`SuperPaymaster` declaring name. The self-test mutates a struct member and removes
+`Inflight.counted`; both mutations are rejected.
+
+### Validation trace and identity configuration (SP-R4-M-01 / L-02)
+
+The opcode tests fail if Foundry has no debug tracer (the verification command must initialize it
+with `-vvvv`); they never skip. They assert the exact ordered executor/opcode/selector closure, not
+only banned-opcode absence. Coverage includes SBT false / agent true through
+`MockAgentIdentityRegistry`, and credit fallback through a UUPS production `Registry` proxy and its
+real `getCreditLimit` implementation.
+
+Agent-registry compatibility is conditional. Before any nonzero identity registry is configured,
+the release manifest must bind its runtime hash and archive an opcode/storage trace proving that
+`isRegisteredAgent(sender)` uses no ERC-7562-banned opcode and reads only sender-associated storage.
+The interface and SP's `try/catch` do not establish those properties.
+
+### Re-review #4 verification (verbatim final lines)
+
+The five trace tests run separately at `-vvvv` because that is what initializes Foundry's debug
+step recorder. The full-tree partitions exclude only the exact prefix
+`test_OP011_validation_trace`; those five tests are therefore run once, not skipped. Prague uses
+isolated `out/prague` and `cache/prague` directories.
+
+```text
+Ran 1 test suite in 474.60ms (293.97ms CPU time): 45 tests passed, 0 failed, 0 skipped (45 total tests)
+Ran 167 test suites in 70.65s (365.52s CPU time): 1885 tests passed, 0 failed, 71 skipped (1956 total tests)
+Ran 1 test suite in 211.88ms (132.67ms CPU time): 5 tests passed, 0 failed, 0 skipped (5 total tests)
+Ran 167 test suites in 54.28s (253.73s CPU time): 1763 tests passed, 0 failed, 43 skipped (1806 total tests)
+```
+
+The first line is the Cancun V5.5 suite, including all five trace tests; the second is the Cancun
+full-tree partition. The third is the five Prague trace tests; the fourth is the Prague full-tree
+partition.
+
+```text
+No files changed, compilation skipped
+OK: SuperPaymaster core headroom 8325 B >= 1024; all 7 deployables <= EIP-170
+OK: SuperPaymaster core and SuperPaymasterAdmin storage layouts identical (45 entries, last = __gap@44)
+OK: core and extension storage layouts identical (57 entries)
+OK  SuperPaymaster storage layout = snapshot + 8 allowed appended entries (45 entries)
+OK  Registry storage layout = snapshot (unchanged) (32 entries)
+abis/ matches the compiled contracts (full shape, not just names)
+```
+
+The injected-layout negative control printed `DRIFT` for both SuperPaymaster and Registry after
+inserting OZ `Ownable2Step._pendingOwner`, then concluded:
+
+```text
+negative control ok: the gate rejects an OZ Ownable2Step base
+```
+
+Validation gas was remeasured through EntryPoint v0.7:
+
+```text
+OP-011 SP validation gas 272723
+OP-011 PM verification limit 1150000
+OP-011 verification headroom 877277
+```
+
+## Daybreak re-review #7 — SP-R7
+
+The slash base deliberately excludes uncounted reservations created with the pre-5.5.1 `Inflight`
+shape. Such a record decodes with `counted == false`, is absent from `inflightReserved`, and therefore
+cannot be included safely without an explicit migration. This state is unreachable on every release
+target: live Sepolia runs `SuperPaymaster-5.4.2`, whose storage layout has no `_inflight` mapping, and
+OP is a fresh deployment. The upgrade manifest must assert, before execution, that the observed FROM
+version is exactly `SuperPaymaster-5.4.2`; this is a manifest requirement, not an operator assumption.
+An upgrade from any other FROM version is outside this release's proven state set and must stop.
+The executable manifest collector enforces this requirement at
+`script/upgrade/sp_upgrade_exec.py:321-322` before it reads or constructs the remaining upgrade
+state.
+
+`SuperPaymasterLens.dryRunValidation` now rejects a computed reservation above `type(uint96).max`
+before operator-balance or token previews, matching production admission. The new public reason code
+bumps the lens to `SuperPaymasterLens-1.2.2`; SuperPaymaster remains `SuperPaymaster-5.5.1` because its
+ABI and storage layout are unchanged.
+
+The 10% aPNTs-price and 20% emergency-price lower limits now round upward, so a non-divisible
+reference accepts the exact mathematical lower boundary and rejects one unit below it. `queueSlash`
+now gives owner precedence when the owner and BLS aggregator addresses overlap, including during the
+global BLS cooldown floor. Finally, the successor deployment template records the enforced five-day
+verifier delay and cites `contracts/src/modules/monitoring/BLSAggregator.sol:445` (derived from the
+five-day case window at line 436).
+
+### Re-review #7 mutation proof and verification
+
+For SP-R7-L-02, both exact lower-bound expressions were temporarily changed back to truncating
+division. The two non-divisible boundary regressions then failed as follows:
+
+```text
+[FAIL: next call did not revert as expected] test_SetAPNTSPrice_NonDivisibleLowerBoundaryIsExact() (gas: 37445)
+[FAIL: next call did not revert as expected] test_EmergencySetPrice_NonDivisibleLowerBoundaryIsExact() (gas: 121906)
+```
+
+For SP-R7-L-03, the `actor != owner()` guard was temporarily removed. The overlap regression then
+failed as follows:
+
+```text
+[FAIL: SlashCooldown()] test_QueueSlash_OwnerPrecedenceWhenOwnerIsBlsAggregator() (gas: 180166)
+```
+
+Both mutations were reverted before the final verification. The final full-tree lines, run with
+`-vvvv` once for each final green EVM pass, were:
+
+```text
+Ran 167 test suites in 602.41s (2460.49s CPU time): 1901 tests passed, 0 failed, 71 skipped (1972 total tests)
+Ran 167 test suites in 498.46s (2496.89s CPU time): 1779 tests passed, 0 failed, 43 skipped (1822 total tests)
+```
+
+The first line is Cancun and the second is Prague. Prague used isolated `out/prague` and
+`cache/prague` directories. An earlier Cancun discovery run exposed three pre-existing fuzz-helper
+expectations that still rounded the aPNTs lower bound downward; those helpers were corrected to the
+same ceiling rule, their fixed-seed focused regressions passed, and the quoted Cancun line is the
+single final green full-tree confirmation.
+
+Final deployable sizes were:
+
+```text
+SuperPaymaster 16265 B headroom 8311
+SuperPaymasterAdmin 22156 B headroom 2420
+SuperPaymasterLens 5525 B headroom 19051
+Registry 23306 B headroom 1270
+BLSAggregator 24387 B headroom 189
+xPNTsTokenV2 20008 B headroom 4568
+xPNTsTokenV2Ext 22543 B headroom 2033
+OK: SuperPaymaster core headroom 8311 B >= 1024; all 7 deployables <= EIP-170
+```
+
+The storage and ABI gates concluded:
+
+```text
+OK: SuperPaymaster core and SuperPaymasterAdmin storage layouts identical (45 entries, last = __gap@44)
+OK: core and extension storage layouts identical (57 entries)
+OK  SuperPaymaster storage layout = snapshot + 8 allowed appended entries (45 entries)
+OK  Registry storage layout = snapshot (unchanged) (32 entries)
+abis/ matches the compiled contracts (full shape, not just names)
+```
