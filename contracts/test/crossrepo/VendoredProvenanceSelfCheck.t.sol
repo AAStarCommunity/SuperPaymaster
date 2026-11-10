@@ -21,7 +21,7 @@ import "forge-std/Test.sol";
  *
  *         What this file can and cannot do:
  *           - CAN, offline, with no new infrastructure: re-run each header's own recipe
- *             ("strip N header lines, reverse the one declared deviation, sha256 the rest")
+ *             ("strip N header lines, reverse the declared deviations, sha256 the rest")
  *             and require the result to equal the upstream digest the header names. That
  *             catches any local edit to a vendored BODY. The header is NOT covered by
  *             that recipe — it is stripped before hashing — so the whole file is pinned
@@ -58,7 +58,7 @@ contract VendoredProvenanceSelfCheck is Test {
     ///      say nothing about the header — and the header is where the provenance claim
     ///      lives. Updating a vendored copy has to touch these constants deliberately.
     bytes32 internal constant VERIFIER_FILE_SHA =
-        0x1e5fd65daf17fba09cfe3d6ad548c2cb116462284941f1d9db832c79f0f4e875;
+        0x6e6d50024a429285cd26d5afcbf7d888c8d8a1b62b51dfc590712878700f6679;
     bytes32 internal constant IFACE_FILE_SHA =
         0x730c30c56622e6cd82769bf252b47ad9f50bac5f17c2f7e68af049367418c17a;
 
@@ -68,6 +68,8 @@ contract VendoredProvenanceSelfCheck is Test {
     string internal constant LOCAL_IMPORT = 'import {IFraudProofVerifier} from "./IFraudProofVerifier.sol";';
     string internal constant UPSTREAM_IMPORT =
         'import {IFraudProofVerifier} from "../interfaces/IFraudProofVerifier.sol";';
+    string internal constant LOCAL_VERIFY = ") external view virtual override returns (bool) {";
+    string internal constant UPSTREAM_VERIFY = ") external view override returns (bool) {";
 
     /// The header is part of the claim, so pin the whole file too. The body assertions
     /// strip the header before hashing and are blind to it by construction; editing the
@@ -95,6 +97,7 @@ contract VendoredProvenanceSelfCheck is Test {
     function test_VendoredVerifierStillHashesToUpstreamOnceTheDeclaredDeviationIsReversed() public view {
         bytes memory body = _stripLines(bytes(vm.readFile(VERIFIER_PATH)), VERIFIER_HEADER_LINES);
         bytes memory restored = _replaceOnce(body, bytes(LOCAL_IMPORT), bytes(UPSTREAM_IMPORT));
+        restored = _replaceOnce(restored, bytes(LOCAL_VERIFY), bytes(UPSTREAM_VERIFY));
         assertEq(
             sha256(restored),
             VERIFIER_UPSTREAM_SHA,

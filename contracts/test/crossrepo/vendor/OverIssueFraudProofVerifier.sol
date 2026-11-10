@@ -3,10 +3,10 @@
 //   path   : contracts/src/verifiers/OverIssueFraudProofVerifier.sol
 //   commit : 8395c94c (PR #240, CC-115 B1, merged 2026-08-29T11:31:43Z)
 //   sha256 : 6616d5a70af6bd4dedd1982d5874376c014430cdad8af1e0e461bdb120af33ec   <- of the UPSTREAM file, before the deviation noted below
-// Deviations from upstream: EXACTLY ONE, the import path on the line below, rewritten
+// Deviations from upstream: EXACTLY TWO: the import path below is rewritten and `verify`
 //   from: import {IFraudProofVerifier} from "../interfaces/IFraudProofVerifier.sol";
 //   to:   import {IFraudProofVerifier} from "./IFraudProofVerifier.sol";
-// because both files live side by side here rather than in src/interfaces + src/verifiers.
+// because both files live side by side; `verify` is also virtual for the anchored test adapter.
 // Nothing else changed — not the pragma (^0.8.19 is satisfied by SP's 0.8.33), not a
 // comment, not a byte of logic.
 // SPDX-License-Identifier: Apache-2.0
@@ -175,7 +175,7 @@ contract OverIssueFraudProofVerifier is IFraudProofVerifier {
         uint256 fraudProofId,
         address[] calldata guiltyGuardians,
         bytes calldata fraudProof
-    ) external view override returns (bool) {
+    ) external view virtual override returns (bool) {
         try this.check(domainDigest, fraudProofId, guiltyGuardians, fraudProof) returns (bool ok) {
             return ok;
         } catch {

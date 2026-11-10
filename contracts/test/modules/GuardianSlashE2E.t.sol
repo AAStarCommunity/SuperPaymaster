@@ -270,7 +270,15 @@ contract GuardianSlashE2ETest is Test {
             sorted[i] = signers[i];
         }
         bytes32 expected = keccak256(
-            abi.encode(domain, keccak256("SuperPaymaster.BLS.SignersCommitment.v1"), pid, expectedMsgHash, mask, sorted)
+            abi.encode(
+                domain,
+                keccak256("SuperPaymaster.BLS.SignersCommitment.v1"),
+                pid,
+                expectedMsgHash,
+                mask,
+                sorted,
+                blockhash(block.number - 1)
+            )
         );
         assertEq(stored, expected, "off-chain recompute must match on-chain commitment");
     }

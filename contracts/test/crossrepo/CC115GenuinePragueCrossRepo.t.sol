@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {BLSAggregator} from "src/modules/monitoring/BLSAggregator.sol";
 import {BLS} from "src/utils/BLS.sol";
 import {FraudProofVerifierConformance as Conformance} from "../helpers/FraudProofVerifierConformance.sol";
-import {OverIssueFraudProofVerifier} from "./vendor/OverIssueFraudProofVerifier.sol";
+import {AnchoredOverIssueFraudProofVerifier} from "./AnchoredOverIssueFraudProofVerifier.sol";
 import {XRegistry, XStaking, XDVT, XSP, XToken} from "./CC115CrossRepoConformance.t.sol";
 
 /**
@@ -86,7 +86,7 @@ contract CC115GenuinePragueCrossRepo is Test {
     XRegistry internal registry;
     XStaking internal staking;
     XToken internal token;
-    OverIssueFraudProofVerifier internal verifier;
+    AnchoredOverIssueFraudProofVerifier internal verifier;
 
     address internal owner = address(0x0BEE);
     uint256 internal constant MIN_STAKE = 30 ether;
@@ -139,7 +139,7 @@ contract CC115GenuinePragueCrossRepo is Test {
         }
 
         // The real DVT verifier, bound to aggA and this Registry.
-        verifier = new OverIssueFraudProofVerifier(address(aggA), address(registry));
+        verifier = new AnchoredOverIssueFraudProofVerifier(address(aggA), address(registry));
 
         // Drive SP's OWN consensus path with a REAL aggregate signature, so the anchor
         // the verifier will later recompute is written behind a real pairing check.
@@ -332,6 +332,7 @@ contract CC115GenuinePragueCrossRepo is Test {
         _skipWithoutPrague();
         bytes32 digest = aggA.fraudProofDigest(_fraudProofId(), guardians);
         uint256 id = _fraudProofId();
+        bytes32 anchor = blockhash(block.number - 1);
 
         assertTrue(verifier.verify(digest, id, guardians, _fraudProof()), "baseline accepted");
 
@@ -340,7 +341,7 @@ contract CC115GenuinePragueCrossRepo is Test {
                 digest,
                 id,
                 guardians,
-                abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH + 1, address(token), MASK, guardians)
+                abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH + 1, address(token), MASK, guardians, anchor)
             ),
             "a different epoch must not reproduce the commitment"
         );
@@ -349,13 +350,16 @@ contract CC115GenuinePragueCrossRepo is Test {
                 digest,
                 id,
                 guardians,
-                abi.encode(PID, address(0xDEAD), SLASH_LEVEL, EPOCH, address(token), MASK, guardians)
+                abi.encode(PID, address(0xDEAD), SLASH_LEVEL, EPOCH, address(token), MASK, guardians, anchor)
             ),
             "a different operator must not reproduce the commitment"
         );
         assertFalse(
             verifier.verify(
-                digest, id, guardians, abi.encode(PID, OPERATOR, uint8(2), EPOCH, address(token), MASK, guardians)
+                digest,
+                id,
+                guardians,
+                abi.encode(PID, OPERATOR, uint8(2), EPOCH, address(token), MASK, guardians, anchor)
             ),
             "a different slash level must not reproduce the commitment"
         );
@@ -364,15 +368,27 @@ contract CC115GenuinePragueCrossRepo is Test {
                 digest,
                 id,
                 guardians,
-                abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), uint256(0x3F), guardians)
+                abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), uint256(0x3F), guardians, anchor)
             ),
             "a different signer mask must not reproduce the commitment"
         );
         assertFalse(
             verifier.verify(
-                digest, id, guardians, abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(0xBEEF), MASK, guardians)
+                digest,
+                id,
+                guardians,
+                abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(0xBEEF), MASK, guardians, anchor)
             ),
             "a different disputed token must not reproduce the commitment"
+        );
+        assertFalse(
+            verifier.verify(
+                digest,
+                id,
+                guardians,
+                abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians, bytes32(uint256(1)))
+            ),
+            "a different anchor block must not reproduce the commitment"
         );
     }
 
@@ -392,9 +408,11 @@ contract CC115GenuinePragueCrossRepo is Test {
     }
 
     /// DVT's proof ABI: (proposalId, operator, slashLevel, epoch, disputedToken,
-    /// signerMask, claimedSigners).
+    /// signerMask, claimedSigners, anchorBlockHash).
     function _fraudProof() internal view returns (bytes memory) {
-        return abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians);
+        return abi.encode(
+            PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians, blockhash(block.number - 1)
+        );
     }
 
     /// SP's slash pre-image, reconstructed field-by-field rather than read off the

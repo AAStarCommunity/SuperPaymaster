@@ -14,8 +14,6 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 /// @dev BLSAggregator rejects a zero DVT_VALIDATOR and makes a typed call into it
 ///      after execution, so the address must hold code.
 contract PragueStateMachineDVTStub {
-
-
     function markProposalExecuted(uint256) external {}
 }
 
@@ -182,19 +180,34 @@ contract CC48PragueStateMachine is Test {
     function test_Prague_GenericProposalRecordsSigners() public {
         _skipWithoutPrague();
         uint256 id = 7191;
-        bytes memory callData = abi.encodeCall(this.observeGenericCommitment, (id));
-        bytes32 h = keccak256(abi.encode(
-            agg.domainSeparator(), agg.TAG_PROPOSAL(), id, address(this), keccak256(callData), uint256(3)
-        ));
+        uint256 key = uint256(keccak256(abi.encode(agg.TAG_PROPOSAL(), id)));
+        bytes memory callData = abi.encodeCall(this.observeGenericCommitment, (key));
+        bytes32 h = keccak256(
+            abi.encode(agg.domainSeparator(), agg.TAG_PROPOSAL(), id, address(this), keccak256(callData), uint256(3))
+        );
         address[] memory signers = new address[](3);
-        for (uint256 i; i < 3; ++i) signers[i] = validators[i];
-        bytes32 expected = keccak256(abi.encode(
-            agg.domainSeparator(), agg.TAG_SIGNERS_COMMITMENT(), id, h, uint256(7), signers
-        ));
-        agg.executeProposal(id, address(this), callData, 3, _proof(h, 3));
+        for (uint256 i; i < 3; ++i) {
+            signers[i] = validators[i];
+        }
+        bytes32 expected = keccak256(
+            abi.encode(
+                agg.domainSeparator(),
+                agg.TAG_SIGNERS_COMMITMENT(),
+                key,
+                h,
+                uint256(7),
+                signers,
+                blockhash(block.number - 1)
+            )
+        );
+        bytes memory proof = _proof(h, 3);
+        agg.executeProposal(id, address(this), callData, 3, proof);
         assertEq(observedGenericCommitment, expected);
-        assertEq(agg.proposalSignersCommitment(id), expected);
-        assertTrue(agg.executedProposals(id));
+        assertEq(agg.proposalSignersCommitment(key), expected);
+        assertFalse(agg.executedProposals(id));
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.ProposalAlreadyExecuted.selector, id));
+        agg.executeProposal(id, address(this), callData, 3, proof);
     }
 
     // =================================================================

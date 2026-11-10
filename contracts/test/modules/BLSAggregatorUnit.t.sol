@@ -209,8 +209,8 @@ contract BLSAggregatorUnitTest is Test {
         BLS.G1Point memory pk = _key(0xAB);
 
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(14)));
-        bls.registerBLSPublicKey(address(0x42), pk, 14, _popFor(pk, address(0x42)));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(65)));
+        bls.registerBLSPublicKey(address(0x42), pk, 65, _popFor(pk, address(0x42)));
     }
 
     function test_RegisterBLSPublicKey_SlotCollision_Reverts() public {
@@ -317,16 +317,16 @@ contract BLSAggregatorUnitTest is Test {
     function test_SetMinThreshold_ExceedsMax_Reverts() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold > Max"));
-        bls.setMinThreshold(14);
+        bls.setMinThreshold(65);
     }
 
     function test_SetMinThreshold_ExactMax_Success() public {
         vm.startPrank(owner);
         // Invariant: minThreshold <= defaultThreshold — raise default first
-        bls.setDefaultThreshold(13);
-        assertEq(bls.defaultThreshold(), 13);
-        bls.setMinThreshold(13);
-        assertEq(bls.minThreshold(), 13);
+        bls.setDefaultThreshold(64);
+        assertEq(bls.defaultThreshold(), 64);
+        bls.setMinThreshold(64);
+        assertEq(bls.minThreshold(), 64);
         vm.stopPrank();
     }
 
@@ -337,7 +337,7 @@ contract BLSAggregatorUnitTest is Test {
     function test_SetDefaultThreshold_ExceedsMax_Reverts() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold > Max"));
-        bls.setDefaultThreshold(14);
+        bls.setDefaultThreshold(65);
     }
 
     // ========================================
@@ -366,7 +366,7 @@ contract BLSAggregatorUnitTest is Test {
         assertEq(bls.DVT_VALIDATOR(), dvt);
         assertEq(bls.minThreshold(), 3); // generic path floor unchanged; slash floor is SLASH_THRESHOLD_FLOOR=2
         assertEq(bls.defaultThreshold(), 7);
-        assertEq(bls.MAX_VALIDATORS(), 13);
+        assertEq(bls.MAX_VALIDATORS(), 64);
         // Per-severity slash table bootstrap (N=3): WARNING 2, MINOR 3, MAJOR 3.
         assertEq(bls.slashThresholds(0), 2);
         assertEq(bls.slashThresholds(1), 3);
