@@ -729,7 +729,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## PolicyRegistry
 
 - **Source:** `contracts/src/core/PolicyRegistry.sol`
-- **Functions:** 24 · **Events:** 10 · **Errors:** 6
+- **Functions:** 25 · **Events:** 10 · **Errors:** 7
 - **Title:** PolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
 - Reference implementation of {IPolicyRegistry}. See the interface for the full design         invariants. This contract is the single on-chain source of truth that staked consumers         (SuperPaymaster #283, AirAccount #70) read during validation, and that DVT nodes /         the slash path reference so that "what a node enforced == what is punished".
 
@@ -744,6 +744,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x29210a4b` | `getAssetPolicy(address,address)` | view | — |  |
 | `0x715904dd` | `getAssetSpend(address,address)` | view | — |  |
 | `0x7ac0774b` | `getTargetScope(address,address)` | view | — |  |
+| `0x0c4752d2` | `getTargetSpend(address,address,address)` | view | — |  |
 | `0xcb9fa794` | `getTargetVelocity(address,address,address)` | view | — |  |
 | `0x452a9320` | `guardian()` | view | — | AirAccount 2-of-3 RecoveryService — immediate tighten / freeze. |
 | `0x7df732ea` | `isAuthorizedConsumer(address)` | view | — |  |
@@ -854,6 +855,21 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `(bool,bool,uint64,bool)` |  |
+
+#### `getTargetSpend(address sender, address target, address asset)`
+
+`0x0c4752d2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `spentInWindow` | `uint256` | cumulative native-unit spend effective in the current target window;         zero when the window expired, velocity is disabled, or no fresh limit is configured. |
+| `windowStart` | `uint64` | unix timestamp the stored target window began. |
 
 #### `getTargetVelocity(address sender, address target, address asset)`
 
@@ -989,6 +1005,8 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Set one asset-specific target velocity. `onlyTimelock`.
 
+*@dev* Reverts {VelocityDisabled} while the target's velocity window is zero. Disabling a      target window invalidates every prior limit; each asset needs a fresh call after the      window is re-enabled.
+
 | param | type | description |
 |---|---|---|
 | `sender` | `address` |  |
@@ -1029,6 +1047,8 @@ Authoritative, auto-generated reference for every external/public function, even
 `0xac0a0e81` · nonpayable · access: —
 
 > Immediately lower an existing asset-specific target velocity.
+
+*@dev* Reverts {VelocityDisabled} while the target's velocity window is zero.
 
 | param | type | description |
 |---|---|---|
@@ -1091,6 +1111,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc8922921` | `NotStrictlyTighter()` |
 | `0xcad4da2a` | `NotTimelock()` |
 | `0x75ae9c29` | `SenderIsFrozen()` |
+| `0x071caaf1` | `VelocityDisabled()` |
 | `0xd92e233d` | `ZeroAddress()` |
 
 ## IGuardianExitGate
@@ -3517,7 +3538,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IPolicyRegistry
 
 - **Source:** `contracts/src/interfaces/v3/IPolicyRegistry.sol`
-- **Functions:** 21 · **Events:** 10 · **Errors:** 6
+- **Functions:** 22 · **Events:** 10 · **Errors:** 7
 - **Title:** IPolicyRegistry — sender-keyed, governance-gated DVT trigger / spend policy
 - Single source of truth for "is this op within policy / does it need DVT co-sign".         Read by staked EntryPoint consumers (SuperPaymaster) during         `validatePaymasterUserOp`, by AirAccount accounts (#70) during `validateUserOp`,         and by DVT nodes / the slash path off-chain. ALL of those read the SAME registry         and the SAME schema so that the policy a node enforces == the policy the slash         path punishes against (fair punishment).
 
@@ -3530,6 +3551,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x29210a4b` | `getAssetPolicy(address,address)` | view | — |  |
 | `0x715904dd` | `getAssetSpend(address,address)` | view | — |  |
 | `0x7ac0774b` | `getTargetScope(address,address)` | view | — |  |
+| `0x0c4752d2` | `getTargetSpend(address,address,address)` | view | — |  |
 | `0xcb9fa794` | `getTargetVelocity(address,address,address)` | view | — |  |
 | `0x452a9320` | `guardian()` | view | — |  |
 | `0x7df732ea` | `isAuthorizedConsumer(address)` | view | — |  |
@@ -3619,6 +3641,21 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `(bool,bool,uint64,bool)` |  |
+
+#### `getTargetSpend(address sender, address target, address asset)`
+
+`0x0c4752d2` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `sender` | `address` |  |
+| `target` | `address` |  |
+| `asset` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `spentInWindow` | `uint256` | cumulative native-unit spend effective in the current target window;         zero when the window expired, velocity is disabled, or no fresh limit is configured. |
+| `windowStart` | `uint64` | unix timestamp the stored target window began. |
 
 #### `getTargetVelocity(address sender, address target, address asset)`
 
@@ -3750,6 +3787,8 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Set one asset-specific target velocity. `onlyTimelock`.
 
+*@dev* Reverts {VelocityDisabled} while the target's velocity window is zero. Disabling a      target window invalidates every prior limit; each asset needs a fresh call after the      window is re-enabled.
+
 | param | type | description |
 |---|---|---|
 | `sender` | `address` |  |
@@ -3786,6 +3825,8 @@ Authoritative, auto-generated reference for every external/public function, even
 `0xac0a0e81` · nonpayable · access: —
 
 > Immediately lower an existing asset-specific target velocity.
+
+*@dev* Reverts {VelocityDisabled} while the target's velocity window is zero.
 
 | param | type | description |
 |---|---|---|
@@ -3838,6 +3879,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc8922921` | `NotStrictlyTighter()` |
 | `0xcad4da2a` | `NotTimelock()` |
 | `0x75ae9c29` | `SenderIsFrozen()` |
+| `0x071caaf1` | `VelocityDisabled()` |
 | `0xd92e233d` | `ZeroAddress()` |
 
 ## IRegistry

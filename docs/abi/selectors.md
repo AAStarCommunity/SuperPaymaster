@@ -112,6 +112,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x0b3167cd` | `receiveWithAuthorization(address,address,uint256,uint256,uint256,bytes32,address,bytes)` | GTokenAuthorization |
 | `0x0bb8bcaf` | `extensionCodehash()` | xPNTsFactoryV2 |
 | `0x0c2fd48b` | `cancelSP()` | xPNTsTokenV2Ext |
+| `0x0c4752d2` | `getTargetSpend(address,address,address)` | PolicyRegistry |
+| `0x0c4752d2` | `getTargetSpend(address,address,address)` | IPolicyRegistry |
 | `0x0c883112` | `cancelEmergencyPrice()` | SuperPaymasterAdmin |
 | `0x0cfb14b0` | `totalDeployed()` | PaymasterFactory |
 | `0x0d8b9eab` | `permissionlessBLSRegistration()` | BLSAggregator |
@@ -1514,6 +1516,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x03a16256` | `TotalStakeExceedsCap()` | GTokenStaking |
 | `0x0418cb66` | `ProposalExecutionFailed(uint256,bytes)` | BLSAggregator |
 | `0x0590fb9f` | `AmountOverflow()` | MicroPaymentChannel |
+| `0x071caaf1` | `VelocityDisabled()` | PolicyRegistry |
 | `0x07df4537` | `BurnExceedsAllowance()` | xPNTsTokenV2 |
 | `0x0819bdcd` | `SignatureExpired()` | xPNTsTokenV2 |
 | `0x08a5d5c0` | `VerifierIsDelegatedEoa(address)` | BLSAggregator |

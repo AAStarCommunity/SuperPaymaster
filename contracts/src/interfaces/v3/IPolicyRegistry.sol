@@ -98,10 +98,10 @@ interface IPolicyRegistry {
     ///      daily limit, no amount-based DVT trigger.
     struct AssetPolicy {
         uint128 dvtTriggerAmount; // single-tx amount ≥ this → REQUIRE_DVT; 0 ⇒ trigger DISABLED
-        uint128 perTxHardCap;     // single-tx amount  > this → REJECT (only when configured)
-        uint256 dailyLimit;       // cumulative spend over `windowSeconds` → REJECT when exceeded
-        uint64 windowSeconds;     // daily-limit window length (Q2); 0 ⇒ DEFAULT_WINDOW (1 day)
-        bool configured;          // false ⇒ no policy set for this (sender, asset) ⇒ UNRESTRICTED
+        uint128 perTxHardCap; // single-tx amount  > this → REJECT (only when configured)
+        uint256 dailyLimit; // cumulative spend over `windowSeconds` → REJECT when exceeded
+        uint64 windowSeconds; // daily-limit window length (Q2); 0 ⇒ DEFAULT_WINDOW (1 day)
+        bool configured; // false ⇒ no policy set for this (sender, asset) ⇒ UNRESTRICTED
     }
 
     /// @notice Input form of {AssetPolicy} for governance setters (no `configured` flag).
@@ -116,10 +116,10 @@ interface IPolicyRegistry {
     /// @dev Selector allow-list lives in a nested mapping in storage (see STORAGE SHAPE),
     ///      so this view struct returns scalars only; query selectors via {isSelectorAllowed}.
     struct ContractScope {
-        bool allowed;             // target on this sender's call-target allowlist
-        bool requireDVTAlways;    // this target always requires DVT co-sign regardless of amount
-        uint64 velocityWindow;    // velocity window length, seconds (0 ⇒ no velocity limit)
-        bool configured;          // false ⇒ no scope set for this (sender, target)
+        bool allowed; // target on this sender's call-target allowlist
+        bool requireDVTAlways; // this target always requires DVT co-sign regardless of amount
+        uint64 velocityWindow; // velocity window length, seconds (0 ⇒ no velocity limit)
+        bool configured; // false ⇒ no scope set for this (sender, target)
     }
 
     /// @notice Input form of {ContractScope} for governance setters; selectors set as a batch.
@@ -183,13 +183,10 @@ interface IPolicyRegistry {
     ///         AFTER this `amount` would post (0 when REJECT due to a cap; `type(uint256).max` when
     ///         the asset is UNRESTRICTED / not configured). Lets the consumer surface "how much
     ///         headroom is left" without a second call.
-    function checkPolicy(
-        address sender,
-        address target,
-        address asset,
-        uint256 amount,
-        bytes4 selector
-    ) external view returns (PolicyDecision decision, uint256 remainingDaily);
+    function checkPolicy(address sender, address target, address asset, uint256 amount, bytes4 selector)
+        external
+        view
+        returns (PolicyDecision decision, uint256 remainingDaily);
 
     // ─────────────────────────────────────────────────────────────────────────
     // 2. Execution-time debit hook  (postOp / post-execution updates spent[sender])
@@ -219,13 +216,7 @@ interface IPolicyRegistry {
     /// @param asset    the asset spent (native units; ETH sentinel 0xEee…EEeE = ETH; address(0) invalid).
     /// @param amount   the asset amount actually spent.
     /// @param selector the selector invoked.
-    function recordSpend(
-        address sender,
-        address target,
-        address asset,
-        uint256 amount,
-        bytes4 selector
-    ) external;
+    function recordSpend(address sender, address target, address asset, uint256 amount, bytes4 selector) external;
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3a. Governance — LOOSENING path  (Q5: gated by an EXTERNAL OZ TimelockController)
@@ -242,11 +233,7 @@ interface IPolicyRegistry {
     /// @notice Set a (sender, asset) policy. `onlyTimelock` — reached only after the timelock's
     ///         2-day delay, so it may loosen or tighten. `asset` must not be `address(0)`
     ///         (use the ETH sentinel for ETH). Emits {AssetPolicySet}.
-    function setAssetPolicy(
-        address sender,
-        address asset,
-        AssetPolicyInput calldata params
-    ) external;
+    function setAssetPolicy(address sender, address asset, AssetPolicyInput calldata params) external;
 
     /// @notice Set a target-global (sender, target) scope and ADD selectors.
     ///         (Q3: additive). `onlyTimelock`. Emits {ContractScopeSet} + {SelectorScopeSet}.
@@ -256,13 +243,12 @@ interface IPolicyRegistry {
     ///      There is intentionally no single-call "replace": loosen adds, tighten removes — so
     ///      "swap the selector set" = tighten away the stale ones, then set the new ones. This
     ///      keeps loosen/tighten direction unambiguous for the timelock-vs-guardian split.
-    function setContractScope(
-        address sender,
-        address target,
-        ContractScopeInput calldata params
-    ) external;
+    function setContractScope(address sender, address target, ContractScopeInput calldata params) external;
 
     /// @notice Set one asset-specific target velocity. `onlyTimelock`.
+    /// @dev Reverts {VelocityDisabled} while the target's velocity window is zero. Disabling a
+    ///      target window invalidates every prior limit; each asset needs a fresh call after the
+    ///      window is re-enabled.
     function setTargetVelocity(address sender, address target, address asset, uint128 limit) external;
 
     /// @notice Lift a freeze on `sender`. Unfreeze is a loosening → `onlyTimelock`.
@@ -274,21 +260,14 @@ interface IPolicyRegistry {
 
     /// @notice Immediately tighten a (sender, asset) policy. MUST revert unless the new params
     ///         are ≤ current on every dimension (NotStrictlyTighter). `onlyGuardianOrTimelock`.
-    function tightenAssetPolicy(
-        address sender,
-        address asset,
-        AssetPolicyInput calldata params
-    ) external;
+    function tightenAssetPolicy(address sender, address asset, AssetPolicyInput calldata params) external;
 
     /// @notice Immediately tighten target-global scope fields.
     ///         `onlyGuardianOrTimelock`.
-    function tightenContractScope(
-        address sender,
-        address target,
-        ContractScopeInput calldata params
-    ) external;
+    function tightenContractScope(address sender, address target, ContractScopeInput calldata params) external;
 
     /// @notice Immediately lower an existing asset-specific target velocity.
+    /// @dev Reverts {VelocityDisabled} while the target's velocity window is zero.
     function tightenTargetVelocity(address sender, address target, address asset, uint128 limit) external;
 
     /// @notice Immediately freeze `sender`: {checkPolicy} returns REJECT for all ops. Immediate
@@ -312,31 +291,30 @@ interface IPolicyRegistry {
     // 4. Views (config + counters + governance state)
     // ─────────────────────────────────────────────────────────────────────────
 
-    function getAssetPolicy(address sender, address asset)
-        external
-        view
-        returns (AssetPolicy memory);
+    function getAssetPolicy(address sender, address asset) external view returns (AssetPolicy memory);
 
-    function getTargetScope(address sender, address target)
-        external
-        view
-        returns (ContractScope memory);
+    function getTargetScope(address sender, address target) external view returns (ContractScope memory);
 
     function getTargetVelocity(address sender, address target, address asset)
         external
         view
         returns (uint128 limit, bool configured);
 
-    function isSelectorAllowed(address sender, address target, bytes4 selector)
-        external
-        view
-        returns (bool);
+    function isSelectorAllowed(address sender, address target, bytes4 selector) external view returns (bool);
 
     /// @return spentInWindow cumulative native-unit spend in the current window for this asset.
     ///         It is `uint256` so every amount accepted by {checkPolicy} can be recorded without
     ///         narrowing, including cumulative spend above `type(uint128).max`.
     /// @return windowStart unix timestamp the current window began.
     function getAssetSpend(address sender, address asset)
+        external
+        view
+        returns (uint256 spentInWindow, uint64 windowStart);
+
+    /// @return spentInWindow cumulative native-unit spend effective in the current target window;
+    ///         zero when the window expired, velocity is disabled, or no fresh limit is configured.
+    /// @return windowStart unix timestamp the stored target window began.
+    function getTargetSpend(address sender, address target, address asset)
         external
         view
         returns (uint256 spentInWindow, uint64 windowStart);
@@ -369,24 +347,10 @@ interface IPolicyRegistry {
         uint64 effectiveWindow
     );
     event ContractScopeSet(
-        address indexed sender,
-        address indexed target,
-        bool allowed,
-        bool requireDVTAlways,
-        uint64 velocityWindow
+        address indexed sender, address indexed target, bool allowed, bool requireDVTAlways, uint64 velocityWindow
     );
-    event TargetVelocitySet(
-        address indexed sender,
-        address indexed target,
-        address indexed asset,
-        uint128 limit
-    );
-    event SelectorScopeSet(
-        address indexed sender,
-        address indexed target,
-        bytes4 indexed selector,
-        bool allowed
-    );
+    event TargetVelocitySet(address indexed sender, address indexed target, address indexed asset, uint128 limit);
+    event SelectorScopeSet(address indexed sender, address indexed target, bytes4 indexed selector, bool allowed);
 
     /// @dev Emitted by the immediate tighten path; `actor` is the guardian or the timelock.
     event PolicyTightened(address indexed sender, address indexed actor);
@@ -395,11 +359,7 @@ interface IPolicyRegistry {
     event SenderUnfrozen(address indexed sender);
 
     event SpendRecorded(
-        address indexed sender,
-        address indexed asset,
-        address indexed target,
-        uint256 amount,
-        bytes4 selector
+        address indexed sender, address indexed asset, address indexed target, uint256 amount, bytes4 selector
     );
 
     event GuardianUpdated(address indexed oldGuardian, address indexed newGuardian);
@@ -409,10 +369,11 @@ interface IPolicyRegistry {
     // 6. Errors
     // ─────────────────────────────────────────────────────────────────────────
 
-    error NotTimelock();             // a `onlyTimelock` setter called by a non-timelock address
-    error NotGuardianOrTimelock();   // a tighten/freeze called by neither guardian nor timelock
+    error NotTimelock(); // a `onlyTimelock` setter called by a non-timelock address
+    error NotGuardianOrTimelock(); // a tighten/freeze called by neither guardian nor timelock
     error NotAuthorizedConsumer();
-    error NotStrictlyTighter();      // a tighten* received params that are not a tightening
+    error NotStrictlyTighter(); // a tighten* received params that are not a tightening
+    error VelocityDisabled(); // target velocity cannot be set/tightened with a zero window
     error SenderIsFrozen();
     error ZeroAddress();
 }

@@ -47,6 +47,7 @@ contract PolicyRegistry is IPolicyRegistry {
     struct TargetVelocity {
         uint128 limit;
         bool configured;
+        uint64 epoch;
     }
 
     struct TargetScope {
@@ -54,21 +55,20 @@ contract PolicyRegistry is IPolicyRegistry {
         bool requireDVTAlways;
         uint64 velocityWindow;
         bool configured;
+        uint64 velocityEpoch;
     }
 
     // policy config (governance-gated)
     mapping(address sender => mapping(address asset => AssetPolicy)) private _assetPolicy;
     mapping(address sender => mapping(address target => TargetScope)) private _contractScope;
-    mapping(address sender => mapping(address target => mapping(bytes4 selector => bool)))
-        private _selectorAllowed;
-    mapping(address sender => mapping(address target => mapping(address asset => TargetVelocity)))
-        private _targetVelocity;
+    mapping(address sender => mapping(address target => mapping(bytes4 selector => bool))) private _selectorAllowed;
+    mapping(address sender => mapping(address target => mapping(address asset => TargetVelocity))) private
+        _targetVelocity;
     mapping(address sender => bool) private _frozen;
 
     // sender-keyed cumulative spend / velocity counters
     mapping(address sender => mapping(address asset => SpendCounter)) private _assetSpend;
-    mapping(address sender => mapping(address target => mapping(address asset => SpendCounter)))
-        private _targetSpend;
+    mapping(address sender => mapping(address target => mapping(address asset => SpendCounter))) private _targetSpend;
 
     // governance machinery (Q5: delay provided by the external TimelockController)
     mapping(address consumer => bool) private _authorizedConsumer;
@@ -129,11 +129,7 @@ contract PolicyRegistry is IPolicyRegistry {
 
     /// @dev View-safe window roll: returns the spend that COUNTS right now without writing.
     ///      If the stored window has elapsed, the effective spend is 0 (a fresh window).
-    function _effectiveSpent(SpendCounter storage c, uint64 windowSeconds)
-        private
-        view
-        returns (uint256)
-    {
+    function _effectiveSpent(SpendCounter storage c, uint64 windowSeconds) private view returns (uint256) {
         uint64 w = _window(windowSeconds);
         // windowStart == 0 (never spent) ⇒ block.timestamp >= w ⇒ fresh window ⇒ 0.
         if (block.timestamp >= uint256(c.windowStart) + w) return 0;
@@ -157,13 +153,11 @@ contract PolicyRegistry is IPolicyRegistry {
     ///      have an explicit velocity limit; a missing pair rejects. Combine: any configured
     ///      dimension yielding REJECT ⇒ REJECT; else any
     ///      configured dimension yielding REQUIRE_DVT ⇒ REQUIRE_DVT; else ALLOW.
-    function checkPolicy(
-        address sender,
-        address target,
-        address asset,
-        uint256 amount,
-        bytes4 selector
-    ) external view returns (PolicyDecision decision, uint256 remainingDaily) {
+    function checkPolicy(address sender, address target, address asset, uint256 amount, bytes4 selector)
+        external
+        view
+        returns (PolicyDecision decision, uint256 remainingDaily)
+    {
         _requireValidAsset(asset);
 
         // (a) frozen sender ⇒ hard REJECT (explicit freeze is the one hard block, top priority).
@@ -200,9 +194,10 @@ contract PolicyRegistry is IPolicyRegistry {
             // limit fails closed so switching assets cannot bypass the target scope.
             if (cs.velocityWindow != 0) {
                 TargetVelocity storage velocity = _targetVelocity[sender][target][asset];
-                if (!velocity.configured) return (PolicyDecision.REJECT, 0);
-                uint256 targetSpent =
-                    _effectiveSpent(_targetSpend[sender][target][asset], cs.velocityWindow);
+                if (!velocity.configured || velocity.epoch != cs.velocityEpoch) {
+                    return (PolicyDecision.REJECT, 0);
+                }
+                uint256 targetSpent = _effectiveSpent(_targetSpend[sender][target][asset], cs.velocityWindow);
                 if (targetSpent + amount > velocity.limit) return (PolicyDecision.REJECT, 0);
             }
             // target flagged requireDVTAlways ⇒ REQUIRE_DVT regardless of amount.
@@ -220,13 +215,10 @@ contract PolicyRegistry is IPolicyRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /// @inheritdoc IPolicyRegistry
-    function recordSpend(
-        address sender,
-        address target,
-        address asset,
-        uint256 amount,
-        bytes4 selector
-    ) external onlyAuthorizedConsumer {
+    function recordSpend(address sender, address target, address asset, uint256 amount, bytes4 selector)
+        external
+        onlyAuthorizedConsumer
+    {
         _requireValidAsset(asset);
 
         // Advance the per-asset counter, rolling the window first if elapsed.
@@ -236,8 +228,8 @@ contract PolicyRegistry is IPolicyRegistry {
         // Advance the per-target velocity counter.
         TargetScope storage cs = _contractScope[sender][target];
         if (
-            cs.configured && cs.velocityWindow != 0
-                && _targetVelocity[sender][target][asset].configured
+            cs.configured && cs.velocityWindow != 0 && _targetVelocity[sender][target][asset].configured
+                && _targetVelocity[sender][target][asset].epoch == cs.velocityEpoch
         ) _advance(_targetSpend[sender][target][asset], cs.velocityWindow, amount);
 
         emit SpendRecorded(sender, asset, target, amount, selector);
@@ -264,10 +256,7 @@ contract PolicyRegistry is IPolicyRegistry {
     /// @inheritdoc IPolicyRegistry
     /// @dev Reached only via the timelock's delayed path, so no direction check is needed —
     ///      it may loosen or tighten. Immediate tightening uses {tightenAssetPolicy}.
-    function setAssetPolicy(address sender, address asset, AssetPolicyInput calldata params)
-        external
-        onlyTimelock
-    {
+    function setAssetPolicy(address sender, address asset, AssetPolicyInput calldata params) external onlyTimelock {
         _requireValidAsset(asset);
         _assetPolicy[sender][asset] = AssetPolicy({
             dvtTriggerAmount: params.dvtTriggerAmount,
@@ -277,7 +266,11 @@ contract PolicyRegistry is IPolicyRegistry {
             configured: true
         });
         emit AssetPolicySet(
-            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit,
+            sender,
+            asset,
+            params.dvtTriggerAmount,
+            params.perTxHardCap,
+            params.dailyLimit,
             _window(params.windowSeconds)
         );
     }
@@ -289,15 +282,17 @@ contract PolicyRegistry is IPolicyRegistry {
         onlyTimelock
     {
         if (target == address(0)) revert ZeroAddress();
+        TargetScope storage scope = _contractScope[sender][target];
+        uint64 velocityEpoch = scope.velocityEpoch;
+        if (params.velocityWindow == 0) ++velocityEpoch;
         _contractScope[sender][target] = TargetScope({
             allowed: params.allowed,
             requireDVTAlways: params.requireDVTAlways,
             velocityWindow: params.velocityWindow,
-            configured: true
+            configured: true,
+            velocityEpoch: velocityEpoch
         });
-        emit ContractScopeSet(
-            sender, target, params.allowed, params.requireDVTAlways, params.velocityWindow
-        );
+        emit ContractScopeSet(sender, target, params.allowed, params.requireDVTAlways, params.velocityWindow);
         uint256 len = params.selectorAllowlist.length;
         for (uint256 i; i < len; ++i) {
             bytes4 sel = params.selectorAllowlist[i];
@@ -307,13 +302,15 @@ contract PolicyRegistry is IPolicyRegistry {
     }
 
     /// @inheritdoc IPolicyRegistry
-    function setTargetVelocity(address sender, address target, address asset, uint128 limit)
-        external
-        onlyTimelock
-    {
+    function setTargetVelocity(address sender, address target, address asset, uint128 limit) external onlyTimelock {
         if (target == address(0)) revert ZeroAddress();
         _requireValidAsset(asset);
-        _targetVelocity[sender][target][asset] = TargetVelocity({limit: limit, configured: true});
+        TargetScope storage scope = _contractScope[sender][target];
+        if (scope.velocityWindow == 0) revert VelocityDisabled();
+        TargetVelocity storage velocity = _targetVelocity[sender][target][asset];
+        if (velocity.epoch != scope.velocityEpoch) delete _targetSpend[sender][target][asset];
+        _targetVelocity[sender][target][asset] =
+            TargetVelocity({limit: limit, configured: true, epoch: scope.velocityEpoch});
         emit TargetVelocitySet(sender, target, asset, limit);
     }
 
@@ -349,23 +346,19 @@ contract PolicyRegistry is IPolicyRegistry {
         // Fix: map the sentinel 0 → type(uint256).max on BOTH operands, then "looser = larger"
         // holds uniformly. loosen-to-0 (cur≠0→0) reverts; tighten-from-0 (0→concrete) passes;
         // normal lower-non-zero still tightens; cur=0→0 (no-op) passes.
-        uint256 curTrig =
-            cur.dvtTriggerAmount == 0 ? type(uint256).max : uint256(cur.dvtTriggerAmount);
-        uint256 newTrig =
-            params.dvtTriggerAmount == 0 ? type(uint256).max : uint256(params.dvtTriggerAmount);
+        uint256 curTrig = cur.dvtTriggerAmount == 0 ? type(uint256).max : uint256(cur.dvtTriggerAmount);
+        uint256 newTrig = params.dvtTriggerAmount == 0 ? type(uint256).max : uint256(params.dvtTriggerAmount);
         // perTxHardCap / dailyLimit have NO sentinel: 0 there means "reject any non-zero amount"
         // = STRICTEST, so larger is looser and the plain `params.X > cur.X` ordering is correct.
-        if (
-            newTrig > curTrig || params.perTxHardCap > cur.perTxHardCap
-                || params.dailyLimit > cur.dailyLimit
-        ) revert NotStrictlyTighter();
+        if (newTrig > curTrig || params.perTxHardCap > cur.perTxHardCap || params.dailyLimit > cur.dailyLimit) {
+            revert NotStrictlyTighter();
+        }
         cur.dvtTriggerAmount = params.dvtTriggerAmount;
         cur.perTxHardCap = params.perTxHardCap;
         cur.dailyLimit = params.dailyLimit;
         // windowSeconds left unchanged: shrinking/growing a window is not monotone in safety.
         emit AssetPolicySet(
-            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit,
-            _window(cur.windowSeconds)
+            sender, asset, params.dvtTriggerAmount, params.perTxHardCap, params.dailyLimit, _window(cur.windowSeconds)
         );
         emit PolicyTightened(sender, msg.sender);
     }
@@ -395,9 +388,7 @@ contract PolicyRegistry is IPolicyRegistry {
         // instant path. Tightening to window=0 would DISABLE velocity (a loosening, timelock-
         // only); enabling/shrinking a window is not monotone in safety. Both must route through
         // the 2-day timelock via setContractScope, never the guardian.
-        emit ContractScopeSet(
-            sender, target, params.allowed, params.requireDVTAlways, cur.velocityWindow
-        );
+        emit ContractScopeSet(sender, target, params.allowed, params.requireDVTAlways, cur.velocityWindow);
 
         // Selectors listed here are REMOVED (the tighten direction of the additive set).
         uint256 len = params.selectorAllowlist.length;
@@ -415,8 +406,12 @@ contract PolicyRegistry is IPolicyRegistry {
         onlyGuardianOrTimelock
     {
         _requireValidAsset(asset);
+        TargetScope storage scope = _contractScope[sender][target];
+        if (scope.velocityWindow == 0) revert VelocityDisabled();
         TargetVelocity storage cur = _targetVelocity[sender][target][asset];
-        if (!cur.configured || limit > cur.limit) revert NotStrictlyTighter();
+        if (!cur.configured || cur.epoch != scope.velocityEpoch || limit > cur.limit) {
+            revert NotStrictlyTighter();
+        }
         cur.limit = limit;
         emit TargetVelocitySet(sender, target, asset, limit);
         emit PolicyTightened(sender, msg.sender);
@@ -452,20 +447,12 @@ contract PolicyRegistry is IPolicyRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /// @inheritdoc IPolicyRegistry
-    function getAssetPolicy(address sender, address asset)
-        external
-        view
-        returns (AssetPolicy memory)
-    {
+    function getAssetPolicy(address sender, address asset) external view returns (AssetPolicy memory) {
         return _assetPolicy[sender][asset];
     }
 
     /// @inheritdoc IPolicyRegistry
-    function getTargetScope(address sender, address target)
-        external
-        view
-        returns (ContractScope memory)
-    {
+    function getTargetScope(address sender, address target) external view returns (ContractScope memory) {
         TargetScope storage targetScope = _contractScope[sender][target];
         return ContractScope({
             allowed: targetScope.allowed,
@@ -482,15 +469,13 @@ contract PolicyRegistry is IPolicyRegistry {
         returns (uint128 limit, bool configured)
     {
         TargetVelocity storage velocity = _targetVelocity[sender][target][asset];
-        return (velocity.limit, velocity.configured);
+        TargetScope storage scope = _contractScope[sender][target];
+        configured = scope.velocityWindow != 0 && velocity.configured && velocity.epoch == scope.velocityEpoch;
+        return (velocity.limit, configured);
     }
 
     /// @inheritdoc IPolicyRegistry
-    function isSelectorAllowed(address sender, address target, bytes4 selector)
-        external
-        view
-        returns (bool)
-    {
+    function isSelectorAllowed(address sender, address target, bytes4 selector) external view returns (bool) {
         return _selectorAllowed[sender][target][selector];
     }
 
@@ -501,7 +486,22 @@ contract PolicyRegistry is IPolicyRegistry {
         returns (uint256 spentInWindow, uint64 windowStart)
     {
         SpendCounter storage c = _assetSpend[sender][asset];
-        return (c.spentInWindow, c.windowStart);
+        return (_effectiveSpent(c, _assetPolicy[sender][asset].windowSeconds), c.windowStart);
+    }
+
+    /// @inheritdoc IPolicyRegistry
+    function getTargetSpend(address sender, address target, address asset)
+        external
+        view
+        returns (uint256 spentInWindow, uint64 windowStart)
+    {
+        SpendCounter storage c = _targetSpend[sender][target][asset];
+        TargetScope storage scope = _contractScope[sender][target];
+        TargetVelocity storage velocity = _targetVelocity[sender][target][asset];
+        if (scope.velocityWindow == 0 || !velocity.configured || velocity.epoch != scope.velocityEpoch) {
+            return (0, c.windowStart);
+        }
+        return (_effectiveSpent(c, scope.velocityWindow), c.windowStart);
     }
 
     /// @inheritdoc IPolicyRegistry
@@ -518,6 +518,6 @@ contract PolicyRegistry is IPolicyRegistry {
 
     /// @notice Contract version (see CLAUDE.md versioning convention).
     function version() external pure returns (string memory) {
-        return "PolicyRegistry-3.0.1";
+        return "PolicyRegistry-3.0.2";
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {PolicyRegistry} from "src/core/PolicyRegistry.sol";
 import {IPolicyRegistry} from "src/interfaces/v3/IPolicyRegistry.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
@@ -12,16 +12,17 @@ import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/Time
 ///         Q4 ETH sentinel, consumer gating, and Q3 additive selectors.
 contract PolicyRegistryTest is Test {
     event AssetPolicySet(
-        address indexed sender, address indexed asset, uint128 dvtTriggerAmount,
-        uint128 perTxHardCap, uint256 dailyLimit, uint64 effectiveWindow
+        address indexed sender,
+        address indexed asset,
+        uint128 dvtTriggerAmount,
+        uint128 perTxHardCap,
+        uint256 dailyLimit,
+        uint64 effectiveWindow
     );
     event ContractScopeSet(
-        address indexed sender, address indexed target, bool allowed,
-        bool requireDVTAlways, uint64 velocityWindow
+        address indexed sender, address indexed target, bool allowed, bool requireDVTAlways, uint64 velocityWindow
     );
-    event TargetVelocitySet(
-        address indexed sender, address indexed target, address indexed asset, uint128 limit
-    );
+    event TargetVelocitySet(address indexed sender, address indexed target, address indexed asset, uint128 limit);
     PolicyRegistry internal reg;
     TimelockController internal timelock;
 
@@ -90,32 +91,24 @@ contract PolicyRegistryTest is Test {
         timelock.execute(address(reg), 0, data, bytes32(0), s);
     }
 
-    function _setAssetPolicy(address s, address a, IPolicyRegistry.AssetPolicyInput memory p)
-        internal
-    {
+    function _setAssetPolicy(address s, address a, IPolicyRegistry.AssetPolicyInput memory p) internal {
         _viaTimelock(abi.encodeCall(IPolicyRegistry.setAssetPolicy, (s, a, p)));
     }
 
-    function _setContractScope(address s, address t, IPolicyRegistry.ContractScopeInput memory p)
-        internal
-    {
+    function _setContractScope(address s, address t, IPolicyRegistry.ContractScopeInput memory p) internal {
         _setContractScopeForAsset(s, t, asset, p);
     }
 
-    function _setContractScopeForAsset(
-        address s, address t, address a, IPolicyRegistry.ContractScopeInput memory p
-    ) internal {
+    function _setContractScopeForAsset(address s, address t, address a, IPolicyRegistry.ContractScopeInput memory p)
+        internal
+    {
         _viaTimelock(abi.encodeCall(IPolicyRegistry.setContractScope, (s, t, p)));
-        _viaTimelock(
-            abi.encodeCall(IPolicyRegistry.setTargetVelocity, (s, t, a, nextVelocityLimit))
-        );
+        if (p.velocityWindow != 0) {
+            _viaTimelock(abi.encodeCall(IPolicyRegistry.setTargetVelocity, (s, t, a, nextVelocityLimit)));
+        }
     }
 
-    function _check(uint256 amount)
-        internal
-        view
-        returns (IPolicyRegistry.PolicyDecision, uint256)
-    {
+    function _check(uint256 amount) internal view returns (IPolicyRegistry.PolicyDecision, uint256) {
         return reg.checkPolicy(sender, target, asset, amount, SEL);
     }
 
@@ -166,8 +159,7 @@ contract PolicyRegistryTest is Test {
     }
 
     function testReject_selectorNotAllowed() public view {
-        (IPolicyRegistry.PolicyDecision d,) =
-            reg.checkPolicy(sender, target, asset, 10e18, bytes4(0xdeadbeef));
+        (IPolicyRegistry.PolicyDecision d,) = reg.checkPolicy(sender, target, asset, 10e18, bytes4(0xdeadbeef));
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REJECT));
     }
 
@@ -197,26 +189,22 @@ contract PolicyRegistryTest is Test {
         vm.prank(consumer);
         reg.recordSpend(sender, target, assetB, 301e18, SEL);
 
-        (IPolicyRegistry.PolicyDecision assetADecision,) =
-            reg.checkPolicy(sender, target, asset, 500e18, SEL);
+        (IPolicyRegistry.PolicyDecision assetADecision,) = reg.checkPolicy(sender, target, asset, 500e18, SEL);
         assertEq(uint8(assetADecision), uint8(IPolicyRegistry.PolicyDecision.REQUIRE_DVT));
 
-        (IPolicyRegistry.PolicyDecision assetBDecision,) =
-            reg.checkPolicy(sender, target, assetB, 100e18, SEL);
+        (IPolicyRegistry.PolicyDecision assetBDecision,) = reg.checkPolicy(sender, target, assetB, 100e18, SEL);
         assertEq(uint8(assetBDecision), uint8(IPolicyRegistry.PolicyDecision.REJECT));
     }
 
     function test_C301_TargetRestrictionsCannotBeBypassedWithAnotherAsset() public view {
         address unconfiguredAsset = address(0xBEEF);
-        (IPolicyRegistry.PolicyDecision decision,) =
-            reg.checkPolicy(sender, target, unconfiguredAsset, 1, SEL);
+        (IPolicyRegistry.PolicyDecision decision,) = reg.checkPolicy(sender, target, unconfiguredAsset, 1, SEL);
         assertEq(uint8(decision), uint8(IPolicyRegistry.PolicyDecision.REJECT));
     }
 
     function test_C301_MissingAssetVelocityFailsClosed() public view {
         address unconfiguredAsset = address(0xCAFE);
-        (IPolicyRegistry.PolicyDecision decision,) =
-            reg.checkPolicy(sender, target, unconfiguredAsset, 0, SEL);
+        (IPolicyRegistry.PolicyDecision decision,) = reg.checkPolicy(sender, target, unconfiguredAsset, 0, SEL);
         assertEq(uint8(decision), uint8(IPolicyRegistry.PolicyDecision.REJECT));
     }
 
@@ -235,16 +223,14 @@ contract PolicyRegistryTest is Test {
         address s2 = makeAddr("freshSender");
         address t2 = makeAddr("freshTarget");
         address a2 = makeAddr("freshAsset");
-        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
-            reg.checkPolicy(s2, t2, a2, 1_000_000e18, SEL);
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(s2, t2, a2, 1_000_000e18, SEL);
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
         assertEq(rem, type(uint256).max);
     }
 
     function test_POL03_AmountAboveUint128AllowedWhenNoCounterIsConfigured() public {
         (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(
-            makeAddr("wideSender"), makeAddr("wideTarget"), makeAddr("wideAsset"),
-            uint256(type(uint128).max) + 1, SEL
+            makeAddr("wideSender"), makeAddr("wideTarget"), makeAddr("wideAsset"), uint256(type(uint128).max) + 1, SEL
         );
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
         assertEq(rem, type(uint256).max);
@@ -273,8 +259,7 @@ contract PolicyRegistryTest is Test {
     function testAssetConfiguredTargetUnconfigured() public {
         address t2 = makeAddr("unconfiguredTarget");
         // Target unconfigured ⇒ no allow-list / selector check (deadbeef selector is irrelevant).
-        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
-            reg.checkPolicy(sender, t2, asset, 10e18, bytes4(0xdeadbeef));
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(sender, t2, asset, 10e18, bytes4(0xdeadbeef));
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
         assertEq(rem, 1000e18 - 10e18); // asset daily still bounds the headroom
         // The configured asset's hard cap is STILL enforced regardless of the target being open.
@@ -292,13 +277,11 @@ contract PolicyRegistryTest is Test {
         // velocityWindow 0 ⇒ no velocity limit, to isolate the "asset unlimited" behavior.
         _setContractScope(s2, target, _cs(true, false, 0, 0, sels));
         // asset unconfigured ⇒ unlimited headroom; target scope still allows this selector.
-        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
-            reg.checkPolicy(s2, target, asset, 1_000_000e18, SEL);
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(s2, target, asset, 1_000_000e18, SEL);
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
         assertEq(rem, type(uint256).max); // asset side imposes no limit
         // The configured target scope is STILL enforced: a non-allowed selector → REJECT.
-        (IPolicyRegistry.PolicyDecision d2,) =
-            reg.checkPolicy(s2, target, asset, 1e18, bytes4(0xdeadbeef));
+        (IPolicyRegistry.PolicyDecision d2,) = reg.checkPolicy(s2, target, asset, 1e18, bytes4(0xdeadbeef));
         assertEq(uint8(d2), uint8(IPolicyRegistry.PolicyDecision.REJECT));
     }
 
@@ -308,8 +291,7 @@ contract PolicyRegistryTest is Test {
         _setAssetPolicy(sender, asset, _ap(0, 1_000_000e18, 2_000_000e18, 1 days));
         // Unconfigured target isolates the asset amount→DVT path.
         address t2 = makeAddr("freeTarget");
-        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
-            reg.checkPolicy(sender, t2, asset, 999_999e18, SEL);
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(sender, t2, asset, 999_999e18, SEL);
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW)); // 0-trigger ⇒ no DVT
         assertEq(rem, 2_000_000e18 - 999_999e18);
     }
@@ -342,8 +324,7 @@ contract PolicyRegistryTest is Test {
         sels[0] = SEL;
         _setContractScope(s2, target, _cs(true, true, 0, 0, sels)); // requireDVTAlways, no velocity
         // asset unconfigured ⇒ unlimited headroom; requireDVTAlways still forces REQUIRE_DVT.
-        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
-            reg.checkPolicy(s2, target, asset, 1e18, SEL);
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(s2, target, asset, 1e18, SEL);
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.REQUIRE_DVT));
         assertEq(rem, type(uint256).max);
     }
@@ -381,6 +362,25 @@ contract PolicyRegistryTest is Test {
         assertGt(w2, w1);
     }
 
+    function test_R5_GetAssetSpendReturnsZeroAfterWindowExpires() public {
+        _record(300e18);
+        (, uint64 windowStart) = reg.getAssetSpend(sender, asset);
+        vm.warp(uint256(windowStart) + 1 days);
+        (uint256 spent, uint64 reportedStart) = reg.getAssetSpend(sender, asset);
+        assertEq(spent, 0);
+        assertEq(reportedStart, windowStart);
+    }
+
+    function test_R5_GetTargetSpendUsesTargetWindow() public {
+        _record(300e18);
+        (uint256 hot, uint64 windowStart) = reg.getTargetSpend(sender, target, asset);
+        assertEq(hot, 300e18);
+        vm.warp(uint256(windowStart) + 1 hours);
+        (uint256 expired, uint64 reportedStart) = reg.getTargetSpend(sender, target, asset);
+        assertEq(expired, 0);
+        assertEq(reportedStart, windowStart);
+    }
+
     function test_POL03_SequentialBoundaryAllowedSpendAlwaysRecords() public {
         address s = makeAddr("pol03BoundarySender");
         address t = makeAddr("pol03BoundaryTarget");
@@ -410,9 +410,7 @@ contract PolicyRegistryTest is Test {
         _setAssetPolicy(s, a, _ap(0, type(uint128).max, type(uint256).max, 1 days));
         bytes4[] memory sels = new bytes4[](1);
         sels[0] = SEL;
-        _setContractScopeForAsset(
-            s, t, a, _cs(true, false, type(uint128).max, 1 hours, sels)
-        );
+        _setContractScopeForAsset(s, t, a, _cs(true, false, type(uint128).max, 1 hours, sels));
 
         for (uint256 i; i < 3; ++i) {
             (IPolicyRegistry.PolicyDecision decision,) = reg.checkPolicy(s, t, a, amount, SEL);
@@ -427,25 +425,21 @@ contract PolicyRegistryTest is Test {
         assertEq(spent, uint256(amount) * 3);
     }
 
-    function testFuzz_POL03_AllowImpliesRecordSpendDoesNotRevert(
-        uint128 firstAmount,
-        uint128 secondAmount
-    ) public {
-        vm.assume(uint256(firstAmount) + secondAmount > type(uint128).max);
+    function testFuzz_POL03_AllowImpliesRecordSpendDoesNotRevert(uint128 firstAmount, uint128 secondAmount) public {
+        // Map inputs into the overflow region instead of rejecting them (vm.assume discarded most CI runs).
+        firstAmount = uint128(bound(firstAmount, 1, type(uint128).max));
+        secondAmount = uint128(bound(secondAmount, uint256(type(uint128).max) - firstAmount + 1, type(uint128).max));
+        assertGt(uint256(firstAmount) + secondAmount, type(uint128).max);
         address s = makeAddr("pol03FuzzSender");
         address t = makeAddr("pol03FuzzTarget");
         address a = makeAddr("pol03FuzzAsset");
         _setAssetPolicy(s, a, _ap(0, type(uint128).max, type(uint256).max, 1 days));
         bytes4[] memory sels = new bytes4[](1);
         sels[0] = SEL;
-        _setContractScopeForAsset(
-            s, t, a, _cs(true, false, type(uint128).max, 1 hours, sels)
-        );
+        _setContractScopeForAsset(s, t, a, _cs(true, false, type(uint128).max, 1 hours, sels));
 
-        (IPolicyRegistry.PolicyDecision first,) =
-            reg.checkPolicy(s, t, a, firstAmount, SEL);
-        (IPolicyRegistry.PolicyDecision second,) =
-            reg.checkPolicy(s, t, a, secondAmount, SEL);
+        (IPolicyRegistry.PolicyDecision first,) = reg.checkPolicy(s, t, a, firstAmount, SEL);
+        (IPolicyRegistry.PolicyDecision second,) = reg.checkPolicy(s, t, a, secondAmount, SEL);
         assertEq(uint8(first), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
         assertEq(uint8(second), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
 
@@ -667,6 +661,54 @@ contract PolicyRegistryTest is Test {
         reg.tightenTargetVelocity(sender, target, makeAddr("missingVelocityAsset"), 1);
     }
 
+    function test_R4_ZeroWindowRejectsVelocitySetAndTightenWithoutEvents() public {
+        bytes4[] memory none = new bytes4[](0);
+        _viaTimelock(abi.encodeCall(IPolicyRegistry.setContractScope, (sender, target, _cs(true, false, 0, 0, none))));
+
+        vm.recordLogs();
+        vm.prank(address(timelock));
+        vm.expectRevert(IPolicyRegistry.VelocityDisabled.selector);
+        reg.setTargetVelocity(sender, target, asset, 1);
+        Vm.Log[] memory setLogs = vm.getRecordedLogs();
+        assertEq(setLogs.length, 0, "zero-window set emitted an event");
+
+        vm.recordLogs();
+        vm.prank(guardian);
+        vm.expectRevert(IPolicyRegistry.VelocityDisabled.selector);
+        reg.tightenTargetVelocity(sender, target, asset, 1);
+        Vm.Log[] memory tightenLogs = vm.getRecordedLogs();
+        assertEq(tightenLogs.length, 0, "zero-window tighten emitted PolicyTightened");
+
+        (, bool configured) = reg.getTargetVelocity(sender, target, asset);
+        assertFalse(configured);
+    }
+
+    function test_R4_DisabledVelocityRequiresFreshSetAfterReenable() public {
+        _record(100e18);
+        bytes4[] memory none = new bytes4[](0);
+        _viaTimelock(abi.encodeCall(IPolicyRegistry.setContractScope, (sender, target, _cs(true, false, 0, 0, none))));
+        (uint128 oldLimit, bool disabledConfigured) = reg.getTargetVelocity(sender, target, asset);
+        assertEq(oldLimit, 800e18);
+        assertFalse(disabledConfigured);
+        (uint256 disabledSpend,) = reg.getTargetSpend(sender, target, asset);
+        assertEq(disabledSpend, 0);
+
+        _viaTimelock(
+            abi.encodeCall(IPolicyRegistry.setContractScope, (sender, target, _cs(true, false, 0, 1 hours, none)))
+        );
+        (, bool resurrected) = reg.getTargetVelocity(sender, target, asset);
+        assertFalse(resurrected, "stale velocity silently reactivated");
+        (IPolicyRegistry.PolicyDecision missing,) = _check(1);
+        assertEq(uint8(missing), uint8(IPolicyRegistry.PolicyDecision.REJECT));
+
+        _viaTimelock(abi.encodeCall(IPolicyRegistry.setTargetVelocity, (sender, target, asset, 50e18)));
+        (uint128 freshLimit, bool freshConfigured) = reg.getTargetVelocity(sender, target, asset);
+        assertEq(freshLimit, 50e18);
+        assertTrue(freshConfigured);
+        (uint256 freshSpend,) = reg.getTargetSpend(sender, target, asset);
+        assertEq(freshSpend, 0, "fresh policy inherited stale spend");
+    }
+
     function testTightenContractScopeRemovesSelector() public {
         // Tighten path removes the listed selector (the tighten direction of the additive set).
         bytes4[] memory sels = new bytes4[](1);
@@ -687,8 +729,7 @@ contract PolicyRegistryTest is Test {
         vm.prank(guardian);
         reg.tightenContractScope(sender, target, _cs(true, false, 800e18, 1 hours, sels));
 
-        (IPolicyRegistry.PolicyDecision decision,) =
-            reg.checkPolicy(sender, target, assetB, 1, SEL);
+        (IPolicyRegistry.PolicyDecision decision,) = reg.checkPolicy(sender, target, assetB, 1, SEL);
         assertEq(uint8(decision), uint8(IPolicyRegistry.PolicyDecision.REJECT));
     }
 
@@ -723,8 +764,7 @@ contract PolicyRegistryTest is Test {
         sels[0] = SEL;
         address ethTarget = makeAddr("ethTarget");
         _setContractScopeForAsset(sender, ethTarget, ETH, _cs(true, false, 100 ether, 1 hours, sels));
-        (IPolicyRegistry.PolicyDecision d, uint256 rem) =
-            reg.checkPolicy(sender, ethTarget, ETH, 0.5 ether, SEL);
+        (IPolicyRegistry.PolicyDecision d, uint256 rem) = reg.checkPolicy(sender, ethTarget, ETH, 0.5 ether, SEL);
         assertEq(uint8(d), uint8(IPolicyRegistry.PolicyDecision.ALLOW));
         assertEq(rem, 50 ether - 0.5 ether);
     }
@@ -769,15 +809,13 @@ contract PolicyRegistryTest is Test {
         more[0] = selB;
         // Second setContractScope adds selB WITHOUT removing the original SEL.
         _setContractScope(sender, target, _cs(true, false, 800e18, 1 hours, more));
-        assertTrue(reg.isSelectorAllowed(sender, target, SEL));  // still allowed (additive)
+        assertTrue(reg.isSelectorAllowed(sender, target, SEL)); // still allowed (additive)
         assertTrue(reg.isSelectorAllowed(sender, target, selB)); // newly added
     }
 
     function test_POL01_AssetVelocitySetterCannotChangeTargetGlobalScope() public {
         address assetB = makeAddr("globalIsolationAssetB");
-        _viaTimelock(
-            abi.encodeCall(IPolicyRegistry.setTargetVelocity, (sender, target, assetB, 123))
-        );
+        _viaTimelock(abi.encodeCall(IPolicyRegistry.setTargetVelocity, (sender, target, assetB, 123)));
         IPolicyRegistry.ContractScope memory scope = reg.getTargetScope(sender, target);
         assertTrue(scope.allowed);
         assertFalse(scope.requireDVTAlways);
