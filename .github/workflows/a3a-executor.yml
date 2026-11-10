@@ -46,11 +46,13 @@ jobs:
       - name: Offline pre-sampling manifest tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_exec.py
-      - name: Offline Registry AST proof, swallow audit and authority-checkpoint controls
+      - name: Offline Registry AST proof, swallow audit, authority-checkpoint and execution HEAD/read-guard controls
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_old_owner_isolation.py RegistryASTProofTests
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_swallow_exceptions.py
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_authority_checkpoints.py
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_execution_head.py
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_execution_reads.py
       - name: Offline manifest Phase C tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_phase_c.py
