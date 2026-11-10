@@ -7,6 +7,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice Stake stub whose per-validator amount can be toggled — lets us
 ///         simulate post-registration exits / partial unlocks / slashes
@@ -112,6 +113,38 @@ contract DVTValidatorLivenessTest is Test {
     address operator = address(0xC1);
     address randomUser = address(0xD1);
 
+    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+        pk.x_a = bytes32(seed);
+        pk.x_b = bytes32(seed + 1);
+        pk.y_a = bytes32(seed + 2);
+        pk.y_b = bytes32(seed + 3);
+    }
+
+    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+
+    function _sigBytes() internal pure returns (bytes memory) {
+        BLS.G2Point memory sig;
+        return abi.encode(sig);
+    }
+
+    function _seatCommittee(uint8 count) internal {
+        vm.etch(address(0x0b), hex"60806000f3");
+        vm.etch(address(0x0c), hex"60806000f3");
+        vm.etch(address(0x0d), hex"6101006000f3");
+        vm.etch(address(0x10), hex"60806000f3");
+        vm.etch(address(0x11), hex"6101006000f3");
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        vm.startPrank(owner);
+        for (uint8 slot = 1; slot <= count; ++slot) {
+            address validator = address(uint160(uint256(0xB0) + slot));
+            registry.setHasDvtRole(validator, true);
+            staking.setLocked(validator, 200);
+            if (!dvt.isValidator(validator)) dvt.addValidator(validator);
+            bls.registerBLSPublicKey(validator, _stubKey(slot), slot, _emptyPoP());
+        }
+        vm.stopPrank();
+    }
+
     function setUp() public {
         vm.startPrank(owner);
         registry = new MockRegistryToggleable();
@@ -119,7 +152,7 @@ contract DVTValidatorLivenessTest is Test {
         registry.setStakingAddr(address(staking));
         sp = new MockSP();
 
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         dvt.setBLSAggregator(address(bls));
 
@@ -321,5 +354,117 @@ contract DVTValidatorLivenessTest is Test {
             randomUser
         ));
         dvt.removeValidator(randomUser);
+    }
+
+    function test_RemoveValidator_WithoutAggregator_RemovesValidator() public {
+        vm.startPrank(owner);
+        dvt.setBLSAggregator(address(0));
+        dvt.removeValidator(validator1);
+        vm.stopPrank();
+
+        assertFalse(dvt.isValidator(validator1));
+    }
+
+    function test_RemoveValidator_AtomicallyRevokesBLSVotingPower() public {
+        if (MockedPrecompiles.skipIfReal()) return;
+        vm.etch(address(0x0b), hex"60806000f3");
+        vm.etch(address(0x0c), hex"60806000f3");
+        vm.etch(address(0x0d), hex"6101006000f3");
+        vm.etch(address(0x10), hex"60806000f3");
+        vm.etch(address(0x11), hex"6101006000f3");
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
+        vm.startPrank(owner);
+        bls.registerBLSPublicKey(validator1, _stubKey(1), 1, _emptyPoP());
+        bls.registerBLSPublicKey(validator2, _stubKey(2), 2, _emptyPoP());
+        registry.setHasDvtRole(operator, true);
+        staking.setLocked(operator, 200);
+        bls.registerBLSPublicKey(operator, _stubKey(3), 3, _emptyPoP());
+        dvt.removeValidator(validator1);
+        vm.stopPrank();
+
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertFalse(active);
+        assertEq(bls.validatorAtSlot(1), address(0));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
+        bls.verify(keccak256("removed"), 7, 3, _sigBytes());
+    }
+
+    function test_RemoveValidator_RevertsWhenDefaultThresholdWouldBreak() public {
+        if (MockedPrecompiles.skipIfReal()) return;
+        _seatCommittee(7);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(6), uint256(7))
+        );
+        dvt.removeValidator(validator1);
+
+        assertTrue(dvt.isValidator(validator1));
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertTrue(active);
+    }
+
+    function test_RemoveValidator_RevertsWhenSlashThresholdWouldBreak() public {
+        if (MockedPrecompiles.skipIfReal()) return;
+        vm.startPrank(owner);
+        bls.setDefaultThreshold(3);
+        bls.setSlashThreshold(2, 5);
+        vm.stopPrank();
+        _seatCommittee(5);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(4), uint256(5))
+        );
+        dvt.removeValidator(validator1);
+    }
+
+    function test_RemoveValidator_WorksAboveAllThresholds() public {
+        if (MockedPrecompiles.skipIfReal()) return;
+        _seatCommittee(8);
+
+        vm.prank(owner);
+        dvt.removeValidator(validator1);
+
+        assertFalse(dvt.isValidator(validator1));
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertFalse(active);
+    }
+
+    function test_RevokeBLSPublicKey_OwnerEmergencyOverrideBypassesSurvivalCheck() public {
+        if (MockedPrecompiles.skipIfReal()) return;
+        _seatCommittee(7);
+
+        vm.prank(owner);
+        bls.revokeBLSPublicKey(validator1);
+
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertFalse(active);
+        assertTrue(dvt.isValidator(validator1), "direct owner override does not mutate DVT membership");
+    }
+
+    function test_RemoveValidator_MismatchedAggregatorPairingRevertsAtomically() public {
+        if (MockedPrecompiles.skipIfReal()) return;
+        vm.etch(address(0x0b), hex"60806000f3");
+        vm.etch(address(0x0c), hex"60806000f3");
+        vm.etch(address(0x0d), hex"6101006000f3");
+        vm.etch(address(0x10), hex"60806000f3");
+        vm.etch(address(0x11), hex"6101006000f3");
+        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+
+        vm.startPrank(owner);
+        BLSAggregator mismatched = new BLSAggregator(address(registry), address(sp), randomUser);
+        mismatched.registerBLSPublicKey(validator1, _stubKey(11), 1, _emptyPoP());
+        dvt.setBLSAggregator(address(mismatched));
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, address(dvt)));
+        dvt.removeValidator(validator1);
+        vm.stopPrank();
+
+        assertTrue(dvt.isValidator(validator1));
+        (,, bool active) = mismatched.getBLSPublicKey(validator1);
+        assertTrue(active);
+        assertEq(mismatched.validatorAtSlot(1), validator1);
     }
 }

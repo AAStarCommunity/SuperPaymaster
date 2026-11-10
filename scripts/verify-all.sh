@@ -247,8 +247,8 @@ verify "$REP_SYSTEM" "ReputationSystem" "contracts/src/modules/reputation/Reputa
 # BLSAggregator(address registry, address paymaster, address validator)
 verify "$BLS_AGGREGATOR" "BLSAggregator" "contracts/src/modules/monitoring/BLSAggregator.sol:BLSAggregator" "$(cast abi-encode "constructor(address,address,address)" "$REGISTRY" "$SUPER_PAYMASTER" "0x0000000000000000000000000000000000000000")"
 
-# DVTValidator(address registry)
-verify "$DVT_VALIDATOR" "DVTValidator" "contracts/src/modules/monitoring/DVTValidator.sol:DVTValidator" "$(cast abi-encode "constructor(address)" "$REGISTRY")"
+# DVTValidator(address registry, uint256 firstProposalId) — 5.5.0 starts at 1.
+verify "$DVT_VALIDATOR" "DVTValidator" "contracts/src/modules/monitoring/DVTValidator.sol:DVTValidator" "$(cast abi-encode "constructor(address,uint256)" "$REGISTRY" "1")"
 
 # BLSValidator()
 verify "$BLS_VALIDATOR" "BLSValidator" "contracts/src/modules/validators/BLSValidator.sol:BLSValidator" "" true
