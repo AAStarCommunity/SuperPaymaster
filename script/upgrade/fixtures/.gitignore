@@ -1,0 +1,3 @@
+# Archived compiler fixtures are evidence, not local Forge output.
+!l1-registry-a839347e/out/
+!l1-registry-a839347e/out/**

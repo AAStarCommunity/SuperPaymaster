@@ -78,8 +78,8 @@
   "verifierArming": {
     "_": "SP 4.11 has no direct setter. The ONLY path is propose (owner) -> wait VERIFIER_ROTATION_DELAY -> apply (permissionless). Every receipt below is required; a manifest that jumps from deploy to an active verifier is describing a contract that does not exist.",
     "constants": {
-      "VERIFIER_ROTATION_DELAY": "4 days",
-      "_VERIFIER_ROTATION_DELAY": "BLSAggregator.sol:394 = GUARDIAN_SLASH_CASE_WINDOW; :386 = 4 days. Verify on-chain, do not trust this line: cast call <aggregator> 'VERIFIER_ROTATION_DELAY()(uint256)'."
+      "VERIFIER_ROTATION_DELAY": "5 days",
+      "_VERIFIER_ROTATION_DELAY": "BLSAggregator.sol:394 = GUARDIAN_SLASH_CASE_WINDOW; :GUARDIAN_SLASH_CASE_WINDOW = 5 days since BLSAggregator-4.13.0 (4 days before). Verify on-chain, do not trust this line: cast call <aggregator> 'VERIFIER_ROTATION_DELAY()(uint256)'."
     },
     "dormantAtDeploy": {
       "fraudProofVerifierRead": null,

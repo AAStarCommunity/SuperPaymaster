@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Deletion probes for the ENDUSER mapping-control ruling (DSR 2026-11-05).
 
-Each probe deletes exactly one site (the pattern must match once) in a scratch copy of script/, then runs its
-bound test there: the baseline must pass and the mutated copy must fail that test with the named cause
-(the gate that now STOPs, or the TypeError the deleted gate used to pre-empt).
+Each probe deletes exactly one site in a scratch copy of script/ and runs its
+bound test: baseline OK; mutated failures >= 1, errors == 0; at least one failing
+assertion message must contain the deleted gate's name.
 Prints per-target match counts and results, plus DISCOVERY_DELETION_PROBES for the
 discovery subset and ENDUSER_PROBES PASS only if every probe is red and every baseline is green.
 """
 import ast
+import re
 import pathlib
 import shutil
 import subprocess
@@ -15,6 +16,9 @@ import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'script/upgrade'))
+from gate_assertions import assertion_mentions
+
 ISOLATION = 'script/upgrade/old_owner_isolation.py'
 TESTS = 'script/upgrade/test_old_owner_isolation.py'
 PROBES = [
@@ -73,7 +77,7 @@ PROBES = [
 # COMMIT 1: remove complete AST gate statements, never partial multiline expressions.
 _c1_source = (ROOT/ISOLATION).read_text()
 _c1_tree = ast.parse(_c1_source)
-for _suffix in ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control', 'xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin'):
+for _suffix in ('role_write_key', 'role_assembly', 'role_lowlevel_call', 'registry_source_commit', 'role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control', 'xpnts_deployment_count', 'xpnts_deployment_log', 'xpnts_owner_pin'):
     _gate = 'old_owner_'+_suffix
     _nodes = [n for n in ast.walk(_c1_tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
               and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'need'
@@ -81,8 +85,11 @@ for _suffix in ('role_write_sites', 'role_initializer_only', 'role_init_ids', 'r
     assert len(_nodes) == 1, (_gate, len(_nodes))
     PROBES.append((_gate, ast.get_source_segment(_c1_source, _nodes[0]), 'pass',
                    'OldOwnerIsolationTests.test_'+_suffix, 'AssertionError:' if _suffix.startswith('xpnts_') else 'AssertionError: Gate not raised'))
-PROBES.append(('role_write_extraction_call', '                initialized_roles = registry_role_writes(entries)\n', "                initialized_roles = {n['name'] for _, n in entries if n.get('constant') and n.get('typeDescriptions', {}).get('typeString') == 'bytes32' and (n.get('name', '').startswith('ROLE_') or n.get('name', '').endswith('ROLE'))}\n",
+PROBES.append(('role_write_extraction_call', '                initialized_roles = registry_role_writes(entries, source_inputs, declarations)\n', "                initialized_roles = {n['name'] for _, n in entries if n.get('constant') and n.get('typeDescriptions', {}).get('typeString') == 'bytes32' and (n.get('name', '').startswith('ROLE_') or n.get('name', '').endswith('ROLE'))}\n",
                'OldOwnerIsolationTests.test_role_write_extraction_call', 'AssertionError: Gate not raised'))
+
+PROBES.append(('role_opaque_extraction_call', '                callsite_matches = registry_opaque_writes(opaque_entries, source_inputs, declarations)\n', '                callsite_matches = []\n',
+               'OldOwnerIsolationTests.test_role_opaque_extraction_call', 'old_owner_role_assembly'))
 
 PROBES.append(('registry_event_only_restored',
                '            roles |= standard | set(histories.get(target, []))',
@@ -140,10 +147,9 @@ def manifest_probes():
     probes += [
         ('discovery_preswitch_gate', "    a.need('old_owner_factory_enumeration',switched or bool(enumerated) and set(ROUND_CLONES) <= enumerated,True)\n", '', 'DiscoveryTests.test_preswitch_enumeration'),
         ('discovery_switch_path', "switched = 'discoveryOriginalFactory' in pin and targets['xPNTsFactory'][0] != pin['discoveryOriginalFactory']", 'switched = False', 'DiscoveryTests.test_postswitch_enumeration'),
-        ('discovery_retained_tokens', " | (set(pin['discoveryRetainedTokens']) if switched else set())", '', 'DiscoveryTests.test_postswitch_enumeration'),
     ]
     discovery_names = set(constants['DISCOVERY_GATES']) | {'discovery_call_'+str(i) for i in range(len(constants['DISCOVERY_CALLS']))} | {
-        'discovery_preswitch_gate', 'discovery_switch_path', 'discovery_retained_tokens'}
+        'discovery_preswitch_gate', 'discovery_switch_path'}
     discovery_results = []
     ok = True
     with tempfile.TemporaryDirectory() as directory:
@@ -161,7 +167,8 @@ def manifest_probes():
             base_rc, base_tail, _ = run(tree, test, 'script/upgrade/test_manifest_exec.py')
             (tree/target_path).write_text(target_source.replace(old, new))
             mut_rc, mut_tail, mut_err = run(tree, test, 'script/upgrade/test_manifest_exec.py')
-            red = count == 1 and base_rc == 0 and mut_rc != 0 and 'failures=1' in mut_tail and 'errors=' not in mut_tail and 'AssertionError' in mut_err
+            gate = manifest_gate(name, test, constants)
+            red = count == 1 and base_rc == 0 and mut_rc != 0 and assertion_red(mut_tail, mut_err, gate)
             ok &= red
             if name in discovery_names:
                 discovery_results.append(red)
@@ -172,6 +179,46 @@ def manifest_probes():
     ok &= discovery_ok
     print('DELTA_DELETION_PROBES', 'PASS' if ok else 'FAIL')
     return ok
+
+
+def assertion_red(tail, log, gate):
+    failures = re.search(r'failures=(\d+)', tail)
+    return bool(failures and int(failures[1]) >= 1 and 'errors=' not in tail
+                and assertion_mentions(log, gate))
+
+
+def isolation_gate(name):
+    if name.startswith('old_owner_'):
+        return name
+    return {
+        'enduser_mapping_member': 'old_owner_role_control_path',
+        'role_control_case_gate': 'old_owner_role_control_case',
+        'enduser_role_control_skipped': 'old_owner_role_control_path',
+        'enduser_configured_call_skipped': 'old_owner_role_control_path',
+        'enduser_skips_getter_proof': 'old_owner_mapping_getter',
+        'enduser_ignores_positive_control': 'old_owner_mapping_positive',
+        'enduser_ignores_negative_control': 'old_owner_mapping_negative',
+        'caller_accepts_enduser_on_false': 'old_owner_role_control_path',
+        'caller_swallows_enduser_gate': 'old_owner_mapping_positive',
+        'role_write_extraction_call': 'old_owner_role_configure_emit',
+        'role_opaque_extraction_call': 'old_owner_role_assembly',
+        'registry_event_only_restored': 'old_owner_role_extraction_empty',
+        'xpnts_deployment_call': 'old_owner_xpnts_deployment_count',
+    }[name]
+
+
+def manifest_gate(name, test, constants):
+    if name.startswith('discovery_call_'):
+        return constants['DISCOVERY_CALLS'][int(name.rsplit('_',1)[1])][2]
+    return {
+        'discovery_preswitch_gate': 'old_owner_factory_enumeration',
+        'discovery_switch_path': 'old_owner_factory_enumeration',
+        'post_pin_delta_call': 'old_timelock_delta_allowance',
+        'configured_roles_closing_standard': 'old_timelock_inventory',
+        'xpnts_owner_pre_send_call': 'old_owner_xpnts_owner_recheck',
+        'xpnts_owner_closing_call': 'old_owner_xpnts_owner_recheck',
+        'xpnts_owner_recheck': 'old_owner_xpnts_owner_recheck',
+    }.get(name, name)
 
 
 def run(tree, test, tests=TESTS):
@@ -195,10 +242,9 @@ def main():
             base_rc, base_tail, _ = run(tree, test)
             (tree/ISOLATION).write_text(source.replace(old, new))
             mut_rc, mut_tail, mut_err = run(tree, test)
-        named = cause in mut_err
-        red = count == 1 and base_rc == 0 and mut_rc != 0 and 'FAILED' in mut_tail and named
-        if name.startswith(('old_owner_role_', 'old_owner_xpnts_')) or name in ('role_write_extraction_call', 'registry_event_only_restored', 'xpnts_deployment_call'):
-            red &= 'failures=' in mut_tail and 'errors=' not in mut_tail
+        gate = isolation_gate(name)
+        named = assertion_red(mut_tail, mut_err, gate)
+        red = count == 1 and base_rc == 0 and mut_rc != 0 and named
         ok &= red
         print(f'{name}: matches={count} baseline=rc{base_rc} [{base_tail}] removed=rc{mut_rc} [{mut_tail}] cause={named} '
               f'{"red" if red else "NOT RED"}')

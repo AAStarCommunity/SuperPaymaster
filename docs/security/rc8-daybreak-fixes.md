@@ -1,8 +1,8 @@
 # rc.8 Daybreak fix set — 2026-11-09
 
-Worktree: `/Users/jason/Dev/aastar/sp-wt/rc8`, branch `cc125/rc8-daybreak-fixes`.
+Branch `cc125/rc8-daybreak-fixes`.
 Input: `C4-report.md`, `C2-report.md`, `C1-report.md` in
-`/Users/jason/Dev/aastar/manifest-live/daybreak-2026-11-09/`.
+the Daybreak review archive (2026-11-09, held by the maintainer and DSR).
 The initial `git diff 8de39026 -- contracts/src` was empty. No network, chain,
 key access, ABI regeneration, commits, or Git metadata writes were performed.
 The pre-existing OpenZeppelin v5.1.0 `package-lock.json` edit was preserved.
@@ -84,9 +84,9 @@ history. SuperPaymaster core/Admin storage is untouched.
 ### Version propagation
 
 - BLSAggregator: 4.12.0 → 4.13.0.
-- SuperPaymaster: 5.5.0 → 5.5.1.
+- SuperPaymaster: stays `SuperPaymaster-5.5.0`. Its ABI is unchanged; 5.5.0 has never been deployed on a live chain, and build identity is the commit plus runtime codehash (03-final-spec §6), not the version string.
 - xPNTsTokenV2: XPNTs-4.0.0 → XPNTs-4.0.1.
-- SuperPaymasterLens: 1.2.0 → 1.2.1; its exact SP-version gate follows 5.5.1.
+- SuperPaymasterLens: stays `SuperPaymasterLens-1.2.0` (its SP-version gate stays 5.5.0).
 - xPNTsFactoryV2: 3.0.0-v2 → 3.0.1-v2; its exact template-version gate follows 4.0.1.
 
 The last two changes are required to keep diagnostics and token creation working
@@ -97,7 +97,7 @@ constant/events before release. No downstream notifications were sent.
 
 ## Verification
 
-Engine: `/Users/jason/.foundry/bin/forge` 1.7.1, Solidity 0.8.33, default profile.
+Engine: forge 1.7.1, Solidity 0.8.33, default profile.
 `FOUNDRY_OFFLINE=true` keeps compiler resolution offline. Test runs explicitly set
 `SEPOLIA_FORK_RPC=''` so the opt-in Sepolia fork suites cannot connect to a chain.
 `nice -n 10` was attempted but the sandbox returned
@@ -120,7 +120,7 @@ updated. The invariant model now clears a promoted standby and independently
 asserts that standby is never current SP. No production behavior was weakened to
 satisfy the old model. Subsequent final results are recorded below.
 
-Final BLSAggregator runtime: **24,223 B**, headroom **353 B**; **122 B smaller**
+Final BLSAggregator runtime: **24,387 B**, headroom **189 B** (the C4-L-01 change was reverted after re-review; C4-L-02 adds one SSTORE)
 than rc.7 despite the challenge-period addition. All measurements use Cancun,
 optimizer 500 runs, via-IR and Solidity 0.8.33. Prague outputs/cache are isolated
 under `out/prague` and `cache/prague`; the size gate reads only default/Cancun
@@ -128,7 +128,7 @@ artifacts and verifies source hashes and compiler settings.
 
 | Deployable | Runtime bytes | EIP-170 headroom |
 |---|---:|---:|
-| BLSAggregator | 24,223 | 353 |
+| BLSAggregator | 24,387 | 189 |
 | SuperPaymaster | 13,744 | 10,832 |
 | SuperPaymasterAdmin | 17,975 | 6,601 |
 | SuperPaymasterLens | 5,413 | 19,163 |
@@ -148,7 +148,7 @@ No file in `abis/` was modified.
   `abis/SuperPaymasterLens.json`, `abis/xPNTsFactoryV2.json`: unchanged ABI
   signatures, changed embedded bytecode/version behavior.
 - `abis/SuperPaymaster.full.json`: combined ABI signatures remain unchanged,
-  but its note still names 5.5.0 and should be refreshed to 5.5.1.
+  its note names 5.5.0, which stays correct.
 
 `abis/BLSAggregator-4.11.0.deployed.json` is historical deployed evidence and must
 remain unchanged. This task does not regenerate deployment manifests or historical
