@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Offline deletion probes for the three DSR inventory/replay regressions."""
 import pathlib
+import re
 import subprocess
 import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'script/upgrade'))
+from gate_assertions import assertion_mentions
 SOURCE = ROOT/'script/upgrade/manifest_exec.py'
 PROBES = {
     'inventory_drift': (
@@ -44,9 +47,11 @@ def main():
             tail = next((line for line in reversed(lines) if line.startswith(('OK', 'FAILED'))), '')
             results.append((proc.returncode, tail, proc.stderr))
         baseline, mutated = results
+        gate = re.search(r"a.need\('([^']+)'", site)[1]
         passed = (count == 1 and baseline[0] == 0 and baseline[1] == 'OK'
-                  and mutated[0] == 1 and mutated[1] == 'FAILED (failures=1)'
-                  and 'AssertionError:' in mutated[2] and 'ERROR:' not in mutated[2])
+                  and mutated[0] == 1 and re.search(r'failures=[1-9][0-9]*', mutated[1])
+                  and 'errors=' not in mutated[1]
+                  and assertion_mentions(mutated[2], gate))
         ok &= passed
         print(f'{name}: matches={count}, baseline {baseline[1]}, mutated {mutated[1]}', flush=True)
         if not passed:
