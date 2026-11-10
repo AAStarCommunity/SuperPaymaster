@@ -134,7 +134,7 @@ contract MigrateToUUPS is Script {
         );
         console.log("  BLSAggregator:", address(aggregator));
 
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
         console.log("  DVTValidator:", address(dvt));
 
         pmFactory = new PaymasterFactory();

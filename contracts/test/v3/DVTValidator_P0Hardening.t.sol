@@ -87,7 +87,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function setUp() public {
         staking = new MockStakingDVT();
         registry = new MockRegistryDVT(address(staking), MIN_STAKE);
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
         dvt.setBLSAggregator(blsAggregator);
 
         // Make validator1 eligible: holds DVT role + has enough stake.
@@ -95,6 +95,19 @@ contract DVTValidator_P0HardeningTest is Test {
         staking.setStake(validator1, keccak256("DVT"), MIN_STAKE);
 
         dvt.addValidator(validator1);
+    }
+
+    function test_Constructor_RevertsWhenFirstProposalIdIsZero() public {
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, 0));
+        new DVTValidator(address(registry), 0);
+    }
+
+    function test_Constructor_RevertsWhenFirstProposalIdIsAtUint128Boundary() public {
+        uint256 firstProposalId = uint256(1) << 128;
+        vm.expectRevert(
+            abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, firstProposalId)
+        );
+        new DVTValidator(address(registry), firstProposalId);
     }
 
     // -----------------------------------------------------------------------
@@ -146,7 +159,7 @@ contract DVTValidator_P0HardeningTest is Test {
         // Build a registry whose GTOKEN_STAKING returns address(0).
         MockRegistryDVT brokenReg = new MockRegistryDVT(address(0), MIN_STAKE);
         brokenReg.setIsDvt(validator1, true);
-        DVTValidator dvt2 = new DVTValidator(address(brokenReg));
+        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1);
         vm.expectRevert(DVTValidator.StakingNotConfigured.selector);
         dvt2.addValidator(validator1);
     }

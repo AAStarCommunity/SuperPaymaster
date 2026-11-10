@@ -19,17 +19,21 @@ contract DeployBLSModules is Script {
         BLSAggregator aggregator = new BLSAggregator(registryAddr, spAddr, address(0));
         aggregator.setMinThreshold(3);
 
-        DVTValidator dvt = new DVTValidator(registryAddr);
+        DVTValidator dvt = new DVTValidator(registryAddr, 1);
         dvt.setBLSAggregator(address(aggregator));
 
         // CC-48 round-6 HIGH-1: an EOA-owned aggregator on a live chain hands one hot key
         // an immediate, unannounced veto over every future guardian-slash accusation.
         address gov = GovernanceOwnerGate.declaredGovernanceOwner();
-        if (gov != address(0)) aggregator.transferOwnership(gov);
+        if (gov != address(0)) {
+            aggregator.transferOwnership(gov);
+            dvt.transferOwnership(gov);
+        }
 
         vm.stopBroadcast();
 
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
+        require(dvt.owner() == aggregator.owner(), "DeployBLSModules: DVT owner != BLS owner");
 
         console.log("BLSAggregator deployed to:", address(aggregator));
         console.log("DVTValidator deployed to:", address(dvt));

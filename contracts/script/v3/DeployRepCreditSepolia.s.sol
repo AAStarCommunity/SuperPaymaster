@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
@@ -79,15 +79,13 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         registry = Registry(_deployDefault("ERC1967Proxy", abi.encode(address(registryImpl), registryInit)));
 
         xpntsFactory = xPNTsFactory(_deployDefault("xPNTsFactory", abi.encode(address(0), address(registry))));
-        gtoken = GTokenAuthorization(_deployDefault(
-            "GTokenAuthorization", abi.encode(uint256(21_000_000 ether), address(xpntsFactory))
-        ));
-        staking = GTokenStaking(_deployDefault(
-            "GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))
-        ));
-        mysbt = MySBT(_deployDefault(
-            "MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)
-        ));
+        gtoken = GTokenAuthorization(
+            _deployDefault("GTokenAuthorization", abi.encode(uint256(21_000_000 ether), address(xpntsFactory)))
+        );
+        staking =
+            GTokenStaking(_deployDefault("GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))));
+        mysbt =
+            MySBT(_deployDefault("MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)));
 
         registry.setStaking(address(staking));
         registry.setMySBT(address(mysbt));
@@ -103,36 +101,38 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         gtoken.mint(deployer, 5_000 ether);
         gtoken.approve(address(staking), 5_000 ether);
         Registry.CommunityRoleData memory community = Registry.CommunityRoleData({
-            name: "RepCredit E2E 20260824",
-            ensName: "repcredit-e2e-20260824.invalid",
-            stakeAmount: 30 ether
+            name: "RepCredit E2E 20260824", ensName: "repcredit-e2e-20260824.invalid", stakeAmount: 30 ether
         });
         registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(community));
         apnts = xPNTsToken(
             xpntsFactory.deployxPNTsToken(
-                "RepCredit E2E aPNT", "rcAPNT", "RepCredit E2E 20260824",
-                "repcredit-e2e-20260824.invalid", 1 ether, address(0)
+                "RepCredit E2E aPNT",
+                "rcAPNT",
+                "RepCredit E2E 20260824",
+                "repcredit-e2e-20260824.invalid",
+                1 ether,
+                address(0)
             )
         );
         apnts.mint(deployer, 5_000 ether);
 
         // AUD-4: explicit profile.default artifact (see V55Bootstrap._deployDefault)
-        SuperPaymaster superPaymasterImpl = SuperPaymaster(payable(_deployDefault(
-            "SuperPaymaster", abi.encode(entryPoint, address(registry), priceFeed)
-        )));
-        bytes memory spInit = abi.encodeCall(
-            SuperPaymaster.initialize,
-            (deployer, address(apnts), deployer, 4_200)
+        SuperPaymaster superPaymasterImpl = SuperPaymaster(
+            payable(_deployDefault("SuperPaymaster", abi.encode(entryPoint, address(registry), priceFeed)))
         );
-        superPaymaster = SuperPaymaster(payable(_deployDefault("ERC1967Proxy", abi.encode(address(superPaymasterImpl), spInit))));
+        bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4_200));
+        superPaymaster =
+            SuperPaymaster(payable(_deployDefault("ERC1967Proxy", abi.encode(address(superPaymasterImpl), spInit))));
         // 5.5.0 runbook step 4: xPNTs v2 stack bound to this SP proxy.
         v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
 
         reputationSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvtValidator = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry))));
-        blsAggregator = BLSAggregator(_deployDefault(
-            "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvtValidator))
-        ));
+        dvtValidator = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        blsAggregator = BLSAggregator(
+            _deployDefault(
+                "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvtValidator))
+            )
+        );
         agentIdentityRegistry = MockAgentIdentityRegistry(_deployDefault("MockAgentIdentityRegistry", ""));
         agentReputationRegistry = MockAgentReputationRegistry(_deployDefault("MockAgentReputationRegistry", ""));
 
@@ -156,8 +156,13 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         blsAggregator.setDefaultThreshold(3);
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
         operatorToken = _issueV2Token(
-            v55.factory, deployer, "RepCredit E2E xPNT", "rcXPNT", "RepCredit E2E 20260824",
-            "repcredit-e2e-20260824.invalid", 1 ether
+            v55.factory,
+            deployer,
+            "RepCredit E2E xPNT",
+            "rcXPNT",
+            "RepCredit E2E 20260824",
+            "repcredit-e2e-20260824.invalid",
+            1 ether
         );
         _configureOperatorV2(address(superPaymaster), operatorToken, deployer, deployer);
         apnts.mint(deployer, 2_000 ether);
@@ -187,9 +192,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         require(
             blsAggregator.domainSeparator()
                 == keccak256(
-                    abi.encode(
-                        blsAggregator.DOMAIN_NAME(), block.chainid, address(blsAggregator), address(registry)
-                    )
+                    abi.encode(blsAggregator.DOMAIN_NAME(), block.chainid, address(blsAggregator), address(registry))
                 ),
             "domain separator does not match the published schema"
         );
@@ -206,13 +209,15 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         // deployment has no governance defence on that path. Set GOVERNANCE_OWNER instead
         // to hand it to the Safe.
         address gov = GovernanceOwnerGate.declaredGovernanceOwner();
-        if (gov != address(0)) blsAggregator.transferOwnership(gov);
+        if (gov != address(0)) {
+            blsAggregator.transferOwnership(gov);
+            dvtValidator.transferOwnership(gov);
+        }
 
         vm.stopBroadcast();
 
-        GovernanceOwnerGate.requireGovernanceOwner(
-            address(blsAggregator), blsAggregator.owner(), "BLSAggregator"
-        );
+        GovernanceOwnerGate.requireGovernanceOwner(address(blsAggregator), blsAggregator.owner(), "BLSAggregator");
+        require(dvtValidator.owner() == blsAggregator.owner(), "RepCredit: DVT owner != BLS owner");
         // 5.5.0 read-back (runbook steps 4 / 6 / 7a / 7c)
         _verifyV55Stack(v55, address(superPaymaster), address(registry));
         _verifySPFactory(address(superPaymaster), v55.factory);
@@ -229,7 +234,10 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         _requireDefaultProxy(address(registry), "Registry");
         _requireDefaultProxy(address(superPaymaster), "SuperPaymaster");
         _requireDefaultArtifact(address(xpntsFactory), "xPNTsFactory");
-        require(_requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(), "T-4: rcAPNT not a clone of the factory template");
+        require(
+            _requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(),
+            "T-4: rcAPNT not a clone of the factory template"
+        );
         _requireDefaultArtifact(address(gtoken), "GTokenAuthorization");
         _requireDefaultArtifact(address(staking), "GTokenStaking");
         _requireDefaultArtifact(address(mysbt), "MySBT");
@@ -239,7 +247,10 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         _requireDefaultArtifact(address(agentIdentityRegistry), "MockAgentIdentityRegistry");
         _requireDefaultArtifact(address(agentReputationRegistry), "MockAgentReputationRegistry");
         _verifyV55Stack(v55, address(superPaymaster), address(registry));
-        require(_requireDefaultClone(operatorToken, "xPNTsTokenV2") == v55.impl, "T-4: rcXPNT not a clone of the v2 template");
+        require(
+            _requireDefaultClone(operatorToken, "xPNTsTokenV2") == v55.impl,
+            "T-4: rcXPNT not a clone of the v2 template"
+        );
     }
 
     function _writeConfig(uint256 entryPointDeposit) private {
