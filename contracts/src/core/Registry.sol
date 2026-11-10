@@ -374,7 +374,7 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
         }
         _removeFromUserRoles(msg.sender, roleId);
 
-        if (roleId == ROLE_ENDUSER) {
+        if (roleId == ROLE_ENDUSER && userRoleCount[msg.sender] == 0) {
             (bool ok,) = address(MYSBT).call(
                 abi.encodeCall(IMySBT.deactivateAllMemberships, (msg.sender))
             );
@@ -437,7 +437,7 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
     /// @notice Retry ENDUSER membership cleanup after a non-fatal exit synchronization failure.
     function reconcileMembershipDeactivation(address user) external {
         if (!pendingMembershipCleanup[user]) revert InvalidParam();
-        if (hasRole[ROLE_ENDUSER][user]) revert RoleAlreadyGranted(ROLE_ENDUSER, user);
+        if (userRoleCount[user] != 0) revert InvalidParam();
         pendingMembershipCleanup[user] = false;
         MYSBT.deactivateAllMemberships(user);
         emit MembershipDeactivationReconciled(user);
