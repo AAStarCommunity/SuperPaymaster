@@ -333,14 +333,14 @@ contract SuperPaymasterPricingV2Test is Test {
         // 1. Initial State
         paymaster.updatePrice(); // $2000
 
-        // 2. DVT Updates Price by the maximum allowed 20% step (with fresh timestamp)
+        // 2. DVT Updates Price to $4000 (with fresh timestamp)
         vm.warp(block.timestamp + 10 minutes); // Some time passed
 
-        // Simulate Chainlink down; the cached-price movement cap still applies.
+        // Simulate Chainlink DOWN so DVT can bypass deviation check
         priceFeed.setRevert(true);
 
         vm.prank(owner);
-        paymaster.updatePriceDVT(2400 * 1e8, block.timestamp, "", 0);
+        paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "", 0);
 
         // Restore Chainlink
         priceFeed.setRevert(false);
@@ -352,9 +352,9 @@ contract SuperPaymasterPricingV2Test is Test {
         _validateAndPostOp(keccak256("dvt"));
 
         // Assert:
-        // 1. Cache should still be DVT price ($2400), not Oracle ($5000)
+        // 1. Cache should still be DVT price ($4000), not Oracle ($5000)
         (int256 p,,,) = paymaster.cachedPrice();
-        assertEq(p, 2400 * 1e8);
+        assertEq(p, 4000 * 1e8);
     }
 
     // 5. R10-M3 (new in 5.5.0): postOp prices the charge at the VALIDATION-time snapshot carried

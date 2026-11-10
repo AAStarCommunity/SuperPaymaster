@@ -8452,7 +8452,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xbb9fe6bf` | `unlockStake()` | nonpayable | — |  |
 | `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — | Batch update blocked status for users (Called by Registry via DVT) |
 | `0x673a7e28` | `updatePrice()` | nonpayable | — | Update price cache from Chainlink oracle (keeper-callable). |
-| `0x53afb8be` | `updatePriceDVT(int256,uint256,bytes,uint8)` | nonpayable | — | Update price via DVT/BLS consensus or the owner (Safe) break-glass path. |
+| `0x53afb8be` | `updatePriceDVT(int256,uint256,bytes,uint8)` | nonpayable | — | Update price via DVT/BLS consensus (Chainlink fallback) |
 | `0xf5c91a08` | `updateReputation(address,uint256)` | nonpayable | onlyOwner | Update Operator Reputation (External Credit Manager) |
 | `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — | Update SBT holder status (Called by Registry) |
 | `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
@@ -9285,9 +9285,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x53afb8be` · nonpayable · access: —
 
-> Update price via DVT/BLS consensus or the owner (Safe) break-glass path.
-
-*@dev* The BLS aggregator is capped per update to ±20% of the cached price. The owner is      uncapped within [MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE]. Both callers remain subject to      two-hour recency, future-timestamp grace, strictly increasing updatedAt, and the      Chainlink ±20% check when Chainlink is fresh.
+> Update price via DVT/BLS consensus (Chainlink fallback)
 
 | param | type | description |
 |---|---|---|

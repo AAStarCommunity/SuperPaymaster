@@ -257,6 +257,24 @@ Skips come from existing EVM-specific precompile/artifact guards and opt-in fork
 
 The requested fixes, both conditional C4 lows, version propagation and all specified local verification are complete. The only execution adjustment was omitting `nice` after the sandbox refused it. No chain or deployment validation was attempted, as requested.
 
+## Delivery split — SP-a / SP-b
+
+The SuperPaymaster fixes recorded from here to the end of this file ship in two PRs. This tree
+(SP-a) contains all of them except four price-path changes in `SuperPaymasterAdmin.sol`, which
+ship in the follow-up SP-b PR together with their tests:
+
+1. `setAPNTSPrice`: the 10% lower limit rounds upward (re-review #7).
+2. `_checkEmergencyPrice`: the 20% lower limit rounds upward (re-review #7).
+3. `updatePriceDVT`: the per-update ±20% movement cap against the cached price, applied only when
+   `msg.sender == BLS_AGGREGATOR && msg.sender != owner()`.
+4. `updatePriceDVT`: the Chainlink deviation check is exact in bps instead of a truncated integer
+   percentage.
+
+Until SP-b merges, these four paths keep their 5.5.0 behavior. No tag is cut between the two PRs.
+`SuperPaymasterLens-1.2.2`, including the `uint96` reservation ceiling, is in SP-a because it mirrors
+SP-a's validation. Test counts and byte sizes quoted below were measured on the combined tree;
+the SP-a PR body quotes its own.
+
 ## Daybreak re-review #3 — SP-551-07 through SP-551-11
 
 A slash now reverts with `SlashBlockedByInflight` while the operator has any counted reservation.
