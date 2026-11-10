@@ -5379,9 +5379,14 @@ def discovery_call_test(function, expression, gate):
     return test
 
 
+class DiscoveryCallSourceTests(unittest.TestCase):
+    """Source-only controls. No plan-building setUpClass: a deleted call must reach the assertion,
+    not crash class setup (DiscoveryCallTests builds a plan, which the deletion itself breaks)."""
+
+
 for _i, (_function, _expression, _gate) in enumerate(DISCOVERY_CALLS):
-    if not hasattr(DiscoveryCallTests, 'test_call_' + str(_i)):
-        setattr(DiscoveryCallTests, 'test_call_' + str(_i), discovery_call_test(_function, _expression, _gate))
+    if 'test_call_' + str(_i) not in vars(DiscoveryCallTests):
+        setattr(DiscoveryCallSourceTests, 'test_call_' + str(_i), discovery_call_test(_function, _expression, _gate))
 
 
 if __name__ == '__main__':

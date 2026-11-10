@@ -127,11 +127,16 @@ def manifest_probes():
                  and n.value.args and isinstance(n.value.args[0], ast.Constant) and n.value.args[0].value == gate]
         assert len(nodes) == 1, (gate, len(nodes))
         probes.append((gate, ast.get_source_segment(source,nodes[0]), 'pass', 'DiscoveryTests.test_'+gate))
+    # Behavioural call controls are methods written on DiscoveryCallTests; the rest are generated source-only
+    # controls on DiscoveryCallSourceTests (derived from the source, never hard-coded).
+    behavioural = {f.name for c in test_tree.body if isinstance(c, ast.ClassDef) and c.name == 'DiscoveryCallTests'
+                   for f in c.body if isinstance(f, ast.FunctionDef) and f.name.startswith('test_call_')}
     for i, (function, expression, gate) in enumerate(constants['DISCOVERY_CALLS']):
         fn = next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name == function)
         body = ast.get_source_segment(source,fn)
         assert body.count(expression) == 1, (function, expression)
-        probes.append(('discovery_call_'+str(i), body, body.replace(expression,'None'), 'DiscoveryCallTests.test_call_'+str(i)))
+        owner = 'DiscoveryCallTests' if 'test_call_'+str(i) in behavioural else 'DiscoveryCallSourceTests'
+        probes.append(('discovery_call_'+str(i), body, body.replace(expression,'None'), owner+'.test_call_'+str(i)))
     probes.append(('post_pin_delta_call', "    delta = post_pin_delta(rpc, coverage, block)\n", '', 'DeltaTests.test_pre_send_delta_call'))
     probes.append(('configured_roles_closing_standard',
                    "{r['value'] for r in spec['roles']} | {log['topics'][1] for log in logs}",
