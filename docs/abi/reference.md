@@ -9037,7 +9037,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Mark an operator as having a pending slash (owner, BLS aggregator, or guardian).
 
-*@dev* M-5: withdraw() is blocked until the slash executes or is cancelled. Guardian repeats      revert while unresolved. Owner repeats overwrite provenance and time; BLS repeats do the      same outside its cooldown.
+*@dev* M-5: an owner or BLS queue blocks requestWithdraw/withdraw until the slash executes or is      cancelled. An unconfirmed guardian queue blocks only until queuedAt + GUARDIAN_SLASH_FREEZE      (7 days) and then expires (isSlashPending() turns false); owner/BLS confirmation makes it      persistent. Guardian repeats revert while unresolved. Owner repeats overwrite provenance and      time; BLS repeats do the same outside its cooldown.
 
 | param | type | description |
 |---|---|---|
