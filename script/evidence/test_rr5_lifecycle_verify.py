@@ -3,6 +3,8 @@
 
 python3 script/evidence/test_rr5_lifecycle_verify.py [run-directory]
 """
+import importlib.util
+from unittest import mock
 import hashlib
 import json
 from pathlib import Path
@@ -19,7 +21,7 @@ SOURCE = Path(sys.argv.pop(1) if len(sys.argv) > 1 else
 
 class EvidenceControls(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix='rr5-negative-')
+        self.tmp = tempfile.TemporaryDirectory(prefix='rr5-negative-', dir=RUNNER.parents[2]/'.codex-work')
         self.addCleanup(self.tmp.cleanup)
         self.out = Path(self.tmp.name)/'run'
         shutil.copytree(SOURCE, self.out)
@@ -67,6 +69,32 @@ class EvidenceControls(unittest.TestCase):
                 i = command['argv'].index('--evm-version')
                 command['argv'][i + 1] = 'cancun'
         self.check()
+
+    def test_missing_production_source(self):
+        before = json.loads((self.out/'source-before.json').read_text())
+        before.pop(next(iter(before)))
+        for name in ('source-before.json', 'source-after.json'):
+            (self.out/name).write_text(json.dumps(before))
+        self.check('production source inventory mismatch')
+
+    def test_missing_engine_version(self):
+        (self.out/'amsterdam-version.txt').unlink()
+        self.check('engine inventory mismatch')
+
+    def test_recorded_measurement_prefix_changed(self):
+        spec = importlib.util.spec_from_file_location('rr5_runner', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        original = subprocess.check_output
+        def changed_recorded(argv, *args, **kwargs):
+            result = original(argv, *args, **kwargs)
+            if argv[:2] == ['git', 'show'] and argv[2].endswith(':script/evidence/rr5-lifecycle-run.py'):
+                self.assertIn(b'    serial = 0', result)
+                return result.replace(b'    serial = 0', b'    serial = 1', 1)
+            return result
+        with mock.patch.object(runner.subprocess, 'check_output', side_effect=changed_recorded):
+            with self.assertRaisesRegex(AssertionError, 'measurement main prefix changed'):
+                runner.verify(self.out)
 
     def test_null_band(self):
         for row in self.manifest.values():

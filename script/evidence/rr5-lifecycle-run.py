@@ -81,8 +81,11 @@ def verify_sources(out):
     assert subprocess.check_output(['git','rev-parse',f'{head}^{{commit}}'],text=True).strip() == head
     # The original record has no tracked changes, only the then-untracked evidence folder.
     assert (out/'working-tree.txt').read_text() in ('', '?? docs/design/aoa-balance-mode/data/rr5-lifecycle-isolation/\n'), 'dirty measurement sources'
-    recorded_engines = [engine for engine in ENGINES if (out/f'{engine}-version.txt').exists()]
-    assert recorded_engines, 'missing engine versions'
+    recorded_engines = {p.name.removesuffix('-version.txt') for p in out.glob('*-version.txt')}
+    manifest_engines = {k.split('/')[0] for k in json.loads((out/'manifest.json').read_text())}
+    command_engines = {json.loads(line)['engine'] for line in (out/'commands.jsonl').read_text().splitlines()}
+    assert recorded_engines and recorded_engines == manifest_engines == command_engines, 'engine inventory mismatch'
+    assert recorded_engines <= set(ENGINES), 'unknown engine inventory'
     for engine in recorded_engines:
         version = (out/f'{engine}-version.txt').read_text()
         assert re.fullmatch(r'forge Version: [^\n]+\nCommit SHA: [0-9a-f]{40}\nBuild Timestamp: [^\n]+\nBuild Profile: dist\n', version)
@@ -93,6 +96,9 @@ def verify_sources(out):
     if all(engine in recorded_engines for engine in ('cancun', 'prague')):
         assert (out/'cancun-version.txt').read_bytes() == (out/'prague-version.txt').read_bytes()
     before = json.loads((out/'source-before.json').read_text())
+    inventory = subprocess.check_output(
+        ['git', 'ls-tree', '-r', '--name-only', head, 'contracts/src'], text=True).splitlines()
+    assert set(before) == {p for p in inventory if p.endswith('.sol')}, 'production source inventory mismatch'
     assert before == json.loads((out/'source-after.json').read_text())
     for path, digest in before.items():
         assert hashlib.sha256(recorded(path)).hexdigest() == digest, ('production source hash', path)
@@ -135,6 +141,21 @@ def verify_sources(out):
     # measurement definitions verbatim, permitting only the verification implementation to change.
     old = ast.parse(original)
     current = ast.parse(Path(runner).read_bytes())
+    def main_prefix(tree):
+        main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        end = [i for i, n in enumerate(main.body) if isinstance(n, ast.Expr) and
+               ast.unparse(n) == "(out / 'source-after.json').write_text(json.dumps(hashes(), indent=2))"]
+        assert len(end) == 1, 'measurement prefix boundary'
+        main.body = main.body[:end[0] + 1]
+        return hashlib.sha256(ast.dump(main).encode()).hexdigest()
+    old_prefix, current_prefix = main_prefix(old), main_prefix(current)
+    # Audited git-show prefixes: 5edd1d30 predates selected_engines/compileEvm;
+    # 0f08bf98 records Cancun compilation for Amsterdam. Accept the exact legacy
+    # prefix only with the exact modern counterpart, never a generic AST exemption.
+    legacy_prefix = '54e6e79b82a356533b76daf811c131927ea9121eff0a44baacc88ff3dd8e4729'
+    modern_prefix = 'ba9ad94534dc76e7ef9f3d9b681699d94859f388491cbc0dfcddb34a022508a5'
+    assert old_prefix == current_prefix or (old_prefix == legacy_prefix and current_prefix == modern_prefix), \
+        'measurement main prefix changed'
     def measurement_digest(tree):
         tree.body = [n for n in tree.body if not (
             (isinstance(n, ast.FunctionDef) and n.name in
