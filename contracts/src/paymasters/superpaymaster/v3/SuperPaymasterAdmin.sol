@@ -255,7 +255,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
             uint256 lower;
             uint256 upper;
             unchecked {
-                lower = oldPrice * (BPS_DENOMINATOR - APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
+                lower = (oldPrice * (BPS_DENOMINATOR - APNTS_PRICE_DELTA_BPS) + BPS_DENOMINATOR - 1) / BPS_DENOMINATOR;
                 upper = oldPrice * (BPS_DENOMINATOR + APNTS_PRICE_DELTA_BPS) / BPS_DENOMINATOR;
             }
             if (newPrice < lower || newPrice > upper) revert InvalidConfiguration();
@@ -395,10 +395,12 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         int256 ref = cachedPrice.price;
         if (ref <= 0) revert OracleError();
 
-        int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS))))
-            / int256(uint256(BPS_DENOMINATOR));
-        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS))))
-            / int256(uint256(BPS_DENOMINATOR));
+        int256 denominator = int256(uint256(BPS_DENOMINATOR));
+        int256 lower = (ref
+                * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS)))
+                + denominator
+                - 1) / denominator;
+        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS)))) / denominator;
         if (newPrice < lower || newPrice > upper) revert EmergencyPriceOutOfRange();
     }
 
@@ -450,7 +452,11 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     }
 
     /**
-     * @notice Update price via DVT/BLS consensus (Chainlink fallback)
+     * @notice Update price via DVT/BLS consensus or the owner (Safe) break-glass path.
+     * @dev The BLS aggregator is capped per update to ±20% of the cached price. The owner is
+     *      uncapped within [MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE]. Both callers remain subject to
+     *      two-hour recency, future-timestamp grace, strictly increasing updatedAt, and the
+     *      Chainlink ±20% check when Chainlink is fresh.
      * @param chainlinkRecovered 0 = Chainlink still unavailable; 1 = recovered (clears priceMode).
      */
     function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof, uint8 chainlinkRecovered) external {
@@ -464,8 +470,17 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         // P0-16: reject future timestamps (15 s keeper clock-skew grace).
         if (updatedAt > block.timestamp + TIMESTAMP_GRACE_SECONDS) revert OracleError();
 
-        // 3. Validate price bounds
+        // 3. Validate absolute bounds and the per-update BLS movement cap.
         if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
+        if (msg.sender == BLS_AGGREGATOR && msg.sender != owner()) {
+            int256 referencePrice = cachedPrice.price;
+            if (referencePrice > 0) {
+                int256 delta = price > referencePrice ? price - referencePrice : referencePrice - price;
+                if (delta * int256(BPS_DENOMINATOR) > referencePrice * int256(EMERGENCY_PRICE_DEVIATION_BPS)) {
+                    revert OracleError();
+                }
+            }
+        }
 
         // 4. Deviation from Chainlink (±20%) when Chainlink is recent
         try ETH_USD_PRICE_FEED.latestRoundData() returns (
@@ -473,10 +488,10 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         ) {
             // P1-42: guard chainlinkPrice <= 0 to prevent div-by-zero
             if (chainlinkPrice > 0 && block.timestamp - chainlinkUpdatedAt < 2 hours) {
-                int256 deviation = price > chainlinkPrice
-                    ? (price - chainlinkPrice) * 100 / chainlinkPrice
-                    : (chainlinkPrice - price) * 100 / chainlinkPrice;
-                if (deviation > 20) revert OracleError();
+                int256 delta = price > chainlinkPrice ? price - chainlinkPrice : chainlinkPrice - price;
+                if (delta * int256(BPS_DENOMINATOR) > chainlinkPrice * int256(EMERGENCY_PRICE_DEVIATION_BPS)) {
+                    revert OracleError();
+                }
             }
         } catch {
             // Chainlink down: DVT price accepted without deviation check
