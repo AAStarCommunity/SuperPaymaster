@@ -736,7 +736,8 @@ contract RamsARouteRehearsalTest is Test {
         uint32[2] memory bounds = [uint32(450_000), uint32(600_000)];
         for (uint256 i; i < bounds.length; ++i) {
             uint256 branch = vm.snapshot();
-            uint32 minPost = bounds[i] + 20_000 > 500_000 ? bounds[i] + 20_000 : 500_000;
+            uint32 spacing = bounds[i] + bounds[i] / 63 + 20_000;
+            uint32 minPost = spacing > 500_000 ? spacing : 500_000;
             vm.prank(OWNER);
             sp.queueGasParams(minPost, bounds[i], 5000, 450_000);
             (, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();

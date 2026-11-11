@@ -236,7 +236,7 @@ abstract contract RR5GuardBase is Test {
         admit();
         exactGuard(setupCallOK, setupReturn);
         vm.prank(owner);
-        sp.queueGasParams(1_020_000, 1_000_000, GasFixture.WRAP, GasFixture.POSTOP());
+        sp.queueGasParams(1_000_000 + uint32(1_000_000) / 63 + 20_000, 1_000_000, GasFixture.WRAP, GasFixture.POSTOP());
         vm.warp(vm.getBlockTimestamp() + 48 hours);
         vm.prank(owner);
         sp.executeGasParams();

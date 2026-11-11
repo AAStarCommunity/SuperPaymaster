@@ -84,6 +84,73 @@ contract AmsterdamHandleOpsFloorTest is SuperPaymasterV55PostOpBoundTest {
         assertTrue(atFloor, "active minPost must settle real handleOps");
     }
 
+    // Discover the actual governance minimum so reverting the production rule also
+    // exercises handleOps at the unsafe old minimum in the mutation control.
+    function probeQueue(uint32 minimum, uint32 settle) external {
+        vm.prank(owner);
+        sp.queueGasParams(minimum, settle, 5_000, 450_000);
+        revert HandleOpsProbe(true);
+    }
+
+    function _queueAccepts(uint32 minimum, uint32 settle) internal returns (bool) {
+        (, bytes memory ret) = address(this).call(abi.encodeCall(this.probeQueue, (minimum, settle)));
+        return bytes4(ret) == HandleOpsProbe.selector;
+    }
+
+    function _scaledFloor(uint32 settle, bool credit) internal {
+        uint32 spacing = settle + settle / 63 + 20_000;
+        uint32 expected = spacing > 500_000 ? spacing : 500_000;
+        uint32 low;
+        uint32 minimum = 2_000_000;
+        while (minimum - low > 1) {
+            uint32 mid = (minimum + low) / 2;
+            if (_queueAccepts(mid, settle)) minimum = mid;
+            else low = mid;
+        }
+        vm.prank(owner);
+        sp.queueGasParams(minimum, settle, 5_000, 450_000);
+        vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
+        vm.prank(owner);
+        sp.executeGasParams();
+        sp.updatePrice();
+        assertTrue(_completes(minimum, credit), "exact governance minimum must settle real handleOps");
+        assertEq(minimum, expected, "governance minimum matches scaled rule");
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        sp.queueGasParams(spacing - 1, settle, 5_000, 450_000);
+
+        // Remove only admission's lower limit for measurement, retaining SETTLE,
+        // C_WRAP and C_POSTOP. This is not the exact-minimum acceptance control above.
+        bytes32 slot = bytes32(uint256(38));
+        bytes32 original = vm.load(address(sp), slot);
+        vm.store(address(sp), slot, bytes32(uint256(original) & ~uint256(type(uint32).max) | 1));
+        uint128 lo = settle;
+        uint128 hi = 2_000_000;
+        assertFalse(_completes(lo, credit), "guard crossing lower bracket fails");
+        assertTrue(_completes(hi, credit), "guard crossing upper bracket settles");
+        while (hi - lo > 1) {
+            uint128 mid = (hi + lo) / 2;
+            if (_completes(mid, credit)) hi = mid;
+            else lo = mid;
+        }
+        assertTrue(_completes(hi, credit), "guard crossing settles");
+        assertFalse(_completes(hi - 1, credit), "below guard crossing fails");
+        vm.store(address(sp), slot, original);
+        emit log_named_uint("SETTLE", settle);
+        emit log_named_uint("CREDIT", credit ? 1 : 0);
+        emit log_named_uint("scaled minimum minPost", minimum);
+        emit log_named_uint("real guard crossing", hi);
+        emit log_named_int("scaled margin", int256(uint256(minimum)) - int256(uint256(hi)));
+        assertGe(minimum, hi, "scaled rule covers real guard crossing");
+    }
+
+    function test_handleOps_scaled_450k_balance() public { _scaledFloor(450_000, false); }
+    function test_handleOps_scaled_450k_credit() public { _scaledFloor(450_000, true); }
+    function test_handleOps_scaled_600k_balance() public { _scaledFloor(600_000, false); }
+    function test_handleOps_scaled_600k_credit() public { _scaledFloor(600_000, true); }
+    function test_handleOps_scaled_1M_balance() public { _scaledFloor(1_000_000, false); }
+    function test_handleOps_scaled_1M_credit() public { _scaledFloor(1_000_000, true); }
+
     function test_old_floor_rejected_at_queue() public {
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);

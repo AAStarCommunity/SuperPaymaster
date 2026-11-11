@@ -269,8 +269,14 @@ contract SuperPaymasterV55GasParamsTest is Test {
         _expectBad(500_000, 449_999, 5_000, 450_000);
         _expectBad(500_000, 450_000, 5_000, 449_999);
         _expectBad(2_000_000, 1_000_001, 5_000, 450_000);
-        // MIN must also be at least SETTLE + 20k, independently of its absolute floor.
-        _expectBad(519_999, 500_000, 5_000, 450_000);
+        // Integer division rounds down; test both sides of the relative spacing boundary.
+        uint32[3] memory bounds = [uint32(500_000), uint32(600_000), uint32(1_000_000)];
+        for (uint256 i; i < bounds.length; ++i) {
+            uint32 minimum = bounds[i] + bounds[i] / 63 + 20_000;
+            vm.prank(owner);
+            sp.queueGasParams(minimum, bounds[i], 5_000, 450_000);
+            _expectBad(minimum - 1, bounds[i], 5_000, 450_000);
+        }
         _expectBad(2_000_001, 450_000, 5_000, 450_000);
         _expectBad(500_000, 450_000, 5_000, 500_001);
         _expectBad(500_000, 450_000, 4_999, 450_000);
