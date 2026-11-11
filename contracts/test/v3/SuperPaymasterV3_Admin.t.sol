@@ -175,6 +175,21 @@ contract SuperPaymaster_Admin_Test is Test {
         assertEq(paymaster.aPNTsPriceUSD(), 0.021 ether);
     }
 
+    function test_SetAPNTSPrice_NonDivisibleLowerBoundaryIsExact() public {
+        uint256 refPrice = 20_000_000_000_000_001;
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(refPrice);
+
+        uint256 exactLower = 18_000_000_000_000_001;
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        paymaster.setAPNTSPrice(exactLower - 1);
+
+        vm.prank(owner);
+        paymaster.setAPNTSPrice(exactLower);
+        assertEq(paymaster.aPNTsPriceUSD(), exactLower, "ceil(90% reference) is accepted");
+    }
+
     function test_SetAPNTSPrice_OnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();

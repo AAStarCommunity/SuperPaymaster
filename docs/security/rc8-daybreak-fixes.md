@@ -322,9 +322,9 @@ The requested fixes, both conditional C4 lows, version propagation and all speci
 
 ## Delivery split — SP-a / SP-b
 
-The SuperPaymaster fixes recorded from here to the end of this file ship in two PRs. This tree
-(SP-a) contains all of them except four price-path changes in `SuperPaymasterAdmin.sol`, which
-ship in the follow-up SP-b PR together with their tests:
+The SuperPaymaster fixes recorded from here to the end of this file shipped in two PRs. SP-a
+(#619) carried all of them except four price-path changes in `SuperPaymasterAdmin.sol`, which
+SP-b carries together with their tests:
 
 1. `setAPNTSPrice`: the 10% lower limit rounds upward (re-review #7).
 2. `_checkEmergencyPrice`: the 20% lower limit rounds upward (re-review #7).
@@ -333,10 +333,9 @@ ship in the follow-up SP-b PR together with their tests:
 4. `updatePriceDVT`: the Chainlink deviation check is exact in bps instead of a truncated integer
    percentage.
 
-Until SP-b merges, these four paths keep their 5.5.0 behavior. No tag is cut between the two PRs.
-`SuperPaymasterLens-1.2.2`, including the `uint96` reservation ceiling, is in SP-a because it mirrors
-SP-a's validation. Test counts and byte sizes quoted below were measured on the combined tree;
-the SP-a PR body quotes its own.
+No tag was cut between the two PRs. `SuperPaymasterLens-1.2.2`, including the `uint96`
+reservation ceiling, is in SP-a because it mirrors SP-a's validation. Test counts and byte sizes
+quoted below were measured on the combined tree, which is the tree after SP-b.
 
 ## Daybreak re-review #3 — SP-551-07 through SP-551-11
 
@@ -595,5 +594,21 @@ already reads only `aPNTsBalance`, so escrow is excluded automatically in the sa
 validation.
 
 Accepted residual: during `[readyAt, readyAt + W]`, where `W = 24 hours`, escrowed funds can leave
-without further notice. Those funds did not sponsor operations while escrowed. The remaining
-exposure is the 30% slash on the escrowed slice for at most `W` per request cycle.
+without further notice. Inside that window the escrowed slice can escape the slash entirely: a
+slash that lands after the withdrawal executes finds nothing left of it. Those funds did not
+sponsor operations while escrowed, and the request gave at least 48 hours of public notice
+(`OperatorWithdrawalRequested` carries `readyAt` and `expiresAt`), so the exposure is limited to
+the escrowed slice during at most `W` per request cycle.
+
+Side effect: `xPNTsTokenV2Ext` uses `operators(community).aPNTsBalance` as the backing for the
+community-token issuance ceiling. Because escrow leaves `aPNTsBalance` at request time, the backing
+(and so the ceiling) drops when a withdrawal is requested, not when it executes. That is the
+conservative direction; `isOverIssued()` can turn true up to 48 hours earlier than before.
+
+Deposit cap: a deposit reverts `AmountExceedsUint128` unless the liquid balance, the withdrawal
+escrow, the in-flight reservation and the deposit together fit `uint128`. Every later credit back
+into `aPNTsBalance` (escrow cancel/expire, postOp refund, stale release) therefore cannot overflow.
+Tests: `test_B1_deposit_cap_counts_withdrawal_escrow`,
+`test_B1_deposit_cap_counts_inflight_reservation_then_stale_release_and_slash`, and
+`test_B1_expireWithdraw_at_exactly_expiry_reverts_and_one_second_later_succeeds`; each is red
+against its mutant (escrow ignored, reservation ignored, `<=` relaxed to `<`).

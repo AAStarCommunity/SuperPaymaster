@@ -7766,7 +7766,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — | V5.3: Dual-channel eligibility — SBT holder OR registered ERC-8004 agent |
 | `0xe21b38d2` | `isRegisteredAgent(address)` | view | — | Check if an address is a registered ERC-8004 agent |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | nonpayable | nonReentrant | Handle ERC1363 transferAndCall (Push Mode) |
-| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW]. |
+| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].         The delay must exceed the worst case from "misbehaviour detectable" to a slash         freeze on chain via the guardian route: detection + guardian queueSlash signing,         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus         margin. The BLS quorum route is NOT the basis: it has no measured latency today. |
 | `0xd8867c2a` | `OPERATOR_WITHDRAWAL_WINDOW()` | view | — | Execution window for a matured operator withdrawal request. |
 | `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
@@ -8081,7 +8081,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xa8b72f31` · view · access: —
 
-> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].         The delay must exceed the worst case from "misbehaviour detectable" to a slash         freeze on chain via the guardian route: detection + guardian queueSlash signing,         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus         margin. The BLS quorum route is NOT the basis: it has no measured latency today.
 
 | returns | type | description |
 |---|---|---|
@@ -8614,7 +8614,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x39a73403` | `initBLSAggregator(address)` | nonpayable | onlyOwner |  |
 | `0x8e0d8ed9` | `isChainlinkStale()` | view | — |  |
 | `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether `operator` currently has an effective withdrawal-blocking slash status. |
-| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW]. |
+| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].         The delay must exceed the worst case from "misbehaviour detectable" to a slash         freeze on chain via the guardian route: detection + guardian queueSlash signing,         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus         margin. The BLS quorum route is NOT the basis: it has no measured latency today. |
 | `0xd8867c2a` | `OPERATOR_WITHDRAWAL_WINDOW()` | view | — | Execution window for a matured operator withdrawal request. |
 | `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
@@ -8660,7 +8660,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xbb9fe6bf` | `unlockStake()` | nonpayable | — |  |
 | `0x5f4cd4fe` | `updateBlockedStatus(address,address[],bool[])` | nonpayable | — | Batch update blocked status for users (Called by Registry via DVT) |
 | `0x673a7e28` | `updatePrice()` | nonpayable | — | Update price cache from Chainlink oracle (keeper-callable). |
-| `0x53afb8be` | `updatePriceDVT(int256,uint256,bytes,uint8)` | nonpayable | — | Update price via DVT/BLS consensus (Chainlink fallback) |
+| `0x53afb8be` | `updatePriceDVT(int256,uint256,bytes,uint8)` | nonpayable | — | Update price via DVT/BLS consensus or the owner (Safe) break-glass path. |
 | `0xf5c91a08` | `updateReputation(address,uint256)` | nonpayable | onlyOwner | Update Operator Reputation (External Credit Manager) |
 | `0xa3970ae6` | `updateSBTStatus(address,bool)` | nonpayable | — | Update SBT holder status (Called by Registry) |
 | `0xad3cb1cc` | `UPGRADE_INTERFACE_VERSION()` | view | — |  |
@@ -9038,7 +9038,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xa8b72f31` · view · access: —
 
-> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].         The delay must exceed the worst case from "misbehaviour detectable" to a slash         freeze on chain via the guardian route: detection + guardian queueSlash signing,         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus         margin. The BLS quorum route is NOT the basis: it has no measured latency today.
 
 | returns | type | description |
 |---|---|---|
@@ -9513,7 +9513,9 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x53afb8be` · nonpayable · access: —
 
-> Update price via DVT/BLS consensus (Chainlink fallback)
+> Update price via DVT/BLS consensus or the owner (Safe) break-glass path.
+
+*@dev* The BLS aggregator is capped per update to ±20% of the cached price. The owner is      uncapped within [MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE]. Both callers remain subject to      two-hour recency, future-timestamp grace, strictly increasing updatedAt, and the      Chainlink ±20% check when Chainlink is fresh.
 
 | param | type | description |
 |---|---|---|
@@ -10101,7 +10103,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x2edf1c51` | `GUARDIAN_SLASH_FREEZE()` | view | — | Guardian-queued freezes expire unless owner or BLS confirms within this window. |
 | `0x452a9320` | `guardian()` | view | — | May pause and queue a time-bounded slash freeze. Unpausing is owner-only. |
 | `0xfb8c1c31` | `inflightReserved(address)` | view | — | Aggregate a0 still reserved between validation and settlement/release per operator. |
-| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW]. |
+| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].         The delay must exceed the worst case from "misbehaviour detectable" to a slash         freeze on chain via the guardian route: detection + guardian queueSlash signing,         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus         margin. The BLS quorum route is NOT the basis: it has no measured latency today. |
 | `0xd8867c2a` | `OPERATOR_WITHDRAWAL_WINDOW()` | view | — | Execution window for a matured operator withdrawal request. |
 | `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
@@ -10300,7 +10302,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xa8b72f31` · view · access: —
 
-> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].         The delay must exceed the worst case from "misbehaviour detectable" to a slash         freeze on chain via the guardian route: detection + guardian queueSlash signing,         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus         margin. The BLS quorum route is NOT the basis: it has no measured latency today.
 
 | returns | type | description |
 |---|---|---|
