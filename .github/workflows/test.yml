@@ -100,7 +100,9 @@ jobs:
 
       - name: Run Tests
         if: steps.changes.outputs.contract == 'true'
-        run: forge test -v
+        # verbosity < 3 disables vm.startDebugTraceRecording; OP-011 gates will fail closed.
+        # Use -vvv, not -v: a CLI -v/-vv overrides foundry.toml `verbosity = 3`.
+        run: forge test -vvv
 
       - name: Check EIP-170 Contract Sizes
         if: steps.changes.outputs.contract == 'true'

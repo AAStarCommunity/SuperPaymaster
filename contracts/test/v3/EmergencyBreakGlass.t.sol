@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -30,20 +30,39 @@ contract MockOracleEBG {
     int256 public price = 2000e8;
     uint256 public updatedAt;
     bool public reverts;
-    constructor() { updatedAt = block.timestamp; }
-    function setPrice(int256 p) external { price = p; }
-    function setUpdatedAt(uint256 t) external { updatedAt = t; }
-    function setReverts(bool r) external { reverts = r; }
+
+    constructor() {
+        updatedAt = block.timestamp;
+    }
+
+    function setPrice(int256 p) external {
+        price = p;
+    }
+
+    function setUpdatedAt(uint256 t) external {
+        updatedAt = t;
+    }
+
+    function setReverts(bool r) external {
+        reverts = r;
+    }
+
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         if (reverts) revert("oracle down");
         return (1, price, 0, updatedAt, 1);
     }
-    function decimals() external pure returns (uint8) { return 8; }
+
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
 }
 
 contract MockTokenEBG is ERC20 {
     constructor() ERC20("aPNTs", "aPNTs") {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 contract EmergencyBreakGlassTest is Test {
@@ -374,4 +393,5 @@ contract EmergencyBreakGlassTest is Test {
         // Step 4: emergencyActivatedAt must be reset.
         assertEq(paymaster.emergencyActivatedAt(), 0, "emergencyActivatedAt should be reset to 0");
     }
+
 }

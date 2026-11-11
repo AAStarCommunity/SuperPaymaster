@@ -12,6 +12,9 @@ contract ManifestSolvencyTest is APNTsCappedSPIntegrationTest {
         apnts.approve(address(sp), 1 ether);
         sp.deposit(1 ether);
         vm.stopPrank();
+        vm.prank(operator);
+        sp.requestWithdraw(0.9 ether);
+        vm.warp(block.timestamp + sp.OPERATOR_WITHDRAWAL_DELAY());
         vm.startPrank(owner);
         sp.queueSlash(operator);
         sp.slashOperator(operator, ISuperPaymaster.SlashLevel.WARNING, 0.1 ether, "buffer fixture");

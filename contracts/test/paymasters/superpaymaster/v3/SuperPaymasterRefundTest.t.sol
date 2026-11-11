@@ -52,6 +52,16 @@ contract SuperPaymasterRefundTest is Test {
             abi.encodeWithSignature("hasRole(bytes32,address)"),
             abi.encode(true)
         );
+        vm.mockCall(
+            address(registry),
+            abi.encodeWithSignature("getRoleConfig(bytes32)"),
+            abi.encode(IRegistry.RoleConfig(0, 0, 0, 0, 0, 0, 0, false, 0, "", address(0), 0))
+        );
+        vm.mockCall(
+            address(registry),
+            abi.encodeWithSignature("getEffectiveStake(address,bytes32)"),
+            abi.encode(uint256(0))
+        );
          vm.mockCall(
             address(registry),
             abi.encodeWithSignature("getCreditLimit(address)"),

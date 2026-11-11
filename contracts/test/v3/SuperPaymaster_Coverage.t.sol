@@ -354,6 +354,9 @@ contract SuperPaymaster_Coverage_Test is Test {
         // Withdraw all from operator1 first.
         (uint128 bal,,,,,,,,) = paymaster.operators(operator1);
         vm.prank(operator1);
+        paymaster.requestWithdraw(bal);
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
+        vm.prank(operator1);
         paymaster.withdraw(bal);
 
         address newToken = address(new CovMockAPNTs());
@@ -386,6 +389,9 @@ contract SuperPaymaster_Coverage_Test is Test {
         (uint128 bal,,,,,,,,) = paymaster.operators(operator1);
         if (bal > 0) {
             vm.prank(operator1);
+            paymaster.requestWithdraw(bal);
+            vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
+            vm.prank(operator1);
             paymaster.withdraw(bal);
         }
 
@@ -407,6 +413,9 @@ contract SuperPaymaster_Coverage_Test is Test {
     function test_D1_ExecuteAPNTsTokenChange_Reverts_BeforeTimelock() public {
         // Drain so only balance condition is satisfied
         (uint128 bal,,,,,,,,) = paymaster.operators(operator1);
+        vm.prank(operator1);
+        paymaster.requestWithdraw(bal);
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
         vm.prank(operator1);
         paymaster.withdraw(bal);
 

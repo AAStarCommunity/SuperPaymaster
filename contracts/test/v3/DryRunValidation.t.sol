@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -28,11 +28,18 @@ contract MockEntryPointDR is IEntryPoint {
     function getSenderAddress(bytes memory) external {}
     function handleOps(PackedUserOperation[] calldata, address payable) external {}
     function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external {}
+
     function getUserOpHash(PackedUserOperation calldata userOp) external pure returns (bytes32) {
         return keccak256(abi.encode(userOp));
     }
-    function getNonce(address, uint192) external pure returns (uint256) { return 0; }
-    function balanceOf(address) external pure returns (uint256) { return 0; }
+
+    function getNonce(address, uint192) external pure returns (uint256) {
+        return 0;
+    }
+
+    function balanceOf(address) external pure returns (uint256) {
+        return 0;
+    }
     function getDepositInfo(address) external pure returns (DepositInfo memory info) {}
     function incrementNonce(uint192) external {}
     function delegateAndRevert(address, bytes calldata) external {}
@@ -41,39 +48,61 @@ contract MockEntryPointDR is IEntryPoint {
 
 contract MockPriceFeedDR {
     int256 public price = 2000 * 1e8;
+
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, price, 0, block.timestamp, 1);
     }
-    function decimals() external pure returns (uint8) { return 8; }
-    function setPrice(int256 _p) external { price = _p; }
+
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
+
+    function setPrice(int256 _p) external {
+        price = _p;
+    }
 }
 
 contract MockAPNTsDR is ERC20 {
     constructor() ERC20("aPNTs", "aPNTs") {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 contract MockRegistryDR is IRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
+
     function hasRole(bytes32 role, address account) external view returns (bool) {
         return roles[role][account];
     }
+
     function setRole(bytes32 role, address account, bool val) external {
         roles[role][account] = val;
     }
-    function setCreditLimit(address user, uint256 v) external { creditLimit[user] = v; }
+
+    function setCreditLimit(address user, uint256 v) external {
+        creditLimit[user] = v;
+    }
+
     /// @dev GLOBAL tier source for the v2 token (GlobalTierSource.tierOf).
-    function getCreditLimit(address user) external view returns (uint256) { return creditLimit[user]; }
+    function getCreditLimit(address user) external view returns (uint256) {
+        return creditLimit[user];
+    }
 
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
-    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
+        external {}
     function setReputationSource(address, bool) external {}
     function markProposalExecuted(uint256) external override {}
 
     function registerRole(bytes32, address, bytes calldata) external {}
     function exitRole(bytes32) external {}
-    function safeMintForRole(bytes32, address, bytes calldata) external returns (uint256) { return 0; }
+
+    function safeMintForRole(bytes32, address, bytes calldata) external returns (uint256) {
+        return 0;
+    }
     function configureRole(bytes32, IRegistry.RoleConfig calldata) external {}
     function setStaking(address) external {}
     function setMySBT(address) external {}
@@ -84,12 +113,23 @@ contract MockRegistryDR is IRegistry {
     function getRoleConfig(bytes32) external view returns (IRegistry.RoleConfig memory) {}
     function getUserRoles(address) external view returns (bytes32[] memory) {}
     function getRoleMembers(bytes32) external view returns (address[] memory) {}
-    function getRoleUserCount(bytes32) external pure returns (uint256) { return 0; }
 
-    function version() external pure returns (string memory) { return "Mock"; }
-    function isReputationSource(address) external pure returns (bool) { return false; }
+    function getRoleUserCount(bytes32) external pure returns (uint256) {
+        return 0;
+    }
+
+    function version() external pure returns (string memory) {
+        return "Mock";
+    }
+
+    function isReputationSource(address) external pure returns (bool) {
+        return false;
+    }
     function syncStakeFromStaking(address, bytes32, uint256) external {}
-    function getEffectiveStake(address, bytes32) external view returns (uint256) { return 0; }
+
+    function getEffectiveStake(address, bytes32) external view returns (uint256) {
+        return 0;
+    }
 }
 
 /// @title DryRunValidation (P0-15) — exhaustive reason-code coverage, migrated to 5.5.0
@@ -110,10 +150,10 @@ contract DryRunValidationTest is Test {
     xPNTsTokenV2 public xpnts;
     MockXPNTsFactory public mockFactory;
 
-    address public owner    = address(0x1);
+    address public owner = address(0x1);
     address public treasury = address(0x2);
     address public operator = address(0xA);
-    address public user     = address(0xB);
+    address public user = address(0xB);
 
     function setUp() public {
         vm.startPrank(owner);
@@ -171,12 +211,13 @@ contract DryRunValidationTest is Test {
     // ---------- Helpers ----------
 
     function _buildUserOp(address sender, address op, uint256 maxRate)
-        internal view returns (PackedUserOperation memory userOp)
+        internal
+        view
+        returns (PackedUserOperation memory userOp)
     {
         userOp.sender = sender;
-        userOp.paymasterAndData = V2TokenDeployer.pmd(
-            address(paymaster), uint128(0), uint128(200000), op, maxRate, address(xpnts), 0
-        );
+        userOp.paymasterAndData =
+            V2TokenDeployer.pmd(address(paymaster), uint128(0), uint128(200000), op, maxRate, address(xpnts), 0);
     }
 
     /// @dev D3-M: staticcall so a lens that REVERTS (instead of returning a reason) is a named failure.
@@ -193,9 +234,12 @@ contract DryRunValidationTest is Test {
         vm.prank(address(entryPoint));
         // D3-M: low-level call so a validation that REVERTS (instead of failing closed with
         // sigFail) is reported by a named assertion rather than an anonymous EvmError.
-        (bool ok, bytes memory ret) = address(paymaster).call(abi.encodeCall(
-            paymaster.validatePaymasterUserOp, (op, keccak256(abi.encode("probe", op.sender, maxCost)), maxCost)
-        ));
+        (bool ok, bytes memory ret) = address(paymaster)
+            .call(
+                abi.encodeCall(
+                    paymaster.validatePaymasterUserOp, (op, keccak256(abi.encode("probe", op.sender, maxCost)), maxCost)
+                )
+            );
         vm.revertTo(snap);
         assertTrue(ok, "validatePaymasterUserOp must not revert (fail closed with sigFail)");
         (, uint256 vd) = abi.decode(ret, (bytes, uint256));
@@ -215,7 +259,7 @@ contract DryRunValidationTest is Test {
         paymaster.setOperatorLimits(uint48(3600));
         firstOp = _buildUserOp(user, operator, type(uint256).max);
         vm.prank(address(entryPoint));
-        (bytes memory ctx, ) = paymaster.validatePaymasterUserOp(firstOp, bytes32(uint256(1)), 1000);
+        (bytes memory ctx,) = paymaster.validatePaymasterUserOp(firstOp, bytes32(uint256(1)), 1000);
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1000, 0);
     }
@@ -304,6 +348,43 @@ contract DryRunValidationTest is Test {
         assertTrue(reason != bytes32("INSUFFICIENT_BALANCE"), "control: a0 = 4.92e21 fits the 5e21 deposit");
     }
 
+    function test_DryRun_Uint96AdmissionBoundary_AgreesWithValidation() public {
+        uint256 maxA0 = type(uint96).max;
+        uint256 exactMaxCost = (maxA0 * 10) / 11;
+
+        vm.prank(owner);
+        paymaster.setProtocolFee(0);
+        stdstore.target(address(paymaster)).sig("aPNTsPriceUSD()").checked_write(1 ether);
+        vm.store(address(paymaster), bytes32(uint256(10)), bytes32(uint256(1))); // cachedPrice.price
+        vm.store(address(paymaster), bytes32(uint256(12)), bytes32(uint256(1))); // roundId = 1, decimals = 0
+
+        apnts.mint(operator, maxA0);
+        vm.prank(operator);
+        paymaster.deposit(maxA0);
+
+        vm.mockCall(
+            address(xpnts),
+            abi.encodeWithSelector(IxPNTsTokenV2.previewLock.selector),
+            abi.encode(IxPNTsTokenV2.LockResult.OK, maxA0)
+        );
+        vm.mockCall(
+            address(xpnts),
+            abi.encodeWithSelector(IxPNTsTokenV2.tryLockForGas.selector),
+            abi.encode(IxPNTsTokenV2.LockResult.OK, maxA0)
+        );
+
+        PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
+        (bool ok, bytes32 reason) = _dry(op, exactMaxCost);
+        assertTrue(ok, "uint96.max must remain admissible");
+        assertEq(reason, lens.DRYRUN_OK());
+        assertTrue(_validates(op, exactMaxCost), "production admits uint96.max");
+
+        (ok, reason) = _dry(op, exactMaxCost + 1);
+        assertFalse(ok, "uint96.max + 1 must be rejected");
+        assertEq(reason, lens.DRYRUN_AMOUNT_EXCEEDS_UINT96());
+        assertFalse(_validates(op, exactMaxCost + 1), "production rejects uint96.max + 1");
+    }
+
     function test_DryRun_StalePrice() public {
         // Warp past staleness threshold (1 hour) — price cache becomes stale.
         vm.warp(block.timestamp + 2 hours);
@@ -329,9 +410,14 @@ contract DryRunValidationTest is Test {
     /// @notice 5.5.0: SP no longer exposes dryRunValidation (moved to the lens for EIP-170).
     function test_DryRun_RemovedFromSuperPaymaster() public {
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
-        (bool success, ) = address(paymaster).call(
-            abi.encodeWithSignature("dryRunValidation((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),uint256)", op, 1000)
-        );
+        (bool success,) = address(paymaster)
+            .call(
+                abi.encodeWithSignature(
+                    "dryRunValidation((address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes),uint256)",
+                    op,
+                    1000
+                )
+            );
         assertFalse(success, "SP 5.5.0 has no dryRunValidation selector");
     }
 
@@ -351,8 +437,7 @@ contract DryRunValidationTest is Test {
         (bool ok, bytes32 reason) = _dry(firstOp, huge);
         assertFalse(ok, "hard failure: not OK");
         // Hard failure (INSUFFICIENT_BALANCE) must win over the soft RATE_LIMITED
-        assertEq(reason, bytes32("INSUFFICIENT_BALANCE"),
-            "hard failure must take precedence over RATE_LIMITED");
+        assertEq(reason, bytes32("INSUFFICIENT_BALANCE"), "hard failure must take precedence over RATE_LIMITED");
     }
 
     /// @notice Rate-limited user with stale price → hard failure wins
@@ -366,8 +451,7 @@ contract DryRunValidationTest is Test {
         (bool ok, bytes32 reason) = _dry(firstOp, 1000);
         assertFalse(ok, "hard failure: not OK");
         // Hard failure (STALE_PRICE) must win over the soft RATE_LIMITED
-        assertEq(reason, bytes32("STALE_PRICE"),
-            "STALE_PRICE must take precedence over RATE_LIMITED");
+        assertEq(reason, bytes32("STALE_PRICE"), "STALE_PRICE must take precedence over RATE_LIMITED");
     }
 
     // -------------------------------------------------------------------------
@@ -389,12 +473,16 @@ contract DryRunValidationTest is Test {
         (bool ok, bytes32 reason) = _dry(op, 1000);
         assertFalse(ok, "short paymasterAndData cannot be sponsored in 5.5.0");
         assertEq(reason, bytes32("TOKEN_MISMATCH"), "missing token field -> TOKEN_MISMATCH");
-        assertNotEq(reason, bytes32("RATE_COMMITMENT_VIOLATED"),
-            "must not trigger rate-commitment check when maxRate field is absent");
+        assertNotEq(
+            reason,
+            bytes32("RATE_COMMITMENT_VIOLATED"),
+            "must not trigger rate-commitment check when maxRate field is absent"
+        );
         assertFalse(_validates(op, 1000), "validation agrees (sigFail)");
 
         // 104 bytes (maxRate present, token absent) — the legacy full layout — is rejected too
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(200000), operator, type(uint256).max);
+        op.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(0), uint128(200000), operator, type(uint256).max);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
 
@@ -407,10 +495,7 @@ contract DryRunValidationTest is Test {
         // Reset the price cache to an uninitialized state by writing updatedAt = 0
         // directly via stdstore.  PriceCache is a public struct; we target the
         // storage slot of the `updatedAt` field.
-        stdstore
-            .target(address(paymaster))
-            .sig("cachedPrice()")
-            .depth(1)           // PriceCache { price, updatedAt } — depth 1 = updatedAt
+        stdstore.target(address(paymaster)).sig("cachedPrice()").depth(1) // PriceCache { price, updatedAt } — depth 1 = updatedAt
             .checked_write(uint256(0));
         // D3-M: at the setUp timestamp, `block.timestamp > 0 + threshold` is ALSO true, which would
         // mask the explicit updatedAt == 0 clause. Rewind to t = 100 (< threshold) so only that
@@ -421,8 +506,7 @@ contract DryRunValidationTest is Test {
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
         (bool ok, bytes32 reason) = _dry(op, 1000);
         assertFalse(ok, "updatedAt==0 must be detected as stale");
-        assertEq(reason, bytes32("STALE_PRICE"),
-            "must return DRYRUN_STALE_PRICE for uninitialized cache");
+        assertEq(reason, bytes32("STALE_PRICE"), "must return DRYRUN_STALE_PRICE for uninitialized cache");
     }
 
     /// @notice Rate-limited user with rate-commitment violation → hard failure wins
@@ -433,8 +517,11 @@ contract DryRunValidationTest is Test {
         PackedUserOperation memory badOp = _buildUserOp(user, operator, 1);
         (bool ok, bytes32 reason) = _dry(badOp, 1000);
         assertFalse(ok, "hard failure: not OK");
-        assertEq(reason, bytes32("RATE_COMMITMENT_VIOLATED"),
-            "RATE_COMMITMENT_VIOLATED must take precedence over RATE_LIMITED");
+        assertEq(
+            reason,
+            bytes32("RATE_COMMITMENT_VIOLATED"),
+            "RATE_COMMITMENT_VIOLATED must take precedence over RATE_LIMITED"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -450,7 +537,9 @@ contract DryRunValidationTest is Test {
 
     function test_DryRun_PostOpGasTooLow() public {
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, uint128(200_000 - 1), operator, type(uint256).max, address(xpnts), 0);
+        op.paymasterAndData = V2TokenDeployer.pmd(
+            address(paymaster), 0, uint128(200_000 - 1), operator, type(uint256).max, address(xpnts), 0
+        );
         _assertRejectAgrees(op, 1000, bytes32("POSTOP_GAS_TOO_LOW"));
     }
 
@@ -464,16 +553,19 @@ contract DryRunValidationTest is Test {
         V2TokenDeployer.Stack memory st2 = V2TokenDeployer.deployStack(address(paymaster), address(registry));
         xPNTsTokenV2 foreign = V2TokenDeployer.newToken(st2, address(0xF0F0), address(0xF0F0), address(paymaster), 1e18);
         IxPNTsV2Admin(address(foreign)).mint(user, 1_000 ether);
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(foreign), 0);
+        op.paymasterAndData =
+            V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(foreign), 0);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
 
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(0xBAD), 0);
+        op.paymasterAndData =
+            V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(0xBAD), 0);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
 
     function test_DryRun_BothRenewFlags_Rejected() public {
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(xpnts), 3);
+        op.paymasterAndData =
+            V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(xpnts), 3);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
 
@@ -489,7 +581,8 @@ contract DryRunValidationTest is Test {
     function test_DryRun_LockRejected_SingleTxLimit() public {
         vm.prank(owner); // communityOwner
         IxPNTsV2Admin(address(xpnts)).setMaxSingleTxLimit(1);
-        bytes32 expected = lens.DRYRUN_LOCK_REJECTED() | bytes32(uint256(uint8(IxPNTsTokenV2.LockResult.SINGLE_TX_LIMIT)));
+        bytes32 expected =
+            lens.DRYRUN_LOCK_REJECTED() | bytes32(uint256(uint8(IxPNTsTokenV2.LockResult.SINGLE_TX_LIMIT)));
         _assertRejectAgrees(_buildUserOp(user, operator, type(uint256).max), 1000, expected);
     }
 

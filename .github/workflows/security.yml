@@ -123,6 +123,8 @@ jobs:
         if: steps.changes.outputs.contract == 'true'
         run: |
           forge test -vvv
+          # verbosity < 3 disables vm.startDebugTraceRecording; OP-011 gates will fail closed.
+          # No -v/-vv here: this run inherits foundry.toml `verbosity = 3`.
           forge test --fuzz-runs 10000
       - name: Prague (EIP-2537) real-precompile gate
         # CC-48 round-3 MEDIUM-5. The default run is Cancun, where the BLS12-381
@@ -134,6 +136,8 @@ jobs:
         # contracts/test/helpers/MockedPrecompiles.sol), so this command must be GREEN,
         # not "green except the known 15".
         if: steps.changes.outputs.contract == 'true'
+        # verbosity < 3 disables vm.startDebugTraceRecording; OP-011 gates will fail closed.
+        # No -v/-vv here: this run inherits foundry.toml `verbosity = 3`.
         run: forge test --evm-version prague
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'

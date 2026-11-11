@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
 import "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
-import { SuperPaymasterLens } from "src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol";
+import {SuperPaymasterLens} from "src/paymasters/superpaymaster/v3/SuperPaymasterLens.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
-import { UUPSDeployHelper } from "../helpers/UUPSDeployHelper.sol";
-import { AOAProtocolRegistry } from "src/tokens/v2/AOAProtocolRegistry.sol";
-import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
-import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
-import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
-import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
-import { V55Registry, V55PriceFeed, V55APNTs, IV2Ext } from "../helpers/V55TestFixtures.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {AOAProtocolRegistry} from "src/tokens/v2/AOAProtocolRegistry.sol";
+import {GlobalTierSource} from "src/tokens/v2/GlobalTierSource.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsTokenV2Ext} from "src/tokens/v2/xPNTsTokenV2Ext.sol";
+import {xPNTsFactoryV2} from "src/tokens/v2/xPNTsFactoryV2.sol";
+import {V55Registry, V55PriceFeed, V55APNTs, IV2Ext} from "../helpers/V55TestFixtures.sol";
 
 /**
  * @title SuperPaymasterV55GasParamsTest — exp/params: the four gas parameters as owner-settable,
@@ -45,7 +45,13 @@ contract SuperPaymasterV55GasParamsTest is Test {
         registry.setRole(keccak256("COMMUNITY"), operator, true);
         V55APNTs apnts = new V55APNTs();
         sp = UUPSDeployHelper.deploySuperPaymasterProxy(
-            IEntryPoint(EP), IRegistry(address(registry)), address(new V55PriceFeed()), owner, address(apnts), owner, 3600
+            IEntryPoint(EP),
+            IRegistry(address(registry)),
+            address(new V55PriceFeed()),
+            owner,
+            address(apnts),
+            owner,
+            3600
         );
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
@@ -53,7 +59,9 @@ contract SuperPaymasterV55GasParamsTest is Test {
         aoa.bootstrapApprove(aoa.KIND_TIER_SOURCE(), address(tier).codehash);
         aoa.seal();
         xPNTsTokenV2Ext ext = new xPNTsTokenV2Ext(address(aoa));
-        xPNTsFactoryV2 factory = new xPNTsFactoryV2(address(sp), address(registry), address(new xPNTsTokenV2(address(aoa), address(ext))), address(tier));
+        xPNTsFactoryV2 factory = new xPNTsFactoryV2(
+            address(sp), address(registry), address(new xPNTsTokenV2(address(aoa), address(ext))), address(tier)
+        );
         sp.setXPNTsFactory(address(factory));
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         sp.updatePrice();
@@ -74,7 +82,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     // ------------------------------------------------------------------ helpers
 
     function _cur() internal view returns (SuperPaymaster.GasParams memory c) {
-        (c, ) = sp.gasParams();
+        (c,) = sp.gasParams();
     }
 
     function _pend() internal view returns (SuperPaymaster.PendingGasParams memory p) {
@@ -115,10 +123,10 @@ contract SuperPaymasterV55GasParamsTest is Test {
         assertEq(c.minPostOpGas, 200_000);
         assertEq(c.settleGasBound, 160_000);
         assertEq(c.cWrap, 5_000);
-        assertEq(c.cPostop, 175_000);
+        assertEq(c.cPostop, 180_000);
         assertEq(_pend().eta, 0, "nothing pending");
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "slot 38 zero = defaults (upgrade-safe)");
-        assertEq(sp.version(), "SuperPaymaster-5.5.0");
+        assertEq(sp.version(), "SuperPaymaster-5.5.1");
     }
 
     function test_packed_in_one_slot_at_38_pending_at_39() public {
@@ -126,12 +134,23 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
         bytes32 pend = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1));
-        assertEq(pend, bytes32(uint256(250_000) | (uint256(170_000) << 32) | (uint256(6_000) << 64) | (uint256(180_000) << 96) | (uint256(eta) << 128)), "pending + eta in slot 39");
+        assertEq(
+            pend,
+            bytes32(
+                uint256(250_000) | (uint256(170_000) << 32) | (uint256(6_000) << 64) | (uint256(180_000) << 96)
+                    | (uint256(eta) << 128)
+            ),
+            "pending + eta in slot 39"
+        );
         vm.warp(eta);
         vm.prank(owner);
         sp.executeGasParams();
         bytes32 cur = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT));
-        assertEq(cur, bytes32(uint256(250_000) | (uint256(170_000) << 32) | (uint256(6_000) << 64) | (uint256(180_000) << 96)), "params in slot 38");
+        assertEq(
+            cur,
+            bytes32(uint256(250_000) | (uint256(170_000) << 32) | (uint256(6_000) << 64) | (uint256(180_000) << 96)),
+            "params in slot 38"
+        );
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), bytes32(0), "pending cleared");
     }
 
@@ -143,7 +162,9 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
 
         vm.expectEmit(address(sp));
-        emit SuperPaymasterStorage.GasParamsQueued(250_000, 170_000, 6_000, 180_000, uint64(vm.getBlockTimestamp() + 48 hours));
+        emit SuperPaymasterStorage.GasParamsQueued(
+            250_000, 170_000, 6_000, 180_000, uint64(vm.getBlockTimestamp() + 48 hours)
+        );
         vm.prank(owner);
         sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
 
@@ -209,34 +230,40 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_bounds_checked_at_queue() public {
         // positive control: every edge value accepted
         vm.prank(owner);
-        sp.queueGasParams(175_000, 155_000, 5_000, 175_000);
+        sp.queueGasParams(180_000, 155_000, 5_000, 180_000);
         vm.prank(owner);
         sp.queueGasParams(2_000_000, 1_000_000, 50_000, 2_000_000);
         vm.prank(owner);
-        sp.queueGasParams(200_000, 160_000, 5_000, 175_000);
+        sp.queueGasParams(200_000, 160_000, 5_000, 180_000);
         // SETTLE in [155k, 1M]
-        _expectBad(200_000, 154_999, 5_000, 175_000);
-        _expectBad(2_000_000, 1_000_001, 5_000, 175_000);
+        _expectBad(200_000, 154_999, 5_000, 180_000);
+        _expectBad(2_000_000, 1_000_001, 5_000, 180_000);
         // MIN in [SETTLE + 20k, 2M]
-        _expectBad(179_999, 160_000, 5_000, 175_000);
-        _expectBad(2_000_001, 160_000, 5_000, 175_000);
-        // C_POSTOP in [175k, MIN]
-        _expectBad(200_000, 160_000, 5_000, 174_999);
+        _expectBad(179_999, 160_000, 5_000, 180_000);
+        _expectBad(2_000_001, 160_000, 5_000, 180_000);
+        // C_POSTOP in [180k, MIN]
+        _expectBad(200_000, 160_000, 5_000, 179_999);
         _expectBad(200_000, 160_000, 5_000, 200_001);
         // C_WRAP in [5k, 50k]
-        _expectBad(200_000, 160_000, 4_999, 175_000);
-        _expectBad(200_000, 160_000, 50_001, 175_000);
+        _expectBad(200_000, 160_000, 4_999, 180_000);
+        _expectBad(200_000, 160_000, 50_001, 180_000);
     }
 
     /// @notice Execute re-checks the bounds: a pending value that no longer satisfies them (only
     ///         reachable by corrupting storage, e.g. a bad upgrade) is refused.
     function test_bounds_rechecked_at_execute() public {
         vm.prank(owner);
-        sp.queueGasParams(200_000, 160_000, 5_000, 175_000);
+        sp.queueGasParams(200_000, 160_000, 5_000, 180_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
         // corrupt the pending cPostop to 100k (below the 150k floor)
-        vm.store(address(sp), bytes32(GAS_PARAMS_SLOT + 1),
-            bytes32(uint256(200_000) | (uint256(160_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96) | (uint256(eta) << 128)));
+        vm.store(
+            address(sp),
+            bytes32(GAS_PARAMS_SLOT + 1),
+            bytes32(
+                uint256(200_000) | (uint256(160_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96)
+                    | (uint256(eta) << 128)
+            )
+        );
         vm.warp(eta);
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
@@ -246,30 +273,32 @@ contract SuperPaymasterV55GasParamsTest is Test {
     // ------------------------------------------------------------------ effects
 
     function test_min_post_op_gas_parameter_drives_validation_and_lens() public {
-        _set(250_000, 160_000, 5_000, 175_000);
-        (bool ok, ) = _validates(249_999, keccak256("a"));
+        _set(250_000, 160_000, 5_000, 180_000);
+        (bool ok,) = _validates(249_999, keccak256("a"));
         assertFalse(ok, "below the new MIN: sigFail");
-        (ok, ) = _validates(250_000, keccak256("b"));
+        (ok,) = _validates(250_000, keccak256("b"));
         assertTrue(ok, "at the new MIN: validates");
         (bool lok, bytes32 reason) = lens.dryRunValidation(address(sp), _op(249_999), 1e16);
         assertFalse(lok);
         assertEq(reason, lens.DRYRUN_POSTOP_GAS_TOO_LOW(), "lens reads MIN from SP");
-        (lok, ) = lens.dryRunValidation(address(sp), _op(250_000), 1e16);
+        (lok,) = lens.dryRunValidation(address(sp), _op(250_000), 1e16);
         assertTrue(lok, "lens agrees at the new MIN");
     }
 
     function test_settle_gas_bound_parameter_drives_postOp_guard() public {
-        _set(320_000, 300_000, 5_000, 175_000);
+        _set(320_000, 300_000, 5_000, 180_000);
         (bool ok, bytes memory ctx) = _validates(320_000, keccak256("s"));
         assertTrue(ok);
         vm.prank(EP);
         (bool s, bytes memory ret) = address(sp).call{gas: 250_000}(
-            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei)));
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
+        );
         assertFalse(s, "250k < new SETTLE_GAS_BOUND 300k: refused");
         assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
         vm.prank(EP);
-        (s, ) = address(sp).call{gas: 400_000}(
-            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei)));
+        (s,) = address(sp).call{gas: 400_000}(
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
+        );
         assertTrue(s, "control: enough gas settles");
     }
 
@@ -280,7 +309,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_settle_floor_keeps_no_oog_band() public {
         vm.prank(operator);
         sp.setOperatorLimits(60);
-        _set(175_000, 155_000, 5_000, 175_000); // all-floor tuple (SETTLE, MIN, C_POSTOP, C_WRAP)
+        _set(180_000, 155_000, 5_000, 180_000); // all-floor tuple (SETTLE, MIN, C_POSTOP, C_WRAP)
         address poor = address(0xC0FFEE);
         vm.prank(address(registry));
         sp.updateSBTStatus(poor, true);
@@ -292,7 +321,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.updatePrice();
         vm.prank(poor);
         IV2Ext(address(token)).requestCredit(50_000 ether);
-        PackedUserOperation memory op = _op(175_000); // the op's limit at the floor MIN
+        PackedUserOperation memory op = _op(180_000); // the op's limit at the floor MIN
         op.sender = poor;
         vm.prank(EP);
         (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, keccak256("floor"), 1e16);
@@ -306,9 +335,15 @@ contract SuperPaymasterV55GasParamsTest is Test {
             vm.prank(EP);
             (bool s, bytes memory ret) = address(sp).call{gas: g}(cd);
             vm.revertTo(snap);
-            if (s) { okN++; continue; }
-            assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
-                "SETTLE floor: no OOG band above the entry guard");
+            if (s) {
+                okN++;
+                continue;
+            }
+            assertEq(
+                ret,
+                abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
+                "SETTLE floor: no OOG band above the entry guard"
+            );
             assertEq(okN, 0, "monotone");
             guard++;
         }
@@ -332,7 +367,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
     }
 
     function test_c_postop_and_c_wrap_parameters_drive_the_charge() public {
-        assertEq(_charge(keccak256("c0")), _expected(175_000, 5_000), "defaults");
+        assertEq(_charge(keccak256("c0")), _expected(180_000, 5_000), "defaults");
         _set(200_000, 160_000, 9_000, 190_000);
         assertEq(_charge(keccak256("c1")), _expected(190_000, 9_000), "new C_POSTOP / C_WRAP");
     }

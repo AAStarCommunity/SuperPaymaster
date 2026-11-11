@@ -8,11 +8,18 @@ pragma solidity 0.8.33;
 ///      (updatedAt = block.timestamp), 8 decimals.
 contract V55MutablePriceFeed {
     int256 public answer = 2000 * 1e8;
-    function setAnswer(int256 a) external { answer = a; }
+
+    function setAnswer(int256 a) external {
+        answer = a;
+    }
+
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, answer, 0, block.timestamp, 1);
     }
-    function decimals() external pure returns (uint8) { return 8; }
+
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
 }
 
 /// @dev TEST-ONLY permissionless forwarder. It is made the SuperPaymaster owner so that a user
@@ -36,7 +43,9 @@ interface IFuzzSP {
 contract V55FuzzTarget {
     mapping(bytes32 => uint256) public hits;
 
-    function hit(bytes32 id) external { hits[id] += 1; }
+    function hit(bytes32 id) external {
+        hits[id] += 1;
+    }
 
     function hitRevert(bytes32 id) external {
         hits[id] += 1;
@@ -64,7 +73,7 @@ contract V55FuzzTarget {
         }
         for (uint256 i; i < aSteps; i++) {
             uint256 cur = IFuzzSP(sp).aPNTsPriceUSD();
-            uint256 np = aUp ? cur * 11_000 / 10_000 : cur * 9_000 / 10_000;
+            uint256 np = aUp ? cur * 11_000 / 10_000 : (cur * 9_000 + 9_999) / 10_000;
             V55OwnerRelay(relay).exec(sp, abi.encodeWithSignature("setAPNTSPrice(uint256)", np));
         }
     }

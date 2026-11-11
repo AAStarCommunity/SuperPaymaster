@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 import {SelectedGasFixtures as GasFixture} from "../helpers/SelectedGasFixtures.sol";
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -12,15 +12,15 @@ import "@account-abstraction-v7/interfaces/IPaymaster.sol";
 import "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import "@account-abstraction-v7/samples/SimpleAccountFactory.sol";
 import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
-import { UUPSDeployHelper } from "../helpers/UUPSDeployHelper.sol";
-import { AOAProtocolRegistry } from "src/tokens/v2/AOAProtocolRegistry.sol";
-import { GlobalTierSource } from "src/tokens/v2/GlobalTierSource.sol";
-import { xPNTsTokenV2 } from "src/tokens/v2/xPNTsTokenV2.sol";
-import { xPNTsTokenV2Ext } from "src/tokens/v2/xPNTsTokenV2Ext.sol";
-import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
-import { V55Registry, V55PriceFeed, V55APNTs } from "../helpers/V55TestFixtures.sol";
-import { PostOpProbePaymaster, GasBurner } from "../helpers/V55GasProbes.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {AOAProtocolRegistry} from "src/tokens/v2/AOAProtocolRegistry.sol";
+import {GlobalTierSource} from "src/tokens/v2/GlobalTierSource.sol";
+import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
+import {xPNTsTokenV2Ext} from "src/tokens/v2/xPNTsTokenV2Ext.sol";
+import {xPNTsFactoryV2} from "src/tokens/v2/xPNTsFactoryV2.sol";
+import {V55Registry, V55PriceFeed, V55APNTs} from "../helpers/V55TestFixtures.sol";
+import {PostOpProbePaymaster, GasBurner} from "../helpers/V55GasProbes.sol";
 
 interface IPBTok {
     function mint(address to, uint256 amount) external;
@@ -112,9 +112,13 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         registry.setRole(keccak256("COMMUNITY"), operator, true);
         V55APNTs apnts = new V55APNTs();
         address feed = address(new V55PriceFeed()); // ETH/USD 2000, 8 decimals
-        sp = UUPSDeployHelper.deploySuperPaymasterProxy(entryPoint, IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600);
+        sp = UUPSDeployHelper.deploySuperPaymasterProxy(
+            entryPoint, IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600
+        );
         GasFixture.configure(sp);
-        sp2 = UUPSDeployHelper.deploySuperPaymasterProxy(entryPoint, IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600);
+        sp2 = UUPSDeployHelper.deploySuperPaymasterProxy(
+            entryPoint, IRegistry(address(registry)), feed, owner, address(apnts), treasury, 3600
+        );
         GasFixture.configure(sp2);
         AOAProtocolRegistry aoa = new AOAProtocolRegistry(owner);
         GlobalTierSource tier = new GlobalTierSource(address(registry));
@@ -170,7 +174,13 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(GasFixture.PM_VERIFICATION), uint128(MIN_POST_OP_GAS), operator, type(uint256).max, address(token), uint8(0)
+            address(sp),
+            uint128(GasFixture.PM_VERIFICATION),
+            uint128(MIN_POST_OP_GAS),
+            operator,
+            type(uint256).max,
+            address(token),
+            uint8(0)
         );
         vm.prank(EP);
         uint256 vd;
@@ -210,7 +220,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
 
     function _call(bytes memory cd, uint256 g) internal returns (bool ok) {
         vm.prank(EP);
-        (ok, ) = address(sp).call{gas: g}(cd);
+        (ok,) = address(sp).call{gas: g}(cd);
     }
 
     /// @return consumed gas the postOp CALL cost its caller at a 1M budget
@@ -221,7 +231,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         uint256 sid = vmx.snapshotState();
         vm.prank(EP);
         uint256 g0 = gasleft();
-        (bool ok, ) = address(sp).call{gas: 1_000_000}(cd);
+        (bool ok,) = address(sp).call{gas: 1_000_000}(cd);
         consumed = g0 - gasleft();
         assertTrue(ok, "postOp completes with 1M gas");
         assertTrue(token.usedOpHashes(h), "positive control: the measured call really settled");
@@ -244,14 +254,21 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
     }
 
     function _pathName(uint8 p) internal pure returns (string memory) {
-        return p == BAL_FIRST ? "BALANCE first-time user, cold lastTimestamp"
-            : p == CRED_FIRST ? "CREDIT  first-time user, cold lastTimestamp, first debt"
-            : p == BAL_EMERGENCY ? "BALANCE during token emergency (E-2)"
-            : p == CRED_EMERGENCY ? "CREDIT  during token emergency (E-2)"
-            : p == BAL_ROTATED ? "BALANCE old locker after SP rotation (L-3)"
-            : p == CRED_ROTATED ? "CREDIT  old locker after SP rotation (L-3)"
-            : p == BAL_NO_RATELIMIT ? "BALANCE no rate-limit write (control)"
-            : "BALANCE charge clamped at a0 (control)";
+        return p == BAL_FIRST
+            ? "BALANCE first-time user, cold lastTimestamp"
+            : p == CRED_FIRST
+                ? "CREDIT  first-time user, cold lastTimestamp, first debt"
+                : p == BAL_EMERGENCY
+                    ? "BALANCE during token emergency (E-2)"
+                    : p == CRED_EMERGENCY
+                        ? "CREDIT  during token emergency (E-2)"
+                        : p == BAL_ROTATED
+                            ? "BALANCE old locker after SP rotation (L-3)"
+                            : p == CRED_ROTATED
+                                ? "CREDIT  old locker after SP rotation (L-3)"
+                                : p == BAL_NO_RATELIMIT
+                                    ? "BALANCE no rate-limit write (control)"
+                                    : "BALANCE charge clamped at a0 (control)";
     }
 
     /// @notice W_postop over every path (each from the same fresh state).
@@ -297,7 +314,8 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         vm.deal(address(this), 10 ether);
         entryPoint.depositTo{value: 1 ether}(address(probe));
         GasBurner burner = new GasBurner();
-        bytes memory burnCall = abi.encodeCall(SimpleAccount.execute, (address(burner), 0, abi.encodeCall(GasBurner.burn, ())));
+        bytes memory burnCall =
+            abi.encodeCall(SimpleAccount.execute, (address(burner), 0, abi.encodeCall(GasBurner.burn, ())));
         uint128[3] memory callGas = [uint128(0), 0, 50_000];
         uint128[3] memory postGas = [uint128(MIN_POST_OP_GAS), 1_000_000, uint128(MIN_POST_OP_GAS)];
         for (uint256 k; k < 3; k++) {
@@ -319,9 +337,12 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
             Vm.Log[] memory logs = vm.getRecordedLogs();
             uint256 F;
             for (uint256 i; i < logs.length; i++) {
-                if (logs[i].emitter == EP && logs[i].topics[0]
-                    == keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)")) {
-                    (, , , F) = abi.decode(logs[i].data, (uint256, bool, uint256, uint256));
+                if (
+                    logs[i].emitter == EP
+                        && logs[i].topics[0]
+                            == keccak256("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)")
+                ) {
+                    (,,, F) = abi.decode(logs[i].data, (uint256, bool, uint256, uint256));
                 }
             }
             // F − P = wrap + postOpFrame + penalty, postOpFrame >= limit − BURN_FLOOR, penalty >= 0
@@ -342,16 +363,16 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
     }
 
     /// @notice Codex B-HIGH-2: the rule must hold for EVERY bounds-valid configuration, so the
-    ///         all-floor tuple (MIN 175k, SETTLE 155k, C_WRAP 5k, C_POSTOP 175k) is configured
+    ///         all-floor tuple (MIN 180k, SETTLE 155k, C_WRAP 5k, C_POSTOP 180k) is configured
     ///         through SP's queue/execute and the whole rule is re-run on it.
     function test_rule_under_all_floor_params() public {
         vm.prank(owner);
-        sp.queueGasParams(175_000, 155_000, 5_000, 175_000);
+        sp.queueGasParams(180_000, 155_000, 5_000, 180_000);
         vm.warp(vm.getBlockTimestamp() + 48 hours);
         vm.prank(owner);
         sp.executeGasParams();
         sp.updatePrice();
-        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        (SuperPaymaster.GasParams memory g,) = sp.gasParams();
         assertEq(g.settleGasBound, 155_000, "precondition: floor tuple active");
         _assertRule();
     }
@@ -359,7 +380,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
     function _assertRule() internal {
         (uint256 W, uint256 maxMinLimit) = _wPostop();
         uint256 sum = _observedConstSum();
-        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        (SuperPaymaster.GasParams memory g,) = sp.gasParams();
         assertEq(sum, uint256(g.cPostop) + g.cWrap, "getter == what the charge really uses (C_POSTOP + C_WRAP)");
         uint256 cPostop = g.cPostop;
         uint256 wrap = _wrapUpper();
@@ -381,12 +402,12 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
 
     /// @notice Per-path report (and each path must also individually satisfy the rule).
     function test_each_path_within_C_POSTOP() public {
-        (SuperPaymaster.GasParams memory g, ) = sp.gasParams();
+        (SuperPaymaster.GasParams memory g,) = sp.gasParams();
         assertEq(_observedConstSum(), uint256(g.cPostop) + g.cWrap, "getter == charge");
         uint256 cPostop = g.cPostop;
         for (uint8 p; p < N_PATHS; p++) {
             uint256 sid = vmx.snapshotState();
-            (uint256 consumed, ) = _measure(p);
+            (uint256 consumed,) = _measure(p);
             vmx.revertToState(sid);
             assertGe(cPostop * 10_000, consumed * (10_000 + M_BPS), string.concat("rule per path: ", _pathName(p)));
         }

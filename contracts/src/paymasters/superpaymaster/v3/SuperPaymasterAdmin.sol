@@ -9,7 +9,7 @@ import "../../../interfaces/IxPNTsFactory.sol";
 
 /**
  * @title SuperPaymasterAdmin (EXTENSION)
- * @notice Governance, administration and non-hot-path views of SuperPaymaster 5.5.0 (D5b).
+ * @notice Governance, administration and non-hot-path views of SuperPaymaster 5.5.1 (D5b).
  * @dev    Reached ONLY via the SuperPaymaster core's fallback (DELEGATECALL): every function here
  *         runs against the proxy's storage, `msg.sender` is the original caller and events are
  *         emitted by the proxy. Nothing here is called from validatePaymasterUserOp / postOp.
@@ -37,8 +37,8 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     /// @notice Maximum duration for which EMERGENCY mode may remain active.
     uint256 internal constant EMERGENCY_EXPIRY = 7 days;
     /// @notice P0-11: bounds for `setAPNTSPrice`.
-    uint256 internal constant APNTS_PRICE_MIN = 1e15;       // 0.001 ether per aPNTs
-    uint256 internal constant APNTS_PRICE_MAX = 1e21;       // 1000 ether per aPNTs
+    uint256 internal constant APNTS_PRICE_MIN = 1e15; // 0.001 ether per aPNTs
+    uint256 internal constant APNTS_PRICE_MAX = 1e21; // 1000 ether per aPNTs
     uint256 internal constant APNTS_PRICE_DELTA_BPS = 1000; // 10%
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -50,9 +50,23 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         _transferOwnership(address(0));
     }
 
+    /// @notice Return an expired withdrawal escrow to the operator's sponsorship balance.
+    function expireWithdraw(address operator) external {
+        PendingWithdrawal memory pending = pendingWithdrawals[operator];
+        if (pending.amount == 0) revert NoPendingWithdrawal();
+        uint48 expiresAt = pending.readyAt + OPERATOR_WITHDRAWAL_WINDOW;
+        if (block.timestamp <= expiresAt) revert WithdrawalNotReady(expiresAt);
+        delete pendingWithdrawals[operator];
+        operators[operator].aPNTsBalance += pending.amount;
+        emit OperatorWithdrawalExpired(operator, pending.amount);
+    }
+
     /// @dev Unreachable through the proxy (the core answers this selector); inert if called directly.
     function validatePaymasterUserOp(PackedUserOperation calldata, bytes32, uint256)
-        external pure override returns (bytes memory, uint256)
+        external
+        pure
+        override
+        returns (bytes memory, uint256)
     {
         revert Unauthorized();
     }
@@ -89,11 +103,22 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
      */
     function setOperatorPaused(address operator, bool isPaused) external {
         _requirePauseAuthority(isPaused);
+        if (!isPaused && !_hasEffectiveSuperStake(operator)) revert Unauthorized();
         operators[operator].isPaused = isPaused;
         if (isPaused) {
             emit OperatorPaused(operator);
         } else {
             emit OperatorUnpaused(operator);
+        }
+    }
+
+    /// @notice Permissionlessly pause an operator whose role or effective stake is insufficient.
+    function pauseUnderstakedOperator(address operator) external {
+        if (!operators[operator].isConfigured) revert OperatorNotConfigured();
+        if (_hasEffectiveSuperStake(operator)) revert OperatorMeetsMinimumStake();
+        if (!operators[operator].isPaused) {
+            operators[operator].isPaused = true;
+            emit OperatorPaused(operator);
         }
     }
 
@@ -201,7 +226,9 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         address pending = pendingAPNTsToken;
         if (pending == address(0)) revert InvalidConfiguration();
         if (block.timestamp < pendingAPNTsTokenEta) revert InvalidConfiguration();
-        if (totalTrackedBalance != protocolRevenue || protocolRevenue > PROTOCOL_REVENUE_BUFFER) revert InvalidConfiguration();
+        if (totalTrackedBalance != protocolRevenue || protocolRevenue > PROTOCOL_REVENUE_BUFFER) {
+            revert InvalidConfiguration();
+        }
 
         address oldToken = APNTS_TOKEN;
         APNTS_TOKEN = pending;
@@ -273,9 +300,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
      */
     function withdrawProtocolRevenue(address to, uint256 amount) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
-        uint256 available = protocolRevenue > PROTOCOL_REVENUE_BUFFER
-            ? protocolRevenue - PROTOCOL_REVENUE_BUFFER
-            : 0;
+        uint256 available = protocolRevenue > PROTOCOL_REVENUE_BUFFER ? protocolRevenue - PROTOCOL_REVENUE_BUFFER : 0;
         if (amount > available) revert InsufficientRevenue();
 
         protocolRevenue -= amount;
@@ -295,14 +320,18 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     }
 
     function _checkGasParams(uint256 minPost, uint256 settle, uint256 cWrap, uint256 cPostop) private pure {
-        if (settle < GP_SETTLE_MIN || settle > GP_SETTLE_MAX
-            || minPost < settle + GP_MINPOST_OVER_SETTLE || minPost > GP_MINPOST_MAX
-            || cPostop < GP_CPOSTOP_MIN || cPostop > minPost
-            || cWrap < GP_CWRAP_MIN || cWrap > GP_CWRAP_MAX) revert InvalidConfiguration();
+        if (
+            settle < GP_SETTLE_MIN || settle > GP_SETTLE_MAX || minPost < settle + GP_MINPOST_OVER_SETTLE
+                || minPost > GP_MINPOST_MAX || cPostop < GP_CPOSTOP_MIN || cPostop > minPost || cWrap < GP_CWRAP_MIN
+                || cWrap > GP_CWRAP_MAX
+        ) revert InvalidConfiguration();
     }
 
     /// @notice Queue new gas parameters; effective after GP_TIMELOCK via `executeGasParams`.
-    function queueGasParams(uint32 minPostOpGas, uint32 settleGasBound, uint32 cWrap, uint32 cPostop) external onlyOwner {
+    function queueGasParams(uint32 minPostOpGas, uint32 settleGasBound, uint32 cWrap, uint32 cPostop)
+        external
+        onlyOwner
+    {
         _checkGasParams(minPostOpGas, settleGasBound, cWrap, cPostop);
         uint64 eta = uint64(block.timestamp + GP_TIMELOCK);
         _pendingGasParams = PendingGasParams(minPostOpGas, settleGasBound, cWrap, cPostop, eta);
@@ -338,9 +367,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
     /// @notice True when Chainlink hasn't updated for at least CHAINLINK_STALE_THRESHOLD, or reverts.
     function _isChainlinkStale() internal view returns (bool) {
-        try ETH_USD_PRICE_FEED.latestRoundData() returns (
-            uint80, int256, uint256, uint256 chainlinkUpdatedAt, uint80
-        ) {
+        try ETH_USD_PRICE_FEED.latestRoundData() returns (uint80, int256, uint256, uint256 chainlinkUpdatedAt, uint80) {
             if (chainlinkUpdatedAt == 0) return true;
             return block.timestamp > chainlinkUpdatedAt + CHAINLINK_STALE_THRESHOLD;
         } catch {
@@ -348,7 +375,9 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         }
     }
 
-    function isChainlinkStale() external view returns (bool) { return _isChainlinkStale(); }
+    function isChainlinkStale() external view returns (bool) {
+        return _isChainlinkStale();
+    }
 
     /// @notice Returns the timestamp after which the cached price is considered stale (0 if never set).
     function priceValidUntil() external view returns (uint48) {
@@ -366,8 +395,10 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         int256 ref = cachedPrice.price;
         if (ref <= 0) revert OracleError();
 
-        int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
-        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS)))) / int256(uint256(BPS_DENOMINATOR));
+        int256 lower = (ref * int256(int256(uint256(BPS_DENOMINATOR - EMERGENCY_PRICE_DEVIATION_BPS))))
+            / int256(uint256(BPS_DENOMINATOR));
+        int256 upper = (ref * int256(int256(uint256(BPS_DENOMINATOR + EMERGENCY_PRICE_DEVIATION_BPS))))
+            / int256(uint256(BPS_DENOMINATOR));
         if (newPrice < lower || newPrice > upper) revert EmergencyPriceOutOfRange();
     }
 
@@ -422,12 +453,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
      * @notice Update price via DVT/BLS consensus (Chainlink fallback)
      * @param chainlinkRecovered 0 = Chainlink still unavailable; 1 = recovered (clears priceMode).
      */
-    function updatePriceDVT(
-        int256 price,
-        uint256 updatedAt,
-        bytes calldata proof,
-        uint8 chainlinkRecovered
-    ) external {
+    function updatePriceDVT(int256 price, uint256 updatedAt, bytes calldata proof, uint8 chainlinkRecovered) external {
         proof; // verified by BLSAggregator before it calls this function
         // 1. Verify caller authority (owner path = emergency break-glass; Chainlink ±20% guard below)
         if (msg.sender != BLS_AGGREGATOR && msg.sender != owner()) revert Unauthorized();
@@ -476,22 +502,13 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     /// @notice Update price cache from Chainlink oracle (keeper-callable).
     function updatePrice() external {
         try ETH_USD_PRICE_FEED.latestRoundData() returns (
-            uint80 roundId,
-            int256 price,
-            uint256,
-            uint256 updatedAt,
-            uint80 answeredInRound
+            uint80 roundId, int256 price, uint256, uint256 updatedAt, uint80 answeredInRound
         ) {
             if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
             if (updatedAt < block.timestamp - priceStalenessThreshold) revert OracleError();
             if (answeredInRound < roundId) revert OracleError();
 
-            cachedPrice = PriceCache({
-                price: price,
-                updatedAt: updatedAt,
-                roundId: roundId,
-                decimals: 8
-            });
+            cachedPrice = PriceCache({price: price, updatedAt: updatedAt, roundId: roundId, decimals: 8});
 
             // P0-10: Chainlink came back — leave EMERGENCY mode and drop any queued override.
             if (priceMode != 0) {
@@ -531,14 +548,25 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     // ====================================
 
     /**
-     * @notice Mark an operator as having a pending slash (owner or BLS aggregator only).
-     * @dev M-5: withdraw() is blocked until the slash executes or is cancelled. CC-13: the BLS
-     *      path may not re-arm during its cooldown. Idempotent.
+     * @notice Mark an operator as having a pending slash (owner, BLS aggregator, or guardian).
+     * @dev M-5: an owner or BLS queue blocks requestWithdraw/withdraw until the slash executes or is
+     *      cancelled. An unconfirmed guardian queue blocks only until queuedAt + GUARDIAN_SLASH_FREEZE
+     *      (7 days) and then expires (isSlashPending() turns false); owner/BLS confirmation makes it
+     *      persistent. Guardian repeats revert while unresolved. Owner repeats overwrite provenance and
+     *      time; BLS repeats do the same outside its cooldown.
      */
     function queueSlash(address operator) external {
-        if (msg.sender != owner() && msg.sender != BLS_AGGREGATOR) revert Unauthorized();
-        if (msg.sender == BLS_AGGREGATOR && uint48(block.timestamp) < _blsCooldownEnd(operator)) revert SlashCooldown();
+        address actor = msg.sender;
+        bool byGuardian = actor == guardian && actor != address(0) && actor != owner() && actor != BLS_AGGREGATOR;
+        if (actor != owner() && actor != BLS_AGGREGATOR && !byGuardian) revert Unauthorized();
+        if (byGuardian) {
+            if (slashQueues[operator].guardianQueued) revert GuardianSlashUnresolved();
+            if (_isSlashPending(operator)) revert SlashPending();
+        } else if (actor == BLS_AGGREGATOR && actor != owner() && uint48(block.timestamp) < _blsCooldownEnd(operator)) {
+            revert SlashCooldown();
+        }
         _pendingSlash[operator] = true;
+        slashQueues[operator] = SlashQueue(actor, uint48(block.timestamp), byGuardian);
         emit SlashQueued(operator);
     }
 
@@ -557,24 +585,50 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
     /// @notice Cancel a previously queued slash (owner only). Idempotent.
     function cancelSlash(address operator) external onlyOwner {
-        _pendingSlash[operator] = false;
+        _clearSlashQueue(operator);
         emit SlashCancelled(operator);
     }
 
-    /// @notice Whether `operator` currently has a slash queued (withdraw-blocking flag set).
+    /// @notice Whether `operator` currently has an effective withdrawal-blocking slash status.
     function isSlashPending(address operator) external view returns (bool) {
-        return _pendingSlash[operator];
+        return _isSlashPending(operator);
     }
 
     /**
      * @notice Slash an operator (Admin/Governance only). Requires queueSlash first; 24h cooldown.
      */
-    function slashOperator(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string calldata reason) external onlyOwner {
-        require(_pendingSlash[operator], "SP: must queueSlash first");
+    function slashOperator(
+        address operator,
+        ISuperPaymaster.SlashLevel level,
+        uint256 penaltyAmount,
+        string calldata reason
+    ) external onlyOwner {
+        _slashOperator(operator, level, penaltyAmount, reason);
+    }
+
+    /// @notice Atomically release supplied stale reservations and slash their operator.
+    function slashOperatorAfterReleasing(
+        address operator,
+        ISuperPaymaster.SlashLevel level,
+        uint256 penaltyAmount,
+        string calldata reason,
+        bytes32[] calldata staleOpHashes
+    ) external onlyOwner {
+        _releaseSuppliedStale(operator, staleOpHashes);
+        _slashOperator(operator, level, penaltyAmount, reason);
+    }
+
+    function _slashOperator(
+        address operator,
+        ISuperPaymaster.SlashLevel level,
+        uint256 penaltyAmount,
+        string memory reason
+    ) internal {
+        require(_isSlashPending(operator), "SP: must queueSlash first");
         if (uint48(block.timestamp) < _slashCd[operator]) revert SlashCooldown();
         _slashCd[operator] = uint48(block.timestamp) + 24 hours;
         _slash(operator, level, penaltyAmount, reason, true);
-        _pendingSlash[operator] = false;
+        _clearSlashQueue(operator);
     }
 
     /// @notice Update Operator Reputation (External Credit Manager)
@@ -589,68 +643,97 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
      */
     function executeSlashWithBLS(address operator, ISuperPaymaster.SlashLevel level, bytes calldata proof) external {
         if (msg.sender != BLS_AGGREGATOR) revert Unauthorized();
-        require(_pendingSlash[operator], "SP: must queueSlash first");
+        _executeSlashWithBLS(operator, level, proof);
+    }
+
+    function _executeSlashWithBLS(address operator, ISuperPaymaster.SlashLevel level, bytes memory proof) internal {
+        require(_isSlashPending(operator), "SP: must queueSlash first");
         if (uint48(block.timestamp) < _blsCooldownEnd(operator)) revert SlashCooldown();
+        uint256 reserved = inflightReserved[operator];
+        if (reserved != 0) revert SlashBlockedByInflight(reserved);
         _blsSlashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
 
-        // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance (capped at 30% in _slash).
+        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount;
+        // Logical penalty before cap: Warning=0, Minor=10%, Major=full collateral (capped at 30% in _slash).
         uint256 penalty = 0;
         if (level == ISuperPaymaster.SlashLevel.MINOR) {
-            penalty = operators[operator].aPNTsBalance / 10;
+            penalty = collateral / 10;
         } else if (level == ISuperPaymaster.SlashLevel.MAJOR) {
-            penalty = operators[operator].aPNTsBalance;
+            penalty = collateral;
         }
 
         bytes32 proofHash = keccak256(proof);
 
         penalty = _slash(operator, level, penalty, "DVT BLS Slash", true);
-        _pendingSlash[operator] = false;
+        _clearSlashQueue(operator);
 
         emit SlashExecutedWithProof(operator, level, penalty, proofHash, block.timestamp);
     }
 
+    function _releaseSuppliedStale(address operator, bytes32[] calldata staleOpHashes) internal {
+        for (uint256 i; i < staleOpHashes.length; ++i) {
+            Inflight memory f = _inflight[staleOpHashes[i]];
+            if (f.operator != address(0) && f.operator != operator) revert Unauthorized();
+            _releaseStaleSponsorship(staleOpHashes[i]);
+        }
+    }
+
     /// @param applyCap If true, enforce 30% slash hardcap.
-    function _slash(address operator, ISuperPaymaster.SlashLevel level, uint256 penaltyAmount, string memory reason, bool applyCap) internal returns (uint256) {
+    function _slash(
+        address operator,
+        ISuperPaymaster.SlashLevel level,
+        uint256 penaltyAmount,
+        string memory reason,
+        bool applyCap
+    ) internal returns (uint256) {
+        uint256 reserved = inflightReserved[operator];
+        if (reserved != 0) revert SlashBlockedByInflight(reserved);
         ISuperPaymaster.OperatorConfig storage config = operators[operator];
 
-        uint256 reputationLoss = level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
+        uint256 reputationLoss =
+            level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
         if (level == ISuperPaymaster.SlashLevel.MAJOR) config.isPaused = true;
 
         if (config.isPaused) {
-             emit OperatorPaused(operator);
+            emit OperatorPaused(operator);
         }
 
         if (config.reputation > reputationLoss) config.reputation -= uint32(reputationLoss);
         else config.reputation = 0;
 
         if (penaltyAmount > 0) {
+            PendingWithdrawal storage pending = pendingWithdrawals[operator];
+            uint256 collateral = uint256(config.aPNTsBalance) + pending.amount;
             if (applyCap) {
                 // V3.6 SECURITY: Enforce 30% Slash Hardcap
-                uint256 maxSlash = (uint256(config.aPNTsBalance) * 3000) / BPS_DENOMINATOR;
+                // No in-flight reservation exists; total collateral is liquid balance plus withdrawal escrow.
+                uint256 maxSlash = (collateral * 3000) / BPS_DENOMINATOR;
                 if (penaltyAmount > maxSlash) {
                     penaltyAmount = maxSlash;
                     reason = string(abi.encodePacked(reason, " (Capped at 30%)"));
                 }
             }
 
-            if (config.aPNTsBalance >= penaltyAmount) {
-                config.aPNTsBalance -= uint128(penaltyAmount);
-                protocolRevenue += penaltyAmount;
-            } else {
-                uint256 actualBurn = config.aPNTsBalance;
-                config.aPNTsBalance = 0;
-                protocolRevenue += actualBurn;
-                penaltyAmount = actualBurn;
+            if (penaltyAmount > collateral) penaltyAmount = collateral;
+            uint256 fromBalance = penaltyAmount > config.aPNTsBalance ? config.aPNTsBalance : penaltyAmount;
+            if (fromBalance != 0) config.aPNTsBalance -= uint128(fromBalance);
+            uint256 fromEscrow = penaltyAmount - fromBalance;
+            if (fromEscrow != 0) {
+                pending.amount -= uint128(fromEscrow);
+                if (pending.amount == 0) delete pendingWithdrawals[operator];
             }
+            protocolRevenue += penaltyAmount;
         }
 
-        slashHistory[operator].push(ISuperPaymaster.SlashRecord({
-            timestamp: block.timestamp,
-            amount: penaltyAmount,
-            reputationLoss: reputationLoss,
-            reason: reason,
-            level: level
-        }));
+        slashHistory[operator].push(
+            ISuperPaymaster.SlashRecord({
+                timestamp: block.timestamp,
+                amount: penaltyAmount,
+                reputationLoss: reputationLoss,
+                reason: reason,
+                level: level
+            })
+        );
 
         emit ISuperPaymaster.OperatorSlashed(operator, penaltyAmount, level);
         emit ISuperPaymaster.ReputationUpdated(operator, config.reputation);

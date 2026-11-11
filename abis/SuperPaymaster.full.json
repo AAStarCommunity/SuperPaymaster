@@ -79,6 +79,45 @@
     },
     {
       "type": "function",
+      "name": "GUARDIAN_SLASH_FREEZE",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "OPERATOR_WITHDRAWAL_DELAY",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "OPERATOR_WITHDRAWAL_WINDOW",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
       "name": "REGISTRY",
       "inputs": [],
       "outputs": [
@@ -189,6 +228,13 @@
         }
       ],
       "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "cancelWithdraw",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
     },
     {
       "type": "function",
@@ -324,6 +370,25 @@
         },
         {
           "name": "a0",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "inflightReserved",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
           "type": "uint256",
           "internalType": "uint256"
         }
@@ -582,6 +647,30 @@
     },
     {
       "type": "function",
+      "name": "pendingWithdrawals",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "amount",
+          "type": "uint128",
+          "internalType": "uint128"
+        },
+        {
+          "name": "readyAt",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
       "name": "postOp",
       "inputs": [
         {
@@ -695,6 +784,19 @@
     },
     {
       "type": "function",
+      "name": "requestWithdraw",
+      "inputs": [
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
       "name": "sbtHolders",
       "inputs": [
         {
@@ -752,6 +854,35 @@
           "name": "level",
           "type": "uint8",
           "internalType": "enum ISuperPaymaster.SlashLevel"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "slashQueues",
+      "inputs": [
+        {
+          "name": "",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "queuedBy",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "queuedAt",
+          "type": "uint48",
+          "internalType": "uint48"
+        },
+        {
+          "name": "guardianQueued",
+          "type": "bool",
+          "internalType": "bool"
         }
       ],
       "stateMutability": "view"
@@ -1426,6 +1557,75 @@
     },
     {
       "type": "event",
+      "name": "OperatorWithdrawalCancelled",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "OperatorWithdrawalExpired",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "OperatorWithdrawalRequested",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        },
+        {
+          "name": "readyAt",
+          "type": "uint48",
+          "indexed": false,
+          "internalType": "uint48"
+        },
+        {
+          "name": "expiresAt",
+          "type": "uint48",
+          "indexed": false,
+          "internalType": "uint48"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
       "name": "OperatorWithdrawn",
       "inputs": [
         {
@@ -1958,6 +2158,11 @@
     },
     {
       "type": "error",
+      "name": "GuardianSlashUnresolved",
+      "inputs": []
+    },
+    {
+      "type": "error",
       "name": "InsufficientBalance",
       "inputs": [
         {
@@ -2024,12 +2229,27 @@
     },
     {
       "type": "error",
+      "name": "NoPendingWithdrawal",
+      "inputs": []
+    },
+    {
+      "type": "error",
       "name": "NoSlashHistory",
       "inputs": []
     },
     {
       "type": "error",
       "name": "NotInitializing",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OperatorMeetsMinimumStake",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OperatorNotConfigured",
       "inputs": []
     },
     {
@@ -2103,6 +2323,17 @@
     },
     {
       "type": "error",
+      "name": "SlashBlockedByInflight",
+      "inputs": [
+        {
+          "name": "reserved",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
       "name": "SlashCooldown",
       "inputs": []
     },
@@ -2135,6 +2366,33 @@
     {
       "type": "error",
       "name": "Unauthorized",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "WithdrawalExpired",
+      "inputs": [
+        {
+          "name": "expiresAt",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "WithdrawalNotReady",
+      "inputs": [
+        {
+          "name": "readyAt",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "WithdrawalPending",
       "inputs": []
     },
     {
@@ -2274,6 +2532,19 @@
           "name": "proof",
           "type": "bytes",
           "internalType": "bytes"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "expireWithdraw",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
         }
       ],
       "outputs": [],
@@ -2528,6 +2799,19 @@
     },
     {
       "type": "function",
+      "name": "pauseUnderstakedOperator",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
       "name": "priceValidUntil",
       "inputs": [],
       "outputs": [
@@ -2763,6 +3047,39 @@
           "name": "reason",
           "type": "string",
           "internalType": "string"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "slashOperatorAfterReleasing",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "level",
+          "type": "uint8",
+          "internalType": "enum ISuperPaymaster.SlashLevel"
+        },
+        {
+          "name": "penaltyAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "internalType": "string"
+        },
+        {
+          "name": "staleOpHashes",
+          "type": "bytes32[]",
+          "internalType": "bytes32[]"
         }
       ],
       "outputs": [],

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -21,13 +21,12 @@ import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 
 // Reusing Mocks from SuperPaymasterV3.t.sol logic but localized for clarity
 contract MockRegistryV2 is IRegistry {
-    
     mapping(bytes32 => mapping(address => bool)) public roles;
-    
+
     function hasRole(bytes32 role, address account) external view override returns (bool) {
         return roles[role][account];
     }
-    
+
     function grantRole(bytes32 role, address account) external {
         roles[role][account] = true;
     }
@@ -35,24 +34,49 @@ contract MockRegistryV2 is IRegistry {
     // Stub implementations
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
-    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
-        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0); 
+
+    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
+        return RoleConfig(0, 0, 0, 0, 0, 0, 0, false, 0, "stub", address(0), 0);
     }
-    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
-    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRoleUserCount(bytes32) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getUserRoles(address) external view override returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
-    function getCreditLimit(address) external view override returns (uint256) { return 100 ether; }
-    function isReputationSource(address) external pure override returns (bool) { return true; }
+
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) {
+        return 0;
+    }
+
+    function getCreditLimit(address) external view override returns (uint256) {
+        return 100 ether;
+    }
+
+    function isReputationSource(address) external pure override returns (bool) {
+        return true;
+    }
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-    function version() external view override returns (string memory) { return "MockRegistryV3"; }
-    
+
+    function version() external view override returns (string memory) {
+        return "MockRegistryV3";
+    }
+
     function setCreditTier(uint256, uint256) external override {}
     function setReputationSource(address, bool) external override {}
     function markProposalExecuted(uint256) external override {}
-    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
+        external
+        override
+    {}
     function syncStakeFromStaking(address, bytes32, uint256) external override {}
-    function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) {
+        return 0;
+    }
 }
 
 contract MockAggregatorV3Spy is AggregatorV3Interface {
@@ -64,15 +88,31 @@ contract MockAggregatorV3Spy is AggregatorV3Interface {
         price = _price;
         _decimals = _dec;
     }
-    
-    function setPrice(int256 _p) external { price = _p; }
-    function setRevert(bool _r) external { shouldRevert = _r; }
-    
-    function decimals() external view override returns (uint8) { return _decimals; }
-    function description() external view override returns (string memory) { return "Mock"; }
-    function version() external view override returns (uint256) { return 1; }
-    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) { return (0,0,0,0,0); }
-    
+
+    function setPrice(int256 _p) external {
+        price = _p;
+    }
+
+    function setRevert(bool _r) external {
+        shouldRevert = _r;
+    }
+
+    function decimals() external view override returns (uint8) {
+        return _decimals;
+    }
+
+    function description() external view override returns (string memory) {
+        return "Mock";
+    }
+
+    function version() external view override returns (uint256) {
+        return 1;
+    }
+
+    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (0, 0, 0, 0, 0);
+    }
+
     function latestRoundData() external view override returns (uint80, int256, uint256, uint256, uint80) {
         if (shouldRevert) revert("Oracle Error");
         return (1, price, 0, block.timestamp, 1);
@@ -84,15 +124,27 @@ contract MockEntryPointV2 is IEntryPoint {
     function addStake(uint32) external payable override {}
     function unlockStake() external override {}
     function withdrawStake(address payable) external override {}
-    function balanceOf(address) external view override returns (uint256) { return 0; }
-    function getDepositInfo(address) external view override returns (DepositInfo memory) { return DepositInfo(0, false, 0, 0, 0); }
-    function withdrawTo(address payable, uint256) external override {} 
-    
-    function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external override {} 
+
+    function balanceOf(address) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getDepositInfo(address) external view override returns (DepositInfo memory) {
+        return DepositInfo(0, false, 0, 0, 0);
+    }
+    function withdrawTo(address payable, uint256) external override {}
+
+    function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external override {}
     function handleOps(PackedUserOperation[] calldata, address payable) external override {}
     function getSenderAddress(bytes memory) external override {}
-    function getUserOpHash(PackedUserOperation calldata) external view override returns (bytes32) { return bytes32(0); }
-    function getNonce(address, uint192) external view override returns (uint256) { return 0; }
+
+    function getUserOpHash(PackedUserOperation calldata) external view override returns (bytes32) {
+        return bytes32(0);
+    }
+
+    function getNonce(address, uint192) external view override returns (uint256) {
+        return 0;
+    }
     function incrementNonce(uint192) external override {}
     function delegateAndRevert(address, bytes calldata) external override {}
 }
@@ -100,8 +152,8 @@ contract MockEntryPointV2 is IEntryPoint {
 contract SuperPaymasterPricingV2Test is Test {
     using Clones for address;
     SuperPaymaster paymaster;
-    xPNTsToken apnts;           // aPNTs deposit token (3.x; SP only uses it through IERC20)
-    xPNTsTokenV2 xtok;          // operator's community gas token (xPNTs v2, SP 5.5.0)
+    xPNTsToken apnts; // aPNTs deposit token (3.x; SP only uses it through IERC20)
+    xPNTsTokenV2 xtok; // operator's community gas token (xPNTs v2, SP 5.5.0)
     V2TokenDeployer.Stack stack;
     MockRegistryV2 registry;
     MockAggregatorV3Spy priceFeed;
@@ -114,7 +166,7 @@ contract SuperPaymasterPricingV2Test is Test {
     address treasury = address(4);
 
     uint256 constant INITIAL_PRICE = 2000 * 1e8; // $2000
-    uint256 constant MAX_COST = 0.01 ether;      // a0 = 1000 aPNTs * 1.2 (fits v2 caps)
+    uint256 constant MAX_COST = 0.01 ether; // a0 = 1000 aPNTs * 1.2 (fits v2 caps)
 
     function setUp() public {
         vm.warp(10 hours); // Start at a safe timestamp to avoid underflow
@@ -211,7 +263,7 @@ contract SuperPaymasterPricingV2Test is Test {
     function test_FreshCache_DoesNotCallOracle() public {
         // Initialize cache
         paymaster.updatePrice();
-        (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
+        (, uint256 initialUpdatedAt,,) = paymaster.cachedPrice();
 
         // Advance time by 30 mins (Fresh)
         vm.warp(block.timestamp + 30 minutes);
@@ -223,18 +275,18 @@ contract SuperPaymasterPricingV2Test is Test {
 
         // Assert:
         // 1. Cache timestamp should NOT change (no update triggered by validate or postOp)
-        (, uint256 newUpdatedAt, , ) = paymaster.cachedPrice();
+        (, uint256 newUpdatedAt,,) = paymaster.cachedPrice();
         assertEq(newUpdatedAt, initialUpdatedAt, "Cache should not update when fresh");
 
         // 2. Cache price should remain OLD value
-        (int256 p, , , ) = paymaster.cachedPrice();
+        (int256 p,,,) = paymaster.cachedPrice();
         assertEq(p, int256(INITIAL_PRICE), "Should use cached price");
     }
 
     // 2. Stale Cache Scenario (Passive Update Removed)
     function test_StaleCache_DoesNotUpdatePrice() public {
         paymaster.updatePrice();
-        (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
+        (, uint256 initialUpdatedAt,,) = paymaster.cachedPrice();
 
         // Advance time by 2 hours (Stale)
         vm.warp(block.timestamp + 2 hours);
@@ -246,18 +298,18 @@ contract SuperPaymasterPricingV2Test is Test {
         _validateAndPostOp(keccak256("stale"));
 
         // Assert: Cache timestamp SHOULD NOT Update (Passive update removed)
-        (, uint256 newUpdatedAt, , ) = paymaster.cachedPrice();
+        (, uint256 newUpdatedAt,,) = paymaster.cachedPrice();
         assertEq(newUpdatedAt, initialUpdatedAt, "Cache should NOT update in validate/postOp");
 
         // Verify Cache is still old price
-        (int256 p, , , ) = paymaster.cachedPrice();
+        (int256 p,,,) = paymaster.cachedPrice();
         assertEq(p, int256(INITIAL_PRICE));
     }
 
     // 3. Stale Cache + Failed Update (Expired ValidUntil) Scenario
     function test_StaleCache_ReturnsExpiredValidUntil() public {
         paymaster.updatePrice();
-        (, uint256 initialUpdatedAt, , ) = paymaster.cachedPrice();
+        (, uint256 initialUpdatedAt,,) = paymaster.cachedPrice();
 
         // Advance time by 2 hours (7200s). Threshold is 1 hour (3600s).
         vm.warp(block.timestamp + 2 hours);
@@ -301,7 +353,7 @@ contract SuperPaymasterPricingV2Test is Test {
 
         // Assert:
         // 1. Cache should still be DVT price ($4000), not Oracle ($5000)
-        (int256 p, , , ) = paymaster.cachedPrice();
+        (int256 p,,,) = paymaster.cachedPrice();
         assertEq(p, 4000 * 1e8);
     }
 
@@ -317,7 +369,7 @@ contract SuperPaymasterPricingV2Test is Test {
         priceFeed.setRevert(true);
         vm.prank(owner);
         paymaster.updatePriceDVT(2200 * 1e8, block.timestamp, "", 0);
-        (int256 p, , , ) = paymaster.cachedPrice();
+        (int256 p,,,) = paymaster.cachedPrice();
         assertEq(p, 2200 * 1e8, "cache moved");
 
         uint256 actualGasCost = 0.001 ether;
@@ -328,14 +380,16 @@ contract SuperPaymasterPricingV2Test is Test {
         uint256 charge = paymaster.protocolRevenue() - revBefore;
 
         assertEq(charge, _expectedCharge(INITIAL_PRICE, actualGasCost, feePerGas), "charge at the $2000 snapshot");
-        assertTrue(charge != _expectedCharge(2200 * 1e8, actualGasCost, feePerGas), "control: current cache would differ");
+        assertTrue(
+            charge != _expectedCharge(2200 * 1e8, actualGasCost, feePerGas), "control: current cache would differ"
+        );
     }
 
     /// @dev Mirrors SP postOp (R10-M3, exp/buffer): bufWei = (C_POSTOP 175k (exp/params default) + ceil((callGas+postOpGas)*10%)
     ///      + C_WRAP 5k) * feePerGas; charge = ceil(ceil(aGas) * (1 + 10% fee)). callGas = 0 here.
     function _expectedCharge(uint256 price, uint256 actualGasCost, uint256 feePerGas) internal pure returns (uint256) {
         uint256 postOpGas = 200000;
-        uint256 bufWei = (175_000 + Math.ceilDiv(postOpGas * 10, 100) + 5_000) * feePerGas;
+        uint256 bufWei = (180_000 + Math.ceilDiv(postOpGas * 10, 100) + 5_000) * feePerGas;
         uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * price, 1e18, 1e8 * 0.02 ether, Math.Rounding.Ceil);
         return Math.mulDiv(aGas, 11000, 10000, Math.Rounding.Ceil);
     }

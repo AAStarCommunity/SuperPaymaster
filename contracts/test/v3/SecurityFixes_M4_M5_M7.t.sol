@@ -105,6 +105,12 @@ contract M4_ExchangeRateOverflowTest is Test {
         stdstore.target(address(registry)).sig("hasRole(bytes32,address)")
             .with_key(ROLE_COMMUNITY).with_key(OPERATOR).checked_write(true);
 
+        vm.mockCall(
+            address(0x999),
+            abi.encodeWithSignature("getLockedStake(address,bytes32)", OPERATOR, ROLE_PAYMASTER_SUPER),
+            abi.encode(type(uint256).max)
+        );
+
         vm.stopPrank();
 
         // SP 5.5.0: the operator's token must be an xPNTs v2 (BALANCE_MODE_VERSION()==1) clone
@@ -267,7 +273,7 @@ contract MockRegistryForFactory is IRegistry {
     function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external {}
     function version() external pure returns (string memory) { return "MockFactoryReg"; }
     function syncStakeFromStaking(address, bytes32, uint256) external {}
-    function getEffectiveStake(address, bytes32) external pure returns (uint256) { return 0; }
+    function getEffectiveStake(address, bytes32) external pure returns (uint256) { return 1; }
 }
 
 /**

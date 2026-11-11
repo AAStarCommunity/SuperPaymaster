@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.23;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Test.sol";
@@ -47,29 +47,53 @@ contract MockRegistry is IRegistry {
     // Stub implementations for interface compliance
     function configureRole(bytes32, RoleConfig calldata) external override {}
     function exitRole(bytes32) external override {}
-    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) { 
-        return RoleConfig(0,0,0,0,0,0,0,false, 0,"stub",address(0),0); 
+
+    function getRoleConfig(bytes32) external view override returns (RoleConfig memory) {
+        return RoleConfig(0, 0, 0, 0, 0, 0, 0, false, 0, "stub", address(0), 0);
     }
-    function getRoleUserCount(bytes32) external view override returns (uint256) { return 0; }
-    function getUserRoles(address) external view override returns (bytes32[] memory) { return new bytes32[](0); }
+
+    function getRoleUserCount(bytes32) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getUserRoles(address) external view override returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
     function registerRole(bytes32, address, bytes calldata) external override {}
-    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) { return 0; }
-    
+
+    function safeMintForRole(bytes32, address, bytes calldata) external override returns (uint256) {
+        return 0;
+    }
+
     // V3.1 Mock Logic
     mapping(address => uint256) public creditLimits;
-    
+
     function setCreditForUser(address user, uint256 limit) external {
         creditLimits[user] = limit;
     }
 
-    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata) external override {}
-    
-        function getCreditLimit(address user) external view override returns (uint256) { return creditLimits[user]; }
-        function isReputationSource(address) external pure override returns (bool) { return true; }
-        function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
-        function version() external view override returns (string memory) { return "MockRegistryV3"; }
-        function syncStakeFromStaking(address, bytes32, uint256) external override {}
-        function getEffectiveStake(address, bytes32) external view override returns (uint256) { return 0; }
+    function batchUpdateGlobalReputation(uint256, address[] calldata, uint256[] calldata, uint256, bytes calldata)
+        external
+        override
+    {}
+
+    function getCreditLimit(address user) external view override returns (uint256) {
+        return creditLimits[user];
+    }
+
+    function isReputationSource(address) external pure override returns (bool) {
+        return true;
+    }
+    function updateOperatorBlacklist(address, address[] calldata, bool[] calldata, bytes calldata) external override {}
+
+    function version() external view override returns (string memory) {
+        return "MockRegistryV3";
+    }
+    function syncStakeFromStaking(address, bytes32, uint256) external override {}
+
+    function getEffectiveStake(address, bytes32) external view override returns (uint256) {
+        return 0;
+    }
 }
 
 contract MockAggregatorV3 is AggregatorV3Interface {
@@ -80,11 +104,23 @@ contract MockAggregatorV3 is AggregatorV3Interface {
         price = _price;
         _decimals = _dec;
     }
-    
-    function decimals() external view override returns (uint8) { return _decimals; }
-    function description() external view override returns (string memory) { return "Mock"; }
-    function version() external view override returns (uint256) { return 1; }
-    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) { return (0,0,0,0,0); }
+
+    function decimals() external view override returns (uint8) {
+        return _decimals;
+    }
+
+    function description() external view override returns (string memory) {
+        return "Mock";
+    }
+
+    function version() external view override returns (uint256) {
+        return 1;
+    }
+
+    function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (0, 0, 0, 0, 0);
+    }
+
     function latestRoundData() external view override returns (uint80, int256, uint256, uint256, uint80) {
         return (1, price, 0, block.timestamp, 1);
     }
@@ -95,15 +131,27 @@ contract MockEntryPoint is IEntryPoint {
     function addStake(uint32) external payable override {}
     function unlockStake() external override {}
     function withdrawStake(address payable) external override {}
-    function balanceOf(address) external view override returns (uint256) { return 0; }
-    function getDepositInfo(address) external view override returns (DepositInfo memory) { return DepositInfo(0, false, 0, 0, 0); }
+
+    function balanceOf(address) external view override returns (uint256) {
+        return 0;
+    }
+
+    function getDepositInfo(address) external view override returns (DepositInfo memory) {
+        return DepositInfo(0, false, 0, 0, 0);
+    }
     function withdrawTo(address payable, uint256) external override {} // IMPLEMENTED
-    
-    function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external override {} 
+
+    function handleAggregatedOps(UserOpsPerAggregator[] calldata, address payable) external override {}
     function handleOps(PackedUserOperation[] calldata, address payable) external override {}
     function getSenderAddress(bytes memory) external override {}
-    function getUserOpHash(PackedUserOperation calldata) external view override returns (bytes32) { return bytes32(0); }
-    function getNonce(address, uint192) external view override returns (uint256) { return 0; }
+
+    function getUserOpHash(PackedUserOperation calldata) external view override returns (bytes32) {
+        return bytes32(0);
+    }
+
+    function getNonce(address, uint192) external view override returns (uint256) {
+        return 0;
+    }
     function incrementNonce(uint192) external override {}
     function delegateAndRevert(address, bytes calldata) external override {}
 }
@@ -131,15 +179,15 @@ contract SuperPaymasterTest is Test {
 
     function setUp() public {
         vm.startPrank(owner);
-        
+
         entryPoint = new MockEntryPoint();
         registry = new MockRegistry();
         registry.grantRole(keccak256("PAYMASTER_SUPER"), operator);
         registry.grantRole(COMMUNITY_ROLE, operator);
         registry.grantRole(ENDUSER_ROLE, user);
-        
+
         priceFeed = new MockAggregatorV3(2000 * 1e8, 8); // $2000 ETH
-        
+
         // Deploy Token
         address implementation = address(new xPNTsToken());
         apnts = xPNTsToken(implementation.clone());
@@ -162,7 +210,6 @@ contract SuperPaymasterTest is Test {
         // Deploy mock factory and register operator token (P1-4 fix)
         mockFactory = new MockXPNTsFactory();
         paymaster.setXPNTsFactory(address(mockFactory));
-
 
         // Fix: Update Price Cache (Warp to prevent underflow allowed check)
         vm.warp(block.timestamp + 2 hours);
@@ -201,11 +248,11 @@ contract SuperPaymasterTest is Test {
 
     function testPushDeposit() public {
         vm.startPrank(operator);
-        
+
         // Push Mode: Approve + DepositFor
         apnts.approve(address(paymaster), 100 ether);
         paymaster.depositFor(operator, 100 ether);
-        
+
         assertEq(paymaster.totalTrackedBalance(), 100 ether, "Total Tracked Mismatch");
 
         (
@@ -219,17 +266,17 @@ contract SuperPaymasterTest is Test {
             uint256 v8_spent,
             uint256 v9_count
         ) = paymaster.operators(operator);
-        
+
         // v1 is aPNTsBalance (100 ether) in new packed layout.
         if (v1_bal != 100 ether) {
-             console.log("v1:", v1_bal);
-             fail();
+            console.log("v1:", v1_bal);
+            fail();
         }
         assertEq(v1_bal, 100 ether);
-        
+
         vm.stopPrank();
     }
-    
+
     function testDepositFailsIfExceedLimit() public {
         vm.startPrank(operator);
         // Default limit is 5000 ether
@@ -241,7 +288,7 @@ contract SuperPaymasterTest is Test {
     function testDepositWorksWithApproval() public {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
-        
+
         // Should succeed now
         paymaster.deposit(100 ether);
         vm.stopPrank();
@@ -265,15 +312,16 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
         paymaster.depositFor(operator, 100 ether);
-
+        paymaster.requestWithdraw(50 ether);
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
         paymaster.withdraw(50 ether);
-        
-        (uint128 bal,,,,,,,,) = paymaster.operators(operator); 
+
+        (uint128 bal,,,,,,,,) = paymaster.operators(operator);
         assertEq(bal, 50 ether);
         assertEq(apnts.balanceOf(operator), 950 ether);
         vm.stopPrank();
     }
-    
+
     function testConfigureOperator() public {
         vm.startPrank(operator);
         paymaster.configureOperator(address(xtok), treasury);
@@ -295,7 +343,7 @@ contract SuperPaymasterTest is Test {
         (, bool configured,,,,,,,) = paymaster.operators(operator);
         assertFalse(configured, "legacy token must not configure the operator");
     }
-    
+
     function testSlashAndPause() public {
         vm.startPrank(owner);
         paymaster.updateReputation(operator, 100);
@@ -330,7 +378,10 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
         paymaster.depositFor(operator, 100 ether);
+        paymaster.requestWithdraw(100 ether);
         vm.stopPrank();
+
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
 
         // Owner queues a slash (phase 1 — sets the pending flag)
         vm.prank(owner);
@@ -347,7 +398,10 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
         paymaster.depositFor(operator, 100 ether);
+        paymaster.requestWithdraw(50 ether);
         vm.stopPrank();
+
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
 
         // Owner queues then executes slash
         vm.startPrank(owner);
@@ -367,7 +421,10 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
         paymaster.depositFor(operator, 100 ether);
+        paymaster.requestWithdraw(100 ether);
         vm.stopPrank();
+
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
 
         vm.startPrank(owner);
         paymaster.queueSlash(operator);
@@ -393,18 +450,17 @@ contract SuperPaymasterTest is Test {
         vm.startPrank(operator);
         apnts.approve(address(paymaster), 100 ether);
         paymaster.depositFor(operator, 100 ether);
+        paymaster.requestWithdraw(50 ether);
+        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
         paymaster.withdraw(50 ether);
         vm.stopPrank();
         (uint128 bal,,,,,,,,) = paymaster.operators(operator);
         assertEq(bal, 50 ether);
     }
-    
 
     /// @notice 5.5.0 (R10-M1b): validation moves a0 IN FLIGHT (not revenue); postOp turns the
-    ///         charge into revenue and refunds (a0 - charge) to the operator. The pre-5.5.0
-    ///         assertion `totalSpent == protocolRevenue` right after validation encoded the old
-    ///         optimistic "a0 is revenue at validation" accounting and is replaced by the
-    ///         in-flight / settle / withdraw-buffer flow below.
+    ///         charge into revenue and refunds (a0 - charge) to the operator. `totalSpent` remains
+    ///         the validation-time reservation statistic consumed by A6; it is not protocolRevenue.
     function testProtocolRevenueFlow() public {
         // 1. Setup Operator
         vm.startPrank(owner);
@@ -417,7 +473,7 @@ contract SuperPaymasterTest is Test {
 
         apnts.approve(address(paymaster), 200000 ether);
         // Split deposit to respect the 3.x aPNTs 5000 ether single-tx limit (40 * 5000 = 200,000)
-        for(uint i=0; i<40; i++) {
+        for (uint256 i = 0; i < 40; i++) {
             paymaster.depositFor(operator, 5000 ether);
         }
         vm.stopPrank();
@@ -433,7 +489,7 @@ contract SuperPaymasterTest is Test {
         assertEq(a0, 3600 ether, "a0 = full maxCost at cached price + fee + buffer");
 
         (uint128 balMid,,,,,,, uint256 spent,) = paymaster.operators(operator);
-        assertEq(spent, a0, "totalSpent records a0");
+        assertEq(spent, a0, "totalSpent records the validation reservation");
         assertEq(uint256(balMid), 200000 ether - a0, "a0 debited from operator at validation");
         assertEq(paymaster.protocolRevenue(), 0, "R10-M1b: a0 is in flight, NOT revenue, before postOp");
         (address inflOp, uint256 inflA0) = paymaster.inflightOf(h);
@@ -445,9 +501,11 @@ contract SuperPaymasterTest is Test {
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 0.02 ether, 1 gwei);
 
         uint256 revenue = paymaster.protocolRevenue();
-        (uint128 balFinal,,,,,,,,) = paymaster.operators(operator);
+        uint128 balFinal;
+        (balFinal,,,,,,, spent,) = paymaster.operators(operator);
         assertGt(revenue, 0, "revenue after settlement");
         assertLt(revenue, a0, "charge < reservation (refund happened)");
+        assertEq(spent, a0, "settlement does not double count totalSpent");
         assertEq(uint256(balFinal), 200000 ether - revenue, "operator refunded exactly a0 - charge (no clamp)");
         (inflOp, inflA0) = paymaster.inflightOf(h);
         assertEq(inflOp, address(0), "in-flight cleared");
@@ -466,7 +524,6 @@ contract SuperPaymasterTest is Test {
         paymaster.withdrawProtocolRevenue(treasury, revenue);
         vm.stopPrank();
     }
-
 
     // ====================================
     // V3.1 Refactor Tests (migrated to 5.5.0 balance mode + reservation credit)
