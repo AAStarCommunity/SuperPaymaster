@@ -39,6 +39,17 @@ class InventoryTests(unittest.TestCase):
             report, rc = inventory(declared, [HEADER.replace(':C', ':C') + '[PASS] test_a()'], 'fixture', (), d)
             self.assertEqual((rc, len(report['unexecuted'])), (1, 1))
 
+    def test_comment_string_and_path_controls(self):
+        for fake in ('// abstract contract C', '/* abstract contract C */',
+                     'contract X { string s = "abstract contract C"; }'):
+            with self.subTest(fake=fake), tempfile.TemporaryDirectory() as d:
+                Path(d, 'a.t.sol').write_text(fake + '\ncontract C {}')
+                Path(d, 'b.t.sol').write_text('abstract contract C {}')
+                declared = {**DECLARED, 'b.t.sol': {'C': ['test_a']}}
+                report, rc = inventory(declared, [], 'fixture', root=d)
+                self.assertEqual((rc, report['declared']), (1, 2))
+                self.assertEqual(report['excluded_abstract'], ['b.t.sol:C (1)'])
+
     def test_recap_and_failure(self):
         log = HEADER + '[FAIL: revert] test_a()\n[PASS] test_b()'
         report, rc = self.run_logs(log + '\nFailing tests:\n' + log)

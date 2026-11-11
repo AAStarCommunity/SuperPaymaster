@@ -7,19 +7,26 @@ from pathlib import Path
 
 SUITE = re.compile(r'^Ran \d+ tests? for (.+):([^:]+)$')
 RESULT = re.compile(r'^\[(PASS|FAIL|SKIP)(.*?)\]\s+(\w+(?:\([^)]*\))?)')  # nightly prints invariants without '()'
-ABSTRACT = r'\babstract\s+contract\s+{}\b'
+ABSTRACT = r'(?:^|[}};])\s*abstract\s+contract\s+{}\b'
+
+
+def solidity_code(source):
+    # Preserve newlines and separators, but never interpret comment/string contents.
+    return re.sub(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
+                  lambda m: ''.join('\n' if c == '\n' else ' ' for c in m[0]),
+                  source, flags=re.DOTALL)
 
 
 def inventory(declared, logs, engine, allow=(), root=None):
     names = set()
     abstract = []
     for path, contracts in declared.items():
-        source = (Path(root) / path).read_text() if root is not None else ''
+        source = solidity_code((Path(root) / path).read_text()) if root is not None else ''
         for contract, tests in contracts.items():
             if not isinstance(tests, list) or not all(isinstance(t, str) for t in tests):
                 raise ValueError('expected path -> contract -> list of test signatures')
             # Newer forge lists abstract bases; their tests only ever run in derived contracts.
-            if source and re.search(ABSTRACT.format(re.escape(contract)), source):
+            if source and re.search(ABSTRACT.format(re.escape(contract)), source, re.MULTILINE):
                 abstract.append(f'{path}:{contract} ({len(tests)})')
                 continue
             names.update((path, contract, t) for t in tests)
