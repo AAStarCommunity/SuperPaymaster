@@ -44,10 +44,29 @@ class EvidenceControls(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn(reason, result.stderr)
 
-    def test_untouched(self):
+    def test_historical_record_without_compile_evm(self):
         result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def mark_new_compile_evm_record(self):
+        for key, row in self.manifest.items():
+            engine = key.split('/', 1)[0]
+            row['compileEvm'] = 'prague' if engine == 'prague' else 'cancun'
+        for command in self.commands:
+            command['compileEvm'] = 'prague' if command['engine'] == 'prague' else 'cancun'
+
+    def test_new_amsterdam_cancun_record_rejects_prague_argv(self):
+        self.mark_new_compile_evm_record()
+        self.check('command argv')
+
+    def test_new_amsterdam_cancun_record_accepts_cancun_argv(self):
+        self.mark_new_compile_evm_record()
+        for command in self.commands:
+            if command['engine'] == 'amsterdam':
+                i = command['argv'].index('--evm-version')
+                command['argv'][i + 1] = 'cancun'
+        self.check()
 
     def test_null_band(self):
         for row in self.manifest.values():

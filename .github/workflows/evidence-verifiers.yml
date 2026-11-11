@@ -1,0 +1,57 @@
+name: Evidence verifiers
+
+on:
+  pull_request:
+    paths:
+      - 'script/evidence/**'
+      - 'docs/design/aoa-balance-mode/data/**'
+      - '.github/workflows/evidence-verifiers.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  offline-verifiers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # test_a4_state_check.py and test_a4_mutations.py use cast only for local ABI hashing.
+      - name: Install Foundry CLI
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Node dependencies for offline fixture validators
+        run: pnpm install --frozen-lockfile
+
+      - name: RR5 lifecycle evidence verifier
+        run: python3 script/evidence/test_rr5_lifecycle_verify.py
+
+      - name: Other offline evidence verifier suites
+        run: |
+          python3 script/evidence/test_a3a_funding_provenance.py
+          python3 script/evidence/test_a3a_newpin_senders_reread.py
+          python3 script/evidence/test_a3a_v4_reread.py
+          python3 script/evidence/test_a4_a6_controls.py
+          python3 script/evidence/test_a4_credit_logscan.py
+          python3 script/evidence/test_a4_state_check.py
+          python3 script/evidence/test_a4_mutations.py
+          python3 script/evidence/test_q5_snapshot_timestamp.py
+          python3 script/evidence/test_rams_capture.py
+          python3 script/evidence/test_rams_gauges.py
+          python3 script/evidence/test_w2_op_mainnet_exposure.py
+
+      # Excluded: test_a4_anvil_control.py starts a local chain and may download solc.
+      - name: Mutation artifact remains deterministic
+        run: git diff --exit-code -- script/evidence/a4-guard-mutations.json

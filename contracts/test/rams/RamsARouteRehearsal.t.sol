@@ -12,6 +12,7 @@ import "src/tokens/v2/GlobalTierSource.sol";
 import "src/tokens/v2/xPNTsTokenV2.sol";
 import "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import "src/tokens/v2/xPNTsFactoryV2.sol";
+import {SPReleaseVersion} from "../../script/v3/SPReleaseVersion.sol";
 import "./RamsAHelpers.sol";
 
 /// @notice OFFLINE-authored Route A rehearsal; every test skips without SEPOLIA_FORK_RPC.
@@ -342,7 +343,7 @@ contract RamsARouteRehearsalTest is Test {
     function _assertUpgrade(bool stopped) internal view {
         assertEq(address(uint160(uint256(vm.load(SP, IMPL_SLOT)))), newImpl, "RAMS: implementation");
         assertEq(newImpl.codehash, newHash, "RAMS: runtime identity");
-        assertEq(sp.version(), "SuperPaymaster-5.5.0", "RAMS: version");
+        assertEq(sp.version(), SPReleaseVersion.SP, "RAMS: version");
         assertEq(sp.paused(), stopped, "RAMS: atomic global pause");
         assertEq(address(sp.entryPoint()), EP, "RAMS: new EP immutable");
         assertEq(address(sp.REGISTRY()), REGISTRY, "RAMS: new Registry immutable");
@@ -1265,7 +1266,7 @@ contract RamsARouteRehearsalTest is Test {
         address actual = address(uint160(uint256(vm.load(SP, IMPL_SLOT))));
         require(actual == g.implementation, "RAMS gate: implementation");
         require(actual.code.length != 0 && actual.codehash == g.runtimeHash, "RAMS gate: runtime codehash");
-        require(keccak256(bytes(sp.version())) == keccak256("SuperPaymaster-5.5.0"), "RAMS gate: version");
+        require(keccak256(bytes(sp.version())) == keccak256(bytes(SPReleaseVersion.SP)), "RAMS gate: version");
         require(g.owner != address(0) && sp.owner() == g.owner, "RAMS gate: owner");
         require(sp.guardian() == g.guardian, "RAMS gate: guardian");
         require(sp.paused() == g.paused, "RAMS gate: global pause");

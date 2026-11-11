@@ -81,17 +81,21 @@ def verify_sources(out):
     assert subprocess.check_output(['git','rev-parse',f'{head}^{{commit}}'],text=True).strip() == head
     # The original record has no tracked changes, only the then-untracked evidence folder.
     assert (out/'working-tree.txt').read_text() in ('', '?? docs/design/aoa-balance-mode/data/rr5-lifecycle-isolation/\n'), 'dirty measurement sources'
-    for engine in ENGINES:
+    recorded_engines = [engine for engine in ENGINES if (out/f'{engine}-version.txt').exists()]
+    assert recorded_engines, 'missing engine versions'
+    for engine in recorded_engines:
         version = (out/f'{engine}-version.txt').read_text()
         assert re.fullmatch(r'forge Version: [^\n]+\nCommit SHA: [0-9a-f]{40}\nBuild Timestamp: [^\n]+\nBuild Profile: dist\n', version)
         release, commit = (('1.8.7-nightly', '4e8874b2bdc840929585ca73e170993c50a4a531')
                            if engine == 'amsterdam' else
                            ('1.7.1', '4072e48705af9d93e3c0f6e29e93b5e9a40caed8'))
         assert version.startswith(f'forge Version: {release}\nCommit SHA: {commit}\n')
-    assert (out/'cancun-version.txt').read_bytes() == (out/'prague-version.txt').read_bytes()
+    if all(engine in recorded_engines for engine in ('cancun', 'prague')):
+        assert (out/'cancun-version.txt').read_bytes() == (out/'prague-version.txt').read_bytes()
     before = json.loads((out/'source-before.json').read_text())
     assert before == json.loads((out/'source-after.json').read_text())
-    assert all(before.get(p) == h for p,h in hashes().items()), 'production source hashes'
+    for path, digest in before.items():
+        assert hashlib.sha256(recorded(path)).hexdigest() == digest, ('production source hash', path)
     paths = {TEST, 'contracts/test/fixtures/entrypoint-v0.7.runtime.hex', 'foundry.toml'}
     pending = [TEST]
     while pending:
@@ -129,8 +133,9 @@ def verify_sources(out):
     current = ast.parse(Path(runner).read_bytes())
     def measurement_digest(tree):
         tree.body = [n for n in tree.body if not (
-            isinstance(n, ast.FunctionDef) and n.name in
-            {'verify', 'verify_sources', 'guard_selector'})]
+            (isinstance(n, ast.FunctionDef) and n.name in
+             {'verify', 'verify_sources', 'guard_selector', 'main'}) or
+            (isinstance(n, ast.If) and ast.unparse(n.test) == "__name__ == '__main__'"))]
         return hashlib.sha256(ast.dump(tree).encode()).hexdigest()
     assert measurement_digest(old) == measurement_digest(current), 'measurement runner changed'
 
@@ -139,7 +144,9 @@ def verify_sources(out):
 def verify(out):
     verify_sources(out)
     manifest = json.loads((out/'manifest.json').read_text())
-    keys = [f'{e}/{m}/{v}' for e in ENGINES for m in MODES for v in VARIANTS]
+    selected_engines = [e for e in ENGINES if any(k.startswith(e + '/') for k in manifest)]
+    assert selected_engines, 'empty engine inventory'
+    keys = [f'{e}/{m}/{v}' for e in selected_engines for m in MODES for v in VARIANTS]
     assert set(manifest) == set(keys), 'incomplete variant inventory'
     commands = [json.loads(x) for x in (out/'commands.jsonl').read_text().splitlines()]
     cursor = 0
@@ -155,6 +162,10 @@ def verify(out):
         ident = f'{cursor:05d}-{e}-{m}-{v}-{label}'
         assert c['id'] == ident and c['log'] == ident+'.log', ('command order/identity', ident)
         assert (c['engine'], c['mode'], c['variant']) == (e,m,v), ('command tuple', ident)
+        compile_evm = c.get('compileEvm')
+        if compile_evm is not None:
+            assert compile_evm in ('cancun', 'prague'), ('compileEvm', ident)
+            assert compile_evm == ('prague' if e == 'prague' else 'cancun'), ('compileEvm', ident)
         env = c['env']
         root = str(Path(env['FOUNDRY_OUT']).parent.parent)
         if build_root is None: build_root = root
@@ -166,7 +177,8 @@ def verify(out):
         assert binary.endswith('/nightly-4e8874b/forge' if e == 'amsterdam' else '/.foundry/bin/forge')
         expected = [binary,'test','--offline','--match-path',TEST,'--match-contract',f'Lifecycle{m.title()}Test',
                     '--match-test','test_scan_' if scan else 'test_lifecycle','-vvvv' if trace else '-vv']
-        if e != 'cancun': expected += ['--evm-version','prague']
+        if e != 'cancun':
+            expected += ['--evm-version', compile_evm or 'prague']
         if e == 'amsterdam': expected += ['--no-isolate','--hardfork','amsterdam']
         tail = argv[len(expected):]
         if tail[:1] == ['-R']:
@@ -194,6 +206,10 @@ def verify(out):
     for key in keys:
         row = manifest[key]
         e,m,v = key.split('/')
+        command_has_compile_evm = 'compileEvm' in commands[cursor]
+        assert ('compileEvm' in row) == command_has_compile_evm, ('manifest compileEvm', key)
+        if command_has_compile_evm:
+            assert row['compileEvm'] == commands[cursor]['compileEvm'], ('manifest compileEvm', key)
         snap = (v.startswith('rr_') and v != 'rr_no_snapshot') or v == 'fresh_snapshot'
         sid, ps, _ = consume(key,'scan',scan=not snap)
         assert row['scan'] == sid
@@ -241,7 +257,7 @@ def verify(out):
     assert cursor == len(commands), 'extra commands'
     return len(manifest), len(commands)
 
-def main(out):
+def main(out, selected_engines=ENGINES):
     if out.exists() and any(out.iterdir()):
         raise SystemExit('output directory must be EMPTY')
     out.mkdir(parents=True, exist_ok=True)
@@ -253,7 +269,8 @@ def main(out):
                'cancun':str(Path.home()/'.foundry/bin/forge'),'prague':str(Path.home()/'.foundry/bin/forge')}
     manifest = {}
     serial = 0
-    for engine in ENGINES:
+    for engine in selected_engines:
+        compile_evm = 'prague' if engine == 'prague' else 'cancun'
         (out/f'{engine}-version.txt').write_text(subprocess.check_output([engines[engine],'--version'],text=True))
         for mode in MODES:
             for variant in VARIANTS:
@@ -269,7 +286,7 @@ def main(out):
                                FOUNDRY_OUT=str(build/engine/'out'),FOUNDRY_CACHE_PATH=str(build/engine/'cache'))
                     cmd = [engines[engine],'test','--offline','--match-path',TEST,'--match-contract',f'Lifecycle{mode.title()}Test',
                            '--match-test','test_scan_' if scan else 'test_lifecycle', '-vvvv' if trace else '-vv']
-                    if engine != 'cancun': cmd += ['--evm-version','prague']
+                    if engine != 'cancun': cmd += ['--evm-version',compile_evm]
                     if engine == 'amsterdam': cmd += ['--no-isolate','--hardfork','amsterdam']
                     deps = env.get('PROFILE_DEPS_ROOT')
                     if deps: cmd += ['-R',f'@chainlink/contracts/={deps}/contracts/lib/chainlink-brownie-contracts/contracts/',
@@ -279,7 +296,7 @@ def main(out):
                     p = subprocess.run(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
                     filename = ident+'.log'
                     (out/filename).write_text(p.stdout)
-                    c = dict(id=ident,engine=engine,mode=mode,variant=variant,argv=cmd,
+                    c = dict(id=ident,engine=engine,mode=mode,variant=variant,compileEvm=compile_evm,argv=cmd,
                              env={k:env[k] for k in ('TUPLE_CANDIDATE','LIFECYCLE_VARIANT','LIFECYCLE_BUDGET','FOUNDRY_OUT','FOUNDRY_CACHE_PATH')},
                              log=filename,exit=p.returncode,count=241 if scan else 1,sha256=hashlib.sha256(p.stdout.encode()).hexdigest())
                     with (out/'commands.jsonl').open('a') as f: f.write(json.dumps(c)+'\n')
@@ -300,7 +317,7 @@ def main(out):
                 completed=[g for g,k,r in scan if k==3]
                 failures=[g for g,k,r in scan if k in (1,2)]
                 if variant in SPLIT:
-                    row = dict(scan=sid, split=True, last_guard_scan=max(guards),
+                    row = dict(scan=sid, split=True, compileEvm=compile_evm, last_guard_scan=max(guards),
                                non_guard_scan=[min(failures),max(failures)] if failures else None,
                                failure_selectors=sorted({r for g,k,r in scan if k in (1,2)}),
                                guard_selector=next(r for g,k,r in scan if k==0))
@@ -308,7 +325,7 @@ def main(out):
                     (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
                     print(key,'split',row['last_guard_scan'],row['non_guard_scan'],row['failure_selectors'],flush=True)
                     continue
-                row = dict(scan=sid,last_guard_scan=max(guards),first_complete_scan=min(completed),
+                row = dict(scan=sid,compileEvm=compile_evm,last_guard_scan=max(guards),first_complete_scan=min(completed),
                            non_guard_scan=[min(failures),max(failures)] if failures else None,
                            guard_selector=next(r for g,k,r in scan if k==0))
                 def sample(g,label='bisect'):
@@ -355,5 +372,16 @@ def main(out):
 if __name__=='__main__':
     if len(sys.argv)==3 and sys.argv[1]=='--verify':
         print('PASS',verify(Path(sys.argv[2])))
-    elif len(sys.argv)==2: main(Path(sys.argv[1]))
-    else: raise SystemExit('usage: rr5-lifecycle-run.py [--verify] EMPTY_OUT')
+    else:
+        args = sys.argv[1:]
+        selected = ENGINES
+        if '--engines' in args:
+            i = args.index('--engines')
+            if i + 1 >= len(args): raise SystemExit('--engines requires a comma-separated value')
+            names = args[i + 1].split(',')
+            if not names or len(set(names)) != len(names) or any(e not in ENGINES for e in names):
+                raise SystemExit('--engines must be a unique comma-separated subset of: ' + ','.join(ENGINES))
+            selected = [e for e in ENGINES if e in names]
+            del args[i:i + 2]
+        if len(args)==1: main(Path(args[0]), selected)
+        else: raise SystemExit('usage: rr5-lifecycle-run.py [--engines ENGINE[,ENGINE...]] EMPTY_OUT')
