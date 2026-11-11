@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import "forge-std/Test.sol";
 import {Clones} from "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {APNTsCapped} from "../../src/tokens/APNTsCapped.sol";
 import {xPNTsToken} from "../../src/tokens/xPNTsToken.sol";
 import {CheckDefaultArtifacts} from "../../script/checks/CheckDefaultArtifacts.s.sol";
+import {CancunArtifactGate} from "./CancunArtifactGate.t.sol";
 
 contract ArtifactFactoryFixture {
     address public implementation;
@@ -46,25 +46,14 @@ contract CheckDefaultArtifactsHarness is CheckDefaultArtifacts {
     }
 }
 
-contract CheckDefaultArtifactsTest is Test {
-
-    /// These suites exercise deploy-script checks against profile.default (cancun) artifacts. Under
-    /// `forge test --evm-version prague` (the Prague real-precompile gate) out/ holds prague builds, which
-    /// DefaultArtifacts correctly refuses as "not a profile.default build" — so the suite skips itself
-    /// there, the same way the precompile-dependent suites skip on Cancun. Detection = the EIP-2537 G1ADD
-    /// precompile answers (identical to contracts/test/paper7/*).
-    function _hasPraguePrecompiles() internal view returns (bool) {
-        bytes memory twoIdentities = new bytes(256);
-        (bool ok, bytes memory result) = address(0x0B).staticcall(twoIdentities);
-        return ok && result.length == 128;
-    }
+contract CheckDefaultArtifactsTest is CancunArtifactGate {
     address constant SAFE = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
     CheckDefaultArtifactsHarness checker;
     ArtifactFactoryFixture factory;
     TimelockController timelock;
 
     function setUp() public {
-        if (_hasPraguePrecompiles()) vm.skip(true);
+        _skipNonCancunCompilation();
         vm.chainId(31337);
         checker = new CheckDefaultArtifactsHarness();
         factory = new ArtifactFactoryFixture(checker.deployLegacyImplementation());
