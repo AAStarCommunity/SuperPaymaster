@@ -621,33 +621,69 @@ contract SuperPaymasterV55Test is Test {
         assertEq(_opBalance(), opBefore, "operator fully restored (I10)");
     }
 
-    function test_C1M01_withdraw_requires_full_delay_boundary() public {
+    function test_B1_withdrawal_boundaries_and_expire_before_expiry_reverts() public {
         uint256 amount = 10_000 ether;
         assertEq(sp.OPERATOR_WITHDRAWAL_DELAY(), 48 hours, "DSR withdrawal delay");
-        uint256 tokenBefore = apnts.balanceOf(operator);
-        uint256 trackedBefore = sp.totalTrackedBalance();
+        assertEq(sp.OPERATOR_WITHDRAWAL_WINDOW(), 24 hours, "DSR execution window");
 
         vm.prank(operator);
         sp.requestWithdraw(amount);
         (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        uint48 expiresAt = readyAt + sp.OPERATOR_WITHDRAWAL_WINDOW();
         assertEq(readyAt, block.timestamp + sp.OPERATOR_WITHDRAWAL_DELAY());
-
-        vm.prank(operator);
-        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalNotReady.selector, readyAt));
-        sp.withdraw(amount);
 
         vm.warp(readyAt - 1);
         vm.prank(operator);
         vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalNotReady.selector, readyAt));
         sp.withdraw(amount);
 
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalNotReady.selector, expiresAt));
+        sp.expireWithdraw(operator);
+
+        uint256 snap = vm.snapshot();
         vm.warp(readyAt);
         vm.prank(operator);
         sp.withdraw(amount);
-        assertEq(apnts.balanceOf(operator), tokenBefore + amount);
-        assertEq(sp.totalTrackedBalance(), trackedBefore - amount);
-        (uint128 pendingAmount,) = sp.pendingWithdrawals(operator);
-        assertEq(pendingAmount, 0);
+        vm.revertTo(snap);
+
+        vm.warp(expiresAt);
+        vm.prank(operator);
+        sp.withdraw(amount);
+        vm.revertTo(snap);
+
+        vm.warp(uint256(expiresAt) + 1);
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalExpired.selector, expiresAt));
+        sp.withdraw(amount);
+    }
+
+    function test_B1_reviewer_PoC_expires_and_third_party_restores_escrow() public {
+        uint256 amount = 90_000 ether;
+        uint128 balanceBefore = _opBalance();
+        uint256 trackedBefore = sp.totalTrackedBalance();
+        uint48 expectedReadyAt = uint48(block.timestamp) + sp.OPERATOR_WITHDRAWAL_DELAY();
+        uint48 expectedExpiresAt = expectedReadyAt + sp.OPERATOR_WITHDRAWAL_WINDOW();
+        vm.expectEmit(true, false, false, true, address(sp));
+        emit SuperPaymasterStorage.OperatorWithdrawalRequested(
+            operator, amount, expectedReadyAt, expectedExpiresAt
+        );
+        vm.prank(operator);
+        sp.requestWithdraw(amount);
+        assertEq(_opBalance(), balanceBefore - amount, "request escrows immediately");
+
+        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        uint48 expiresAt = readyAt + sp.OPERATOR_WITHDRAWAL_WINDOW();
+        vm.warp(block.timestamp + 180 days);
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalExpired.selector, expiresAt));
+        sp.withdraw(amount);
+
+        vm.expectEmit(true, false, false, true, address(sp));
+        emit SuperPaymasterStorage.OperatorWithdrawalExpired(operator, amount);
+        vm.prank(address(0xB1));
+        sp.expireWithdraw(operator);
+        assertEq(_opBalance(), balanceBefore, "permissionless expiry restores sponsorship balance");
+        assertEq(sp.totalTrackedBalance(), trackedBefore, "expiry does not move funds out of SP");
     }
 
     function test_C1M01_queueSlash_freezes_mature_request_until_cancelled() public {
@@ -667,23 +703,20 @@ contract SuperPaymasterV55Test is Test {
         sp.withdraw(1 ether);
     }
 
-    function test_C1M01_slash_caps_pending_request_and_operator_can_cancel() public {
+    function test_B1_cancel_restores_escrow_and_tracked_balance_is_unchanged() public {
+        uint128 balanceBefore = _opBalance();
+        uint256 trackedBefore = sp.totalTrackedBalance();
         vm.prank(operator);
         sp.requestWithdraw(90_000 ether);
-        vm.prank(owner);
-        sp.queueSlash(operator);
-        vm.prank(owner);
-        vm.expectEmit(true, false, false, true, address(sp));
-        emit SuperPaymasterStorage.WithdrawalRequestAdjusted(operator, 90_000 ether, 70_000 ether);
-        sp.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 100_000 ether, "test");
-
-        (uint128 pendingAmount,) = sp.pendingWithdrawals(operator);
-        assertEq(pendingAmount, 70_000 ether, "request capped to post-slash balance");
+        assertEq(_opBalance(), balanceBefore - 90_000 ether);
+        assertEq(sp.totalTrackedBalance(), trackedBefore);
 
         vm.prank(operator);
         sp.cancelWithdraw();
-        (pendingAmount,) = sp.pendingWithdrawals(operator);
+        (uint128 pendingAmount,) = sp.pendingWithdrawals(operator);
         assertEq(pendingAmount, 0);
+        assertEq(_opBalance(), balanceBefore);
+        assertEq(sp.totalTrackedBalance(), trackedBefore);
     }
 
     function test_M01_understaked_operator_is_permissionlessly_paused() public {
@@ -725,53 +758,52 @@ contract SuperPaymasterV55Test is Test {
         sp.setOperatorPaused(operator, false);
     }
 
-    /// forge-config: default.isolate = true
-    function test_SP55101_settlement_caps_only_final_balance_and_keeps_readyAt() public {
+    function test_B1_escrow_is_excluded_from_real_entrypoint_validation_and_cancel_restores_it() public {
         uint128 initial = _opBalance();
         vm.prank(operator);
-        sp.requestWithdraw(initial);
-        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        sp.requestWithdraw(uint256(initial) - 50 ether);
+        assertEq(_opBalance(), 50 ether, "only unescrowed balance sponsors");
+
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.prank(address(entryPoint));
+        (bytes memory failedCtx, uint256 failedVd) = sp.validatePaymasterUserOp(op, h, 750_000_000_000_000);
+        assertEq(failedVd & 1, 1, "insufficient unescrowed collateral is SIG_FAILURE");
+        assertEq(failedCtx.length, 0);
+
+        vm.prank(operator);
+        sp.cancelWithdraw();
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, h, 750_000_000_000_000);
+        assertEq(vd & 1, 0, "same op succeeds after escrow cancellation");
+        assertGt(ctx.length, 0);
+    }
+
+    /// forge-config: default.isolate = true
+    function test_SP55101_settlement_leaves_exact_escrow_and_readyAt() public {
+        vm.prank(operator);
+        sp.requestWithdraw(90_000 ether);
+        (uint128 escrow, uint48 readyAt) = sp.pendingWithdrawals(operator);
         vm.warp(readyAt);
         vm.prank(owner);
         sp.updatePrice();
 
-        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        uint128 balanceBefore = _opBalance();
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
-        ops[0] = op;
-        vm.recordLogs();
+        ops[0] = _op(0, MIN_POST_OP_GAS, 0, "");
         entryPoint.handleOps(ops, payable(beneficiary));
 
-        uint128 finalBalance = _opBalance();
-        (uint128 adjusted, uint48 readyAfter) = sp.pendingWithdrawals(operator);
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes32 adjustmentTopic = keccak256("WithdrawalRequestAdjusted(address,uint256,uint256)");
-        bool foundAdjustment;
-        for (uint256 i; i < logs.length; ++i) {
-            if (logs[i].emitter == address(sp) && logs[i].topics.length > 0 && logs[i].topics[0] == adjustmentTopic) {
-                assertEq(address(uint160(uint256(logs[i].topics[1]))), operator, "adjusted operator");
-                (uint256 oldAmount, uint256 newAmount) = abi.decode(logs[i].data, (uint256, uint256));
-                assertEq(oldAmount, initial, "event old request");
-                assertEq(newAmount, finalBalance, "event final balance");
-                foundAdjustment = true;
-            }
-        }
-        assertTrue(foundAdjustment, "settlement adjustment event");
-        assertLt(finalBalance, initial, "settlement charges operator");
-        assertEq(adjusted, finalBalance, "request capped to final balance only");
-        assertEq(readyAfter, readyAt, "settlement must not restart delay");
-
-        vm.prank(operator);
-        sp.withdraw(finalBalance);
-        assertEq(_opBalance(), 0, "entire final balance remains withdrawable");
-        assertEq(sp.inflightReserved(operator), 0, "aggregate cleared after settlement");
+        (uint128 escrowAfter, uint48 readyAfter) = sp.pendingWithdrawals(operator);
+        assertEq(escrowAfter, escrow, "settlement cannot resize exact escrow");
+        assertEq(readyAfter, readyAt, "settlement cannot restart the window");
+        assertLt(_opBalance(), balanceBefore, "only unescrowed collateral pays sponsorship");
     }
 
     /// forge-config: default.isolate = true
-    function test_SP55101_real_entrypoint_bundle_caps_to_final_balance_once() public {
-        uint128 initial = _opBalance();
+    function test_SP55101_real_entrypoint_bundle_leaves_exact_escrow() public {
         vm.prank(operator);
-        sp.requestWithdraw(initial);
-        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        sp.requestWithdraw(90_000 ether);
+        (uint128 escrow, uint48 readyAt) = sp.pendingWithdrawals(operator);
         vm.warp(readyAt);
         vm.prank(owner);
         sp.updatePrice();
@@ -781,34 +813,24 @@ contract SuperPaymasterV55Test is Test {
         ops[1] = _opFor(user2, OWNER2_PK, 0, MIN_POST_OP_GAS, 0, "");
         entryPoint.handleOps(ops, payable(beneficiary));
 
-        uint128 finalBalance = _opBalance();
-        (uint128 adjusted, uint48 readyAfter) = sp.pendingWithdrawals(operator);
-        assertLt(finalBalance, initial, "two charges reduce the final balance");
-        assertEq(adjusted, finalBalance, "later live reservation must not permanently shrink request");
-        assertEq(readyAfter, readyAt, "bundle settlement must preserve maturity");
-        assertEq(sp.inflightReserved(operator), 0, "aggregate cleared after both settlements");
-
-        vm.prank(operator);
-        sp.withdraw(finalBalance);
-        assertEq(_opBalance(), 0, "final balance withdraws without another delay");
+        (uint128 escrowAfter, uint48 readyAfter) = sp.pendingWithdrawals(operator);
+        assertEq(escrowAfter, escrow, "bundle settlement cannot resize escrow");
+        assertEq(readyAfter, readyAt);
+        assertEq(sp.inflightReserved(operator), 0);
     }
 
     /// forge-config: default.isolate = true
-    function test_SP55101_failed_postOp_stale_release_leaves_request_untouched() public {
-        uint128 initial = _opBalance();
+    function test_SP55101_failed_postOp_stale_release_leaves_escrow_untouched() public {
         vm.prank(operator);
-        sp.requestWithdraw(initial);
-        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
-        vm.warp(readyAt);
+        sp.requestWithdraw(90_000 ether);
+        (uint128 escrow, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        uint128 balanceBefore = _opBalance();
 
         PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
         bytes32 h = entryPoint.getUserOpHash(op);
         vm.prank(address(entryPoint));
-        (bytes memory ctx,) = sp.validatePaymasterUserOp(op, h, 1e15);
-        (uint128 reservedAmount, uint48 readyDuring) = sp.pendingWithdrawals(operator);
-        assertLt(_opBalance(), initial, "control: reservation debits balance");
-        assertEq(reservedAmount, initial, "reservation must not cap request");
-        assertEq(readyDuring, readyAt, "reservation must not restart delay");
+        (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, h, 1e15);
+        assertEq(vd & 1, 0);
         vm.mockCallRevert(address(token), abi.encodeWithSelector(IxPNTsTokenV2.settleLocked.selector), "settle boom");
         vm.prank(address(entryPoint));
         vm.expectRevert("settle boom");
@@ -816,14 +838,14 @@ contract SuperPaymasterV55Test is Test {
         vm.clearMockedCalls();
 
         sp.releaseStaleSponsorship(h);
-        assertEq(_opBalance(), initial, "stale release restores full balance");
-        assertEq(sp.inflightReserved(operator), 0, "aggregate cleared by stale release");
-        (uint128 amount, uint48 readyAfter) = sp.pendingWithdrawals(operator);
-        assertEq(amount, initial, "failed settlement must not cap request");
-        assertEq(readyAfter, readyAt, "failed settlement must not restart delay");
+        (uint128 escrowAfter, uint48 readyAfter) = sp.pendingWithdrawals(operator);
+        assertEq(escrowAfter, escrow, "stale release cannot resize escrow");
+        assertEq(readyAfter, readyAt);
+        assertEq(_opBalance(), balanceBefore, "stale release restores only the reservation");
     }
 
-    function test_T1_mature_withdrawal_is_frozen_and_full_balance_is_slashable() public {
+    function test_B1_request_then_queueSlash_slashes_balance_before_escrow_on_total_collateral_cap() public {
+        uint256 trackedBefore = sp.totalTrackedBalance();
         vm.prank(operator);
         sp.requestWithdraw(90_000 ether);
         (, uint48 readyAt) = sp.pendingWithdrawals(operator);
@@ -837,10 +859,31 @@ contract SuperPaymasterV55Test is Test {
 
         vm.prank(owner);
         sp.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 100_000 ether, "T-1");
-        assertEq(_opBalance(), 70_000 ether, "full 100k balance, not requested remainder, is slash base");
+        assertEq(_opBalance(), 0, "slash consumes unescrowed balance first");
         (uint128 pendingAmount,) = sp.pendingWithdrawals(operator);
-        assertEq(pendingAmount, 70_000 ether, "request capped only after full penalty");
-        assertEq(sp.getLatestSlash(operator).amount, 30_000 ether, "30% hardcap taken from full balance");
+        assertEq(pendingAmount, 70_000 ether, "remaining penalty comes from escrow");
+        assertEq(sp.getLatestSlash(operator).amount, 30_000 ether, "30% cap uses balance plus escrow");
+        assertEq(sp.totalTrackedBalance(), trackedBefore, "slash only moves collateral to revenue");
+    }
+
+    function test_B1_partial_withdraw_keeps_readyAt_and_expiry_and_tracks_only_payout() public {
+        uint256 trackedBefore = sp.totalTrackedBalance();
+        vm.prank(operator);
+        sp.requestWithdraw(10_000 ether);
+        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        vm.warp(readyAt);
+        vm.prank(operator);
+        sp.withdraw(4_000 ether);
+        (uint128 remaining, uint48 readyAfter) = sp.pendingWithdrawals(operator);
+        assertEq(remaining, 6_000 ether);
+        assertEq(readyAfter, readyAt, "partial withdrawal keeps original expiry");
+        assertEq(sp.totalTrackedBalance(), trackedBefore - 4_000 ether);
+
+        uint48 expiresAt = readyAt + sp.OPERATOR_WITHDRAWAL_WINDOW();
+        vm.warp(uint256(expiresAt) + 1);
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalExpired.selector, expiresAt));
+        sp.withdraw(1 ether);
     }
 
     /// forge-config: default.isolate = true
@@ -908,6 +951,24 @@ contract SuperPaymasterV55Test is Test {
         sp.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "");
         assertEq(sp.getLatestSlash(operator).amount, 10 ether, "BLS MINOR takes 10% of total collateral");
         assertEq(_opBalance(), 90 ether);
+    }
+
+    function test_B1_bls_minor_uses_balance_plus_withdrawal_escrow() public {
+        address bls = address(0xB15);
+        vm.prank(owner);
+        sp.initBLSAggregator(bls);
+        vm.prank(operator);
+        sp.requestWithdraw(90_000 ether);
+        vm.prank(owner);
+        sp.queueSlash(operator);
+
+        vm.prank(bls);
+        sp.executeSlashWithBLS(operator, ISuperPaymaster.SlashLevel.MINOR, "");
+
+        assertEq(sp.getLatestSlash(operator).amount, 10_000 ether, "BLS MINOR uses total collateral");
+        assertEq(_opBalance(), 0, "liquid balance is consumed first");
+        (uint128 escrow,) = sp.pendingWithdrawals(operator);
+        assertEq(escrow, 90_000 ether, "exact ten percent was covered by liquid balance");
     }
 
     function test_SP_R4_H01_slash_after_releasing_is_owner_only() public {
@@ -1010,7 +1071,7 @@ contract SuperPaymasterV55Test is Test {
         assertEq(storedA0, 0, "no inflight record written");
     }
 
-    function test_guardian_slash_expires_at_seven_days_and_withdraw_works() public {
+    function test_guardian_slash_expires_at_seven_days_and_escrow_can_be_cancelled() public {
         address g = address(0x6A2D);
         vm.prank(owner);
         sp.setGuardian(g);
@@ -1025,7 +1086,7 @@ contract SuperPaymasterV55Test is Test {
         vm.warp(block.timestamp + 1);
         assertFalse(sp.isSlashPending(operator), "expires exactly at seven days");
         vm.prank(operator);
-        sp.withdraw(1 ether);
+        sp.cancelWithdraw();
     }
 
     function test_guardian_cannot_requeue_expired_unresolved_slash() public {

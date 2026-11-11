@@ -17,20 +17,21 @@ import {InvMockRegistry, InvMockEntryPoint, InvMockPriceFeed, InvMockAPNTs} from
  * @notice Property test (T-H1/T-H2 from audit §6) that machine-checks the core
  *         fund-conservation invariant the audit §9 confirmed by hand:
  *
- *             totalTrackedBalance == Σ(operators[i].aPNTsBalance) + protocolRevenue
+ *             totalTrackedBalance == Σ(operators[i].aPNTsBalance + escrow[i]) + protocolRevenue
  *
  *         Every aPNTs mutation in SuperPaymaster touches exactly the variables
  *         needed to preserve this identity:
  *           - deposit/depositFor/onTransferReceived: balance += x, total += x
- *           - withdraw:                              balance -= x, total -= x
+ *           - request/cancel/expire:                 balance <-> escrow (total unchanged)
+ *           - withdraw:                              escrow -= x, total -= x
  *           - withdrawProtocolRevenue:              revenue -= x, total -= x
  *           - validation fee debit:                  balance -= x, revenue += x   (total unchanged)
  *           - postOp refund:                         balance += x, revenue -= x   (total unchanged)
  *           - slash:                                 balance -= x, revenue += x   (total unchanged)
  *
- *         The handler below exercises the real entry points (deposit/depositFor/
- *         withdraw) plus a storage-poke that reproduces the validate/postOp/slash
- *         "move operator <-> revenue" steps (those paths require a full UserOp
+ *         The handler below exercises the real entry points (deposit/depositFor/request/
+ *         cancel/expire/withdraw/owner slash) plus a storage-poke that reproduces the
+ *         validate/postOp "move operator <-> revenue" steps (those paths require a full UserOp
  *         through EntryPoint, which a stateless invariant fuzzer cannot drive).
  *         The poke deliberately uses the SAME pair of writes the contract
  *         performs, so a regression that updates one side without the other
@@ -63,12 +64,16 @@ contract SuperPaymasterFundConservation_Invariant is StdInvariant, Test {
         handler = new SuperPaymasterFundHandler(paymaster, registry, apnts, owner);
 
         // Limit the fuzzer to the handler's public surface.
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](9);
         selectors[0] = handler.deposit.selector;
         selectors[1] = handler.depositForOperator.selector;
-        selectors[2] = handler.withdraw.selector;
-        selectors[3] = handler.accrueProtocolFee.selector;
-        selectors[4] = handler.refundFromRevenue.selector;
+        selectors[2] = handler.requestWithdraw.selector;
+        selectors[3] = handler.cancelWithdraw.selector;
+        selectors[4] = handler.expireWithdraw.selector;
+        selectors[5] = handler.withdraw.selector;
+        selectors[6] = handler.ownerSlash.selector;
+        selectors[7] = handler.accrueProtocolFee.selector;
+        selectors[8] = handler.refundFromRevenue.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
     }
@@ -81,6 +86,8 @@ contract SuperPaymasterFundConservation_Invariant is StdInvariant, Test {
         for (uint256 i = 0; i < ops.length; i++) {
             (uint128 bal,,,,,,,,) = paymaster.operators(ops[i]);
             sum += bal;
+            (uint128 escrow,) = paymaster.pendingWithdrawals(ops[i]);
+            sum += escrow;
         }
         assertEq(paymaster.totalTrackedBalance(), sum, "INV-1: total != Sum(balances)+revenue");
     }
@@ -164,18 +171,59 @@ contract SuperPaymasterFundHandler is Test {
         paymaster.depositFor(op, amount);
     }
 
-    // ── withdraw: balance -= x, total -= x ─────────────────────────────────────
-    function withdraw(uint256 opSeed, uint256 amount) external {
+    // ── request/cancel/expire: balance <-> escrow, total unchanged ──────────────
+    function requestWithdraw(uint256 opSeed, uint256 amount) external {
         address op = _pickOperator(opSeed);
         uint128 bal = _balanceOf(op);
-        if (bal == 0) return;
-        amount = bound(amount, 0, bal);
-        if (amount == 0) return;
+        (uint128 pending,) = paymaster.pendingWithdrawals(op);
+        if (pending != 0 || bal == 0 || paymaster.isSlashPending(op)) return;
+        amount = bound(amount, 1, bal);
         vm.prank(op);
         paymaster.requestWithdraw(amount);
-        vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
+    }
+
+    function cancelWithdraw(uint256 opSeed) external {
+        address op = _pickOperator(opSeed);
+        (uint128 pending,) = paymaster.pendingWithdrawals(op);
+        if (pending == 0) return;
+        vm.prank(op);
+        paymaster.cancelWithdraw();
+    }
+
+    function expireWithdraw(uint256 opSeed) external {
+        address op = _pickOperator(opSeed);
+        (uint128 pending, uint48 readyAt) = paymaster.pendingWithdrawals(op);
+        if (pending == 0) return;
+        vm.warp(uint256(readyAt) + paymaster.OPERATOR_WITHDRAWAL_WINDOW() + 1);
+        paymaster.expireWithdraw(op);
+    }
+
+    // ── withdraw: escrow -= x, total -= x ──────────────────────────────────────
+    function withdraw(uint256 opSeed, uint256 amount) external {
+        address op = _pickOperator(opSeed);
+        (uint128 pending, uint48 readyAt) = paymaster.pendingWithdrawals(op);
+        if (pending == 0 || paymaster.isSlashPending(op)) return;
+        uint48 expiresAt = readyAt + paymaster.OPERATOR_WITHDRAWAL_WINDOW();
+        if (block.timestamp > expiresAt) return;
+        if (block.timestamp < readyAt) vm.warp(readyAt);
+        amount = bound(amount, 1, pending);
         vm.prank(op);
         paymaster.withdraw(amount);
+    }
+
+    // ── owner slash: balance then escrow -= x, revenue += x ────────────────────
+    function ownerSlash(uint256 opSeed, uint256 amount) external {
+        address op = _pickOperator(opSeed);
+        uint128 bal = _balanceOf(op);
+        (uint128 pending,) = paymaster.pendingWithdrawals(op);
+        uint256 collateral = uint256(bal) + pending;
+        if (collateral == 0 || paymaster.inflightReserved(op) != 0) return;
+        amount = bound(amount, 1, collateral);
+        vm.startPrank(owner);
+        paymaster.queueSlash(op);
+        vm.warp(block.timestamp + 24 hours);
+        paymaster.slashOperator(op, ISuperPaymaster.SlashLevel.MAJOR, amount, "invariant");
+        vm.stopPrank();
     }
 
     // ── accrueProtocolFee: balance -= x, revenue += x (validate/slash shape) ────

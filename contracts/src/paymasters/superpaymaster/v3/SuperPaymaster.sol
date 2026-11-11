@@ -165,7 +165,8 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
     /// @dev Shared deposit accounting: overflow-check, credit operator balance,
     ///      bump totalTrackedBalance, emit. Used by deposit/onTransferReceived/depositFor.
     function _creditDeposit(address operator, uint256 amount) internal {
-        if (amount > type(uint128).max) revert AmountExceedsUint128();
+        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount;
+        if (amount > type(uint128).max - collateral) revert AmountExceedsUint128();
         // forge-lint: disable-next-line(unsafe-typecast)
         operators[operator].aPNTsBalance += uint128(amount);
         totalTrackedBalance += amount;
@@ -194,15 +195,17 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         _creditDeposit(targetOperator, amount);
     }
 
-    /// @notice Start the withdrawal delay. Funds remain available for sponsorship and slashing.
+    /// @notice Escrow operator funds and start the withdrawal delay and execution window.
     function requestWithdraw(uint256 amount) external {
         if (_isSlashPending(msg.sender)) revert SlashPending();
         if (pendingWithdrawals[msg.sender].amount != 0) revert WithdrawalPending();
         uint256 balance = operators[msg.sender].aPNTsBalance;
         if (amount == 0 || balance < amount) revert InsufficientBalance(balance, amount);
         uint48 readyAt = uint48(block.timestamp) + OPERATOR_WITHDRAWAL_DELAY;
+        uint48 expiresAt = readyAt + OPERATOR_WITHDRAWAL_WINDOW;
+        operators[msg.sender].aPNTsBalance = uint128(balance - amount);
         pendingWithdrawals[msg.sender] = PendingWithdrawal(uint128(amount), readyAt);
-        emit OperatorWithdrawalRequested(msg.sender, amount, readyAt);
+        emit OperatorWithdrawalRequested(msg.sender, amount, readyAt, expiresAt);
     }
 
     /// @notice Cancel a pending withdrawal request.
@@ -210,6 +213,7 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         uint256 amount = pendingWithdrawals[msg.sender].amount;
         if (amount == 0) revert NoPendingWithdrawal();
         delete pendingWithdrawals[msg.sender];
+        operators[msg.sender].aPNTsBalance += uint128(amount);
         emit OperatorWithdrawalCancelled(msg.sender, amount);
     }
 
@@ -219,12 +223,11 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         PendingWithdrawal storage pending = pendingWithdrawals[msg.sender];
         if (pending.amount == 0) revert NoPendingWithdrawal();
         if (uint48(block.timestamp) < pending.readyAt) revert WithdrawalNotReady(pending.readyAt);
+        uint48 expiresAt = pending.readyAt + OPERATOR_WITHDRAWAL_WINDOW;
+        if (block.timestamp > expiresAt) revert WithdrawalExpired(expiresAt);
         if (amount == 0 || pending.amount < amount) revert InsufficientBalance(pending.amount, amount);
-        uint256 balance = operators[msg.sender].aPNTsBalance;
-        if (balance < amount) revert InsufficientBalance(balance, amount);
         pending.amount -= uint128(amount);
         if (pending.amount == 0) delete pendingWithdrawals[msg.sender];
-        operators[msg.sender].aPNTsBalance = uint128(balance - amount);
         totalTrackedBalance -= amount;
         IERC20(APNTS_TOKEN).safeTransfer(msg.sender, amount);
         emit ISuperPaymaster.OperatorWithdrawn(msg.sender, amount);
@@ -483,7 +486,6 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         _clearInflight(c.opHash);
         _setInflightLive(c.opHash, false);
         operators[c.operator].aPNTsBalance += uint128(c.a0 - charge);
-        _capPendingWithdrawal(c.operator, uint256(operators[c.operator].aPNTsBalance) + inflightReserved[c.operator]);
         protocolRevenue += charge;
 
         emit ISuperPaymaster.TransactionSponsored(c.operator, c.user, aGas, charge);

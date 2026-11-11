@@ -50,7 +50,10 @@ interface ISuperPaymaster is IVersioned {
     // ============ Events ============
 
     event OperatorDeposited(address indexed operator, uint256 amount);
+    event OperatorWithdrawalRequested(address indexed operator, uint256 amount, uint48 readyAt, uint48 expiresAt);
     event OperatorWithdrawn(address indexed operator, uint256 amount);
+    event OperatorWithdrawalCancelled(address indexed operator, uint256 amount);
+    event OperatorWithdrawalExpired(address indexed operator, uint256 amount);
     event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury);
     // aPNTsCost: raw gas cost before protocol fee; debtAPNTs: actual debt recorded (cost + fee markup)
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 debtAPNTs);
@@ -82,6 +85,8 @@ interface ISuperPaymaster is IVersioned {
     function requestWithdraw(uint256 amount) external;
 
     function cancelWithdraw() external;
+
+    function expireWithdraw(address operator) external;
 
     /**
      * @notice Withdraw aPNTs collateral

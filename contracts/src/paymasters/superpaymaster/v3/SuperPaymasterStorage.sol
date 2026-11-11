@@ -244,11 +244,12 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     uint256 internal constant VALIDATION_BUFFER_BPS = 1000; // 10% for Validation safety margin
     /// @notice Minimum protocolRevenue that must remain after any withdrawal.
     uint256 internal constant PROTOCOL_REVENUE_BUFFER = 0.1 ether;
-    /// @notice Must exceed the worst case from "misbehaviour detectable" to a slash freeze on
-    ///         chain via the guardian route: detection + guardian queueSlash signing, plus OP
-    ///         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.
-    ///         The BLS quorum route is NOT the basis: it has no measured latency today.
+    /// @notice Delay before escrowed operator funds become withdrawable. A request immediately
+    ///         removes the funds from sponsorship and escrows them; it may execute only during
+    ///         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
     uint48 public constant OPERATOR_WITHDRAWAL_DELAY = 48 hours;
+    /// @notice Execution window for a matured operator withdrawal request.
+    uint48 public constant OPERATOR_WITHDRAWAL_WINDOW = 24 hours;
     /// @notice Guardian-queued freezes expire unless owner or BLS confirms within this window.
     uint48 public constant GUARDIAN_SLASH_FREEZE = 7 days;
 
@@ -303,9 +304,9 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     // D5b GOV-2
     event GuardianSet(address indexed previousGuardian, address indexed newGuardian);
     event GlobalPauseSet(address indexed by, bool isPaused);
-    event OperatorWithdrawalRequested(address indexed operator, uint256 amount, uint48 readyAt);
+    event OperatorWithdrawalRequested(address indexed operator, uint256 amount, uint48 readyAt, uint48 expiresAt);
     event OperatorWithdrawalCancelled(address indexed operator, uint256 amount);
-    event WithdrawalRequestAdjusted(address indexed operator, uint256 oldAmount, uint256 newAmount);
+    event OperatorWithdrawalExpired(address indexed operator, uint256 amount);
 
     // ====================================
     // Errors
@@ -342,6 +343,7 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     error WithdrawalPending();
     error NoPendingWithdrawal();
     error WithdrawalNotReady(uint48 readyAt);
+    error WithdrawalExpired(uint48 expiresAt);
 
     // ====================================
     // Constructor
@@ -368,15 +370,6 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
         if (!REGISTRY.hasRole(ROLE_PAYMASTER_SUPER, account)) return false;
         IRegistry.RoleConfig memory config = REGISTRY.getRoleConfig(ROLE_PAYMASTER_SUPER);
         return REGISTRY.getEffectiveStake(account, ROLE_PAYMASTER_SUPER) >= config.minStake;
-    }
-
-    function _capPendingWithdrawal(address operator, uint256 balance) internal {
-        PendingWithdrawal storage pending = pendingWithdrawals[operator];
-        uint256 oldAmount = pending.amount;
-        if (oldAmount <= balance) return;
-        if (balance == 0) delete pendingWithdrawals[operator];
-        else pending.amount = uint128(balance);
-        emit WithdrawalRequestAdjusted(operator, oldAmount, balance);
     }
 
     /// @dev The only deletion path for an in-flight record. Only 5.5.1 records entered the aggregate.

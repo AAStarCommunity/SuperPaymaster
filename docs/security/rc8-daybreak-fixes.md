@@ -578,3 +578,22 @@ OK  SuperPaymaster storage layout = snapshot + 8 allowed appended entries (45 en
 OK  Registry storage layout = snapshot (unchanged) (32 entries)
 abis/ matches the compiled contracts (full shape, not just names)
 ```
+
+## Re-review #619 B1
+
+Operator withdrawals now use exact escrow plus a bounded execution window. `requestWithdraw(amount)`
+immediately moves `amount` from the operator's sponsorship balance into the existing
+`PendingWithdrawal.amount` field. The request matures after the 48-hour delay and can execute only
+during `[readyAt, readyAt + 24 hours]`. Cancellation returns the escrow to sponsorship at any time;
+after the window, anyone may call `expireWithdraw(operator)` to do the same. Only an actual
+withdrawal reduces `totalTrackedBalance`.
+
+Escrow is excluded from new sponsorship but remains slashable. Slashing computes its 30% cap over
+the operator's unescrowed balance plus withdrawal escrow, consumes the unescrowed balance first,
+and then reduces the escrow. `SuperPaymasterLens.dryRunValidation` requires no code change: it
+already reads only `aPNTsBalance`, so escrow is excluded automatically in the same way as production
+validation.
+
+Accepted residual: during `[readyAt, readyAt + W]`, where `W = 24 hours`, escrowed funds can leave
+without further notice. Those funds did not sponsor operations while escrowed. The remaining
+exposure is the 30% slash on the escrowed slice for at most `W` per request cycle.

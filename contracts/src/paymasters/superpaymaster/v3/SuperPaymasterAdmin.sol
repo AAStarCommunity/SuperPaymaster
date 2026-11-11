@@ -50,6 +50,17 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         _transferOwnership(address(0));
     }
 
+    /// @notice Return an expired withdrawal escrow to the operator's sponsorship balance.
+    function expireWithdraw(address operator) external {
+        PendingWithdrawal memory pending = pendingWithdrawals[operator];
+        if (pending.amount == 0) revert NoPendingWithdrawal();
+        uint48 expiresAt = pending.readyAt + OPERATOR_WITHDRAWAL_WINDOW;
+        if (block.timestamp <= expiresAt) revert WithdrawalNotReady(expiresAt);
+        delete pendingWithdrawals[operator];
+        operators[operator].aPNTsBalance += pending.amount;
+        emit OperatorWithdrawalExpired(operator, pending.amount);
+    }
+
     /// @dev Unreachable through the proxy (the core answers this selector); inert if called directly.
     function validatePaymasterUserOp(PackedUserOperation calldata, bytes32, uint256)
         external
@@ -642,12 +653,13 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         if (reserved != 0) revert SlashBlockedByInflight(reserved);
         _blsSlashCd[operator] = uint48(block.timestamp) + SLASH_BLS_COOLDOWN;
 
-        // Logical penalty before cap: Warning=0, Minor=10%, Major=full balance (capped at 30% in _slash).
+        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount;
+        // Logical penalty before cap: Warning=0, Minor=10%, Major=full collateral (capped at 30% in _slash).
         uint256 penalty = 0;
         if (level == ISuperPaymaster.SlashLevel.MINOR) {
-            penalty = operators[operator].aPNTsBalance / 10;
+            penalty = collateral / 10;
         } else if (level == ISuperPaymaster.SlashLevel.MAJOR) {
-            penalty = operators[operator].aPNTsBalance;
+            penalty = collateral;
         }
 
         bytes32 proofHash = keccak256(proof);
@@ -690,26 +702,27 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         else config.reputation = 0;
 
         if (penaltyAmount > 0) {
+            PendingWithdrawal storage pending = pendingWithdrawals[operator];
+            uint256 collateral = uint256(config.aPNTsBalance) + pending.amount;
             if (applyCap) {
                 // V3.6 SECURITY: Enforce 30% Slash Hardcap
-                // No reservation exists, so the liquid balance is exactly the total collateral.
-                uint256 maxSlash = (uint256(config.aPNTsBalance) * 3000) / BPS_DENOMINATOR;
+                // No in-flight reservation exists; total collateral is liquid balance plus withdrawal escrow.
+                uint256 maxSlash = (collateral * 3000) / BPS_DENOMINATOR;
                 if (penaltyAmount > maxSlash) {
                     penaltyAmount = maxSlash;
                     reason = string(abi.encodePacked(reason, " (Capped at 30%)"));
                 }
             }
 
-            if (config.aPNTsBalance >= penaltyAmount) {
-                config.aPNTsBalance -= uint128(penaltyAmount);
-                protocolRevenue += penaltyAmount;
-            } else {
-                uint256 actualBurn = config.aPNTsBalance;
-                config.aPNTsBalance = 0;
-                protocolRevenue += actualBurn;
-                penaltyAmount = actualBurn;
+            if (penaltyAmount > collateral) penaltyAmount = collateral;
+            uint256 fromBalance = penaltyAmount > config.aPNTsBalance ? config.aPNTsBalance : penaltyAmount;
+            if (fromBalance != 0) config.aPNTsBalance -= uint128(fromBalance);
+            uint256 fromEscrow = penaltyAmount - fromBalance;
+            if (fromEscrow != 0) {
+                pending.amount -= uint128(fromEscrow);
+                if (pending.amount == 0) delete pendingWithdrawals[operator];
             }
-            _capPendingWithdrawal(operator, config.aPNTsBalance);
+            protocolRevenue += penaltyAmount;
         }
 
         slashHistory[operator].push(

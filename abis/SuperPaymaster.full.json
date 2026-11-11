@@ -105,6 +105,19 @@
     },
     {
       "type": "function",
+      "name": "OPERATOR_WITHDRAWAL_WINDOW",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
       "name": "REGISTRY",
       "inputs": [],
       "outputs": [
@@ -1563,6 +1576,25 @@
     },
     {
       "type": "event",
+      "name": "OperatorWithdrawalExpired",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
       "name": "OperatorWithdrawalRequested",
       "inputs": [
         {
@@ -1579,6 +1611,12 @@
         },
         {
           "name": "readyAt",
+          "type": "uint48",
+          "indexed": false,
+          "internalType": "uint48"
+        },
+        {
+          "name": "expiresAt",
           "type": "uint48",
           "indexed": false,
           "internalType": "uint48"
@@ -2023,31 +2061,6 @@
     },
     {
       "type": "event",
-      "name": "WithdrawalRequestAdjusted",
-      "inputs": [
-        {
-          "name": "operator",
-          "type": "address",
-          "indexed": true,
-          "internalType": "address"
-        },
-        {
-          "name": "oldAmount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        },
-        {
-          "name": "newAmount",
-          "type": "uint256",
-          "indexed": false,
-          "internalType": "uint256"
-        }
-      ],
-      "anonymous": false
-    },
-    {
-      "type": "event",
       "name": "XPNTsFactoryUpdated",
       "inputs": [
         {
@@ -2357,6 +2370,17 @@
     },
     {
       "type": "error",
+      "name": "WithdrawalExpired",
+      "inputs": [
+        {
+          "name": "expiresAt",
+          "type": "uint48",
+          "internalType": "uint48"
+        }
+      ]
+    },
+    {
+      "type": "error",
       "name": "WithdrawalNotReady",
       "inputs": [
         {
@@ -2508,6 +2532,19 @@
           "name": "proof",
           "type": "bytes",
           "internalType": "bytes"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "expireWithdraw",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "address",
+          "internalType": "address"
         }
       ],
       "outputs": [],

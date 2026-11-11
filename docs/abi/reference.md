@@ -2114,7 +2114,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## ISuperPaymaster
 
 - **Source:** `contracts/src/interfaces/ISuperPaymaster.sol`
-- **Functions:** 15 · **Events:** 6 · **Errors:** 0
+- **Functions:** 16 · **Events:** 9 · **Errors:** 0
 - **Title:** ISuperPaymaster - Multi-tenant SuperPaymaster Interface
 - Interface for SuperPaymaster V3 with per-operator configuration
 
@@ -2127,6 +2127,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb6b55f25` | `deposit(uint256)` | nonpayable | — | Deposit aPNTs as gas collateral |
 | `0x2f4f21e2` | `depositFor(address,uint256)` | nonpayable | — | Notify contract of a direct transfer (Ad-hoc Push Mode) |
 | `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Slash operator via BLS consensus |
+| `0x3d80f892` | `expireWithdraw(address)` | nonpayable | — |  |
 | `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Get operator credit limit for a user |
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — |  |
 | `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether an operator currently has an effective withdrawal-blocking slash status. |
@@ -2187,6 +2188,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | `operator` | `address` |  |
 | `level` | `uint8` |  |
 | `proof` | `bytes` |  |
+
+#### `expireWithdraw(address operator)`
+
+`0x3d80f892` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
 
 #### `getAvailableCredit(address user, address token)`
 
@@ -2315,6 +2324,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
 | `0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4` | `OperatorDeposited(address,uint256)` |
 | `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
+| `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
+| `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
+| `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
 | `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
 | `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
@@ -7719,7 +7731,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 63 · **Events:** 48 · **Errors:** 47
+- **Functions:** 64 · **Events:** 48 · **Errors:** 48
 - **Title:** SuperPaymaster (CORE)
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -7754,7 +7766,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6a16e22d` | `isEligibleForSponsorship(address)` | view | — | V5.3: Dual-channel eligibility — SBT holder OR registered ERC-8004 agent |
 | `0xe21b38d2` | `isRegisteredAgent(address)` | view | — | Check if an address is a registered ERC-8004 agent |
 | `0x88a7ca5c` | `onTransferReceived(address,address,uint256,bytes)` | nonpayable | nonReentrant | Handle ERC1363 transferAndCall (Push Mode) |
-| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Must exceed the worst case from "misbehaviour detectable" to a slash freeze on         chain via the guardian route: detection + guardian queueSlash signing, plus OP         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.         The BLS quorum route is NOT the basis: it has no measured latency today. |
+| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW]. |
+| `0xd8867c2a` | `OPERATOR_WITHDRAWAL_WINDOW()` | view | — | Execution window for a matured operator withdrawal request. |
 | `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x5c975abb` | `paused()` | view | — | Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected. |
@@ -7773,7 +7786,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x3d024c25` | `releaseStaleSponsorship(bytes32)` | nonpayable | — | R10-M1b: after the original transaction, restore an operator's in-flight a0 whose         postOp never completed (a postOp revert also rolled back the user's execution).         Permissionless and idempotent. The EntryPoint ETH for that op stays spent (I10).         GOV-2: works while sponsorship is paused. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
-| `0x745400c9` | `requestWithdraw(uint256)` | nonpayable | — | Start the withdrawal delay. Funds remain available for sponsorship and slashing. |
+| `0x745400c9` | `requestWithdraw(uint256)` | nonpayable | — | Escrow operator funds and start the withdrawal delay and execution window. |
 | `0xf7e8cb0d` | `sbtHolders(address)` | view | — |  |
 | `0x8e580213` | `slashHistory(address,uint256)` | view | — |  |
 | `0xb9f6425b` | `slashQueues(address)` | view | — |  |
@@ -8068,7 +8081,17 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xa8b72f31` · view · access: —
 
-> Must exceed the worst case from "misbehaviour detectable" to a slash freeze on         chain via the guardian route: detection + guardian queueSlash signing, plus OP         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.         The BLS quorum route is NOT the basis: it has no measured latency today.
+> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint48` |  |
+
+#### `OPERATOR_WITHDRAWAL_WINDOW()`
+
+`0xd8867c2a` · view · access: —
+
+> Execution window for a matured operator withdrawal request.
 
 | returns | type | description |
 |---|---|---|
@@ -8258,7 +8281,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x745400c9` · nonpayable · access: —
 
-> Start the withdrawal delay. Funds remain available for sponsorship and slashing.
+> Escrow operator funds and start the withdrawal delay and execution window.
 
 | param | type | description |
 |---|---|---|
@@ -8462,7 +8485,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
 | `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
-| `0x8117dae9aa13b9d12117d757bebba9dd3ae4f481ab07fbdf8b613ae2a687e3f1` | `OperatorWithdrawalRequested(address,uint256,uint48)` |
+| `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
+| `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
 | `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
 | `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
@@ -8484,7 +8508,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
 | `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
 | `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
-| `0xfb0d952e09ee464a4035d121549e71b01cb7452c40f583d7665bf7c86c6dcf89` | `WithdrawalRequestAdjusted(address,uint256,uint256)` |
 | `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
 
 ### Errors
@@ -8536,13 +8559,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x82b42900` | `Unauthorized()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+| `0xf08952cc` | `WithdrawalExpired(uint48)` |
 | `0xcb8f7afb` | `WithdrawalNotReady(uint48)` |
 | `0xb34f5c6c` | `WithdrawalPending()` |
 
 ## SuperPaymasterAdmin
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
-- **Functions:** 95 · **Events:** 48 · **Errors:** 46
+- **Functions:** 97 · **Events:** 48 · **Errors:** 47
 - **Title:** SuperPaymasterAdmin (EXTENSION)
 - Governance, administration and non-hot-path views of SuperPaymaster 5.5.1 (D5b).
 
@@ -8577,6 +8601,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xdc61ae90` | `executeEmergencyPrice()` | nonpayable | — | Apply a previously queued emergency price. Permissionless after the timelock, but         the stale-oracle, expiry and deviation gates are re-checked against execution-time state. |
 | `0x5848bb03` | `executeGasParams()` | nonpayable | onlyOwner | Owner-only. NOT relied upon for mid-bundle safety: an owner such as a         TimelockController with an open executor role can be driven from inside a user op.         Safety comes from the OpCtx snapshot (settleGasBound, cPostop, cWrap). |
 | `0x079d2d42` | `executeSlashWithBLS(address,uint8,bytes)` | nonpayable | — | Execute slash triggered by BLS consensus (DVT Module only) |
+| `0x3d80f892` | `expireWithdraw(address)` | nonpayable | — | Return an expired withdrawal escrow to the operator's sponsorship balance. |
 | `0xbe875cf3` | `gasParams()` | view | — | Effective parameters (defaults when never set) and the pending proposal. |
 | `0xeafe74b5` | `getAvailableCredit(address,address)` | view | — | Remaining credit headroom for `user` on `token` (saturating; spec §10.4 / R4-H4). |
 | `0xc399ec88` | `getDeposit()` | view | — |  |
@@ -8589,7 +8614,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x39a73403` | `initBLSAggregator(address)` | nonpayable | onlyOwner |  |
 | `0x8e0d8ed9` | `isChainlinkStale()` | view | — |  |
 | `0xa98e43a5` | `isSlashPending(address)` | view | — | Whether `operator` currently has an effective withdrawal-blocking slash status. |
-| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Must exceed the worst case from "misbehaviour detectable" to a slash freeze on         chain via the guardian route: detection + guardian queueSlash signing, plus OP         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.         The BLS quorum route is NOT the basis: it has no measured latency today. |
+| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW]. |
+| `0xd8867c2a` | `OPERATOR_WITHDRAWAL_WINDOW()` | view | — | Execution window for a matured operator withdrawal request. |
 | `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x5c975abb` | `paused()` | view | — | Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected. |
@@ -8864,6 +8890,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | `level` | `uint8` |  |
 | `proof` | `bytes` |  |
 
+#### `expireWithdraw(address operator)`
+
+`0x3d80f892` · nonpayable · access: —
+
+> Return an expired withdrawal escrow to the operator's sponsorship balance.
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+
 #### `gasParams()`
 
 `0xbe875cf3` · view · access: —
@@ -9002,7 +9038,17 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xa8b72f31` · view · access: —
 
-> Must exceed the worst case from "misbehaviour detectable" to a slash freeze on         chain via the guardian route: detection + guardian queueSlash signing, plus OP         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.         The BLS quorum route is NOT the basis: it has no measured latency today.
+> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint48` |  |
+
+#### `OPERATOR_WITHDRAWAL_WINDOW()`
+
+`0xd8867c2a` · view · access: —
+
+> Execution window for a matured operator withdrawal request.
 
 | returns | type | description |
 |---|---|---|
@@ -9613,7 +9659,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
 | `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
-| `0x8117dae9aa13b9d12117d757bebba9dd3ae4f481ab07fbdf8b613ae2a687e3f1` | `OperatorWithdrawalRequested(address,uint256,uint48)` |
+| `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
+| `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
 | `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
@@ -9634,7 +9681,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
 | `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
 | `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
-| `0xfb0d952e09ee464a4035d121549e71b01cb7452c40f583d7665bf7c86c6dcf89` | `WithdrawalRequestAdjusted(address,uint256,uint256)` |
 | `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
 
 ### Errors
@@ -9685,6 +9731,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x82b42900` | `Unauthorized()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+| `0xf08952cc` | `WithdrawalExpired(uint48)` |
 | `0xcb8f7afb` | `WithdrawalNotReady(uint48)` |
 | `0xb34f5c6c` | `WithdrawalPending()` |
 
@@ -10028,7 +10075,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterStorage
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol`
-- **Functions:** 50 · **Events:** 45 · **Errors:** 44
+- **Functions:** 51 · **Events:** 45 · **Errors:** 45
 - **Title:** SuperPaymasterStorage
 - D5b: the ONE storage/inheritance chain shared by the SuperPaymaster core and its         SuperPaymasterAdmin extension (reached from the core's fallback via DELEGATECALL).
 
@@ -10054,7 +10101,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x2edf1c51` | `GUARDIAN_SLASH_FREEZE()` | view | — | Guardian-queued freezes expire unless owner or BLS confirms within this window. |
 | `0x452a9320` | `guardian()` | view | — | May pause and queue a time-bounded slash freeze. Unpausing is owner-only. |
 | `0xfb8c1c31` | `inflightReserved(address)` | view | — | Aggregate a0 still reserved between validation and settlement/release per operator. |
-| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Must exceed the worst case from "misbehaviour detectable" to a slash freeze on         chain via the guardian route: detection + guardian queueSlash signing, plus OP         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.         The BLS quorum route is NOT the basis: it has no measured latency today. |
+| `0xa8b72f31` | `OPERATOR_WITHDRAWAL_DELAY()` | view | — | Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW]. |
+| `0xd8867c2a` | `OPERATOR_WITHDRAWAL_WINDOW()` | view | — | Execution window for a matured operator withdrawal request. |
 | `0x13e7c9d8` | `operators(address)` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x5c975abb` | `paused()` | view | — | Global sponsorship stop: validatePaymasterUserOp returns SIG_FAILURE for every op,         checked before anything in the op is parsed. postOp / release are unaffected. |
@@ -10252,7 +10300,17 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xa8b72f31` · view · access: —
 
-> Must exceed the worst case from "misbehaviour detectable" to a slash freeze on         chain via the guardian route: detection + guardian queueSlash signing, plus OP         forced inclusion through L1 under sequencer censorship (~12 h), plus margin.         The BLS quorum route is NOT the basis: it has no measured latency today.
+> Delay before escrowed operator funds become withdrawable. A request immediately         removes the funds from sponsorship and escrows them; it may execute only during         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint48` |  |
+
+#### `OPERATOR_WITHDRAWAL_WINDOW()`
+
+`0xd8867c2a` · view · access: —
+
+> Execution window for a matured operator withdrawal request.
 
 | returns | type | description |
 |---|---|---|
@@ -10607,7 +10665,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
 | `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
-| `0x8117dae9aa13b9d12117d757bebba9dd3ae4f481ab07fbdf8b613ae2a687e3f1` | `OperatorWithdrawalRequested(address,uint256,uint48)` |
+| `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
+| `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
 | `0x190405c3325ce607eef93c6240d9728b865e09aa174052e80e380f33d165c4f4` | `OracleFallbackTriggered(uint256)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
@@ -10627,7 +10686,6 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x272958aacfbf07577da4ede62cc7d612dfb0881c6489c961988ef59378d7709f` | `UserBlockedStatusUpdated(address,address,bool)` |
 | `0xd2d5a1362bcd0d05f9c4cdcf180554d9198405ba5a938a59bf2ae807acf90eba` | `UserReputationAccrued(address,uint256)` |
 | `0xf0131e6cc0fc7174d6c29a5082ba7a09d8f2356d5fdd89e02d323f1a66194939` | `ValidationFailed(bytes32,bytes32)` |
-| `0xfb0d952e09ee464a4035d121549e71b01cb7452c40f583d7665bf7c86c6dcf89` | `WithdrawalRequestAdjusted(address,uint256,uint256)` |
 | `0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990` | `XPNTsFactoryUpdated(address,address)` |
 
 ### Errors
@@ -10676,6 +10734,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x82b42900` | `Unauthorized()` |
 | `0xe07c8dba` | `UUPSUnauthorizedCallContext()` |
 | `0xaa1d49a4` | `UUPSUnsupportedProxiableUUID(bytes32)` |
+| `0xf08952cc` | `WithdrawalExpired(uint48)` |
 | `0xcb8f7afb` | `WithdrawalNotReady(uint48)` |
 | `0xb34f5c6c` | `WithdrawalPending()` |
 

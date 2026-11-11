@@ -48,6 +48,10 @@ library SuperPaymasterAdminCalls {
         _x(sp).pauseUnderstakedOperator(operator);
     }
 
+    function expireWithdraw(SuperPaymaster sp, address operator) internal {
+        _x(sp).expireWithdraw(operator);
+    }
+
     function updateBlockedStatus(SuperPaymaster sp, address operator, address[] memory users, bool[] memory statuses)
         internal
     {
