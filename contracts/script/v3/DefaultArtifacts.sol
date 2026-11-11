@@ -152,13 +152,14 @@ contract T4ArtifactReader is Script {
         (string memory file, string memory d1, string memory d2) = _tail3(src);
         string memory n1 = string.concat("/", name, ".json");
         string memory n2 = string.concat("/", name, ".default.json");
+        string memory outDir = _artifactOutDir();
         string[6] memory c = [
-            string.concat("out/", file, n1),
-            string.concat("out/", file, n2),
-            string.concat("out/", d1, "/", file, n1),
-            string.concat("out/", d1, "/", file, n2),
-            string.concat("out/", d2, "/", d1, "/", file, n1),
-            string.concat("out/", d2, "/", d1, "/", file, n2)
+            string.concat(outDir, "/", file, n1),
+            string.concat(outDir, "/", file, n2),
+            string.concat(outDir, "/", d1, "/", file, n1),
+            string.concat(outDir, "/", d1, "/", file, n2),
+            string.concat(outDir, "/", d2, "/", d1, "/", file, n1),
+            string.concat(outDir, "/", d2, "/", d1, "/", file, n2)
         ];
         (bool okSrc, string memory source) = _tryRead(src);
         require(okSrc, string.concat("DefaultArtifacts: source file missing: ", src));
@@ -180,6 +181,26 @@ contract T4ArtifactReader is Script {
         }
         require(found != 0, string.concat("DefaultArtifacts: no profile.default build of ", name, " from ", src, " (run a plain `forge build`)"));
         return pick;
+    }
+
+    function _artifactOutDir() internal view virtual returns (string memory) {
+        return _validateArtifactOutDir(vm.envOr("DEFAULT_ARTIFACTS_OUT", string("out")));
+    }
+
+    function _validateArtifactOutDir(string memory outDir) internal pure returns (string memory) {
+        bytes memory path = bytes(outDir);
+        require(path.length != 0, "DefaultArtifacts: output root is empty");
+        require(path[0] != "/", "DefaultArtifacts: output root must be relative");
+        require(path[path.length - 1] != "/", "DefaultArtifacts: output root has trailing slash");
+        uint256 start;
+        for (uint256 i; i <= path.length; ++i) {
+            if (i == path.length || path[i] == "/") {
+                require(i - start != 2 || path[start] != "." || path[start + 1] != ".",
+                    "DefaultArtifacts: output root contains parent segment");
+                start = i + 1;
+            }
+        }
+        return outDir;
     }
 
     /// @notice Artifact metadata == [profile.default]: compilation target, compiler version,
