@@ -258,6 +258,8 @@ def verify(out):
     return len(manifest), len(commands)
 
 def main(out, selected_engines=ENGINES):
+    def write_sums(out):
+        (out/'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(out.iterdir()) if p.name!='SHA256SUMS'))
     if out.exists() and any(out.iterdir()):
         raise SystemExit('output directory must be EMPTY')
     out.mkdir(parents=True, exist_ok=True)
@@ -354,19 +356,23 @@ def main(out, selected_engines=ENGINES):
                 (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
                 print(key,row['last_guard'],row['non_guard_scan'],row['first_complete'],flush=True)
     (out/'source-after.json').write_text(json.dumps(hashes(),indent=2))
+    write_sums(out)
     n,c=verify(out)
     (out/'verdict.txt').write_text(f'PASS {n} complete variants; {c} commands exit 0\n')
-    # Negative control: remove one variant, keep logs and commands intact.
+    # Negative control: remove one variant, keep logs and commands intact. Checksums are refreshed so
+    # the only defect is the missing variant, and the rejection must name it.
     saved=(out/'manifest.json').read_text()
     bad=dict(manifest); bad.pop(next(iter(bad)))
     (out/'manifest.json').write_text(json.dumps(bad))
+    write_sums(out)
     try:
         p=subprocess.run([sys.executable,__file__,'--verify',str(out)],capture_output=True,text=True)
         (out/'negative-missing-variant.log').write_text(f'exit {p.returncode}\n'+p.stdout+p.stderr)
-        assert p.returncode!=0
+        assert p.returncode!=0 and 'incomplete variant inventory' in p.stderr, 'negative control rejected for the wrong reason'
     finally: (out/'manifest.json').write_text(saved)
+    write_sums(out)
     n,c=verify(out)
-    (out/'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(out.iterdir()) if p.name!='SHA256SUMS'))
+    write_sums(out)
     print(f'PASS {n} variants, {c} commands; negative control rejected',flush=True)
 
 if __name__=='__main__':
