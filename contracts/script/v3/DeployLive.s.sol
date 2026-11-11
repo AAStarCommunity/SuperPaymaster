@@ -303,8 +303,15 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
     ///      the owner's direct verifyAndExecute route, and DVT paths still require a BLS
     ///      quorum. Verifier rotation keeps its contract-enforced delay. Unset is the
     ///      normal local path and is refused on a production chain by the governance gate.
+    /// @dev The governance owner to hand BLSAggregator + DVTValidator to. Reads the
+    ///      GOVERNANCE_OWNER gate; virtual only so a test harness can supply it without
+    ///      mutating the process environment (vm.setEnv races other suites under parallel forge).
+    function _governanceOwner() internal view virtual returns (address) {
+        return GovernanceOwnerGate.declaredGovernanceOwner();
+    }
+
     function _settleAggregatorGovernance() internal {
-        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        address gov = _governanceOwner();
         if (gov == address(0)) return;
         aggregator.transferOwnership(gov);
         dvt.transferOwnership(gov);

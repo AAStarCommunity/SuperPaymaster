@@ -21,6 +21,16 @@ contract SingleStepOwnedFixture {
 }
 
 contract DeployLiveGovernanceHarness is DeployLive {
+    address internal governanceForTest;
+
+    function setGovernanceForTest(address g) external {
+        governanceForTest = g;
+    }
+
+    function _governanceOwner() internal view override returns (address) {
+        return governanceForTest;
+    }
+
     function deployOwnershipFixtures() external {
         aggregator = BLSAggregator(address(new SingleStepOwnedFixture()));
         dvt = DVTValidator(address(new SingleStepOwnedFixture()));
@@ -36,6 +46,16 @@ contract DeployLiveGovernanceHarness is DeployLive {
 }
 
 contract DeployNewBLSModulesGovernanceHarness is DeployNewBLSModules {
+    address internal governanceForTest;
+
+    function setGovernanceForTest(address g) external {
+        governanceForTest = g;
+    }
+
+    function _governanceOwner() internal view override returns (address) {
+        return governanceForTest;
+    }
+
     function deployAndSettleOwnershipFixtures() external returns (address blsOwner, address dvtOwner) {
         BLSAggregator bls = BLSAggregator(address(new SingleStepOwnedFixture()));
         DVTValidator dvt = DVTValidator(address(new SingleStepOwnedFixture()));
@@ -47,9 +67,8 @@ contract DeployNewBLSModulesGovernanceHarness is DeployNewBLSModules {
 contract DeployLiveGovernanceTest is Test {
     function test_DeployLiveTransfersAggregatorAndDVTToSameOwner() public {
         address governance = address(0xBEEF);
-        vm.setEnv("GOVERNANCE_OWNER", vm.toString(governance));
-
         DeployLiveGovernanceHarness harness = new DeployLiveGovernanceHarness();
+        harness.setGovernanceForTest(governance);
         harness.deployOwnershipFixtures();
         harness.settleAggregatorGovernance();
 
@@ -61,9 +80,8 @@ contract DeployLiveGovernanceTest is Test {
 
     function test_DeployNewBLSModulesTransfersAggregatorAndDVTToSameOwner() public {
         address governance = address(0xBEEF);
-        vm.setEnv("GOVERNANCE_OWNER", vm.toString(governance));
-
         DeployNewBLSModulesGovernanceHarness harness = new DeployNewBLSModulesGovernanceHarness();
+        harness.setGovernanceForTest(governance);
         (address blsOwner, address dvtOwner) = harness.deployAndSettleOwnershipFixtures();
 
         assertEq(blsOwner, governance);
