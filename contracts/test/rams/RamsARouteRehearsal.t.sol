@@ -727,17 +727,18 @@ contract RamsARouteRehearsalTest is Test {
         _upgrade(true);
         _v2Ready();
         // Legacy SETTLE 160k and anything below GP_SETTLE_MIN can no longer be activated (rc.8 SP-c).
-        uint32[2] memory rejectedBounds = [uint32(160_000), uint32(354_999)];
+        uint32[2] memory rejectedBounds = [uint32(160_000), uint32(449_999)];
         for (uint256 i; i < rejectedBounds.length; ++i) {
             vm.prank(OWNER);
             vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
             sp.queueGasParams(500_000, rejectedBounds[i], 5000, 450_000);
         }
-        uint32[2] memory bounds = [uint32(450_000), uint32(355_000)];
+        uint32[2] memory bounds = [uint32(450_000), uint32(600_000)];
         for (uint256 i; i < bounds.length; ++i) {
             uint256 branch = vm.snapshot();
+            uint32 minPost = bounds[i] + 20_000 > 500_000 ? bounds[i] + 20_000 : 500_000;
             vm.prank(OWNER);
-            sp.queueGasParams(500_000, bounds[i], 5000, 450_000);
+            sp.queueGasParams(minPost, bounds[i], 5000, 450_000);
             (, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();
             vm.warp(q.eta);
             vm.prank(OWNER);
@@ -748,7 +749,7 @@ contract RamsARouteRehearsalTest is Test {
             _pauseAll(false);
             vm.prank(OWNER);
             sp.setGlobalPaused(false);
-            PackedUserOperation memory op = _op(OWNER, 500_000, true);
+            PackedUserOperation memory op = _op(OWNER, minPost, true);
             uint256 validationSnapshot = vm.snapshot();
             bytes32 opHash = ep.getUserOpHash(op);
             vm.prank(EP);
@@ -757,7 +758,7 @@ contract RamsARouteRehearsalTest is Test {
             // Binary-search callback success threshold with the same reserved context.
             // Each attempt rolls back settlement; gas is the only varied input.
             uint256 low;
-            uint256 high = 600_000;
+            uint256 high = 800_000;
             assertTrue(_postOpAtGas(context, high), "RAMS: analysis upper control");
             while (high - low > 1) {
                 uint256 mid = (high + low) / 2;

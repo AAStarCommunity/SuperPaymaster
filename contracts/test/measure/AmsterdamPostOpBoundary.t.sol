@@ -147,7 +147,7 @@ abstract contract AmsterdamPostOpBoundaryMeasure is RR5GuardBase {
     function _measureFloorTupleBand() internal {
         release();
         vm.prank(owner);
-        sp.queueGasParams(375_000, 355_000, 5_000, 370_000);
+        sp.queueGasParams(500_000, 450_000, 5_000, 450_000);
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
         vm.prank(owner);
         sp.executeGasParams();

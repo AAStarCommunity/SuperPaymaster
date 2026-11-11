@@ -46,13 +46,11 @@ interface IVmStatePB {
  *           emergency (E-2); settlement by the OLD locker after SP rotation (L-3); plus two
  *           lighter controls (no rate limit; charge clamped at a0).
  *         Per path two quantities are measured:
- *           consumed — gas the postOp CALL costs its caller (callee frame + CALL overhead), with a
- *                      1M gas budget, measured around the call like EntryPoint's `preGas - gasleft()`.
- *                      This is what EntryPoint CHARGES for the frame (unused gas, incl. the 63/64
- *                      reserve of the SP→token call, is returned), so W_postop = max(consumed).
- *           minLimit — the smallest `{gas: g}` for which the call succeeds. It is NOT charged; it is
- *                      set by the configured entry guard plus call-frame overhead, and is held
- *                      against MIN_POST_OP_GAS instead.
+ *           consumed — minimum completing workload budget with only the captured entry guard
+ *                      set to one. This conservative budget includes forwarding reserves and state gas;
+ *                      it is not net charged gas. W_postop is the maximum across paths.
+ *           minLimit — minimum completing budget with the unmodified governance snapshot.
+ *                      It is held strictly against the active MIN_POST_OP_GAS, without C_WRAP.
  *         postOp is called exactly as EntryPoint v0.7 `_postExecution` calls it —
  *         `IPaymaster(paymaster).postOp{gas: limit}(mode, context, actualGasCost, gasPrice)` from the
  *         EntryPoint address, in the SAME transaction as the validation that produced the context
@@ -73,7 +71,10 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
 
     /// @notice m of the rule C_POSTOP >= W_postop x (1 + m) (DSR: >= 15%; author decides).
     uint256 constant M_BPS = 1_500;
-    uint256 MIN_POST_OP_GAS = GasFixture.MIN_POST(); // The op's postOpGasLimit at the queued deployment floor.
+    function _activeMinPost() internal view returns (uint256) {
+        (SuperPaymaster.GasParams memory g,) = sp.gasParams();
+        return g.minPostOpGas;
+    }
     uint256 constant OWNER_PK = 0xA0A0;
     uint256 constant CALL_GAS = 200_000;
     uint256 constant P_WEI = 1e14;
@@ -176,7 +177,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         op.paymasterAndData = abi.encodePacked(
             address(sp),
             uint128(GasFixture.PM_VERIFICATION),
-            uint128(MIN_POST_OP_GAS),
+            uint128(_activeMinPost()),
             operator,
             type(uint256).max,
             address(token),
@@ -223,35 +224,65 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         (ok,) = address(sp).call{gas: g}(cd);
     }
 
-    /// @return consumed gas the postOp CALL cost its caller at a 1M budget
-    /// @return minLimit smallest gas limit for which postOp completes
-    function _measure(uint8 path) internal returns (uint256 consumed, uint256 minLimit) {
+    error BoundProbe(bool settled);
+
+    /// @dev Revert validation and settlement together: snapshots do not restore transient
+    /// storage. The workload-only probe lowers ONLY the guard in its captured context;
+    /// the admission-limit probe preserves the actual governance snapshot.
+    function probeBound(uint8 path, uint256 budget, bool workloadOnly) external {
         (bytes memory cd, bytes32 h, address u) = _prepare(path);
+        if (workloadOnly) {
+            (IPaymaster.PostOpMode mode, bytes memory ctx, uint256 cost, uint256 price) =
+                abi.decode(_withoutSelector(cd), (IPaymaster.PostOpMode, bytes, uint256, uint256));
+            uint256 snap;
+            assembly ("memory-safe") { snap := mload(add(ctx, 384)) }
+            // Zero selects LEGACY_SETTLE_GAS_BOUND; one bypasses that fallback.
+            snap = (snap & ~(uint256(type(uint32).max) << 32)) | (uint256(1) << 32);
+            assembly ("memory-safe") { mstore(add(ctx, 384), snap) }
+            cd = abi.encodeCall(IPaymaster.postOp, (mode, ctx, cost, price));
+        }
+        bool ok = _call(cd, budget);
+        if (ok) {
+            assertTrue(token.usedOpHashes(h), "positive control: the measured call really settled");
+            assertEq(token.lockedOf(u) + token.creditReservedOf(u), 0, "positive control: record consumed");
+        }
+        revert BoundProbe(ok);
+    }
 
-        uint256 sid = vmx.snapshotState();
-        vm.prank(EP);
-        uint256 g0 = gasleft();
-        (bool ok,) = address(sp).call{gas: 1_000_000}(cd);
-        uint256 g1 = gasleft();
-        consumed = g0 > g1 ? g0 - g1 : 0;
-        assertTrue(ok, "postOp completes with 1M gas");
-        assertTrue(token.usedOpHashes(h), "positive control: the measured call really settled");
-        assertEq(token.lockedOf(u) + token.creditReservedOf(u), 0, "positive control: record consumed");
-        vmx.revertToState(sid);
+    function _withoutSelector(bytes memory data) internal pure returns (bytes memory tail) {
+        tail = new bytes(data.length - 4);
+        for (uint256 i; i < tail.length; i++) tail[i] = data[i + 4];
+    }
 
-        uint256 lo = 50_000;
-        uint256 hi = 1_000_000;
-        sid = vmx.snapshotState();
-        assertFalse(_call(cd, lo), "search bracket: fails at 50k");
-        vmx.revertToState(sid);
+    function _boundCompletes(uint8 path, uint256 budget, bool workloadOnly) internal returns (bool settled) {
+        (bool ok, bytes memory ret) = address(this).call(
+            abi.encodeCall(this.probeBound, (path, budget, workloadOnly)));
+        assertFalse(ok, "bound sample rolls back");
+        assertEq(bytes4(ret), BoundProbe.selector, "bound sample classified");
+        assembly ("memory-safe") { settled := mload(add(ret, 36)) }
+    }
+
+    function _minimumBudget(uint8 path, bool workloadOnly) internal returns (uint256 hi) {
+        uint256 lo = 0;
+        hi = 1_000_000;
+        assertFalse(_boundCompletes(path, lo, workloadOnly), "search lower bracket fails");
+        assertTrue(_boundCompletes(path, hi, workloadOnly), "search upper bracket settles");
         while (hi - lo > 1) {
             uint256 mid = (lo + hi) / 2;
-            bool s = _call(cd, mid);
-            vmx.revertToState(sid);
-            if (s) hi = mid;
+            if (_boundCompletes(path, mid, workloadOnly)) hi = mid;
             else lo = mid;
         }
-        minLimit = hi;
+        assertTrue(_boundCompletes(path, hi, workloadOnly), "minimum budget settles");
+        assertFalse(_boundCompletes(path, hi - 1, workloadOnly), "below minimum budget fails");
+    }
+
+    /// @return consumed State-gas-aware workload budget, NOT net charged gas. Bisection
+    /// includes EIP-150 forwarding reserves and EIP-8037 state gas without gasleft subtraction.
+    /// @return minLimit Budget with the real snapshot guard, compared strictly to active minPost.
+    function _measure(uint8 path) internal returns (uint256 consumed, uint256 minLimit) {
+        consumed = _minimumBudget(path, true);
+        assertGt(consumed, 0, "positive control: every workload has a nonzero budget");
+        minLimit = _minimumBudget(path, false);
     }
 
     function _pathName(uint8 p) internal pure returns (string memory) {
@@ -306,7 +337,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         uint256 bufWei = aGas / 1e5 - P_WEI;
         assertEq(bufWei % 1 gwei, 0, "exact rounding (feePerGas)");
         uint256 bufGas = bufWei / 1 gwei;
-        return bufGas - Math.ceilDiv((CALL_GAS + MIN_POST_OP_GAS) * 10, 100);
+        return bufGas - Math.ceilDiv((CALL_GAS + _activeMinPost()) * 10, 100);
     }
 
     /// @notice EntryPoint's own overhead around the postOp call (D3 probe, canonical bytecode).
@@ -318,7 +349,7 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         bytes memory burnCall =
             abi.encodeCall(SimpleAccount.execute, (address(burner), 0, abi.encodeCall(GasBurner.burn, ())));
         uint128[3] memory callGas = [uint128(0), 0, 50_000];
-        uint128[3] memory postGas = [uint128(MIN_POST_OP_GAS), 1_000_000, uint128(MIN_POST_OP_GAS)];
+        uint128[3] memory postGas = [uint128(_activeMinPost()), 1_000_000, uint128(_activeMinPost())];
         for (uint256 k; k < 3; k++) {
             address a = address(accountFactory.createAccount(vm.addr(OWNER_PK), 5_000 + k));
             PackedUserOperation memory op;
@@ -364,17 +395,17 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
     }
 
     /// @notice Codex B-HIGH-2: the rule must hold for EVERY bounds-valid configuration, so the
-    ///         all-floor tuple (MIN 375k, SETTLE 355k, C_WRAP 5k, C_POSTOP 370k) is configured
+    ///         all-floor tuple (MIN 500k, SETTLE 450k, C_WRAP 5k, C_POSTOP 450k) is configured
     ///         through SP's queue/execute and the whole rule is re-run on it.
     function test_rule_under_all_floor_params() public {
         vm.prank(owner);
-        sp.queueGasParams(375_000, 355_000, 5_000, 370_000);
+        sp.queueGasParams(500_000, 450_000, 5_000, 450_000);
         vm.warp(vm.getBlockTimestamp() + 48 hours);
         vm.prank(owner);
         sp.executeGasParams();
         sp.updatePrice();
         (SuperPaymaster.GasParams memory g,) = sp.gasParams();
-        assertEq(g.settleGasBound, 355_000, "precondition: floor tuple active");
+        assertEq(g.settleGasBound, 450_000, "precondition: floor tuple active");
         _assertRule();
     }
 
@@ -390,21 +421,15 @@ contract SuperPaymasterV55PostOpBoundTest is Test {
         console.log("observed C_POSTOP + C_WRAP / C_POSTOP_obs", sum, cPostop);
         console.log("W_postop x (1 + m), m bps", need, M_BPS);
         console.log("EntryPoint wrap upper bound / C_WRAP", wrap, g.cWrap);
-        // Amsterdam state-gas restoration can make a successful path's saturating delta zero; the
-        // per-path settlement assertions above prove liveness, while at least one path stays nonzero.
-        assertGt(W, 0, "positive control: at least one real settlement has a nonzero delta");
+        assertGt(W, 100_000, "positive control: the measurement is live (a real settlement)");
         assertGe(cPostop, need, "rule: C_POSTOP >= W_postop x (1 + m)");
         console.log("margin of C_POSTOP over W_postop (bps)", (cPostop - W) * 10_000 / W);
         assertLe(wrap, g.cWrap, "rule: EntryPoint wrap <= C_WRAP");
         // C_POSTOP replaces postOpGasLimit only because MIN_POST_OP_GAS >= C_POSTOP
         assertLe(cPostop, g.minPostOpGas, "MIN_POST_OP_GAS >= C_POSTOP (min(limit, C_POSTOP) == C_POSTOP)");
-        // MIN_POST_OP_GAS is the validation floor; C_WRAP covers the EntryPoint/call-frame boundary.
-        console.log("max minLimit / MIN_POST_OP_GAS + C_WRAP", maxMinLimit, uint256(g.minPostOpGas) + g.cWrap);
-        assertGe(
-            uint256(g.minPostOpGas) + g.cWrap,
-            maxMinLimit,
-            "MIN_POST_OP_GAS + C_WRAP >= smallest completing call boundary (T-R14-09)"
-        );
+        console.log("max minLimit / active MIN_POST_OP_GAS", maxMinLimit, g.minPostOpGas);
+        assertGe(g.minPostOpGas, maxMinLimit,
+            "MIN_POST_OP_GAS >= smallest completing postOp gas limit (T-R14-09)");
     }
 
     /// @notice Per-path report (and each path must also individually satisfy the rule).

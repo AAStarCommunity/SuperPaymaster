@@ -433,13 +433,13 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     function _configureFloor() internal {
-        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (375_000, 355_000, 5_000, 370_000)));
+        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (500_000, 450_000, 5_000, 450_000)));
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
         _owner(abi.encodeCall(SuperPaymasterAdmin.executeGasParams, ()));
         sp.updatePrice();
         _loadParams();
-        assertEq(_settle, 355_000, "precondition: all-floor tuple active");
-        assertEq(_minPost, 375_000, "precondition: all-floor tuple active");
+        assertEq(_settle, 450_000, "precondition: all-floor tuple active");
+        assertEq(_minPost, 500_000, "precondition: all-floor tuple active");
     }
 
     /// @notice G2 inline fuzz: every run is one seeded campaign; all per-op / per-bundle /

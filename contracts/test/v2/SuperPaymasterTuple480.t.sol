@@ -10,7 +10,9 @@ contract Tuple480AdmissionTest is PostOpProfileFixture {
         super.setUp();
         uint32 settle = uint32(vm.envOr("T480_SETTLE", uint256(450000)));
         vm.startPrank(owner);
-        sp.queueGasParams(settle + 30000, settle, 5000, 450000);
+        // Keep the historical probe, but only activate governance-valid release parameters.
+        uint32 minPost = settle + 30000 < 500000 ? 500000 : settle + 30000;
+        sp.queueGasParams(minPost, settle, 5000, 450000);
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
         sp.executeGasParams();
         vm.stopPrank();
@@ -48,6 +50,11 @@ contract Tuple480AdmissionTest is PostOpProfileFixture {
         if (legacy) { assembly ("memory-safe") { mstore(context, 352) } }
         vm.prank(EP);
         (ok, ret) = address(sp).call{gas: budget}(abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, context, 1e14, 1 gwei)));
+    }
+    function test_old_tuple480_rejected() public {
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        sp.queueGasParams(480000, 450000, 5000, 450000);
     }
     function test_tuple480_sample() public {
         uint256 budget = vm.envOr("T480_BUDGET", uint256(600000));

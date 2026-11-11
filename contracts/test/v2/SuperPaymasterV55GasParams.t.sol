@@ -162,13 +162,13 @@ contract SuperPaymasterV55GasParamsTest is Test {
 
     function test_packed_in_one_slot_at_38_pending_at_39() public {
         vm.prank(owner);
-        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
+        sp.queueGasParams(550_000, 460_000, 6_000, 450_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
         bytes32 pend = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1));
         assertEq(
             pend,
             bytes32(
-                uint256(400_000) | (uint256(360_000) << 32) | (uint256(6_000) << 64) | (uint256(370_000) << 96)
+                uint256(550_000) | (uint256(460_000) << 32) | (uint256(6_000) << 64) | (uint256(450_000) << 96)
                     | (uint256(eta) << 128)
             ),
             "pending + eta in slot 39"
@@ -179,7 +179,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         bytes32 cur = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT));
         assertEq(
             cur,
-            bytes32(uint256(400_000) | (uint256(360_000) << 32) | (uint256(6_000) << 64) | (uint256(370_000) << 96)),
+            bytes32(uint256(550_000) | (uint256(460_000) << 32) | (uint256(6_000) << 64) | (uint256(450_000) << 96)),
             "params in slot 38"
         );
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), bytes32(0), "pending cleared");
@@ -190,14 +190,14 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_queue_execute_cancel_timelock_and_events() public {
         vm.prank(stranger);
         vm.expectRevert();
-        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
+        sp.queueGasParams(550_000, 460_000, 6_000, 450_000);
 
         vm.expectEmit(address(sp));
         emit SuperPaymasterStorage.GasParamsQueued(
-            400_000, 360_000, 6_000, 370_000, uint64(vm.getBlockTimestamp() + 48 hours)
+            550_000, 460_000, 6_000, 450_000, uint64(vm.getBlockTimestamp() + 48 hours)
         );
         vm.prank(owner);
-        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
+        sp.queueGasParams(550_000, 460_000, 6_000, 450_000);
 
         vm.warp(vm.getBlockTimestamp() + 48 hours - 1);
         vm.prank(owner);
@@ -211,18 +211,18 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.executeGasParams(); // owner-only (mid-bundle execution guard)
 
         vm.expectEmit(address(sp));
-        emit SuperPaymasterStorage.GasParamsExecuted(400_000, 360_000, 6_000, 370_000);
+        emit SuperPaymasterStorage.GasParamsExecuted(550_000, 460_000, 6_000, 450_000);
         vm.prank(owner);
         sp.executeGasParams();
-        assertEq(_cur().minPostOpGas, 400_000);
-        assertEq(_cur().cPostop, 370_000);
+        assertEq(_cur().minPostOpGas, 550_000);
+        assertEq(_cur().cPostop, 450_000);
 
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams(); // nothing pending
 
         vm.prank(owner);
-        sp.queueGasParams(420_000, 380_000, 7_000, 390_000);
+        sp.queueGasParams(570_000, 480_000, 7_000, 490_000);
         vm.expectEmit(address(sp));
         emit SuperPaymasterStorage.GasParamsCancelled();
         vm.prank(owner);
@@ -231,7 +231,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
-        assertEq(_cur().minPostOpGas, 400_000, "cancelled proposal never takes effect");
+        assertEq(_cur().minPostOpGas, 550_000, "cancelled proposal never takes effect");
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.cancelGasParams();
@@ -240,10 +240,10 @@ contract SuperPaymasterV55GasParamsTest is Test {
     /// @notice A re-queue replaces the pending proposal AND restarts the 48 h clock.
     function test_requeue_restarts_timelock() public {
         vm.prank(owner);
-        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
+        sp.queueGasParams(550_000, 460_000, 6_000, 450_000);
         vm.warp(vm.getBlockTimestamp() + 47 hours);
         vm.prank(owner);
-        sp.queueGasParams(410_000, 360_000, 6_000, 370_000);
+        sp.queueGasParams(560_000, 460_000, 6_000, 450_000);
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
@@ -259,39 +259,36 @@ contract SuperPaymasterV55GasParamsTest is Test {
     }
 
     function test_bounds_checked_at_queue() public {
-        // positive control: every edge value accepted
+        // Positive controls: release floors and upper edges.
         vm.prank(owner);
-        sp.queueGasParams(375_000, 355_000, 5_000, 370_000);
+        sp.queueGasParams(500_000, 450_000, 5_000, 450_000);
         vm.prank(owner);
         sp.queueGasParams(2_000_000, 1_000_000, 50_000, 2_000_000);
-        vm.prank(owner);
-        sp.queueGasParams(400_000, 360_000, 5_000, 370_000);
-        // SETTLE in [355k, 1M]
-        _expectBad(375_000, 354_999, 5_000, 370_000);
-        _expectBad(2_000_000, 1_000_001, 5_000, 370_000);
-        // MIN in [SETTLE + 20k, 2M]
-        _expectBad(379_999, 360_000, 5_000, 370_000);
-        _expectBad(2_000_001, 360_000, 5_000, 370_000);
-        // C_POSTOP in [370k, MIN]
-        _expectBad(400_000, 360_000, 5_000, 369_999);
-        _expectBad(400_000, 360_000, 5_000, 400_001);
-        // C_WRAP in [5k, 50k]
-        _expectBad(400_000, 360_000, 4_999, 370_000);
-        _expectBad(400_000, 360_000, 50_001, 370_000);
+        _expectBad(375_000, 355_000, 5_000, 370_000); // old floor tuple
+        _expectBad(499_999, 450_000, 5_000, 450_000);
+        _expectBad(500_000, 449_999, 5_000, 450_000);
+        _expectBad(500_000, 450_000, 5_000, 449_999);
+        _expectBad(2_000_000, 1_000_001, 5_000, 450_000);
+        // MIN must also be at least SETTLE + 20k, independently of its absolute floor.
+        _expectBad(519_999, 500_000, 5_000, 450_000);
+        _expectBad(2_000_001, 450_000, 5_000, 450_000);
+        _expectBad(500_000, 450_000, 5_000, 500_001);
+        _expectBad(500_000, 450_000, 4_999, 450_000);
+        _expectBad(500_000, 450_000, 50_001, 450_000);
     }
 
     /// @notice Execute re-checks the bounds: a pending value that no longer satisfies them (only
     ///         reachable by corrupting storage, e.g. a bad upgrade) is refused.
     function test_bounds_rechecked_at_execute() public {
         vm.prank(owner);
-        sp.queueGasParams(400_000, 360_000, 5_000, 370_000);
+        sp.queueGasParams(550_000, 460_000, 5_000, 450_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
-        // corrupt the pending cPostop to 100k (below the 370k floor)
+        // corrupt the pending cPostop to 100k (below the 450k floor)
         vm.store(
             address(sp),
             bytes32(GAS_PARAMS_SLOT + 1),
             bytes32(
-                uint256(400_000) | (uint256(360_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96)
+                uint256(550_000) | (uint256(460_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96)
                     | (uint256(eta) << 128)
             )
         );
@@ -304,27 +301,27 @@ contract SuperPaymasterV55GasParamsTest is Test {
     // ------------------------------------------------------------------ effects
 
     function test_min_post_op_gas_parameter_drives_validation_and_lens() public {
-        _set(400_000, 360_000, 5_000, 370_000);
-        (bool ok,) = _validates(399_999, keccak256("a"));
+        _set(550_000, 460_000, 5_000, 450_000);
+        (bool ok,) = _validates(549_999, keccak256("a"));
         assertFalse(ok, "below the new MIN: sigFail");
-        (ok,) = _validates(400_000, keccak256("b"));
+        (ok,) = _validates(550_000, keccak256("b"));
         assertTrue(ok, "at the new MIN: validates");
-        (bool lok, bytes32 reason) = lens.dryRunValidation(address(sp), _op(399_999), 1e16);
+        (bool lok, bytes32 reason) = lens.dryRunValidation(address(sp), _op(549_999), 1e16);
         assertFalse(lok);
         assertEq(reason, lens.DRYRUN_POSTOP_GAS_TOO_LOW(), "lens reads MIN from SP");
-        (lok,) = lens.dryRunValidation(address(sp), _op(400_000), 1e16);
+        (lok,) = lens.dryRunValidation(address(sp), _op(550_000), 1e16);
         assertTrue(lok, "lens agrees at the new MIN");
     }
 
     function test_settle_gas_bound_parameter_drives_postOp_guard() public {
-        _set(400_000, 380_000, 5_000, 370_000);
-        (bool ok, bytes memory ctx) = _validates(400_000, keccak256("s"));
+        _set(550_000, 480_000, 5_000, 450_000);
+        (bool ok, bytes memory ctx) = _validates(550_000, keccak256("s"));
         assertTrue(ok);
         vm.prank(EP);
         (bool s, bytes memory ret) = address(sp).call{gas: 350_000}(
             abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
         );
-        assertFalse(s, "350k < new SETTLE_GAS_BOUND 380k: refused");
+        assertFalse(s, "350k < new SETTLE_GAS_BOUND 480k: refused");
         assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
         vm.prank(EP);
         (s,) = address(sp).call{gas: 500_000}(
@@ -341,7 +338,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         // the no-OOG regression mutation-sensitive to lowering GP_SETTLE_MIN back to 155k.
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
-        sp.queueGasParams(375_000, 155_000, 5_000, 370_000);
+        sp.queueGasParams(500_000, 155_000, 5_000, 450_000);
         vm.prank(operator);
         sp.setOperatorLimits(60);
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "precondition: unset slot");
@@ -350,9 +347,9 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.updateSBTStatus(balanceUser, true);
         vm.prank(operator);
         IV2Ext(address(token)).mint(balanceUser, 10_000 ether);
-        // Engine nightly 4e8874b2: 319,909 * 1.15 = 367,896 at the CALL boundary.
+        // Bisected worst workload: ceil(379,828 * 1.15) = 436,803.
         assertTrue(
-            _classifyFloorProbe(balanceUser, 367_896) != 1,
+            _classifyFloorProbe(balanceUser, 436_803) != 1,
             "worst-workload boundary is guarded or completes, never OOG"
         );
         assertEq(
@@ -409,8 +406,8 @@ contract SuperPaymasterV55GasParamsTest is Test {
 
     function test_c_postop_and_c_wrap_parameters_drive_the_charge() public {
         assertEq(_charge(keccak256("c0")), _expected(500_000, 450_000, 5_000), "defaults");
-        _set(400_000, 360_000, 9_000, 390_000);
-        assertEq(_charge(keccak256("c1")), _expected(400_000, 390_000, 9_000), "new C_POSTOP / C_WRAP");
+        _set(550_000, 460_000, 9_000, 490_000);
+        assertEq(_charge(keccak256("c1")), _expected(550_000, 490_000, 9_000), "new C_POSTOP / C_WRAP");
     }
 
     /// @notice Trust surface: whatever the parameters, the charge never exceeds a0 (SP postOp
