@@ -133,5 +133,14 @@ class EvidenceControls(unittest.TestCase):
         self.check('point classification')
 
 
+    def test_option_like_output_is_rejected_before_running(self):
+        # '--help' used to be taken as EMPTY_OUT and started a full run there.
+        for argv in (['--help'], ['--engines', 'amsterdam', '-x']):
+            result = subprocess.run([sys.executable, str(RUNNER), *argv],
+                                    text=True, capture_output=True, cwd=self.tmp.name)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn('usage:', result.stderr)
+            self.assertFalse((Path(self.tmp.name)/argv[-1]).exists())
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

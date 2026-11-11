@@ -425,5 +425,5 @@ if __name__=='__main__':
                 raise SystemExit('--engines must be a unique comma-separated subset of: ' + ','.join(ENGINES))
             selected = [e for e in ENGINES if e in names]
             del args[i:i + 2]
-        if len(args)==1: main(Path(args[0]), selected)
+        if len(args)==1 and not args[0].startswith('-'): main(Path(args[0]), selected)
         else: raise SystemExit('usage: rr5-lifecycle-run.py [--engines ENGINE[,ENGINE...]] EMPTY_OUT')
