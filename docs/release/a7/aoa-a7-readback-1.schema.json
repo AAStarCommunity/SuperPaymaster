@@ -36,7 +36,7 @@
           "$ref": "#/$defs/contractWithRoles"
         },
         "timelockController": {
-          "$ref": "#/$defs/contractWithRoles"
+          "$ref": "#/$defs/timelockContract"
         },
         "blsAggregator": {
           "allOf": [
@@ -171,7 +171,8 @@
         "entryPoint",
         "ownerSafe",
         "multiSendCallOnly",
-        "evaluationCommunityToken"
+        "evaluationCommunityToken",
+        "timelockController"
       ]
     },
     "checks": {
@@ -745,6 +746,79 @@
             }
           ],
           "description": "Role name -> holders, for contracts with a role system only (registry, timelockController)."
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/anyValue"
+      }
+    },
+    "timelockContract": {
+      "type": "object",
+      "required": [
+        "address",
+        "version",
+        "codehash",
+        "erc1967Impl",
+        "implCodehash",
+        "extension",
+        "extensionCodehash",
+        "owner",
+        "pendingOwner",
+        "guardian",
+        "roles"
+      ],
+      "description": "Required. The release TimelockController, or every field \"n/a:not deployed\" when there is none (omission is not allowed).",
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "version": {
+          "$ref": "#/$defs/stringOrUnreadableOrNA"
+        },
+        "codehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "erc1967Impl": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "implCodehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "extension": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "extensionCodehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "owner": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "pendingOwner": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "guardian": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "roles": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/address"
+                }
+              }
+            },
+            {
+              "$ref": "#/$defs/unreadable"
+            },
+            {
+              "type": "string",
+              "pattern": "^n/a:not deployed$"
+            }
+          ],
+          "description": "Role name -> holders; exactly \"n/a:not deployed\" when the release has no TimelockController."
         }
       },
       "additionalProperties": {

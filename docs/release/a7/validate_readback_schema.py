@@ -78,7 +78,12 @@ def negatives(base):
     del no_writer['contracts']['disclosureRegistry']['WRITER']
     no_slot = copy.deepcopy(base)
     del no_slot['contracts']['blsAggregator']['guardianSet'][0]['slot']
-    return {'guardianSet entry without slot': no_slot,
+    no_timelock = copy.deepcopy(base)
+    del no_timelock['contracts']['timelockController']
+    registry_na_roles = copy.deepcopy(base)
+    registry_na_roles['contracts']['registry']['roles'] = 'n/a:not deployed'
+    return {'missing timelockController': no_timelock, 'registry roles n/a': registry_na_roles,
+            'guardianSet entry without slot': no_slot,
             'roles object on a contract without a role system': roles_obj,
             'missing blsAggregator.pendingFraudProofVerifierReadyAt': no_pending,
             'missing disclosureRegistry.WRITER': no_writer,
