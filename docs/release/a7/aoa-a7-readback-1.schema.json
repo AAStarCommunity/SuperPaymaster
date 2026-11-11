@@ -31,6 +31,85 @@
         },
         "xPNTsTokenV2Ext": {
           "$ref": "#/$defs/contractNoVersionShape"
+        },
+        "registry": {
+          "$ref": "#/$defs/contractWithRoles"
+        },
+        "timelockController": {
+          "$ref": "#/$defs/contractWithRoles"
+        },
+        "blsAggregator": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contract"
+            }
+          ],
+          "required": [
+            "domainSeparator",
+            "signerMaskOrder",
+            "guardianSet",
+            "N",
+            "thresholds",
+            "MAX_VALIDATORS",
+            "fraudProofVerifier",
+            "pendingFraudProofVerifier",
+            "pendingFraudProofVerifierReadyAt",
+            "minThreshold",
+            "defaultThreshold",
+            "SLASH_THRESHOLD_FLOOR",
+            "DVT_VALIDATOR"
+          ]
+        },
+        "dvtValidator": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contract"
+            }
+          ],
+          "required": [
+            "categoryCount"
+          ]
+        },
+        "disclosureRegistry": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contract"
+            }
+          ],
+          "required": [
+            "WRITER",
+            "AGGREGATOR"
+          ]
+        },
+        "evaluationCommunityToken": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contract"
+            }
+          ],
+          "required": [
+            "creditPolicy",
+            "POLICY_OFF",
+            "policyEpoch",
+            "pendingPolicy",
+            "pendingPolicyEta",
+            "issuanceCap",
+            "SUPERPAYMASTER_ADDRESS"
+          ]
+        },
+        "entryPoint": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/contract"
+            }
+          ],
+          "required": [
+            "deposit",
+            "staked",
+            "stake",
+            "unstakeDelaySec",
+            "withdrawTime"
+          ]
         }
       },
       "required": [
@@ -367,18 +446,13 @@
         "roles": {
           "oneOf": [
             {
-              "type": "object",
-              "additionalProperties": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/$defs/address"
-                }
-              }
+              "$ref": "#/$defs/notApplicable"
             },
             {
-              "$ref": "#/$defs/state"
+              "$ref": "#/$defs/unreadable"
             }
-          ]
+          ],
+          "description": "\"n/a:no role system\" for every contract without one."
         }
       },
       "additionalProperties": {
@@ -556,6 +630,69 @@
         "roles": {
           "oneOf": [
             {
+              "$ref": "#/$defs/notApplicable"
+            },
+            {
+              "$ref": "#/$defs/unreadable"
+            }
+          ],
+          "description": "\"n/a:no role system\" for every contract without one."
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/anyValue"
+      }
+    },
+    "contractWithRoles": {
+      "type": "object",
+      "required": [
+        "address",
+        "version",
+        "codehash",
+        "erc1967Impl",
+        "implCodehash",
+        "extension",
+        "extensionCodehash",
+        "owner",
+        "pendingOwner",
+        "guardian",
+        "roles"
+      ],
+      "description": "A contract with a role system: roles is an object of role -> holders.",
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "version": {
+          "$ref": "#/$defs/stringOrUnreadableOrNA"
+        },
+        "codehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "erc1967Impl": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "implCodehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "extension": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "extensionCodehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "owner": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "pendingOwner": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "guardian": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "roles": {
+          "oneOf": [
+            {
               "type": "object",
               "additionalProperties": {
                 "type": "array",
@@ -565,9 +702,10 @@
               }
             },
             {
-              "$ref": "#/$defs/state"
+              "$ref": "#/$defs/unreadable"
             }
-          ]
+          ],
+          "description": "Role name -> holders, for contracts with a role system only (registry, timelockController)."
         }
       },
       "additionalProperties": {
@@ -587,13 +725,13 @@
     "blsAggregator.guardianSet": "For slot s in 1..MAX_VALIDATORS: validatorAtSlot(uint8 s) (public mapping, BLSAggregator.sol:204); for each nonzero address, getBLSPublicKey(address) (BLSAggregator.sol:907) -> pubkeyHash = keccak256(abi.encode(publicKey)), slot, isActive.",
     "blsAggregator.signerMaskOrder": "Bit i of signerMask (i = 0..63) selects slot i+1: _reconstructPkAgg loops slot = 1..MAX_VALIDATORS and tests (signerMask >> (slot - 1)) & 1 (BLSAggregator.sol:1281-1284); slot -> address via validatorAtSlot.",
     "blsAggregator.thresholds": "slashThresholds(uint8 level) (public mapping, BLSAggregator.sol:314) for each SlashLevel; minThreshold(), defaultThreshold(), SLASH_THRESHOLD_FLOOR(), MAX_VALIDATORS().",
-    "blsAggregator.verifier": "fraudProofVerifier(), pendingFraudProofVerifier(), and the pending ready-at getter; DVT_VALIDATOR(); domainSeparator().",
+    "blsAggregator.verifier": "fraudProofVerifier(), pendingFraudProofVerifier() (BLSAggregator.sol:429), pendingFraudProofVerifierReadyAt() (uint64, :430), DVT_VALIDATOR(), domainSeparator(); thresholds also as fields minThreshold(), defaultThreshold(), SLASH_THRESHOLD_FLOOR().",
     "dvtValidator": "version(), categoryCount(), owner(), codehash.",
     "disclosureRegistry": "version() and every immutable getter in its ABI (WRITER(), AGGREGATOR(), \u2026).",
     "ownerSafe": "version = VERSION() (Safe exposes VERSION(), not version()); getThreshold(), getOwners(), singleton = eth_getStorageAt(safe, 0).",
     "checks": "Each check names its getter in the key; values are read, never copied from the plan.",
     "entryPoint": "getDepositInfo(superPaymaster) -> deposit, staked, stake, unstakeDelaySec, withdrawTime, recorded as fields of contracts.entryPoint (EntryPoint v0.7 IStakeManager.DepositInfo).",
-    "evaluationCommunityToken": "The evaluation community's xPNTs token instance: creditPolicy(), policyEpoch(), pendingPolicy(), pendingPolicyEta(), issuanceCap(), SUPERPAYMASTER_ADDRESS() (xPNTsV2Base.sol:72-120).",
+    "evaluationCommunityToken": "The evaluation community's xPNTs token instance: creditPolicy(), policyEpoch(), pendingPolicy(), pendingPolicyEta(), issuanceCap(), SUPERPAYMASTER_ADDRESS() (xPNTsV2Base.sol:72-120). POLICY_OFF() is read on chain too; the check compares the two reads.",
     "externalVersion": "EntryPoint v0.7 and MultiSendCallOnly have no version(): version = \"n/a:<reason>\"; their identity is the codehash, pinned by the manifest to the canonical deployments (EntryPoint 0x0000000071727De22E5E9d8BAf0edAc6f37da032; MultiSendCallOnly at the official address for the release)."
   }
 }

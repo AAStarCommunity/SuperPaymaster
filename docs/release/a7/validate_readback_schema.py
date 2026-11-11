@@ -53,7 +53,16 @@ def negatives(base):
     del no_community['contracts']['evaluationCommunityToken']
     no_registry = copy.deepcopy(base)
     del no_registry['contracts']['registry']
-    return {'missing registry (release-set key)': no_registry, 'missing evaluationCommunityToken': no_community, 'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
+    roles_obj = copy.deepcopy(base)
+    roles_obj['contracts']['blsAggregator']['roles'] = {}
+    no_pending = copy.deepcopy(base)
+    del no_pending['contracts']['blsAggregator']['pendingFraudProofVerifierReadyAt']
+    no_writer = copy.deepcopy(base)
+    del no_writer['contracts']['disclosureRegistry']['WRITER']
+    return {'roles object on a contract without a role system': roles_obj,
+            'missing blsAggregator.pendingFraudProofVerifierReadyAt': no_pending,
+            'missing disclosureRegistry.WRITER': no_writer,
+            'missing registry (release-set key)': no_registry, 'missing evaluationCommunityToken': no_community, 'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
             'top-level extra key': extra, 'null version on a versioned contract': null_version,
             'version on a no-version contract': answering_extension}
 
