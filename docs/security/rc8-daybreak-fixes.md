@@ -443,6 +443,20 @@ end remains slot 65. Scope aliases normalize only `SuperPaymasterStorage` to the
 `SuperPaymaster` declaring name. The self-test mutates a struct member and removes
 `Inflight.counted`; both mutations are rejected.
 
+### Amsterdam gas floors (SP-c)
+
+Amsterdam raises the measured settlement floors to 355k for the entry guard and 370k for the
+whole-postOp bound (engine nightly `4e8874b2`). The zero `_gasParams` slot is now the shipped release
+tuple `(MIN_POST_OP_GAS, SETTLE_GAS_BOUND, C_WRAP_GAS, C_POSTOP_GAS) =
+(500k, 450k, 5k, 450k)`; the manifest still writes that tuple explicitly, while the defaults are a
+safety net.
+
+`LEGACY_SETTLE_GAS_BOUND = 160k` and `LEGACY_C_WRAP_GAS = 30k` are unchanged. They apply only to an
+unreleased 5.5.0 352-byte context that could survive only within one `handleOps` transaction.
+Sepolia upgrades from 5.4.2, whose tag source emits a 160-byte context, so that legacy path is
+unreachable across the 5.4.2 -> 5.5.1 upgrade. The executor's 500k minimum lands in the separate
+manifest PR under `script/upgrade`; until that deploys, the executor admits the 480k/500k interval.
+
 ### Validation trace and identity configuration (SP-R4-M-01 / L-02)
 
 The opcode tests fail if Foundry has no debug tracer (the verification command must initialize it

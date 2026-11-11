@@ -220,21 +220,25 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     uint8 internal constant MODE_BALANCE = 1;
     uint8 internal constant MODE_CREDIT = 2;
 
-    // GOV-5 defaults of the owner-settable `GasParams` (an all-zero slot = these values) and their
-    // hard bounds (checked at queue AND execute; buffer-and-params-experiment.md §B.2):
+    // GOV-5 defaults of the owner-settable `GasParams` and their hard bounds (checked at queue AND
+    // execute; buffer-and-params-experiment.md §B.2). An unset/all-zero slot behaves exactly like
+    // the shipped configuration. The release manifest still writes the tuple explicitly; these
+    // defaults are its safety net.
     //   MIN_POST_OP_GAS (C-04 floor for paymasterPostOpGasLimit), SETTLE_GAS_BOUND (B-1 / R10-H1
     //   postOp entry guard), C_WRAP_GAS (R10-M3 EntryPoint wrapper), C_POSTOP_GAS (whole postOp
     //   frame upper bound; G-layer rule C_POSTOP >= W_postop x 1.15).
-    //   SETTLE in [155k, 1M]; MIN in [SETTLE + 20k, 2M]; C_POSTOP in [180k, MIN]; C_WRAP in [5k, 50k].
-    uint256 internal constant MIN_POST_OP_GAS = 200_000;
-    uint256 internal constant SETTLE_GAS_BOUND = 160_000;
+    //   Amsterdam's worst BALANCE workload is 319,909 gas; with the 1.15 safety factor this is a
+    //   367,896-gas call boundary (engine nightly 4e8874b2). Therefore SETTLE is in [355k, 1M],
+    //   MIN in [SETTLE + 20k, 2M], C_POSTOP in [370k, MIN], and C_WRAP in [5k, 50k].
+    uint256 internal constant MIN_POST_OP_GAS = 500_000;
+    uint256 internal constant SETTLE_GAS_BOUND = 450_000;
     uint256 internal constant C_WRAP_GAS = 5_000;
-    uint256 internal constant C_POSTOP_GAS = 180_000;
-    uint256 internal constant GP_SETTLE_MIN = 155_000;
+    uint256 internal constant C_POSTOP_GAS = 450_000;
+    uint256 internal constant GP_SETTLE_MIN = 355_000;
     uint256 internal constant GP_SETTLE_MAX = 1_000_000;
     uint256 internal constant GP_MINPOST_OVER_SETTLE = 20_000;
     uint256 internal constant GP_MINPOST_MAX = 2_000_000;
-    uint256 internal constant GP_CPOSTOP_MIN = 180_000;
+    uint256 internal constant GP_CPOSTOP_MIN = 370_000;
     uint256 internal constant GP_CWRAP_MIN = 5_000;
     uint256 internal constant GP_CWRAP_MAX = 50_000;
     uint256 internal constant GP_TIMELOCK = 48 hours;
