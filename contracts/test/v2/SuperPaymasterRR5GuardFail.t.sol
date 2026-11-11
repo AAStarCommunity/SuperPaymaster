@@ -23,14 +23,15 @@ import { xPNTsFactoryV2 } from "src/tokens/v2/xPNTsFactoryV2.sol";
 import { V55Registry, V55PriceFeed, V55APNTs, IV2Ext } from "../helpers/V55TestFixtures.sol";
 
 /// @notice RR-5: exact entry-guard failures, adjacent success, snapshot isolation and recovery.
-/// @dev Failure/rollback assertions here are DIRECT CALL ONLY. Deployment MIN_POST=440k
-/// exceeds SETTLE=420k by 20k; mid-bundle changes cannot move the captured bound.
+/// @dev Failure/rollback assertions here are DIRECT CALL ONLY. Deployment MIN_POST=500k
+/// exceeds SETTLE=450k; mid-bundle changes cannot move the captured bound.
 /// The previous-release 352-byte context uses LEGACY_SETTLE=160k, below the deployment
 /// minimum as well. No real EntryPoint PostOpGasTooLow event/deposit/rollback claim is
 /// made: lowering gas after validation or forging a context would fake reachability.
 /// Recovery uses the real transaction boundary between setUp and each test, including
 /// Amsterdam --no-isolate; neither transient slots nor production code are patched.
 abstract contract RR5GuardBase is Test {
+    error RolledBackProbe(uint8 kind);
     address constant EP = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     SuperPaymaster sp;
     xPNTsTokenV2 token;
@@ -43,6 +44,7 @@ abstract contract RR5GuardBase is Test {
 
     bytes storedContext;
     bytes32 constant HASH = keccak256("rr5-guard");
+    bytes32 activeHash = HASH;
     uint256 beforeBalance;
     uint256 beforeOperator;
     uint256 beforeRevenue;
@@ -115,7 +117,7 @@ abstract contract RR5GuardBase is Test {
             uint128(GasFixture.MIN_POST()), operator, type(uint256).max, address(token), uint8(0));
         vm.prank(EP);
         uint256 vd;
-        (storedContext, vd) = sp.validatePaymasterUserOp(op, HASH, 1e16);
+        (storedContext, vd) = sp.validatePaymasterUserOp(op, activeHash, 1e16);
         assertEq(vd & 1, 0);
         assertEq(storedContext.length, 384);
         SuperPaymaster.OpCtx memory c = abi.decode(storedContext, (SuperPaymaster.OpCtx));
@@ -137,38 +139,61 @@ abstract contract RR5GuardBase is Test {
         return address(sp).call{gas: gasBudget}(data);
     }
 
+    /// @dev Validation and settlement are inside the same deliberately reverted call. This gives
+    ///      each binary-search sample fresh Amsterdam transient/state-gas accounting.
+    function admitInvokeAndRollback(uint256 gasBudget) external {
+        activeHash = keccak256(abi.encode("rr5-probe", gasBudget, creditMode()));
+        admit();
+        exactGuard(setupCallOK, setupReturn);
+        (bool ok, bytes memory ret) = invoke(gasBudget);
+        if (ok) revert RolledBackProbe(2);
+        if (keccak256(ret) == keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector))) {
+            revert RolledBackProbe(0);
+        }
+        revert RolledBackProbe(1);
+    }
+
+    function classifyFresh(uint256 gasBudget) internal returns (uint8 kind) {
+        (bool outerOk, bytes memory result) = address(this).call(
+            abi.encodeCall(this.admitInvokeAndRollback, (gasBudget))
+        );
+        assertFalse(outerOk, "probe must roll back");
+        assertEq(bytes4(result), RolledBackProbe.selector, "probe classification");
+        assembly ("memory-safe") { kind := mload(add(result, 36)) }
+    }
+
     function exactGuard(bool ok, bytes memory ret) internal pure {
         assertFalse(ok, "must fail at guard");
         assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector), "exact guard, not OOG");
     }
 
     function assertPending() internal view {
-        assertFalse(token.usedOpHashes(HASH));
+        assertFalse(token.usedOpHashes(activeHash));
         assertEq(sp.protocolRevenue(), beforeRevenue);
         assertEq(token.balanceOf(user), beforeBalance);
         assertEq(token.totalSupply(), beforeSupply);
         assertEq(token.debts(user), 0);
-        (address who, uint256 a0) = sp.inflightOf(HASH);
+        (address who, uint256 a0) = sp.inflightOf(activeHash);
         assertEq(who, operator);
         assertEq(a0, reserved);
         assertEq(operatorBalance(), beforeOperator - reserved);
         if (creditMode()) {
-            assertEq(token.creditReservationOf(HASH, user).locker, address(sp));
-            assertEq(token.creditReservationOf(HASH, user).amount, reserved);
+            assertEq(token.creditReservationOf(activeHash, user).locker, address(sp));
+            assertEq(token.creditReservationOf(activeHash, user).amount, reserved);
             assertEq(token.creditReservedOf(user), reserved);
         } else {
-            assertEq(token.lockOf(HASH, user).locker, address(sp));
-            assertEq(token.lockOf(HASH, user).xLocked, reserved);
+            assertEq(token.lockOf(activeHash, user).locker, address(sp));
+            assertEq(token.lockOf(activeHash, user).xLocked, reserved);
             assertEq(token.lockedOf(user), reserved);
         }
     }
 
     function assertSettled() internal view {
-        assertTrue(token.usedOpHashes(HASH));
-        (address who,) = sp.inflightOf(HASH);
+        assertTrue(token.usedOpHashes(activeHash));
+        (address who,) = sp.inflightOf(activeHash);
         assertEq(who, address(0));
-        assertEq(token.lockOf(HASH, user).locker, address(0));
-        assertEq(token.creditReservationOf(HASH, user).locker, address(0));
+        assertEq(token.lockOf(activeHash, user).locker, address(0));
+        assertEq(token.creditReservationOf(activeHash, user).locker, address(0));
         assertEq(token.lockedOf(user), 0);
         assertEq(token.creditReservedOf(user), 0);
         uint256 charge = sp.protocolRevenue() - beforeRevenue;
@@ -181,20 +206,20 @@ abstract contract RR5GuardBase is Test {
     function test_RR5_exactSelector_adjacentBoundary() public {
         exactGuard(setupCallOK, setupReturn);
         release();
-        admit();
-        exactGuard(setupCallOK, setupReturn);
         uint256 lo = GasFixture.SETTLE() - 1;
         uint256 hi = GasFixture.MIN_POST() + 100_000;
         while (hi - lo > 1) {
             uint256 mid = (lo + hi) / 2;
-            uint256 snapshot = vm.snapshot();
-            (bool ok, bytes memory ret) = invoke(mid);
-            if (ok) { assertSettled(); hi = mid; }
-            else { exactGuard(ok, ret); assertPending(); lo = mid; }
-            assertTrue(vm.revertTo(snapshot));
+            uint8 kind = classifyFresh(mid);
+            assertTrue(kind != 1, "no OOG band above the entry guard");
+            if (kind == 2) hi = mid;
+            else lo = mid;
         }
         emit log_named_uint("last guard-fail call gas", lo);
         emit log_named_uint("first complete settlement call gas", hi);
+        activeHash = keccak256(abi.encode("rr5-final", creditMode()));
+        admit();
+        exactGuard(setupCallOK, setupReturn);
         (bool ok, bytes memory ret) = invoke(lo);
         exactGuard(ok, ret);
         assertPending();
@@ -207,6 +232,7 @@ abstract contract RR5GuardBase is Test {
     function test_RR5_snapshot_not_live_bound() public {
         exactGuard(setupCallOK, setupReturn);
         release();
+        activeHash = keccak256(abi.encode("rr5-snapshot", creditMode()));
         admit();
         exactGuard(setupCallOK, setupReturn);
         vm.prank(owner);
@@ -214,7 +240,7 @@ abstract contract RR5GuardBase is Test {
         vm.warp(vm.getBlockTimestamp() + 48 hours);
         vm.prank(owner);
         sp.executeGasParams();
-        (bool ok,) = invoke(600_000);
+        (bool ok,) = invoke(900_000);
         assertTrue(ok, "validation snapshot wins over larger live bound");
         assertSettled();
     }
@@ -286,9 +312,9 @@ abstract contract RR5GuardBase is Test {
     }
 
     function release() internal {
-        if (creditMode()) token.releaseStaleCredit(user, HASH);
-        else token.releaseStaleLock(user, HASH);
-        sp.releaseStaleSponsorship(HASH);
+        if (creditMode()) token.releaseStaleCredit(user, activeHash);
+        else token.releaseStaleLock(user, activeHash);
+        sp.releaseStaleSponsorship(activeHash);
     }
 
     function test_RR5_guardFail_staleRecovery() public {
@@ -328,16 +354,12 @@ abstract contract RR5GuardBase is Test {
     ///         guard-fail (PostOpGasTooLow), other failure (OOG past the guard) or settled, and log the bands.
     function test_RR5_diag_scan_band() public {
         release();
-        admit();
         uint256 lastGuard; uint256 firstOk; uint256 oogLo; uint256 oogHi; uint256 nOog;
-        bytes32 guardRet = keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
         for (uint256 g = GasFixture.SETTLE(); g <= 900_000; g += 2_000) {
-            uint256 snap = vm.snapshot();
-            (bool ok, bytes memory ret) = invoke(g);
-            if (ok) { if (firstOk == 0) firstOk = g; }
-            else if (keccak256(ret) == guardRet) lastGuard = g;
+            uint8 kind = classifyFresh(g);
+            if (kind == 2) { if (firstOk == 0) firstOk = g; }
+            else if (kind == 0) lastGuard = g;
             else { if (oogLo == 0) oogLo = g; oogHi = g; nOog++; }
-            vm.revertTo(snap);
         }
         emit log_named_uint("scan last guard-fail call gas", lastGuard);
         emit log_named_uint("scan first non-guard failure call gas", oogLo);

@@ -149,7 +149,7 @@ contract SuperPaymaster_PassiveFallback_Test is Test {
         PackedUserOperation memory op;
         op.sender = user;
         op.paymasterAndData = V2TokenDeployer.pmd(
-            address(paymaster), uint128(100000), uint128(200000), address(this), type(uint256).max, address(xpnts), 0
+            address(paymaster), uint128(100000), uint128(500000), address(this), type(uint256).max, address(xpnts), 0
         );
         vm.prank(address(entryPoint));
         uint256 vd;

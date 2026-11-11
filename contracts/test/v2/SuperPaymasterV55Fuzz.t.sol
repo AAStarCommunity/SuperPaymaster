@@ -433,13 +433,13 @@ contract SuperPaymasterV55FuzzTest is Test {
     }
 
     function _configureFloor() internal {
-        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (180_000, 155_000, 5_000, 180_000)));
+        _owner(abi.encodeCall(SuperPaymasterAdmin.queueGasParams, (375_000, 355_000, 5_000, 370_000)));
         vm.warp(vm.getBlockTimestamp() + 48 hours + 1);
         _owner(abi.encodeCall(SuperPaymasterAdmin.executeGasParams, ()));
         sp.updatePrice();
         _loadParams();
-        assertEq(_settle, 155_000, "precondition: all-floor tuple active");
-        assertEq(_minPost, 180_000, "precondition: all-floor tuple active");
+        assertEq(_settle, 355_000, "precondition: all-floor tuple active");
+        assertEq(_minPost, 375_000, "precondition: all-floor tuple active");
     }
 
     /// @notice G2 inline fuzz: every run is one seeded campaign; all per-op / per-bundle /
@@ -1308,7 +1308,7 @@ contract SuperPaymasterV55FuzzTest is Test {
                 vm.toString(_cPostop / 1000),
                 "k_Cwrap",
                 vm.toString(_cWrap / 1000),
-                _settle == 160_000 && _minPost == 200_000 ? "k_default" : "k_configured"
+                _settle == 450_000 && _minPost == 500_000 ? "k_default" : "k_configured"
             );
         uint256 eth = o.settled ? _chargeEthNet(x, o.spCharge) : 0;
         string memory s1 = string.concat(

@@ -287,7 +287,7 @@ contract SuperPaymasterHardenVerification is Test {
 
         PackedUserOperation memory op;
         op.sender = victimUser;
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200_000, community, type(uint256).max, address(mal), 0);
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 500_000, community, type(uint256).max, address(mal), 0);
         bytes32 h = keccak256("reentrancy");
 
         vm.prank(ep);

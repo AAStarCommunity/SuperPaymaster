@@ -313,7 +313,7 @@ contract BlacklistSyncTest is Test {
             gasFees: bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei))),
             // SP 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
             paymasterAndData: V2TokenDeployer.pmd(
-                address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xpnts), 0
+                address(paymaster), uint128(100000), uint128(500000), operator, type(uint256).max, address(xpnts), 0
             ),
             signature: ""
         });

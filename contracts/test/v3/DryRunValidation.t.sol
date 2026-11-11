@@ -217,7 +217,7 @@ contract DryRunValidationTest is Test {
     {
         userOp.sender = sender;
         userOp.paymasterAndData =
-            V2TokenDeployer.pmd(address(paymaster), uint128(0), uint128(200000), op, maxRate, address(xpnts), 0);
+            V2TokenDeployer.pmd(address(paymaster), uint128(0), uint128(500000), op, maxRate, address(xpnts), 0);
     }
 
     /// @dev D3-M: staticcall so a lens that REVERTS (instead of returning a reason) is a named failure.
@@ -465,7 +465,7 @@ contract DryRunValidationTest is Test {
 
     function test_DryRun_ShortPaymasterData_RejectedAsTokenMismatch() public {
         // 72 bytes: paymaster(20) + gasLimits(32) + operator(20) — no maxRate, no token
-        bytes memory shortPmData = abi.encodePacked(address(paymaster), uint128(0), uint128(200000), operator);
+        bytes memory shortPmData = abi.encodePacked(address(paymaster), uint128(0), uint128(500000), operator);
         PackedUserOperation memory op;
         op.sender = user;
         op.paymasterAndData = shortPmData;
@@ -482,7 +482,7 @@ contract DryRunValidationTest is Test {
 
         // 104 bytes (maxRate present, token absent) — the legacy full layout — is rejected too
         op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(0), uint128(200000), operator, type(uint256).max);
+            abi.encodePacked(address(paymaster), uint128(0), uint128(500000), operator, type(uint256).max);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
 
@@ -554,18 +554,18 @@ contract DryRunValidationTest is Test {
         xPNTsTokenV2 foreign = V2TokenDeployer.newToken(st2, address(0xF0F0), address(0xF0F0), address(paymaster), 1e18);
         IxPNTsV2Admin(address(foreign)).mint(user, 1_000 ether);
         op.paymasterAndData =
-            V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(foreign), 0);
+            V2TokenDeployer.pmd(address(paymaster), 0, 500_000, operator, type(uint256).max, address(foreign), 0);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
 
         op.paymasterAndData =
-            V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(0xBAD), 0);
+            V2TokenDeployer.pmd(address(paymaster), 0, 500_000, operator, type(uint256).max, address(0xBAD), 0);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
 
     function test_DryRun_BothRenewFlags_Rejected() public {
         PackedUserOperation memory op = _buildUserOp(user, operator, type(uint256).max);
         op.paymasterAndData =
-            V2TokenDeployer.pmd(address(paymaster), 0, 200_000, operator, type(uint256).max, address(xpnts), 3);
+            V2TokenDeployer.pmd(address(paymaster), 0, 500_000, operator, type(uint256).max, address(xpnts), 3);
         _assertRejectAgrees(op, 1000, bytes32("TOKEN_MISMATCH"));
     }
 

@@ -24,6 +24,7 @@ import {V55Registry, V55PriceFeed, V55APNTs, IV2Ext} from "../helpers/V55TestFix
  *        48 h-timelocked storage (one slot) with hard bounds checked at queue AND execute.
  */
 contract SuperPaymasterV55GasParamsTest is Test {
+    error FloorProbeResult(uint8 kind);
     address constant EP = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     SuperPaymaster sp;
     SuperPaymasterLens lens;
@@ -120,24 +121,54 @@ contract SuperPaymasterV55GasParamsTest is Test {
 
     function test_defaults_when_never_set_and_slot_position() public view {
         SuperPaymaster.GasParams memory c = _cur();
-        assertEq(c.minPostOpGas, 200_000);
-        assertEq(c.settleGasBound, 160_000);
+        assertEq(c.minPostOpGas, 500_000);
+        assertEq(c.settleGasBound, 450_000);
         assertEq(c.cWrap, 5_000);
-        assertEq(c.cPostop, 180_000);
+        assertEq(c.cPostop, 450_000);
         assertEq(_pend().eta, 0, "nothing pending");
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "slot 38 zero = defaults (upgrade-safe)");
         assertEq(sp.version(), "SuperPaymaster-5.5.1");
     }
 
+    function test_unset_defaults_drive_validation_and_match_explicit_release_tuple_in_lens() public {
+        assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "precondition: unset slot");
+        (bool belowOk, bytes memory belowCtx) = _validates(499_999, keccak256("unset-below"));
+        assertFalse(belowOk, "unset default rejects below 500k");
+        assertEq(belowCtx.length, 0, "validation rejection has no context");
+        (bool atOk, bytes memory atCtx) = _validates(500_000, keccak256("unset-at"));
+        assertTrue(atOk, "unset default admits 500k");
+        uint256 snap;
+        assembly ("memory-safe") { snap := mload(add(atCtx, 384)) }
+        assertEq(uint32(snap), 500_000, "context snapshots default MIN");
+        assertEq(uint32(snap >> 32), 450_000, "context snapshots default SETTLE");
+        assertEq(uint32(snap >> 64), 5_000, "context snapshots default C_WRAP");
+        assertEq(uint32(snap >> 96), 450_000, "context snapshots default C_POSTOP");
+
+        (bool unsetBelow, bytes32 unsetReason) = lens.dryRunValidation(address(sp), _op(499_999), 1e16);
+        (bool unsetAt, bytes32 unsetAtReason) = lens.dryRunValidation(address(sp), _op(500_000), 1e16);
+        assertFalse(unsetBelow);
+        assertEq(unsetReason, lens.DRYRUN_POSTOP_GAS_TOO_LOW());
+        assertTrue(unsetAt);
+        assertEq(unsetAtReason, lens.DRYRUN_OK());
+
+        _set(500_000, 450_000, 5_000, 450_000);
+        (bool explicitBelow, bytes32 explicitReason) = lens.dryRunValidation(address(sp), _op(499_999), 1e16);
+        (bool explicitAt, bytes32 explicitAtReason) = lens.dryRunValidation(address(sp), _op(500_000), 1e16);
+        assertEq(explicitBelow, unsetBelow, "Lens below-floor result matches explicit tuple");
+        assertEq(explicitReason, unsetReason, "Lens below-floor reason matches explicit tuple");
+        assertEq(explicitAt, unsetAt, "Lens at-floor result matches explicit tuple");
+        assertEq(explicitAtReason, unsetAtReason, "Lens at-floor reason matches explicit tuple");
+    }
+
     function test_packed_in_one_slot_at_38_pending_at_39() public {
         vm.prank(owner);
-        sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
+        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
         bytes32 pend = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1));
         assertEq(
             pend,
             bytes32(
-                uint256(250_000) | (uint256(170_000) << 32) | (uint256(6_000) << 64) | (uint256(180_000) << 96)
+                uint256(400_000) | (uint256(360_000) << 32) | (uint256(6_000) << 64) | (uint256(370_000) << 96)
                     | (uint256(eta) << 128)
             ),
             "pending + eta in slot 39"
@@ -148,7 +179,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         bytes32 cur = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT));
         assertEq(
             cur,
-            bytes32(uint256(250_000) | (uint256(170_000) << 32) | (uint256(6_000) << 64) | (uint256(180_000) << 96)),
+            bytes32(uint256(400_000) | (uint256(360_000) << 32) | (uint256(6_000) << 64) | (uint256(370_000) << 96)),
             "params in slot 38"
         );
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), bytes32(0), "pending cleared");
@@ -159,20 +190,20 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_queue_execute_cancel_timelock_and_events() public {
         vm.prank(stranger);
         vm.expectRevert();
-        sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
+        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
 
         vm.expectEmit(address(sp));
         emit SuperPaymasterStorage.GasParamsQueued(
-            250_000, 170_000, 6_000, 180_000, uint64(vm.getBlockTimestamp() + 48 hours)
+            400_000, 360_000, 6_000, 370_000, uint64(vm.getBlockTimestamp() + 48 hours)
         );
         vm.prank(owner);
-        sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
+        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
 
         vm.warp(vm.getBlockTimestamp() + 48 hours - 1);
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
-        assertEq(_cur().minPostOpGas, 200_000, "not effective before the timelock");
+        assertEq(_cur().minPostOpGas, 500_000, "not effective before the timelock");
 
         vm.warp(vm.getBlockTimestamp() + 1);
         vm.prank(stranger);
@@ -180,18 +211,18 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.executeGasParams(); // owner-only (mid-bundle execution guard)
 
         vm.expectEmit(address(sp));
-        emit SuperPaymasterStorage.GasParamsExecuted(250_000, 170_000, 6_000, 180_000);
+        emit SuperPaymasterStorage.GasParamsExecuted(400_000, 360_000, 6_000, 370_000);
         vm.prank(owner);
         sp.executeGasParams();
-        assertEq(_cur().minPostOpGas, 250_000);
-        assertEq(_cur().cPostop, 180_000);
+        assertEq(_cur().minPostOpGas, 400_000);
+        assertEq(_cur().cPostop, 370_000);
 
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams(); // nothing pending
 
         vm.prank(owner);
-        sp.queueGasParams(300_000, 200_000, 7_000, 190_000);
+        sp.queueGasParams(420_000, 380_000, 7_000, 390_000);
         vm.expectEmit(address(sp));
         emit SuperPaymasterStorage.GasParamsCancelled();
         vm.prank(owner);
@@ -200,7 +231,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.executeGasParams();
-        assertEq(_cur().minPostOpGas, 250_000, "cancelled proposal never takes effect");
+        assertEq(_cur().minPostOpGas, 400_000, "cancelled proposal never takes effect");
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
         sp.cancelGasParams();
@@ -209,10 +240,10 @@ contract SuperPaymasterV55GasParamsTest is Test {
     /// @notice A re-queue replaces the pending proposal AND restarts the 48 h clock.
     function test_requeue_restarts_timelock() public {
         vm.prank(owner);
-        sp.queueGasParams(250_000, 170_000, 6_000, 180_000);
+        sp.queueGasParams(400_000, 360_000, 6_000, 370_000);
         vm.warp(vm.getBlockTimestamp() + 47 hours);
         vm.prank(owner);
-        sp.queueGasParams(260_000, 170_000, 6_000, 180_000);
+        sp.queueGasParams(410_000, 360_000, 6_000, 370_000);
         vm.warp(vm.getBlockTimestamp() + 2 hours);
         vm.prank(owner);
         vm.expectRevert(SuperPaymasterStorage.GasParamsTimelock.selector);
@@ -230,37 +261,37 @@ contract SuperPaymasterV55GasParamsTest is Test {
     function test_bounds_checked_at_queue() public {
         // positive control: every edge value accepted
         vm.prank(owner);
-        sp.queueGasParams(180_000, 155_000, 5_000, 180_000);
+        sp.queueGasParams(375_000, 355_000, 5_000, 370_000);
         vm.prank(owner);
         sp.queueGasParams(2_000_000, 1_000_000, 50_000, 2_000_000);
         vm.prank(owner);
-        sp.queueGasParams(200_000, 160_000, 5_000, 180_000);
-        // SETTLE in [155k, 1M]
-        _expectBad(200_000, 154_999, 5_000, 180_000);
-        _expectBad(2_000_000, 1_000_001, 5_000, 180_000);
+        sp.queueGasParams(400_000, 360_000, 5_000, 370_000);
+        // SETTLE in [355k, 1M]
+        _expectBad(375_000, 354_999, 5_000, 370_000);
+        _expectBad(2_000_000, 1_000_001, 5_000, 370_000);
         // MIN in [SETTLE + 20k, 2M]
-        _expectBad(179_999, 160_000, 5_000, 180_000);
-        _expectBad(2_000_001, 160_000, 5_000, 180_000);
-        // C_POSTOP in [180k, MIN]
-        _expectBad(200_000, 160_000, 5_000, 179_999);
-        _expectBad(200_000, 160_000, 5_000, 200_001);
+        _expectBad(379_999, 360_000, 5_000, 370_000);
+        _expectBad(2_000_001, 360_000, 5_000, 370_000);
+        // C_POSTOP in [370k, MIN]
+        _expectBad(400_000, 360_000, 5_000, 369_999);
+        _expectBad(400_000, 360_000, 5_000, 400_001);
         // C_WRAP in [5k, 50k]
-        _expectBad(200_000, 160_000, 4_999, 180_000);
-        _expectBad(200_000, 160_000, 50_001, 180_000);
+        _expectBad(400_000, 360_000, 4_999, 370_000);
+        _expectBad(400_000, 360_000, 50_001, 370_000);
     }
 
     /// @notice Execute re-checks the bounds: a pending value that no longer satisfies them (only
     ///         reachable by corrupting storage, e.g. a bad upgrade) is refused.
     function test_bounds_rechecked_at_execute() public {
         vm.prank(owner);
-        sp.queueGasParams(200_000, 160_000, 5_000, 180_000);
+        sp.queueGasParams(400_000, 360_000, 5_000, 370_000);
         uint64 eta = uint64(vm.getBlockTimestamp() + 48 hours);
-        // corrupt the pending cPostop to 100k (below the 150k floor)
+        // corrupt the pending cPostop to 100k (below the 370k floor)
         vm.store(
             address(sp),
             bytes32(GAS_PARAMS_SLOT + 1),
             bytes32(
-                uint256(200_000) | (uint256(160_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96)
+                uint256(400_000) | (uint256(360_000) << 32) | (uint256(5_000) << 64) | (uint256(100_000) << 96)
                     | (uint256(eta) << 128)
             )
         );
@@ -273,86 +304,96 @@ contract SuperPaymasterV55GasParamsTest is Test {
     // ------------------------------------------------------------------ effects
 
     function test_min_post_op_gas_parameter_drives_validation_and_lens() public {
-        _set(250_000, 160_000, 5_000, 180_000);
-        (bool ok,) = _validates(249_999, keccak256("a"));
+        _set(400_000, 360_000, 5_000, 370_000);
+        (bool ok,) = _validates(399_999, keccak256("a"));
         assertFalse(ok, "below the new MIN: sigFail");
-        (ok,) = _validates(250_000, keccak256("b"));
+        (ok,) = _validates(400_000, keccak256("b"));
         assertTrue(ok, "at the new MIN: validates");
-        (bool lok, bytes32 reason) = lens.dryRunValidation(address(sp), _op(249_999), 1e16);
+        (bool lok, bytes32 reason) = lens.dryRunValidation(address(sp), _op(399_999), 1e16);
         assertFalse(lok);
         assertEq(reason, lens.DRYRUN_POSTOP_GAS_TOO_LOW(), "lens reads MIN from SP");
-        (lok,) = lens.dryRunValidation(address(sp), _op(250_000), 1e16);
+        (lok,) = lens.dryRunValidation(address(sp), _op(400_000), 1e16);
         assertTrue(lok, "lens agrees at the new MIN");
     }
 
     function test_settle_gas_bound_parameter_drives_postOp_guard() public {
-        _set(320_000, 300_000, 5_000, 180_000);
-        (bool ok, bytes memory ctx) = _validates(320_000, keccak256("s"));
+        _set(400_000, 380_000, 5_000, 370_000);
+        (bool ok, bytes memory ctx) = _validates(400_000, keccak256("s"));
         assertTrue(ok);
         vm.prank(EP);
-        (bool s, bytes memory ret) = address(sp).call{gas: 250_000}(
+        (bool s, bytes memory ret) = address(sp).call{gas: 350_000}(
             abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
         );
-        assertFalse(s, "250k < new SETTLE_GAS_BOUND 300k: refused");
+        assertFalse(s, "350k < new SETTLE_GAS_BOUND 380k: refused");
         assertEq(ret, abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector));
         vm.prank(EP);
-        (s,) = address(sp).call{gas: 400_000}(
+        (s,) = address(sp).call{gas: 500_000}(
             abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
         );
         assertTrue(s, "control: enough gas settles");
     }
 
-    /// @notice The SETTLE_GAS_BOUND floor must itself keep B-1 §10.1 ③ (no OOG band above the entry
-    ///         guard): with the floor value configured, sweep the gas given to postOp on the worst
-    ///         path (CREDIT, first debt, cold lastTimestamp): every call is PostOpGasTooLow or a
-    ///         complete settlement.
-    function test_settle_floor_keeps_no_oog_band() public {
+    /// @notice The zero-slot release tuple keeps B-1 §10.1 ③: the Amsterdam worst-workload
+    ///         boundary remains behind the entry guard, while the first validation-reachable postOp
+    ///         limit completes. Therefore there is no OOG band above the entry guard.
+    function test_unset_release_tuple_keeps_no_oog_band() public {
+        // The old Amsterdam-unsafe SETTLE floor must not remain bounds-valid. This premise makes
+        // the no-OOG regression mutation-sensitive to lowering GP_SETTLE_MIN back to 155k.
+        vm.prank(owner);
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        sp.queueGasParams(375_000, 155_000, 5_000, 370_000);
         vm.prank(operator);
         sp.setOperatorLimits(60);
-        _set(180_000, 155_000, 5_000, 180_000); // all-floor tuple (SETTLE, MIN, C_POSTOP, C_WRAP)
-        address poor = address(0xC0FFEE);
+        assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "precondition: unset slot");
+        address balanceUser = address(0xC0FFEE);
         vm.prank(address(registry));
-        sp.updateSBTStatus(poor, true);
-        registry.setCreditLimit(poor, 50_000 ether);
+        sp.updateSBTStatus(balanceUser, true);
         vm.prank(operator);
-        IV2Ext(address(token)).queueCreditPolicy(2);
-        vm.warp(vm.getBlockTimestamp() + 48 hours);
-        IV2Ext(address(token)).executeCreditPolicy();
-        sp.updatePrice();
-        vm.prank(poor);
-        IV2Ext(address(token)).requestCredit(50_000 ether);
-        PackedUserOperation memory op = _op(180_000); // the op's limit at the floor MIN
-        op.sender = poor;
+        IV2Ext(address(token)).mint(balanceUser, 10_000 ether);
+        // Engine nightly 4e8874b2: 319,909 * 1.15 = 367,896 at the CALL boundary.
+        assertTrue(
+            _classifyFloorProbe(balanceUser, 367_896) != 1,
+            "worst-workload boundary is guarded or completes, never OOG"
+        );
+        assertEq(
+            _classifyFloorProbe(balanceUser, 500_000),
+            2,
+            "release MIN completes the default worst path"
+        );
+    }
+
+    /// @dev A fresh opHash plus an outer revert keeps every Amsterdam sample independent without
+    ///      relying on snapshot/revert restoration of transient or state-gas bookkeeping.
+    function floorProbeAndRollback(address balanceUser, uint256 gasBudget) external {
+        PackedUserOperation memory op = _op(500_000); // the op's limit at the zero-slot release MIN
+        op.sender = balanceUser;
+        bytes32 hash = keccak256(abi.encode("floor", gasBudget));
         vm.prank(EP);
-        (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, keccak256("floor"), 1e16);
+        (bytes memory ctx, uint256 vd) = sp.validatePaymasterUserOp(op, hash, 1e16);
         assertEq(vd & 1, 0);
-        assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, 2, "precondition: CREDIT (worst path)");
-        bytes memory cd = abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei));
-        uint256 guard;
-        uint256 okN;
-        for (uint256 g = 140_000; g <= 200_000; g += 100) {
-            uint256 snap = vm.snapshot();
-            vm.prank(EP);
-            (bool s, bytes memory ret) = address(sp).call{gas: g}(cd);
-            vm.revertTo(snap);
-            if (s) {
-                okN++;
-                continue;
-            }
-            assertEq(
-                ret,
-                abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector),
-                "SETTLE floor: no OOG band above the entry guard"
-            );
-            assertEq(okN, 0, "monotone");
-            guard++;
+        assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, 1, "precondition: Amsterdam worst BALANCE path");
+        vm.prank(EP);
+        (bool ok, bytes memory ret) = address(sp).call{gas: gasBudget}(
+            abi.encodeCall(IPaymaster.postOp, (IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei))
+        );
+        if (ok) revert FloorProbeResult(2);
+        if (keccak256(ret) == keccak256(abi.encodeWithSelector(SuperPaymasterStorage.PostOpGasTooLow.selector))) {
+            revert FloorProbeResult(0);
         }
-        assertGt(guard, 0);
-        assertGt(okN, 0);
+        revert FloorProbeResult(1);
+    }
+
+    function _classifyFloorProbe(address balanceUser, uint256 gasBudget) internal returns (uint8 kind) {
+        (bool outerOk, bytes memory result) = address(this).call(
+            abi.encodeCall(this.floorProbeAndRollback, (balanceUser, gasBudget))
+        );
+        assertFalse(outerOk, "floor probe must roll back");
+        assertEq(bytes4(result), FloorProbeResult.selector, "floor probe classification");
+        assembly ("memory-safe") { kind := mload(add(result, 36)) }
     }
 
     function _charge(bytes32 h) internal returns (uint256) {
-        (bool ok, bytes memory ctx) = _validates(200_000, h);
+        (bool ok, bytes memory ctx) = _validates(_cur().minPostOpGas, h);
         assertTrue(ok);
         uint256 r0 = sp.protocolRevenue();
         vm.prank(EP);
@@ -360,16 +401,16 @@ contract SuperPaymasterV55GasParamsTest is Test {
         return sp.protocolRevenue() - r0;
     }
 
-    function _expected(uint256 cPostop, uint256 cWrap) internal pure returns (uint256) {
-        uint256 bufWei = (cPostop + Math.ceilDiv(uint256(400_000) * 10, 100) + cWrap) * 1 gwei;
+    function _expected(uint256 minPost, uint256 cPostop, uint256 cWrap) internal pure returns (uint256) {
+        uint256 bufWei = (cPostop + Math.ceilDiv(uint256(200_000 + minPost) * 10, 100) + cWrap) * 1 gwei;
         uint256 aGas = Math.mulDiv((1e14 + bufWei) * 2000e8, 1e18, 1e8 * 0.02 ether, Math.Rounding.Ceil);
         return Math.mulDiv(aGas, 11_000, 10_000, Math.Rounding.Ceil);
     }
 
     function test_c_postop_and_c_wrap_parameters_drive_the_charge() public {
-        assertEq(_charge(keccak256("c0")), _expected(180_000, 5_000), "defaults");
-        _set(200_000, 160_000, 9_000, 190_000);
-        assertEq(_charge(keccak256("c1")), _expected(190_000, 9_000), "new C_POSTOP / C_WRAP");
+        assertEq(_charge(keccak256("c0")), _expected(500_000, 450_000, 5_000), "defaults");
+        _set(400_000, 360_000, 9_000, 390_000);
+        assertEq(_charge(keccak256("c1")), _expected(400_000, 390_000, 9_000), "new C_POSTOP / C_WRAP");
     }
 
     /// @notice Trust surface: whatever the parameters, the charge never exceeds a0 (SP postOp

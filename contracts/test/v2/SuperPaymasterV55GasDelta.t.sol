@@ -75,7 +75,7 @@ contract SuperPaymasterV55GasDeltaTest is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(700_000), uint128(200_000), operator, type(uint256).max, address(token), uint8(0)
+            address(sp), uint128(700_000), uint128(500_000), operator, type(uint256).max, address(token), uint8(0)
         );
         bytes memory vcd = abi.encodeCall(IPaymaster.validatePaymasterUserOp, (op, keccak256("delta"), 1e16));
         vm.prank(EP);
