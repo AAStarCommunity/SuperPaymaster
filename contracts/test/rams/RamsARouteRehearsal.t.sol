@@ -537,15 +537,18 @@ contract RamsARouteRehearsalTest is Test {
         _probe(_op(OWNER, 500_000, true), false, 0);
     }
 
-    function test_A3_emptyUpgradeData_admitsUnsafeLimit() public forkOnly {
+    function test_A3_emptyUpgradeData_defaultsRejectUnsafeLimit() public forkOnly {
         _upgrade(false);
         _assertGas(false);
         _v2Ready();
         vm.prank(OWNER);
         sp.setOperatorPaused(OWNER, false);
-        // Hazard prevented by atomic pause: 300k is inside [200k,365k).
-        // Admission alone is asserted here; this is NOT a claim that Amsterdam settlement succeeds.
-        _probe(_op(OWNER, 300_000, true), true, 384);
+        // Empty upgrade data leaves the gas slot zero, so the zero-slot defaults apply. Since rc.8 SP-c
+        // the default MIN_POST_OP_GAS is 500k (Amsterdam guard minimum 469,349), so a 300k limit that
+        // older defaults admitted is now rejected without any atomic pause.
+        _probe(_op(OWNER, 300_000, true), false, 0);
+        // Positive control: the same probe admits the default minimum, so the rejection above is the bound.
+        _probe(_op(OWNER, 500_000, true), true, 384);
     }
 
     struct BundleResult {
@@ -723,7 +726,14 @@ contract RamsARouteRehearsalTest is Test {
         _pauseAll(true);
         _upgrade(true);
         _v2Ready();
-        uint32[2] memory bounds = [uint32(450_000), uint32(160_000)];
+        // Legacy SETTLE 160k and anything below GP_SETTLE_MIN can no longer be activated (rc.8 SP-c).
+        uint32[2] memory rejectedBounds = [uint32(160_000), uint32(354_999)];
+        for (uint256 i; i < rejectedBounds.length; ++i) {
+            vm.prank(OWNER);
+            vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+            sp.queueGasParams(500_000, rejectedBounds[i], 5000, 450_000);
+        }
+        uint32[2] memory bounds = [uint32(450_000), uint32(355_000)];
         for (uint256 i; i < bounds.length; ++i) {
             uint256 branch = vm.snapshot();
             vm.prank(OWNER);
