@@ -36,7 +36,7 @@
       "erc1967Impl": "0x3333333333333333333333333333333333333333",
       "implCodehash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "extension": "0x4444444444444444444444444444444444444444",
-      "extensionCodehash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "extensionCodehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "owner": "0x5555555555555555555555555555555555555555",
       "pendingOwner": "0x0000000000000000000000000000000000000000",
       "guardian": "0x6666666666666666666666666666666666666666",
@@ -132,20 +132,31 @@
     "community.creditPolicy": "unreadable:example reason"
   },
   "amsterdamProbe": {
-    "initcode": "0x6000600055",
+    "initcode": "0x60206000f3",
     "sender": "0xdddddddddddddddddddddddddddddddddddddddd",
     "method": "live: eth_estimateGas on both providers only; estimateFork/gasUsedFork carry the A7 fork values for cross-reference",
     "estimateLive": {
-      "alchemy": 53000,
-      "tenderly": 53000
+      "alchemy": 259849,
+      "tenderly": 259849
     },
-    "estimateFork": 53000,
-    "gasUsedFork": 52000,
+    "estimateFork": 256645,
+    "gasUsedFork": 256645,
     "expected": {
-      "estimate": 53000,
-      "gasUsed": 52000,
-      "source": "live eth_estimateGas on both providers at forkBlock; gasUsed recorded by SP on the A7 fork"
+      "gasUsed": 256645,
+      "source": "SP A7 fork receipt; cross-checked by upstream eth_simulateV1"
     },
-    "predicate": "all(estimateLive[p] == estimateFork for p in estimateLive) and estimateFork == expected.estimate and gasUsedFork == expected.gasUsed"
+    "predicate": "all(estimateSimulate[p] == gasUsedFork == expected.gasUsed for p if int) and all(callAtGasUsed.values())",
+    "estimateSimulate": {
+      "alchemy": 256645,
+      "tenderly": "n/a:no eth_simulateV1"
+    },
+    "callAtGasUsed": {
+      "alchemy": true,
+      "tenderly": true
+    },
+    "callAtGasUsedMinusOne": {
+      "alchemy": false,
+      "tenderly": false
+    }
   }
 }

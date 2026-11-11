@@ -47,7 +47,9 @@ def negatives(base):
     null_version['contracts']['disclosureRegistry']['version'] = None
     answering_extension = copy.deepcopy(base)
     answering_extension['contracts']['spAdminExtension']['version'] = 'SuperPaymasterAdmin-0.0.0'
-    return {'omitted required field': omitted, 'bare "unreadable"': bare,
+    no_simulate = copy.deepcopy(base)
+    del no_simulate['amsterdamProbe']['estimateSimulate']
+    return {'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
             'top-level extra key': extra, 'null version on a versioned contract': null_version,
             'version on a no-version contract': answering_extension}
 
@@ -60,6 +62,16 @@ def main():
         errors = sorted(validator.iter_errors(json.loads((HERE / name).read_text())), key=str)
         print(f'{name}: {"VALID" if not errors else "INVALID"}')
         failures += [f'{name}: {e.message}' for e in errors]
+    for name in EXAMPLES:
+        instance = json.loads((HERE / name).read_text())
+        c = instance['contracts']
+        if 'spAdminExtension' in c and c['superPaymaster']['extensionCodehash'] != c['spAdminExtension']['codehash']:
+            failures.append(f'{name}: superPaymaster.extensionCodehash != spAdminExtension.codehash')
+        probe = instance['amsterdamProbe']
+        judged = [v for v in probe['estimateSimulate'].values() if isinstance(v, int)]
+        if not judged or any(v != probe['gasUsedFork'] or v != probe['expected']['gasUsed'] for v in judged) \
+                or not all(probe['callAtGasUsed'].values()):
+            failures.append(f'{name}: amsterdamProbe predicate does not hold')
     base = json.loads((HERE / EXAMPLES[0]).read_text())
     for label, instance in negatives(base).items():
         rejected = not validator.is_valid(instance)

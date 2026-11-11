@@ -75,7 +75,7 @@
     },
     "absent": {
       "type": "null",
-      "description": "The contract has no such function by design (e.g. version() on spAdminExtension)."
+      "description": "The selector is ABSENT from the compiled artifact's ABI at header.spCommit (decided from the ABI, never by calling: a fallback-routing contract answers every selector). Only spAdminExtension and xPNTsTokenV2Ext use it for version."
     },
     "state": {
       "oneOf": [
@@ -372,7 +372,10 @@
         "method",
         "estimateLive",
         "estimateFork",
+        "estimateSimulate",
         "gasUsedFork",
+        "callAtGasUsed",
+        "callAtGasUsedMinusOne",
         "expected",
         "predicate"
       ],
@@ -394,11 +397,11 @@
           "additionalProperties": {
             "type": "integer"
           },
-          "description": "provider name -> live eth_estimateGas at forkBlock."
+          "description": "provider name -> live eth_estimateGas at forkBlock. RECORDED, NOT JUDGED (an upstream estimate may add headroom)."
         },
         "estimateFork": {
           "type": "integer",
-          "description": "eth_estimateGas on the fork, same block/sender/data."
+          "description": "eth_estimateGas on the fork, same block/sender/data. RECORDED, NOT JUDGED."
         },
         "gasUsedFork": {
           "type": "integer",
@@ -408,18 +411,13 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "estimate",
             "gasUsed",
             "source"
           ],
           "properties": {
-            "estimate": {
-              "type": "integer",
-              "description": "= every estimateLive value."
-            },
             "gasUsed": {
               "type": "integer",
-              "description": "SP-recorded whole-tx receipt gasUsed."
+              "description": "SP-recorded whole-tx receipt gasUsed on the A7 fork."
             },
             "source": {
               "type": "string"
@@ -428,7 +426,45 @@
         },
         "predicate": {
           "type": "string",
-          "description": "Machine-checkable pass rule. Default: all(estimateLive[p] == estimateFork for p) AND gasUsedFork == expected.gasUsed. Estimate and gasUsed are compared only like with like."
+          "description": "Machine-checkable pass rule (DSR): for every provider p with an integer estimateSimulate[p]: estimateSimulate[p] == gasUsedFork == expected.gasUsed; AND callAtGasUsed[p] is true for every provider. estimateLive, estimateFork and callAtGasUsedMinusOne are recorded only. At least one provider must supply estimateSimulate."
+        },
+        "estimateSimulate": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "$ref": "#/$defs/notApplicable"
+              },
+              {
+                "$ref": "#/$defs/unreadable"
+              }
+            ]
+          },
+          "description": "provider name -> eth_simulateV1 gasUsed of the same call at forkBlock, or n/a:<reason> if the provider has no eth_simulateV1. JUDGED."
+        },
+        "callAtGasUsed": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "provider name -> eth_call with gas = expected.gasUsed succeeds. JUDGED."
+        },
+        "callAtGasUsedMinusOne": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "$ref": "#/$defs/notApplicable"
+              }
+            ]
+          },
+          "description": "provider name -> eth_call with gas = expected.gasUsed - 1 succeeds. RECORDED, NOT JUDGED."
         }
       }
     },
@@ -516,5 +552,23 @@
         "$ref": "#/$defs/anyValue"
       }
     }
+  },
+  "x-readMethods": {
+    "_": "How each field is read independently at header.readbackBlock (consumers re-read the same way).",
+    "address": "From the manifest address book for the contract key; codehash = eth_getCode at readbackBlock, keccak256.",
+    "version": "eth_call version() if version() is in the compiled ABI at spCommit; else null.",
+    "erc1967Impl": "eth_getStorageAt(proxy, 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc) for ERC-1967 proxies (superPaymaster, registry); else n/a.",
+    "extension": "superPaymaster: eth_call EXTENSION(); extensionCodehash = codehash of that address and MUST equal contracts.spAdminExtension.codehash. Others: n/a.",
+    "owner/pendingOwner": "eth_call owner() / pendingOwner() where in the ABI; registry.pendingOwner from its ERC-7201 slot per source.",
+    "guardian": "superPaymaster: eth_call guardian().",
+    "roles": "Registry/GTokenStaking roles: the RoleGranted/RoleRevoked logs (eth_getLogs, topic0 per ABI) from the contract's deployment block to readbackBlock, each candidate confirmed with hasRole(role, account) at readbackBlock; the log range is recorded under the contract's rolesSource.",
+    "blsAggregator.guardianSet": "For slot s in 1..MAX_VALIDATORS: validatorAtSlot(uint8 s) (public mapping, BLSAggregator.sol:204); for each nonzero address, getBLSPublicKey(address) (BLSAggregator.sol:907) -> pubkeyHash = keccak256(abi.encode(publicKey)), slot, isActive.",
+    "blsAggregator.signerMaskOrder": "Bit i of signerMask (i = 0..63) selects slot i+1: _reconstructPkAgg loops slot = 1..MAX_VALIDATORS and tests (signerMask >> (slot - 1)) & 1 (BLSAggregator.sol:1281-1284); slot -> address via validatorAtSlot.",
+    "blsAggregator.thresholds": "slashThresholds(uint8 level) (public mapping, BLSAggregator.sol:314) for each SlashLevel; minThreshold(), defaultThreshold(), SLASH_THRESHOLD_FLOOR(), MAX_VALIDATORS().",
+    "blsAggregator.verifier": "fraudProofVerifier(), pendingFraudProofVerifier(), and the pending ready-at getter; DVT_VALIDATOR(); domainSeparator().",
+    "dvtValidator": "version(), categoryCount(), owner(), codehash.",
+    "disclosureRegistry": "version() and every immutable getter in its ABI (WRITER(), AGGREGATOR(), \u2026).",
+    "ownerSafe": "getThreshold(), getOwners(), singleton = eth_getStorageAt(safe, 0); multiSendCallOnly codehash via eth_getCode.",
+    "checks": "Each check names its getter in the key; values are read, never copied from the plan."
   }
 }
