@@ -6,15 +6,22 @@ import sys
 from pathlib import Path
 
 SUITE = re.compile(r'^Ran \d+ tests? for (.+):([^:]+)$')
-RESULT = re.compile(r'^\[(PASS|FAIL|SKIP)(.*?)\]\s+(\w+\([^)]*\))')
+RESULT = re.compile(r'^\[(PASS|FAIL|SKIP)(.*?)\]\s+(\w+(?:\([^)]*\))?)')  # nightly prints invariants without '()'
+ABSTRACT = r'\babstract\s+contract\s+{}\b'
 
 
-def inventory(declared, logs, engine, allow=()):
+def inventory(declared, logs, engine, allow=(), root=None):
     names = set()
+    abstract = []
     for path, contracts in declared.items():
+        source = (Path(root) / path).read_text() if root is not None else ''
         for contract, tests in contracts.items():
             if not isinstance(tests, list) or not all(isinstance(t, str) for t in tests):
                 raise ValueError('expected path -> contract -> list of test signatures')
+            # Newer forge lists abstract bases; their tests only ever run in derived contracts.
+            if source and re.search(ABSTRACT.format(re.escape(contract)), source):
+                abstract.append(f'{path}:{contract} ({len(tests)})')
+                continue
             names.update((path, contract, t) for t in tests)
     executed, failed, skips, setups = set(), set(), {}, {}
     patterns = [re.compile(p) for p in allow]
@@ -46,6 +53,8 @@ def inventory(declared, logs, engine, allow=()):
                 continue
             if key not in names and (*suite, test.split('(')[0]) in names:
                 key = (*suite, test.split('(')[0])
+            if key not in names and any(a.startswith(f'{suite[0]}:{suite[1]} ') for a in abstract):
+                continue
             if key not in names:
                 raise ValueError(f'unknown test: {key}')
             if status in ('PASS', 'FAIL'):
@@ -62,7 +71,8 @@ def inventory(declared, logs, engine, allow=()):
                             status='allowed (design)' if allowed else 'unexecuted'))
     allowed = sum(row['status'] == 'allowed (design)' for row in missing)
     report = dict(engine=engine, declared=len(names), executed=len(executed), failed=len(failed),
-                  allowed=allowed, unexecuted=missing, setup_failures=sorted(setup_failures))
+                  allowed=allowed, unexecuted=missing, setup_failures=sorted(setup_failures),
+                  excluded_abstract=abstract)
     return report, int(bool(failed or setup_failures or len(missing) > allowed))
 
 
@@ -75,6 +85,9 @@ def markdown(report):
              '', '| Unexecuted function | Reason | Status |', '| --- | --- | --- |']
     lines += ['| ' + ' | '.join(cell(row[k]) for k in ('function', 'reason', 'status')) + ' |'
               for row in report['unexecuted']]
+    if report.get('excluded_abstract'):
+        lines += ['', 'Excluded abstract contracts (not runnable; tests run in derived contracts): '
+                  + ', '.join(report['excluded_abstract'])]
     if report['setup_failures']:
         lines += ['', 'Failed setUp: ' + ', '.join(report['setup_failures'])]
     return '\n'.join(lines) + '\n'
@@ -88,10 +101,11 @@ def main(argv=None):
     p.add_argument('--allow-reason', action='append', default=[])
     p.add_argument('--out-json', required=True)
     p.add_argument('--out-md', required=True)
+    p.add_argument('--root', default='.', help='project root for reading sources (abstract detection)')
     a = p.parse_args(argv)
     try:
         report, rc = inventory(json.loads(Path(a.declared).read_text()),
-                               [Path(f).read_text() for f in a.log], a.engine, a.allow_reason)
+                               [Path(f).read_text() for f in a.log], a.engine, a.allow_reason, a.root)
         Path(a.out_json).write_text(json.dumps(report, indent=2) + '\n')
         Path(a.out_md).write_text(markdown(report))
         return rc

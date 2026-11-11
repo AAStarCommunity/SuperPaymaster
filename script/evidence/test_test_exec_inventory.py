@@ -24,6 +24,21 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual((rc, len(report['unexecuted'])), (1, 2))
         self.assertEqual({r['reason'] for r in report['unexecuted']}, {'skipped'})
 
+    def test_invariant_line_without_parens(self):
+        report, rc = self.run_logs(HEADER + '[PASS] test_a\n[PASS] test_b() (runs: 256, calls: 1, reverts: 0)')
+        self.assertEqual((rc, report['executed']), (0, 2))
+
+    def test_abstract_base_excluded_and_listed(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, 'a.t.sol').write_text('abstract contract Base {}\ncontract C is Base {}\n')
+            declared = {'a.t.sol': {'Base': ['test_a', 'test_b'], 'C': ['test_a', 'test_b']}}
+            report, rc = inventory(declared, [HEADER + '[PASS] test_a()\n[PASS] test_b()'], 'fixture', (), d)
+            self.assertEqual((rc, report['declared'], report['executed']), (0, 2, 2))
+            self.assertEqual(report['excluded_abstract'], ['a.t.sol:Base (2)'])
+            # A concrete contract is never excluded: drop its run and it must be reported unexecuted.
+            report, rc = inventory(declared, [HEADER.replace(':C', ':C') + '[PASS] test_a()'], 'fixture', (), d)
+            self.assertEqual((rc, len(report['unexecuted'])), (1, 1))
+
     def test_recap_and_failure(self):
         log = HEADER + '[FAIL: revert] test_a()\n[PASS] test_b()'
         report, rc = self.run_logs(log + '\nFailing tests:\n' + log)
@@ -47,10 +62,11 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual((rc, report['setup_failures']), (1, ['a.t.sol:C']))
 
     def test_unknown_cli_error_and_output(self):
-        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / '.codex-work') as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'declared').write_text(json.dumps(DECLARED))
-            args = ['--declared', str(root / 'declared'), '--log', str(root / 'log'),
+            (root / 'a.t.sol').write_text('contract C {}\n')
+            args = ['--declared', str(root / 'declared'), '--log', str(root / 'log'), '--root', str(root),
                     '--engine', 'fixture', '--out-json', str(root / 'json'), '--out-md', str(root / 'md')]
             (root / 'log').write_text(HEADER + '[PASS] test_unknown()')
             with contextlib.redirect_stderr(io.StringIO()) as err:
