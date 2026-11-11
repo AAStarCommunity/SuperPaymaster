@@ -1,8 +1,8 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-11-11T06:37:32Z",
-  "totalHash": "dfd83c447b587e03cd6889500fda00b61d3ceb923b8f85f688e54a5995ea74bc",
+  "buildTime": "2026-11-11T07:09:12Z",
+  "totalHash": "3480c69a15aa0f2d7db569ead456a3f0a4a6b6ad6dccf2b19ca53ccd8cf135fc",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
@@ -25,7 +25,7 @@
     { "name": "SimpleAccount.json", "hash": "8ce0cf540d5f131b88578d6d3fe550c378c13e36099b1b23586529b4187e50da" },
     { "name": "SimpleAccountFactory.json", "hash": "54de0987d947381efe89546322b02564f96cba4c9704c67822f785df39f37022" },
     { "name": "SuperPaymaster.full.json", "hash": "2f817880dd93e6f1427e560c7fe4b8b5af611c2fdfdae4b41687df45963ee37c" },
-    { "name": "SuperPaymaster.json", "hash": "da47e0b22212ae26087373b4c9f444eaa2669293d324f7091c0e95d7cf8d574f" },
+    { "name": "SuperPaymaster.json", "hash": "53d14e027af7f4177a83080483ba0fa15215cf1b983d593a17cf04547fa0b729" },
     { "name": "SuperPaymasterAdmin.json", "hash": "0750a08719b402942e540199b82aec1703f2aae6ae8e65bb548325ff8bc4c3a6" },
     { "name": "SuperPaymasterLens.json", "hash": "cc4515064dd7ecbd36937426265d15d3240c4e0300c7626d18d665128f14b068" },
     { "name": "TimelockController.json", "hash": "db7d0dbcd81f3dfa4c83bd97115a9031fcce2fa482c9833c5e95a98eaa599226" },
