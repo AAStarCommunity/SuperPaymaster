@@ -87,6 +87,7 @@
       ],
       "N": 3,
       "thresholds": {
+        "WARNING": 2,
         "MINOR": 2,
         "MAJOR": 3
       },

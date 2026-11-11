@@ -2,6 +2,7 @@
 """Self-checks for aoa-a7-readback/1: both examples validate, known-bad instances are rejected,
 and no oneOf node lets one value match two branches (the defect that made every live file fail)."""
 import copy
+import re
 import json
 import sys
 from pathlib import Path
@@ -33,6 +34,22 @@ def oneof_overlaps(schema):
                 walk(child, f'{path}[{index}]')
 
     walk(schema, '#')
+    return found
+
+
+URL_LIKE = re.compile(r'(?i)([a-z][a-z0-9+.-]*://|\b(?:https?|wss?|ftp|file):)')
+
+
+def url_like_strings(node, path='$'):
+    found = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            found += url_like_strings(value, f'{path}.{key}')
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            found += url_like_strings(value, f'{path}[{index}]')
+    elif isinstance(node, str) and URL_LIKE.search(node):
+        found.append(path)
     return found
 
 
@@ -80,6 +97,12 @@ def main():
         c = instance['contracts']
         if 'spAdminExtension' in c and c['superPaymaster']['extensionCodehash'] != c['spAdminExtension']['codehash']:
             failures.append(f'{name}: superPaymaster.extensionCodehash != spAdminExtension.codehash')
+        urls = url_like_strings(instance)
+        if urls:
+            failures.append(f'{name}: URL-like strings at {urls}')
+        thresholds = c['blsAggregator'].get('thresholds')
+        if isinstance(thresholds, dict) and set(thresholds) != {'WARNING', 'MINOR', 'MAJOR'}:
+            failures.append(f'{name}: blsAggregator.thresholds must list WARNING, MINOR and MAJOR')
         probe = instance['amsterdamProbe']
         judged = [v for v in probe['estimateSimulate'].values() if isinstance(v, int)]
         if not judged or any(v != probe['gasUsedFork'] or v != probe['expected']['gasUsed'] for v in judged) \
