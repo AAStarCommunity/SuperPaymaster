@@ -51,7 +51,9 @@ def negatives(base):
     del no_simulate['amsterdamProbe']['estimateSimulate']
     no_community = copy.deepcopy(base)
     del no_community['contracts']['evaluationCommunityToken']
-    return {'missing evaluationCommunityToken': no_community, 'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
+    no_registry = copy.deepcopy(base)
+    del no_registry['contracts']['registry']
+    return {'missing registry (release-set key)': no_registry, 'missing evaluationCommunityToken': no_community, 'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
             'top-level extra key': extra, 'null version on a versioned contract': null_version,
             'version on a no-version contract': answering_extension}
 

@@ -111,17 +111,17 @@
       "AGGREGATOR": "0x8888888888888888888888888888888888888888"
     },
     "multiSendCallOnly": {
-      "address": "n/a:not used by this manifest",
-      "version": "Example-0.0.0",
-      "codehash": "n/a:not used by this manifest",
+      "address": "0xdddddddddddddddddddddddddddddddddddddddd",
+      "version": "n/a:MultiSendCallOnly has no version()",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "erc1967Impl": "n/a:not a proxy",
       "implCodehash": "n/a:not a proxy",
       "extension": "n/a:no extension",
       "extensionCodehash": "n/a:no extension",
-      "owner": "n/a:not used",
-      "pendingOwner": "n/a:not used",
+      "owner": "n/a:no owner",
+      "pendingOwner": "n/a:no owner",
       "guardian": "n/a:no guardian role",
-      "roles": {}
+      "roles": "n/a:no role system"
     },
     "entryPoint": {
       "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
@@ -172,6 +172,177 @@
       "pendingOwner": "0x0000000000000000000000000000000000000000",
       "guardian": "n/a:no guardian role",
       "roles": "n/a:no role system (GTokenStaking holds role locks, not roles)"
+    },
+    "superPaymasterLens": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "SuperPaymasterLens-1.2.2",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "registry": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Registry-5.10.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "0x3333333333333333333333333333333333333333",
+      "implCodehash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": {
+        "ROLE_COMMUNITY": [
+          "0x6666666666666666666666666666666666666666"
+        ]
+      },
+      "rolesSource": {
+        "fromBlock": 12000000,
+        "toBlock": 12100042
+      }
+    },
+    "policyRegistry": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "PolicyRegistry-3.0.2",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "dvtValidator": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "DVTValidator-0.8.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "reputationSystem": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Reputation-0.5.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "xPNTsFactoryV2": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "xPNTsFactory-3.0.2-v2",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "xPNTsTokenV2Impl": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "XPNTs-4.0.3",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "xPNTsTokenV2Ext": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": null,
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "aoaProtocolRegistry": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Example-0.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "globalTierSource": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "GlobalTierSource-1.0.1",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "aPNTsCapped": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Example-0.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "ownerSafe": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "1.4.1",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:Safe has no owner()",
+      "pendingOwner": "n/a:Safe has no pendingOwner()",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "threshold": 2,
+      "owners": [
+        "0x7777777777777777777777777777777777777777",
+        "0x8888888888888888888888888888888888888888",
+        "0x9999999999999999999999999999999999999999"
+      ],
+      "singleton": "0xcccccccccccccccccccccccccccccccccccccccc"
     }
   },
   "checks": {

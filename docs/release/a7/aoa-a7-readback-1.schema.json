@@ -21,7 +21,7 @@
     },
     "contracts": {
       "type": "object",
-      "description": "Keys are the SDK pins names (superPaymaster, superPaymasterLens, registry, policyRegistry, blsAggregator, dvtValidator, reputationSystem, disclosureRegistry, xPNTsFactoryV2, xPNTsTokenV2Impl, xPNTsTokenV2Ext, aoaProtocolRegistry, globalTierSource, aPNTsCapped, gTokenStaking, entryPoint, ownerSafe, multiSendCallOnly). SDK book entries are referenced elsewhere as \"addresses.<key>\".",
+      "description": "Keys are the SDK pins names (superPaymaster, superPaymasterLens, registry, policyRegistry, blsAggregator, dvtValidator, reputationSystem, disclosureRegistry, xPNTsFactoryV2, xPNTsTokenV2Impl, xPNTsTokenV2Ext, aoaProtocolRegistry, globalTierSource, aPNTsCapped, gTokenStaking, entryPoint, ownerSafe, multiSendCallOnly). SDK book entries are referenced elsewhere as \"addresses.<key>\". ALL keys in `required` (the full rc.8 release set) must be present; a contract that is not deployed is still present with every field \"n/a:not deployed\". The SDK pins fields spImpl / registryImpl are the erc1967Impl fields of superPaymaster / registry, not separate keys.",
       "additionalProperties": {
         "$ref": "#/$defs/contract"
       },
@@ -36,7 +36,23 @@
       "required": [
         "superPaymaster",
         "spAdminExtension",
+        "superPaymasterLens",
+        "registry",
+        "policyRegistry",
+        "blsAggregator",
+        "dvtValidator",
+        "reputationSystem",
+        "disclosureRegistry",
+        "xPNTsFactoryV2",
+        "xPNTsTokenV2Impl",
+        "xPNTsTokenV2Ext",
+        "aoaProtocolRegistry",
+        "globalTierSource",
+        "aPNTsCapped",
+        "gTokenStaking",
         "entryPoint",
+        "ownerSafe",
+        "multiSendCallOnly",
         "evaluationCommunityToken"
       ]
     },
@@ -574,9 +590,10 @@
     "blsAggregator.verifier": "fraudProofVerifier(), pendingFraudProofVerifier(), and the pending ready-at getter; DVT_VALIDATOR(); domainSeparator().",
     "dvtValidator": "version(), categoryCount(), owner(), codehash.",
     "disclosureRegistry": "version() and every immutable getter in its ABI (WRITER(), AGGREGATOR(), \u2026).",
-    "ownerSafe": "getThreshold(), getOwners(), singleton = eth_getStorageAt(safe, 0); multiSendCallOnly codehash via eth_getCode.",
+    "ownerSafe": "version = VERSION() (Safe exposes VERSION(), not version()); getThreshold(), getOwners(), singleton = eth_getStorageAt(safe, 0).",
     "checks": "Each check names its getter in the key; values are read, never copied from the plan.",
     "entryPoint": "getDepositInfo(superPaymaster) -> deposit, staked, stake, unstakeDelaySec, withdrawTime, recorded as fields of contracts.entryPoint (EntryPoint v0.7 IStakeManager.DepositInfo).",
-    "evaluationCommunityToken": "The evaluation community's xPNTs token instance: creditPolicy(), policyEpoch(), pendingPolicy(), pendingPolicyEta(), issuanceCap(), SUPERPAYMASTER_ADDRESS() (xPNTsV2Base.sol:72-120)."
+    "evaluationCommunityToken": "The evaluation community's xPNTs token instance: creditPolicy(), policyEpoch(), pendingPolicy(), pendingPolicyEta(), issuanceCap(), SUPERPAYMASTER_ADDRESS() (xPNTsV2Base.sol:72-120).",
+    "externalVersion": "EntryPoint v0.7 and MultiSendCallOnly have no version(): version = \"n/a:<reason>\"; their identity is the codehash, pinned by the manifest to the canonical deployments (EntryPoint 0x0000000071727De22E5E9d8BAf0edAc6f37da032; MultiSendCallOnly at the official address for the release)."
   }
 }
