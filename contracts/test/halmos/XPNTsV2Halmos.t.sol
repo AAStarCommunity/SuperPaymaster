@@ -28,6 +28,10 @@ contract MockRegistryV2Lite {
 contract SymTierSource {
     mapping(address => uint256) public t;
 
+    function creditFloor() external pure returns (uint256) {
+        return 0;
+    }
+
     function tierOf(address, address user) external view returns (uint256) {
         return t[user];
     }

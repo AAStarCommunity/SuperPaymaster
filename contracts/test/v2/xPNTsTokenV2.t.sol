@@ -72,7 +72,7 @@ contract xPNTsTokenV2Test is Test {
     // ------------------------------------------------------------------
 
     function test_version_and_genesis() public view {
-        assertEq(t.version(), "XPNTs-4.0.2");
+        assertEq(t.version(), "XPNTs-4.0.3");
         assertEq(t.SUPERPAYMASTER_ADDRESS(), sp);
         assertTrue(t.historicalSP(sp), "S-0 marks genesis SP historical");
         assertFalse(t.autoApprovedSpenders(sp), "A-3: SP is never a spender");
