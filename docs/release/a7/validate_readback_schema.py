@@ -49,7 +49,9 @@ def negatives(base):
     answering_extension['contracts']['spAdminExtension']['version'] = 'SuperPaymasterAdmin-0.0.0'
     no_simulate = copy.deepcopy(base)
     del no_simulate['amsterdamProbe']['estimateSimulate']
-    return {'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
+    no_community = copy.deepcopy(base)
+    del no_community['contracts']['evaluationCommunityToken']
+    return {'missing evaluationCommunityToken': no_community, 'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,
             'top-level extra key': extra, 'null version on a versioned contract': null_version,
             'version on a no-version contract': answering_extension}
 

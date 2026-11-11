@@ -122,14 +122,63 @@
       "pendingOwner": "n/a:not used",
       "guardian": "n/a:no guardian role",
       "roles": {}
+    },
+    "entryPoint": {
+      "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+      "version": "n/a:EntryPoint v0.7 has no version()",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:no owner",
+      "pendingOwner": "n/a:no owner",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "deposit": "1000000000000000000",
+      "staked": true,
+      "stake": "1000000000000000000",
+      "unstakeDelaySec": 86400,
+      "withdrawTime": 0
+    },
+    "evaluationCommunityToken": {
+      "address": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "XPNTs-4.0.3",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "creditPolicy": 0,
+      "policyEpoch": 0,
+      "pendingPolicy": 0,
+      "pendingPolicyEta": 0,
+      "issuanceCap": "1000000000000000000000000",
+      "SUPERPAYMASTER_ADDRESS": "0x2222222222222222222222222222222222222222"
+    },
+    "gTokenStaking": {
+      "address": "0xffffffffffffffffffffffffffffffffffffffff",
+      "version": "Example-0.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system (GTokenStaking holds role locks, not roles)"
     }
   },
   "checks": {
     "dvtValidator.categoryCount": 0,
     "superPaymaster.fraudProofVerifier": "0x0000000000000000000000000000000000000000",
     "blsAggregator.owner == dvtValidator.owner": true,
-    "entryPoint.deposit(superPaymaster)": "1000000000000000000",
-    "community.creditPolicy": "unreadable:example reason"
+    "evaluationCommunityToken.creditPolicy == OFF": true
   },
   "amsterdamProbe": {
     "initcode": "0x60206000f3",
