@@ -7,6 +7,7 @@ import { ICreditTierSource } from "./ICreditTierSource.sol";
 
 interface IRegistryCreditLimit {
     function getCreditLimit(address user) external view returns (uint256);
+    function creditTierConfig(uint256 level) external view returns (uint256);
 }
 
 /**
@@ -28,11 +29,16 @@ contract GlobalTierSource is ICreditTierSource, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "GlobalTierSource-1.0.0";
+        return "GlobalTierSource-1.0.1";
     }
 
     /// @inheritdoc ICreditTierSource
     function tierOf(address, address user) external view override returns (uint256) {
         return REGISTRY.getCreditLimit(user);
+    }
+
+    /// @inheritdoc ICreditTierSource
+    function creditFloor() external view override returns (uint256) {
+        return REGISTRY.creditTierConfig(1);
     }
 }

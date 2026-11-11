@@ -7,4 +7,7 @@ pragma solidity 0.8.33;
 interface ICreditTierSource {
     /// @return tier Credit ceiling in aPNTs for `user` within `community`.
     function tierOf(address community, address user) external view returns (uint256 tier);
+
+    /// @return floor Registry level-1 credit tier, shared by every address.
+    function creditFloor() external view returns (uint256 floor);
 }

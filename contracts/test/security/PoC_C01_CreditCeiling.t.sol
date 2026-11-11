@@ -26,6 +26,7 @@ import {IxPNTsTokenV2} from "src/tokens/v2/IxPNTsTokenV2.sol";
 contract C01Registry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimits;
+    function creditTierConfig(uint256) external pure returns (uint256) { return 0; }
 
     function setRole(bytes32 role, address account, bool value) external {
         roles[role][account] = value;

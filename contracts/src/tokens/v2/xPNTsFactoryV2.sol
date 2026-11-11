@@ -10,7 +10,7 @@ import "src/interfaces/v3/IRegistry.sol";
 
 /**
  * @title xPNTsFactoryV2
- * @notice xPNTs v2 (XPNTs-4.0.2) factory for the AOA balance-mode stack.
+ * @notice xPNTs v2 (XPNTs-4.0.3) factory for the AOA balance-mode stack.
  * @dev    Differences from 3.x (spec 03 A-9, A-10, R4-H5, §2.5):
  *         - the token template is deployed SEPARATELY and passed in (EIP-3860: core + extension
  *           creation code would not fit in this constructor);
@@ -211,7 +211,7 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
             revert InvalidTemplate();
         }
         try xPNTsTokenV2(_implementation).version() returns (string memory v) {
-            if (keccak256(bytes(v)) != keccak256("XPNTs-4.0.2")) revert InvalidTemplate();
+            if (keccak256(bytes(v)) != keccak256("XPNTs-4.0.3")) revert InvalidTemplate();
         } catch {
             revert InvalidTemplate();
         }

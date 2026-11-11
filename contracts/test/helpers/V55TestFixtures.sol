@@ -9,6 +9,7 @@ import "src/interfaces/v3/IRegistry.sol";
 contract V55Registry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
+    mapping(uint256 => uint256) public creditTierConfig;
     mapping(bytes32 => uint256) public minStake;
     mapping(bytes32 => mapping(address => uint256)) public effectiveStake;
     function setRole(bytes32 role, address a, bool v) external {
