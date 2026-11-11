@@ -152,7 +152,7 @@ contract DVTValidatorLivenessTest is Test {
         registry.setStakingAddr(address(staking));
         sp = new MockSP();
 
-        dvt = new DVTValidator(address(registry), 1);
+        dvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         dvt.setBLSAggregator(address(bls));
 
@@ -240,7 +240,7 @@ contract DVTValidatorLivenessTest is Test {
             DVTValidator.ValidatorRoleRevoked.selector,
             validator1
         ));
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof);
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, abi.encode(bytes32(0), bytes("")), dummyProof);
     }
 
     function test_ExecuteWithProof_BLSAggregatorBypassesLivenessGate() public {
@@ -259,7 +259,9 @@ contract DVTValidatorLivenessTest is Test {
         bytes memory dummyProof = abi.encode(uint256(0x7F), abi.encode(BLS.G2Point(0,0,0,0,0,0,0,0)));
         vm.prank(address(bls));
         // Will revert later (pairing precompile) — but NOT with NotActiveValidator.
-        try dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof) {
+        try dvt.executeWithProof(
+            id, new address[](0), new uint256[](0), 0, abi.encode(bytes32(0), bytes("")), dummyProof
+        ) {
             // Either path is acceptable for this test — we only assert the
             // liveness gate didn't fire.
         } catch (bytes memory reason) {

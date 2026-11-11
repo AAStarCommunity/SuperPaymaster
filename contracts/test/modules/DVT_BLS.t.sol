@@ -6,6 +6,7 @@ import "src/modules/monitoring/DVTValidator.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/IVersioned.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
+import "src/mocks/MockEvidenceCategory.sol";
 
 import "src/utils/BLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
@@ -109,6 +110,8 @@ contract MockSuperPaymaster {
 }
 
 contract DVTBLSTest is Test {
+    bytes32 constant EVIDENCE_CATEGORY = keccak256("DVT.Evidence.Test.v1");
+    bytes constant EVIDENCE_BODY = "test evidence";
     DVTValidator dvt;
     BLSAggregator bls;
     MockRegistryV3 registry;
@@ -162,7 +165,11 @@ contract DVTBLSTest is Test {
         sp = new MockSuperPaymaster();
 
         // Circular dependency handling
-        dvt = new DVTValidator(address(registry), 1);
+        bytes32[] memory categories = new bytes32[](1);
+        categories[0] = EVIDENCE_CATEGORY;
+        address[] memory checkers = new address[](1);
+        checkers[0] = address(new MockEvidenceCategory());
+        dvt = new DVTValidator(address(registry), 1, categories, checkers);
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
 
         dvt.setBLSAggregator(address(bls));
@@ -186,6 +193,16 @@ contract DVTBLSTest is Test {
         return abi.encode(signerMask, abi.encode(sig));
     }
 
+    function _evidence() internal pure returns (bytes memory) {
+        return abi.encode(EVIDENCE_CATEGORY, EVIDENCE_BODY);
+    }
+
+    function _evidenceHash() internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(keccak256("SuperPaymaster.DVT.Evidence.v2"), EVIDENCE_CATEGORY, keccak256(EVIDENCE_BODY))
+        );
+    }
+
     function _expectedCommitment(uint256 key, bytes32 messageHash, uint256 signerMask) internal view returns (bytes32) {
         address[] memory signers = new address[](7);
         for (uint256 i; i < signers.length; ++i) {
@@ -206,7 +223,7 @@ contract DVTBLSTest is Test {
 
     function test_QueueSlashGeneric_OverlappingInputsKeepAllCommitments() public {
         vm.startPrank(address(101)); // Validator 1
-        uint256 id = dvt.createProposal(op, 1, "Bad Operator");
+        uint256 id = dvt.createProposal(op, 1, "Bad Operator", _evidenceHash());
         assertEq(id, 1);
         vm.stopPrank();
 
@@ -229,7 +246,7 @@ contract DVTBLSTest is Test {
         uint256 queueKey = uint256(queueMessage);
         vm.expectEmit(true, false, false, true, address(bls));
         emit BLSAggregator.SignersCommitted(queueKey, signerMask);
-        dvt.queueSlashWithProof(op, 1, epoch, mockProof);
+        dvt.queueSlashWithProof(op, 1, epoch, _evidence(), mockProof);
 
         bytes memory callData = abi.encodeWithSignature("queued()");
         bytes32 genericMessage = keccak256(
@@ -242,11 +259,11 @@ contract DVTBLSTest is Test {
 
         uint256 slashKey = id;
         bytes32 slashMessage =
-            keccak256(abi.encode(bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), epoch, bytes32(0)));
+            keccak256(abi.encode(bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), epoch, _evidenceHash()));
         vm.startPrank(address(101));
         vm.expectEmit(true, false, false, true, address(bls));
         emit BLSAggregator.SignersCommitted(slashKey, signerMask);
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), epoch, mockProof);
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), epoch, _evidence(), mockProof);
         vm.stopPrank();
 
         // Check proposal was executed
@@ -344,7 +361,7 @@ contract DVTBLSTest is Test {
         vm.expectEmit(true, false, false, true, address(bls));
         emit BLSAggregator.SignersCommitted(key, signerMask);
         vm.prank(address(101)); // active validator drives the forwarder
-        dvt.queueSlashWithProof(op, 1, 7, proof);
+        dvt.queueSlashWithProof(op, 1, 7, _evidence(), proof);
         assertTrue(sp.queued(), "operator pre-flagged via DVTValidator forwarder");
         assertEq(bls.proposalSignersCommitment(key), expected, "queue commitment exact tuple");
     }
@@ -375,26 +392,31 @@ contract DVTBLSTest is Test {
 
         for (uint256 expectedId = 1; expectedId <= lastExecutedId; ++expectedId) {
             vm.prank(address(101));
-            uint256 id = dvt.createProposal(op, 1, "pre-rotation");
+            uint256 id = dvt.createProposal(op, 1, "pre-rotation", _evidenceHash());
             assertEq(id, expectedId);
             vm.prank(address(101));
-            dvt.executeWithProof(id, new address[](0), new uint256[](0), id, proof);
+            dvt.executeWithProof(id, new address[](0), new uint256[](0), id, _evidence(), proof);
             assertTrue(bls.executedProposals(id));
         }
 
         vm.startPrank(owner);
-        DVTValidator replacement = new DVTValidator(address(registry), lastExecutedId + 1);
+        bytes32[] memory categories = new bytes32[](1);
+        categories[0] = EVIDENCE_CATEGORY;
+        address[] memory checkers = new address[](1);
+        checkers[0] = address(new MockEvidenceCategory());
+        DVTValidator replacement =
+            new DVTValidator(address(registry), lastExecutedId + 1, categories, checkers);
         replacement.setBLSAggregator(address(bls));
         replacement.addValidator(address(101));
         bls.setDVTValidator(address(replacement));
         vm.stopPrank();
 
         vm.prank(address(101));
-        uint256 replacementId = replacement.createProposal(op, 1, "post-rotation");
+        uint256 replacementId = replacement.createProposal(op, 1, "post-rotation", _evidenceHash());
         assertEq(replacementId, lastExecutedId + 1);
         vm.prank(address(101));
         replacement.executeWithProof(
-            replacementId, new address[](0), new uint256[](0), replacementId, proof
+            replacementId, new address[](0), new uint256[](0), replacementId, _evidence(), proof
         );
 
         assertTrue(bls.executedProposals(replacementId));

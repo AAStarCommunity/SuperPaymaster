@@ -87,7 +87,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function setUp() public {
         staking = new MockStakingDVT();
         registry = new MockRegistryDVT(address(staking), MIN_STAKE);
-        dvt = new DVTValidator(address(registry), 1);
+        dvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         dvt.setBLSAggregator(blsAggregator);
 
         // Make validator1 eligible: holds DVT role + has enough stake.
@@ -99,7 +99,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
     function test_Constructor_RevertsWhenFirstProposalIdIsZero() public {
         vm.expectRevert(abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, 0));
-        new DVTValidator(address(registry), 0);
+        new DVTValidator(address(registry), 0, new bytes32[](0), new address[](0));
     }
 
     function test_Constructor_RevertsWhenFirstProposalIdIsAtUint128Boundary() public {
@@ -107,7 +107,7 @@ contract DVTValidator_P0HardeningTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, firstProposalId)
         );
-        new DVTValidator(address(registry), firstProposalId);
+        new DVTValidator(address(registry), firstProposalId, new bytes32[](0), new address[](0));
     }
 
     // -----------------------------------------------------------------------
@@ -159,7 +159,7 @@ contract DVTValidator_P0HardeningTest is Test {
         // Build a registry whose GTOKEN_STAKING returns address(0).
         MockRegistryDVT brokenReg = new MockRegistryDVT(address(0), MIN_STAKE);
         brokenReg.setIsDvt(validator1, true);
-        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1);
+        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1, new bytes32[](0), new address[](0));
         vm.expectRevert(DVTValidator.StakingNotConfigured.selector);
         dvt2.addValidator(validator1);
     }
@@ -174,7 +174,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
         vm.prank(attacker);
         vm.expectRevert(DVTValidator.NotAuthorizedExecutor.selector);
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, abi.encode(bytes32(0), bytes("")), "");
     }
 
     function test_ExecuteWithProof_AllowsRegisteredValidator() public {
@@ -186,7 +186,7 @@ contract DVTValidator_P0HardeningTest is Test {
         // but that proves the modifier itself didn't reject this caller.
         vm.prank(validator1);
         vm.expectRevert();
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, abi.encode(bytes32(0), bytes("")), "");
     }
 
     function test_ExecuteWithProof_AllowsBLSAggregator() public {
@@ -195,7 +195,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
         vm.prank(blsAggregator);
         vm.expectRevert();
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, abi.encode(bytes32(0), bytes("")), "");
     }
 
     // -----------------------------------------------------------------------
@@ -222,7 +222,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function test_ExecuteWithProof_RevertsForUnbornId() public {
         vm.prank(validator1);
         vm.expectRevert(DVTValidator.ProposalDoesNotExist.selector);
-        dvt.executeWithProof(999, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(999, new address[](0), new uint256[](0), 0, abi.encode(bytes32(0), bytes("")), "");
     }
 
     /// @notice The pre-poison attack surface in the original code allowed a

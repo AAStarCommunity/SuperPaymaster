@@ -10,6 +10,7 @@ import {BLSAggregator} from "src/modules/monitoring/BLSAggregator.sol";
 import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import {BLS} from "src/utils/BLS.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
+import {MockEvidenceCategory} from "src/mocks/MockEvidenceCategory.sol";
 
 /**
  * @title RepCreditPragueE2E
@@ -28,6 +29,8 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
  * Foundry gasleft values are not used as manuscript evidence.
  */
 contract RepCreditPragueE2E is Test {
+    bytes32 internal constant EVIDENCE_CATEGORY = keccak256("DVT.Evidence.Test.v1");
+    bytes internal constant EVIDENCE_BODY = "repcredit evidence";
     uint256 internal constant VALIDATOR_COUNT = 64;
     uint256 internal constant DVT_STAKE = 30 ether;
     bytes32 internal constant ROLE_DVT = keccak256("DVT");
@@ -55,7 +58,11 @@ contract RepCreditPragueE2E is Test {
         registry.setStaking(address(staking));
         registry.setMySBT(address(sbt));
 
-        dvt = new DVTValidator(address(registry), 1);
+        bytes32[] memory categories = new bytes32[](1);
+        categories[0] = EVIDENCE_CATEGORY;
+        address[] memory checkers = new address[](1);
+        checkers[0] = address(new MockEvidenceCategory());
+        dvt = new DVTValidator(address(registry), 1, categories, checkers);
         aggregator = new BLSAggregator(address(registry), address(0xBEEF), address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         registry.setBLSAggregator(address(aggregator));
@@ -110,7 +117,7 @@ contract RepCreditPragueE2E is Test {
         bytes memory dvtProof = _proof(dvtHash, 3);
 
         vm.prank(validators[0]);
-        dvt.executeWithProof(dvtProposalId, dvtUsers, dvtScores, dvtEpoch, dvtProof);
+        dvt.executeWithProof(dvtProposalId, dvtUsers, dvtScores, dvtEpoch, _evidence(), dvtProof);
 
         assertEq(registry.globalReputation(dvtUser), 100);
         assertGt(registry.getCreditLimit(dvtUser), 0, "verified contribution must unlock bounded credit");
@@ -140,7 +147,7 @@ contract RepCreditPragueE2E is Test {
 
         vm.prank(validators[0]);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidSignatureCount.selector, uint256(2), uint256(3)));
-        dvt.executeWithProof(proposalId, users, scores, 1, proof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), proof);
     }
 
     function test_Prague_RejectsBadSignatureAndWrongChain() public {
@@ -151,13 +158,13 @@ contract RepCreditPragueE2E is Test {
 
         vm.prank(validators[0]);
         vm.expectRevert(BLSAggregator.SignatureVerificationFailed.selector);
-        dvt.executeWithProof(proposalId, users, scores, 1, unrelatedProof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), unrelatedProof);
 
         bytes32 wrongChainHash = _reputationHash(proposalId, users, scores, 1, block.chainid + 1);
         bytes memory wrongChainProof = _proof(wrongChainHash, 3);
         vm.prank(validators[0]);
         vm.expectRevert(BLSAggregator.SignatureVerificationFailed.selector);
-        dvt.executeWithProof(proposalId, users, scores, 1, wrongChainProof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), wrongChainProof);
     }
 
     function test_Prague_RejectsMalformedSignature() public {
@@ -168,7 +175,7 @@ contract RepCreditPragueE2E is Test {
 
         vm.prank(validators[0]);
         vm.expectRevert();
-        dvt.executeWithProof(proposalId, users, scores, 1, malformedProof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), malformedProof);
     }
 
     function test_Prague_RejectsReplay() public {
@@ -179,11 +186,11 @@ contract RepCreditPragueE2E is Test {
         bytes memory proof = _proof(messageHash, 3);
 
         vm.prank(validators[0]);
-        dvt.executeWithProof(proposalId, users, scores, 1, proof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), proof);
 
         vm.prank(validators[0]);
         vm.expectRevert(DVTValidator.ProposalExecutedAlready.selector);
-        dvt.executeWithProof(proposalId, users, scores, 1, proof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), proof);
     }
 
     function test_Prague_RejectsExitedValidatorAtVerificationTime() public {
@@ -204,7 +211,7 @@ contract RepCreditPragueE2E is Test {
         vm.expectRevert(
             abi.encodeWithSelector(BLSAggregator.SlotValidatorRoleRevoked.selector, uint8(1), validators[0])
         );
-        dvt.executeWithProof(proposalId, users, scores, 1, proof);
+        dvt.executeWithProof(proposalId, users, scores, 1, _evidence(), proof);
     }
 
     function _hasPraguePrecompiles() internal view returns (bool) {
@@ -223,7 +230,17 @@ contract RepCreditPragueE2E is Test {
 
     function _createDVTProposalFrom(address proposer) internal returns (uint256 proposalId) {
         vm.prank(proposer);
-        proposalId = dvt.createProposal(address(0), 0, "repcredit-contribution");
+        proposalId = dvt.createProposal(address(0), 0, "repcredit-contribution", _evidenceHash());
+    }
+
+    function _evidence() internal pure returns (bytes memory) {
+        return abi.encode(EVIDENCE_CATEGORY, EVIDENCE_BODY);
+    }
+
+    function _evidenceHash() internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(keccak256("SuperPaymaster.DVT.Evidence.v2"), EVIDENCE_CATEGORY, keccak256(EVIDENCE_BODY))
+        );
     }
 
     function _measureVerifyAndExecuteGas(uint256 signerCount, address user, uint256 epoch)
