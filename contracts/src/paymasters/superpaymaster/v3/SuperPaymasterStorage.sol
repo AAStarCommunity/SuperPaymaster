@@ -231,13 +231,15 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     //   requirements are BALANCE 375,528 and CREDIT 379,828; ceil(W x 1.15) is 436,803.
     //   Governance floors equal the release tuple (500k, 450k, 5k, 450k). On Amsterdam it
     //   settles with 30,651 headroom (469,349 required vs 500,000). SETTLE is in [450k, 1M],
-    //   MIN in [max(500k, SETTLE + 20k), 2M], C_POSTOP in [450k, MIN], C_WRAP in [5k, 50k].
+    //   MIN in [max(500k, SETTLE + floor(SETTLE / 63) + 20k), 2M], C_POSTOP in [450k, MIN], C_WRAP in [5k, 50k].
     uint256 internal constant MIN_POST_OP_GAS = 500_000;
     uint256 internal constant SETTLE_GAS_BOUND = 450_000;
     uint256 internal constant C_WRAP_GAS = 5_000;
     uint256 internal constant C_POSTOP_GAS = 450_000;
     uint256 internal constant GP_SETTLE_MIN = 450_000;
     uint256 internal constant GP_SETTLE_MAX = 1_000_000;
+    // Spacing covers EIP-150 1/64 retained gas (SETTLE / 63 rounds down), plus fixed
+    // call overhead (~12.2k measured) and ~7.8k margin in the 20k fixed part.
     uint256 internal constant GP_MINPOST_OVER_SETTLE = 20_000;
     uint256 internal constant GP_MINPOST_MIN = 500_000;
     uint256 internal constant GP_MINPOST_MAX = 2_000_000;

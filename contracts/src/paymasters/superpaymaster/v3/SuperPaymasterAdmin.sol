@@ -321,7 +321,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
     function _checkGasParams(uint256 minPost, uint256 settle, uint256 cWrap, uint256 cPostop) private pure {
         if (
-            settle < GP_SETTLE_MIN || settle > GP_SETTLE_MAX || minPost < settle + GP_MINPOST_OVER_SETTLE
+            settle < GP_SETTLE_MIN || settle > GP_SETTLE_MAX || minPost < settle + settle / 63 + GP_MINPOST_OVER_SETTLE
                 || minPost < GP_MINPOST_MIN || minPost > GP_MINPOST_MAX || cPostop < GP_CPOSTOP_MIN || cPostop > minPost || cWrap < GP_CWRAP_MIN
                 || cWrap > GP_CWRAP_MAX
         ) revert InvalidConfiguration();

@@ -449,6 +449,9 @@ Governance floors now equal the release tuple `(MIN, SETTLE, C_WRAP, C_POSTOP) =
 The old gasleft-delta metric under-counted EIP-8037: bisected real-handleOps requirements are
 BALANCE 375,528 and CREDIT 379,828, so `ceil(W x 1.15) = 436,803`; the old floor tuple is rejected.
 The release tuple settles on Amsterdam with 30,651 headroom (469,349 required vs 500,000).
+MIN must also cover `SETTLE + floor(SETTLE / 63) + 20,000`: EIP-150 retained gas plus ~12.2k call overhead and ~7.8k margin.
+The release spacing is 477,142, below the unchanged 500,000 absolute floor; the old 620k/600k tuple is rejected.
+Real-EntryPoint BALANCE/CREDIT tests validate the exact governance minimum at SETTLE 450k, 600k and 1M.
 Zero-slot defaults and LEGACY constants remain unchanged; the manifest still writes the release tuple explicitly.
 
 `LEGACY_SETTLE_GAS_BOUND = 160k` and `LEGACY_C_WRAP_GAS = 30k` are unchanged. They apply only to an
