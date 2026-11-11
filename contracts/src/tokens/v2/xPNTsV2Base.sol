@@ -5,6 +5,7 @@ pragma solidity 0.8.33;
 import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v5.0.2/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import { AOAProtocolRegistry } from "./AOAProtocolRegistry.sol";
 
 /**
@@ -48,6 +49,9 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
 
     bytes32 internal constant LOCK_SEED = keccak256("xPNTs.v2.lock.live");
     bytes32 internal constant CREDIT_SEED = keccak256("xPNTs.v2.credit.live");
+    bytes32 private constant _EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant _EIP712_VERSION_HASH = keccak256("1");
 
     /// @notice Protocol allowlists (SP address / spender impl / tier-source impl).
     AOAProtocolRegistry public immutable PROTOCOL_REGISTRY;
@@ -126,6 +130,7 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
     mapping(bytes32 => bool) public usedOpHashes;
     mapping(address user => uint256) public actionNonce;
     uint256 internal _reentrancyStatus;
+    bytes32 internal _eip712NameHash;
 
     // =====================================================================
     // Events
@@ -208,6 +213,7 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
     error InvalidSignature();
     error SignatureExpired();
     error UnknownAction(uint8 kind);
+    error IssuanceCapExceeded(uint256 supply, uint256 amount, uint256 cap);
 
     // =====================================================================
     // Construction
@@ -216,10 +222,46 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
     constructor(address protocolRegistry) ERC20("", "") ERC20Permit("") {
         if (protocolRegistry == address(0)) revert InvalidAddress(address(0));
         PROTOCOL_REGISTRY = AOAProtocolRegistry(protocolRegistry);
+        _eip712NameHash = keccak256("");
     }
 
     function name() public view override returns (string memory) { return _tokenName; }
     function symbol() public view override returns (string memory) { return _tokenSymbol; }
+
+    function _cloneDomainSeparator() internal view returns (bytes32) {
+        return keccak256(abi.encode(
+            _EIP712_DOMAIN_TYPEHASH,
+            _eip712NameHash,
+            _EIP712_VERSION_HASH,
+            block.chainid,
+            address(this)
+        ));
+    }
+
+    function _hashTypedDataV4(bytes32 structHash) internal view override returns (bytes32) {
+        return MessageHashUtils.toTypedDataHash(_cloneDomainSeparator(), structHash);
+    }
+
+    function DOMAIN_SEPARATOR() external view override returns (bytes32) {
+        return _cloneDomainSeparator();
+    }
+
+    function eip712Domain()
+        public
+        view
+        override
+        returns (
+            bytes1 fields,
+            string memory domainName,
+            string memory domainVersion,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        )
+    {
+        return (hex"0f", _tokenName, "1", block.chainid, address(this), bytes32(0), new uint256[](0));
+    }
 
     modifier onlyCommunityOwner() {
         if (msg.sender != communityOwner) revert Unauthorized(msg.sender);
@@ -249,6 +291,7 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
                 if (mintedAPNTs > 0) {
                     uint256 repayAPNTs = mintedAPNTs > debt ? debt : mintedAPNTs;
                     uint256 repayXPNTs = (repayAPNTs * rate + 1e18 - 1) / 1e18;
+                    _checkIssuanceCap(value - repayXPNTs);
                     debts[to] = debt - repayAPNTs;
                     super._update(from, to, value);
                     _burn(to, repayXPNTs);
@@ -256,6 +299,7 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
                     return;
                 }
             }
+            _checkIssuanceCap(value);
         }
         super._update(from, to, value);
     }
@@ -267,6 +311,13 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
     function _requireRate() internal view returns (uint256 r) {
         r = exchangeRate;
         if (r == 0) revert ExchangeRateCannotBeZero();
+    }
+
+    function _checkIssuanceCap(uint256 amount) internal view {
+        uint256 cap = issuanceCap;
+        if (cap == 0 || amount == 0) return;
+        uint256 supply = totalSupply();
+        if (supply > cap || amount > cap - supply) revert IssuanceCapExceeded(supply, amount, cap);
     }
 
     function _defaultCap(address spender) internal view returns (uint256) {

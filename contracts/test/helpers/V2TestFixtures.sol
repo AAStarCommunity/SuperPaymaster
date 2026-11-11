@@ -48,6 +48,9 @@ interface IExt {
     function activateSpender(address s) external;
     function removeAutoApprovedSpender(address s) external;
     function mint(address to, uint256 amount) external;
+    function setIssuanceCap(uint256 cap) external;
+    function isOverIssued() external view returns (bool);
+    function ACTION_TYPEHASH() external view returns (bytes32);
     function repayDebt(uint256 amountXPNTs) external;
     function executeBySig(address user, uint8 kind, bytes calldata params, uint256 deadline, bytes calldata sig) external;
     function actionDigest(address user, uint8 kind, bytes calldata params, uint256 nonce, uint256 deadline) external view returns (bytes32);

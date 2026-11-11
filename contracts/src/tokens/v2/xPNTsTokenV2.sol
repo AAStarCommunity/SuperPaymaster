@@ -45,7 +45,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-4.0.1";
+        return "XPNTs-4.0.2";
     }
 
     // ---------------------------------------------------------------------
@@ -78,6 +78,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
         communityENS = c.communityENS;
         _tokenName = c.name;
         _tokenSymbol = c.symbol;
+        _eip712NameHash = keccak256(bytes(c.name));
         uint256 rate = c.exchangeRate > 0 ? c.exchangeRate : 1 ether;
         if (rate < _RATE_MIN || rate > _RATE_MAX) revert ExchangeRateOutOfRange(rate, _RATE_MIN, _RATE_MAX);
         exchangeRate = rate;
