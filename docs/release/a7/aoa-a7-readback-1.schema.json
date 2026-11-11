@@ -24,6 +24,14 @@
       "description": "Keys are the SDK pins names (superPaymaster, superPaymasterLens, registry, policyRegistry, blsAggregator, dvtValidator, reputationSystem, disclosureRegistry, xPNTsFactoryV2, xPNTsTokenV2Impl, xPNTsTokenV2Ext, aoaProtocolRegistry, globalTierSource, aPNTsCapped, gTokenStaking, entryPoint, ownerSafe, multiSendCallOnly). SDK book entries are referenced elsewhere as \"addresses.<key>\".",
       "additionalProperties": {
         "$ref": "#/$defs/contract"
+      },
+      "properties": {
+        "spAdminExtension": {
+          "$ref": "#/$defs/contractNoVersionShape"
+        },
+        "xPNTsTokenV2Ext": {
+          "$ref": "#/$defs/contractNoVersionShape"
+        }
       }
     },
     "checks": {
@@ -308,7 +316,7 @@
           "$ref": "#/$defs/addressOrState"
         },
         "version": {
-          "$ref": "#/$defs/stringOrState"
+          "$ref": "#/$defs/stringOrUnreadableOrNA"
         },
         "codehash": {
           "$ref": "#/$defs/hashOrState"
@@ -422,6 +430,90 @@
           "type": "string",
           "description": "Machine-checkable pass rule. Default: all(estimateLive[p] == estimateFork for p) AND gasUsedFork == expected.gasUsed. Estimate and gasUsed are compared only like with like."
         }
+      }
+    },
+    "stringOrUnreadableOrNA": {
+      "oneOf": [
+        {
+          "type": "string",
+          "not": {
+            "pattern": "^(unreadable|n/a):"
+          }
+        },
+        {
+          "$ref": "#/$defs/unreadable"
+        },
+        {
+          "$ref": "#/$defs/notApplicable"
+        }
+      ]
+    },
+    "contractNoVersionShape": {
+      "type": "object",
+      "required": [
+        "address",
+        "version",
+        "codehash",
+        "erc1967Impl",
+        "implCodehash",
+        "extension",
+        "extensionCodehash",
+        "owner",
+        "pendingOwner",
+        "guardian",
+        "roles"
+      ],
+      "description": "Same fields as contract, but version() does not exist by design: version must be null.",
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "version": {
+          "$ref": "#/$defs/absent"
+        },
+        "codehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "erc1967Impl": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "implCodehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "extension": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "extensionCodehash": {
+          "$ref": "#/$defs/hashOrState"
+        },
+        "owner": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "pendingOwner": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "guardian": {
+          "$ref": "#/$defs/addressOrState"
+        },
+        "roles": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/address"
+                }
+              }
+            },
+            {
+              "$ref": "#/$defs/state"
+            }
+          ]
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/anyValue"
       }
     }
   }

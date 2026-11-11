@@ -97,7 +97,7 @@
     },
     "disclosureRegistry": {
       "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "version": null,
+      "version": "DisclosureRegistry-1.0.0",
       "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "erc1967Impl": "n/a:not a proxy",
       "implCodehash": "n/a:not a proxy",

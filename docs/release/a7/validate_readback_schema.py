@@ -43,8 +43,13 @@ def negatives(base):
     bare['contracts']['superPaymaster']['owner'] = 'unreadable'
     extra = copy.deepcopy(base)
     extra['unexpected'] = 1
+    null_version = copy.deepcopy(base)
+    null_version['contracts']['disclosureRegistry']['version'] = None
+    answering_extension = copy.deepcopy(base)
+    answering_extension['contracts']['spAdminExtension']['version'] = 'SuperPaymasterAdmin-0.0.0'
     return {'omitted required field': omitted, 'bare "unreadable"': bare,
-            'top-level extra key': extra}
+            'top-level extra key': extra, 'null version on a versioned contract': null_version,
+            'version on a no-version contract': answering_extension}
 
 
 def main():
