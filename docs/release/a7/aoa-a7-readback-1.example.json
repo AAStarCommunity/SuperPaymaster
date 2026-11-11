@@ -1,0 +1,151 @@
+{
+  "schema": "aoa-a7-readback/1",
+  "header": {
+    "source": "fork",
+    "spCommit": "0000000000000000000000000000000000000000",
+    "tag": null,
+    "chainId": 11155111,
+    "hardfork": "amsterdam",
+    "forkBlock": 12100000,
+    "readbackBlock": 12100042,
+    "readbackBlockHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "anvilVersion": "anvil Version: 1.8.7-nightly",
+    "anvilCommit": "4e8874b2bdc840929585ca73e170993c50a4a531",
+    "dumpSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "providers": [
+      "alchemy",
+      "tenderly"
+    ],
+    "ethConfig": {
+      "provider": "alchemy",
+      "activationTime": 1791294816,
+      "forkId": "0x6c1d9423",
+      "corroboration": {
+        "provider": "tenderly",
+        "blockNumber": 12100000,
+        "blockAccessListHash": true,
+        "slotNumber": true
+      }
+    }
+  },
+  "contracts": {
+    "superPaymaster": {
+      "address": "0x2222222222222222222222222222222222222222",
+      "version": "SuperPaymaster-5.5.1",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "0x3333333333333333333333333333333333333333",
+      "implCodehash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "extension": "0x4444444444444444444444444444444444444444",
+      "extensionCodehash": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "0x6666666666666666666666666666666666666666",
+      "roles": {},
+      "REGISTRY": "0x7777777777777777777777777777777777777777",
+      "BLS_AGGREGATOR": "0x8888888888888888888888888888888888888888",
+      "OPERATOR_WITHDRAWAL_DELAY": 172800,
+      "OPERATOR_WITHDRAWAL_WINDOW": 86400,
+      "GUARDIAN_SLASH_FREEZE": 604800
+    },
+    "spAdminExtension": {
+      "address": "0x4444444444444444444444444444444444444444",
+      "version": null,
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": {}
+    },
+    "blsAggregator": {
+      "address": "0x8888888888888888888888888888888888888888",
+      "version": "BLSAggregator-4.13.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": {},
+      "domainSeparator": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signerMaskOrder": {
+        "source": "BLSAggregator.sol:<line>",
+        "bits": [
+          "0x9999999999999999999999999999999999999999"
+        ]
+      },
+      "guardianSet": [
+        {
+          "address": "0x9999999999999999999999999999999999999999",
+          "pubkeyHash": "0x1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "N": 3,
+      "thresholds": {
+        "MINOR": 2,
+        "MAJOR": 3
+      },
+      "MAX_VALIDATORS": 64,
+      "fraudProofVerifier": "0x0000000000000000000000000000000000000000",
+      "DVT_VALIDATOR": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pendingRotation": "n/a:none queued"
+    },
+    "disclosureRegistry": {
+      "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "version": null,
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:immutable, no owner",
+      "pendingOwner": "n/a:immutable, no owner",
+      "guardian": "n/a:no guardian role",
+      "roles": {},
+      "WRITER": "0xcccccccccccccccccccccccccccccccccccccccc",
+      "AGGREGATOR": "0x8888888888888888888888888888888888888888"
+    },
+    "multiSendCallOnly": {
+      "address": "n/a:not used by this manifest",
+      "version": "Example-0.0.0",
+      "codehash": "n/a:not used by this manifest",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:not used",
+      "pendingOwner": "n/a:not used",
+      "guardian": "n/a:no guardian role",
+      "roles": {}
+    }
+  },
+  "checks": {
+    "dvtValidator.categoryCount": 0,
+    "superPaymaster.fraudProofVerifier": "0x0000000000000000000000000000000000000000",
+    "blsAggregator.owner == dvtValidator.owner": true,
+    "entryPoint.deposit(superPaymaster)": "1000000000000000000",
+    "community.creditPolicy": "unreadable:example reason"
+  },
+  "amsterdamProbe": {
+    "initcode": "0x6000600055",
+    "sender": "0xdddddddddddddddddddddddddddddddddddddddd",
+    "method": "eth_estimateGas({from: sender, data: initcode, to: null}) at forkBlock on each upstream provider and on the fork; then send the same tx on the fork and read the whole-tx receipt gasUsed",
+    "estimateLive": {
+      "alchemy": 53000,
+      "tenderly": 53000
+    },
+    "estimateFork": 53000,
+    "gasUsedFork": 52000,
+    "expected": {
+      "estimate": 53000,
+      "gasUsed": 52000,
+      "source": "live eth_estimateGas on both providers at forkBlock; gasUsed recorded by SP on the A7 fork"
+    },
+    "predicate": "all(estimateLive[p] == estimateFork for p in estimateLive) and estimateFork == expected.estimate and gasUsedFork == expected.gasUsed"
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aoa-a7-readback/1",
+  "title": "AOA rc.8 A7 fork read-back (and post-SEND live read-back)",
+  "description": "One file per read-back. source = fork (A7 dump) or live (two-RPC after SEND); both use this schema. Every field is present; a value that cannot be produced uses the valueState encoding, never omission. Every on-chain value is read at header.readbackBlock.",
+  "type": "object",
+  "required": ["schema", "header", "contracts", "checks", "amsterdamProbe"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "aoa-a7-readback/1" },
+    "header": { "$ref": "#/$defs/header" },
+    "contracts": {
+      "type": "object",
+      "description": "Keys are the SDK pins names (superPaymaster, superPaymasterLens, registry, policyRegistry, blsAggregator, dvtValidator, reputationSystem, disclosureRegistry, xPNTsFactoryV2, xPNTsTokenV2Impl, xPNTsTokenV2Ext, aoaProtocolRegistry, globalTierSource, aPNTsCapped, gTokenStaking, entryPoint, ownerSafe, multiSendCallOnly). SDK book entries are referenced elsewhere as \"addresses.<key>\".",
+      "additionalProperties": { "$ref": "#/$defs/contract" }
+    },
+    "checks": {
+      "type": "object",
+      "description": "Named assertions and scalar facts (e.g. \"dvtValidator.categoryCount\", \"blsAggregator.MAX_VALIDATORS\", \"superPaymaster.OPERATOR_WITHDRAWAL_WINDOW\"). Each key is \"<contractKey>.<name>\" or \"<contractKey>.<a> == <contractKey>.<b>\".",
+      "additionalProperties": { "$ref": "#/$defs/anyValue" }
+    },
+    "amsterdamProbe": { "$ref": "#/$defs/amsterdamProbe" }
+  },
+  "$defs": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "description": "Compared case-insensitively." },
+    "hash32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "hex40commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "unreadable": { "type": "string", "pattern": "^unreadable:.+", "description": "The call exists but failed; text after the colon is the reason." },
+    "notApplicable": { "type": "string", "pattern": "^n/a:.+", "description": "The field does not apply to this contract; text after the colon is the reason." },
+    "absent": { "type": "null", "description": "The contract has no such function by design (e.g. version() on spAdminExtension)." },
+    "state": { "oneOf": [ { "$ref": "#/$defs/absent" }, { "$ref": "#/$defs/unreadable" }, { "$ref": "#/$defs/notApplicable" } ] },
+    "addressOrState": { "oneOf": [ { "$ref": "#/$defs/address" }, { "$ref": "#/$defs/state" } ] },
+    "hashOrState": { "oneOf": [ { "$ref": "#/$defs/hash32" }, { "$ref": "#/$defs/state" } ] },
+    "stringOrState": { "oneOf": [ { "type": "string", "not": { "pattern": "^(unreadable|n/a):" } }, { "$ref": "#/$defs/state" } ] },
+    "anyValue": {
+      "description": "A scalar, list or object read on chain, or a valueState. Integers above 2^53 are decimal strings.",
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "integer" },
+        { "type": "string", "not": { "pattern": "^(unreadable|n/a):" } },
+        { "type": "array" },
+        { "type": "object" },
+        { "$ref": "#/$defs/state" }
+      ]
+    },
+    "header": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "spCommit", "tag", "chainId", "hardfork", "forkBlock", "readbackBlock", "readbackBlockHash",
+                   "anvilVersion", "anvilCommit", "dumpSha256", "providers", "ethConfig"],
+      "properties": {
+        "source": { "enum": ["fork", "live"] },
+        "spCommit": { "$ref": "#/$defs/hex40commit" },
+        "tag": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "chainId": { "type": "integer" },
+        "hardfork": { "type": "string", "description": "\"amsterdam\" for Sepolia; each chain's real tier." },
+        "forkBlock": { "type": "integer", "description": "Upstream block the fork starts from (live: the block the send landed after)." },
+        "readbackBlock": { "type": "integer" },
+        "readbackBlockHash": { "$ref": "#/$defs/hash32" },
+        "anvilVersion": { "oneOf": [ { "type": "string" }, { "$ref": "#/$defs/notApplicable" } ], "description": "Full `anvil --version` first line; n/a for live." },
+        "anvilCommit": { "oneOf": [ { "$ref": "#/$defs/hex40commit" }, { "$ref": "#/$defs/notApplicable" } ] },
+        "dumpSha256": { "oneOf": [ { "$ref": "#/$defs/sha256hex" }, { "$ref": "#/$defs/notApplicable" } ], "description": "sha256 of the anvil_dumpState file; n/a for live." },
+        "providers": { "type": "array", "items": { "type": "string" }, "description": "Upstream provider NAMES only (e.g. alchemy, tenderly); never URLs." },
+        "ethConfig": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["activationTime", "forkId", "corroboration"],
+          "description": "UPSTREAM eth_config.current read at forkBlock (not the fork's own eth_config).",
+          "properties": {
+            "provider": { "type": "string" },
+            "activationTime": { "type": "integer" },
+            "forkId": { "type": "string", "pattern": "^0x[0-9a-fA-F]{8}$" },
+            "corroboration": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["provider", "blockNumber", "blockAccessListHash", "slotNumber"],
+              "description": "Second provider without eth_config: presence of Amsterdam-only header fields at blockNumber.",
+              "properties": {
+                "provider": { "type": "string" },
+                "blockNumber": { "type": "integer" },
+                "blockAccessListHash": { "type": "boolean" },
+                "slotNumber": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "required": ["address", "version", "codehash", "erc1967Impl", "implCodehash", "extension", "extensionCodehash",
+                   "owner", "pendingOwner", "guardian", "roles"],
+      "description": "Common fields; contract-specific fields (e.g. signerMaskOrder, guardianSet, immutables, threshold, owners) are additional keys whose values follow anyValue.",
+      "properties": {
+        "address": { "$ref": "#/$defs/addressOrState" },
+        "version": { "$ref": "#/$defs/stringOrState" },
+        "codehash": { "$ref": "#/$defs/hashOrState" },
+        "erc1967Impl": { "$ref": "#/$defs/addressOrState" },
+        "implCodehash": { "$ref": "#/$defs/hashOrState" },
+        "extension": { "$ref": "#/$defs/addressOrState" },
+        "extensionCodehash": { "$ref": "#/$defs/hashOrState" },
+        "owner": { "$ref": "#/$defs/addressOrState" },
+        "pendingOwner": { "$ref": "#/$defs/addressOrState" },
+        "guardian": { "$ref": "#/$defs/addressOrState" },
+        "roles": {
+          "oneOf": [
+            { "type": "object", "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/address" } } },
+            { "$ref": "#/$defs/state" }
+          ]
+        }
+      },
+      "additionalProperties": { "$ref": "#/$defs/anyValue" }
+    },
+    "amsterdamProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["initcode", "sender", "method", "estimateLive", "estimateFork", "gasUsedFork", "expected", "predicate"],
+      "properties": {
+        "initcode": { "type": "string", "pattern": "^0x([0-9a-fA-F]{2})+$", "description": "CREATE init code sent as tx data with to = null." },
+        "sender": { "$ref": "#/$defs/address" },
+        "method": { "type": "string", "description": "How each number is produced, e.g. eth_estimateGas({from, data}) at forkBlock; tx receipt gasUsed." },
+        "estimateLive": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "provider name -> live eth_estimateGas at forkBlock." },
+        "estimateFork": { "type": "integer", "description": "eth_estimateGas on the fork, same block/sender/data." },
+        "gasUsedFork": { "type": "integer", "description": "WHOLE-TRANSACTION receipt gasUsed on the fork (not the CREATE frame only)." },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["estimate", "gasUsed", "source"],
+          "properties": {
+            "estimate": { "type": "integer", "description": "= every estimateLive value." },
+            "gasUsed": { "type": "integer", "description": "SP-recorded whole-tx receipt gasUsed." },
+            "source": { "type": "string" }
+          }
+        },
+        "predicate": {
+          "type": "string",
+          "description": "Machine-checkable pass rule. Default: all(estimateLive[p] == estimateFork for p) AND gasUsedFork == expected.gasUsed. Estimate and gasUsed are compared only like with like."
+        }
+      }
+    }
+  }
+}
