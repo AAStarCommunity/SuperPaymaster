@@ -76,7 +76,10 @@ def negatives(base):
     del no_pending['contracts']['blsAggregator']['pendingFraudProofVerifierReadyAt']
     no_writer = copy.deepcopy(base)
     del no_writer['contracts']['disclosureRegistry']['WRITER']
-    return {'roles object on a contract without a role system': roles_obj,
+    no_slot = copy.deepcopy(base)
+    del no_slot['contracts']['blsAggregator']['guardianSet'][0]['slot']
+    return {'guardianSet entry without slot': no_slot,
+            'roles object on a contract without a role system': roles_obj,
             'missing blsAggregator.pendingFraudProofVerifierReadyAt': no_pending,
             'missing disclosureRegistry.WRITER': no_writer,
             'missing registry (release-set key)': no_registry, 'missing evaluationCommunityToken': no_community, 'missing estimateSimulate': no_simulate, 'omitted required field': omitted, 'bare "unreadable"': bare,

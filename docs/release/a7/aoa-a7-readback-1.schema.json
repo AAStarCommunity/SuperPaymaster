@@ -58,7 +58,46 @@
             "defaultThreshold",
             "SLASH_THRESHOLD_FLOOR",
             "DVT_VALIDATOR"
-          ]
+          ],
+          "properties": {
+            "guardianSet": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "slot",
+                      "address",
+                      "pubkeyHash",
+                      "isActive"
+                    ],
+                    "properties": {
+                      "slot": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 64
+                      },
+                      "address": {
+                        "$ref": "#/$defs/address"
+                      },
+                      "pubkeyHash": {
+                        "$ref": "#/$defs/hash32"
+                      },
+                      "isActive": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$ref": "#/$defs/unreadable"
+                }
+              ],
+              "description": "One entry per non-zero validatorAtSlot(slot), slot 1..MAX_VALIDATORS: {slot, address, pubkeyHash = keccak256(abi.encode(publicKey)), isActive} from getBLSPublicKey(address)."
+            }
+          }
         },
         "dvtValidator": {
           "allOf": [
