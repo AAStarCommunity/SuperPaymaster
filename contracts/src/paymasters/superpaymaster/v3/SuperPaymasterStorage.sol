@@ -181,7 +181,8 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     ///         checked before anything in the op is parsed. postOp / release are unaffected.
     bool public paused;
 
-    // 5.5.1: delayed operator withdrawals remain in aPNTsBalance and slashable until execution.
+    // 5.5.1: a withdrawal request escrows its amount here, outside aPNTsBalance (so it cannot
+    // sponsor), and the escrow stays slashable until it executes, is cancelled or expires.
     mapping(address => PendingWithdrawal) public pendingWithdrawals;
 
     // 5.5.1: queue provenance makes a guardian freeze time-bounded without changing legacy flags.

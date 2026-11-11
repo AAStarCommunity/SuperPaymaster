@@ -950,6 +950,38 @@ contract SuperPaymasterV55Test is Test {
         assertEq(_opBalance(), 70 ether, "slash uses the full collateral basis");
     }
 
+    /// forge-config: default.isolate = true
+    function test_B1_deposit_cap_counts_inflight_reservation_then_stale_release_and_slash() public {
+        _setOpBalance(100 ether);
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.prank(address(entryPoint));
+        sp.validatePaymasterUserOp(op, h, 750_000_000_000_000);
+        assertEq(sp.inflightReserved(operator), 90 ether, "validation reserves 90");
+
+        uint256 collateral = uint256(_opBalance()) + sp.inflightReserved(operator);
+        uint256 overflowing = uint256(type(uint128).max) - collateral + 1;
+        // Fits beside the liquid balance alone, so only a reservation-aware cap rejects it.
+        assertLe(uint256(_opBalance()) + overflowing, uint256(type(uint128).max));
+        apnts.mint(operator, overflowing);
+
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymasterStorage.AmountExceedsUint128.selector);
+        sp.deposit(overflowing);
+
+        vm.prank(operator);
+        sp.deposit(overflowing - 1);
+
+        bytes32[] memory stale = new bytes32[](1);
+        stale[0] = h;
+        vm.startPrank(owner);
+        sp.queueSlash(operator);
+        sp.slashOperatorAfterReleasing(operator, ISuperPaymaster.SlashLevel.MAJOR, 1 ether, "release after deposit", stale);
+        vm.stopPrank();
+        assertEq(sp.inflightReserved(operator), 0, "stale release restored without overflow");
+        assertEq(uint256(_opBalance()), uint256(type(uint128).max) - 1 ether, "slash took the penalty after release");
+    }
+
     function test_SP55107_pending_slash_does_not_read_time_or_block_admission() public {
         vm.prank(owner);
         sp.queueSlash(operator);

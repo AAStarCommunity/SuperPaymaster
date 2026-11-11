@@ -165,8 +165,13 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
     /// @dev Shared deposit accounting: overflow-check, credit operator balance,
     ///      bump totalTrackedBalance, emit. Used by deposit/onTransferReceived/depositFor.
     function _creditDeposit(address operator, uint256 amount) internal {
-        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount;
-        if (amount > type(uint128).max - collateral) revert AmountExceedsUint128();
+        // Every later credit back into aPNTsBalance (cancel/expire of escrow, postOp refund or stale
+        // release of a reservation) must still fit uint128, so the cap covers all three buckets.
+        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount
+            + inflightReserved[operator];
+        if (collateral > type(uint128).max || amount > type(uint128).max - collateral) {
+            revert AmountExceedsUint128();
+        }
         // forge-lint: disable-next-line(unsafe-typecast)
         operators[operator].aPNTsBalance += uint128(amount);
         totalTrackedBalance += amount;
