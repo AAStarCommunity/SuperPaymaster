@@ -465,6 +465,61 @@ contract EmergencyBreakGlassTest is Test {
         assertEq(cachedPrice, 100e8, "owner remains uncapped when also configured as BLS");
     }
 
+    /// DSR 2026-11-10 (b): chained BLS updates walk the price one +-20% step at a time, stay inside
+    /// [MIN, MAX], and every step needs a fresh, strictly newer updatedAt.
+    function test_UpdatePriceDVT_ChainedBLSStepsStayWithinBoundsAndNeedNewerTimestamps() public {
+        vm.prank(owner);
+        paymaster.initBLSAggregator(blsAggregator);
+        oracle.setReverts(true);
+        int256 maxPrice = 100_000e8;
+        int256 minPrice = 100e8;
+
+        (int256 price, uint256 updatedAt,,) = paymaster.cachedPrice();
+        uint256 steps;
+        while (price * 12 / 10 <= maxPrice) {
+            int256 next = price * 12 / 10;
+            vm.warp(vm.getBlockTimestamp() + 1);
+            // Reusing the previous timestamp is rejected even for an in-cap step.
+            vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+            vm.prank(blsAggregator);
+            paymaster.updatePriceDVT(next, updatedAt, "", 0);
+
+            updatedAt = vm.getBlockTimestamp();
+            vm.prank(blsAggregator);
+            paymaster.updatePriceDVT(next, updatedAt, "", 0);
+            (price,,,) = paymaster.cachedPrice();
+            assertEq(price, next, "each in-cap step is accepted");
+            assertLe(price, maxPrice, "never above MAX");
+            ++steps;
+        }
+        assertGt(steps, 1, "the walk takes several steps");
+
+        // One more 20% step would exceed MAX: rejected. MAX itself is reachable within the cap.
+        vm.warp(vm.getBlockTimestamp() + 1);
+        vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+        vm.prank(blsAggregator);
+        paymaster.updatePriceDVT(price * 12 / 10, vm.getBlockTimestamp(), "", 0);
+        vm.prank(blsAggregator);
+        paymaster.updatePriceDVT(maxPrice, vm.getBlockTimestamp(), "", 0);
+        (price, updatedAt,,) = paymaster.cachedPrice();
+        assertEq(price, maxPrice);
+
+        // Walking down stops at MIN the same way.
+        while ((price * 8 + 9) / 10 >= minPrice) {
+            int256 next = (price * 8 + 9) / 10;
+            vm.warp(vm.getBlockTimestamp() + 1);
+            updatedAt = vm.getBlockTimestamp();
+            vm.prank(blsAggregator);
+            paymaster.updatePriceDVT(next, updatedAt, "", 0);
+            (price,,,) = paymaster.cachedPrice();
+            assertGe(price, minPrice, "never below MIN");
+        }
+        vm.warp(vm.getBlockTimestamp() + 1);
+        vm.expectRevert(SuperPaymasterStorage.OracleError.selector);
+        vm.prank(blsAggregator);
+        paymaster.updatePriceDVT(minPrice - 1, vm.getBlockTimestamp(), "", 0);
+    }
+
     function _resetFreshChainlinkPrice(int256 price) internal returns (uint256 dvtTimestamp) {
         uint256 oracleTimestamp = vm.getBlockTimestamp() + 1;
         vm.warp(oracleTimestamp);
