@@ -559,7 +559,7 @@
     "version": "eth_call version() if version() is in the compiled ABI at spCommit; else null.",
     "erc1967Impl": "eth_getStorageAt(proxy, 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc) for ERC-1967 proxies (superPaymaster, registry); else n/a.",
     "extension": "superPaymaster: eth_call EXTENSION(); extensionCodehash = codehash of that address and MUST equal contracts.spAdminExtension.codehash. Others: n/a.",
-    "owner/pendingOwner": "eth_call owner() / pendingOwner() where in the ABI; registry.pendingOwner from its ERC-7201 slot per source.",
+    "owner/pendingOwner": "eth_call owner() and pendingOwner() where in the ABI. Registry: pendingOwner() is the public getter of Ownable2StepNamespaced (contracts/src/utils/Ownable2StepNamespaced.sol:57); its storage is the ERC-7201 slot keccak256(abi.encode(uint256(keccak256(\"aastar.storage.Ownership2Step\")) - 1)) & ~bytes32(uint256(0xff)) = 0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00 (OWNERSHIP_2STEP_SLOT, :35-36), usable as a cross-check.",
     "guardian": "superPaymaster: eth_call guardian().",
     "roles": "Registry/GTokenStaking roles: the RoleGranted/RoleRevoked logs (eth_getLogs, topic0 per ABI) from the contract's deployment block to readbackBlock, each candidate confirmed with hasRole(role, account) at readbackBlock; the log range is recorded under the contract's rolesSource.",
     "blsAggregator.guardianSet": "For slot s in 1..MAX_VALIDATORS: validatorAtSlot(uint8 s) (public mapping, BLSAggregator.sol:204); for each nonzero address, getBLSPublicKey(address) (BLSAggregator.sol:907) -> pubkeyHash = keccak256(abi.encode(publicKey)), slot, isActive.",
