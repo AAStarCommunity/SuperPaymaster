@@ -37,17 +37,18 @@ class EvidenceControls(unittest.TestCase):
         (self.out/'SHA256SUMS').write_text(''.join(
             f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
             for p in sorted(self.out.iterdir()) if p.name != 'SHA256SUMS'))
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out), '--require-engines', 'amsterdam'],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
         if reason is None:
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('PASS (156, 4044)', result.stdout)
+            self.assertIn('verified engines: amsterdam,cancun,prague', result.stdout)
         else:
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn(reason, result.stderr)
 
     def test_historical_record_without_compile_evm(self):
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out), '--require-engines', 'amsterdam'],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -76,6 +77,13 @@ class EvidenceControls(unittest.TestCase):
         for name in ('source-before.json', 'source-after.json'):
             (self.out/name).write_text(json.dumps(before))
         self.check('production source inventory mismatch')
+
+    def test_cancun_only_rejected_for_release(self):
+        self.manifest = {k: v for k, v in self.manifest.items() if k.startswith('cancun/')}
+        self.commands = [c for c in self.commands if c['engine'] == 'cancun']
+        for engine in ('amsterdam', 'prague'):
+            (self.out / f'{engine}-version.txt').unlink()
+        self.check('missing required engines: amsterdam')
 
     def test_missing_engine_version(self):
         (self.out/'amsterdam-version.txt').unlink()

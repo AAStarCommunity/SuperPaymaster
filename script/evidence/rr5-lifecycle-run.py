@@ -166,11 +166,12 @@ def verify_sources(out):
 
 
 
-def verify(out):
+def verify(out, required_engines=('amsterdam',)):
     verify_sources(out)
     manifest = json.loads((out/'manifest.json').read_text())
     selected_engines = [e for e in ENGINES if any(k.startswith(e + '/') for k in manifest)]
     assert selected_engines, 'empty engine inventory'
+    assert set(required_engines) <= set(selected_engines), 'missing required engines: ' + ','.join(sorted(set(required_engines) - set(selected_engines)))
     keys = [f'{e}/{m}/{v}' for e in selected_engines for m in MODES for v in VARIANTS]
     assert set(manifest) == set(keys), 'incomplete variant inventory'
     commands = [json.loads(x) for x in (out/'commands.jsonl').read_text().splitlines()]
@@ -383,7 +384,7 @@ def main(out, selected_engines=ENGINES):
     (out/'source-after.json').write_text(json.dumps(hashes(),indent=2))
     write_sums(out)
     n,c=verify(out)
-    (out/'verdict.txt').write_text(f'PASS {n} complete variants; {c} commands exit 0\n')
+    (out/'verdict.txt').write_text(f'PASS {n} complete variants; {c} commands exit 0; verified engines: {",".join(selected_engines)}\n')
     # Negative control: remove one variant, keep logs and commands intact. Checksums are refreshed so
     # the only defect is the missing variant, and the rejection must name it.
     saved=(out/'manifest.json').read_text()
@@ -398,11 +399,21 @@ def main(out, selected_engines=ENGINES):
     write_sums(out)
     n,c=verify(out)
     write_sums(out)
-    print(f'PASS {n} variants, {c} commands; negative control rejected',flush=True)
+    print(f'PASS {n} variants, {c} commands; negative control rejected; verified engines: {",".join(selected_engines)}',flush=True)
 
 if __name__=='__main__':
-    if len(sys.argv)==3 and sys.argv[1]=='--verify':
-        print('PASS',verify(Path(sys.argv[2])))
+    if '--verify' in sys.argv[1:]:
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--verify', type=Path, required=True)
+        parser.add_argument('--require-engines', default='amsterdam')
+        args = parser.parse_args()
+        required = args.require_engines.split(',')
+        if not required or any(e not in ENGINES for e in required):
+            parser.error('invalid required engines')
+        result = verify(args.verify, required)
+        engines = sorted({k.split('/')[0] for k in json.loads((args.verify/'manifest.json').read_text())})
+        print('PASS', result, 'verified engines:', ','.join(engines))
     else:
         args = sys.argv[1:]
         selected = ENGINES
