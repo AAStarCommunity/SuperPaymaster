@@ -115,7 +115,9 @@ contract BLSGoldenVectors_Test is Test {
             uint256 index = keccak256(bytes(v.label)) == keccak256("canonical_0x11x32") ? 0
                 : keccak256(bytes(v.label)) == keccak256("empty") ? 1
                 : keccak256(bytes(v.label)) == keccak256("one_byte_a") ? 2
-                : keccak256(bytes(v.label)) == keccak256("ninetysix_0xab") ? 3 : 4;
+                : keccak256(bytes(v.label)) == keccak256("ninetysix_0xab") ? 3
+                : keccak256(bytes(v.label)) == keccak256("userophash_like") ? 4 : type(uint256).max;
+            require(index != type(uint256).max, string.concat("no golden vector for label ", v.label));
             string memory base = string.concat("[", vm.toString(index), "].g2Affine.");
             bytes memory expected;
             string[8] memory fields = ["x.c0.a", "x.c0.b", "x.c1.a", "x.c1.b", "y.c0.a", "y.c0.b", "y.c1.a", "y.c1.b"];
