@@ -247,6 +247,10 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     /// @notice Delay before escrowed operator funds become withdrawable. A request immediately
     ///         removes the funds from sponsorship and escrows them; it may execute only during
     ///         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+    ///         The delay must exceed the worst case from "misbehaviour detectable" to a slash
+    ///         freeze on chain via the guardian route: detection + guardian queueSlash signing,
+    ///         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus
+    ///         margin. The BLS quorum route is NOT the basis: it has no measured latency today.
     uint48 public constant OPERATOR_WITHDRAWAL_DELAY = 48 hours;
     /// @notice Execution window for a matured operator withdrawal request.
     uint48 public constant OPERATOR_WITHDRAWAL_WINDOW = 24 hours;

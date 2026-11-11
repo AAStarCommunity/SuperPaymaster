@@ -719,6 +719,44 @@ contract SuperPaymasterV55Test is Test {
         assertEq(sp.totalTrackedBalance(), trackedBefore);
     }
 
+    function test_B1_expireWithdraw_at_exactly_expiry_reverts_and_one_second_later_succeeds() public {
+        vm.prank(operator);
+        sp.requestWithdraw(90_000 ether);
+        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        uint48 expiresAt = readyAt + sp.OPERATOR_WITHDRAWAL_WINDOW();
+
+        vm.warp(expiresAt);
+        vm.prank(address(0xCA11));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalNotReady.selector, expiresAt));
+        sp.expireWithdraw(operator);
+
+        vm.warp(uint256(expiresAt) + 1);
+        vm.prank(address(0xCA11));
+        sp.expireWithdraw(operator);
+        (uint128 pendingAmount,) = sp.pendingWithdrawals(operator);
+        assertEq(pendingAmount, 0, "expired escrow is cleared");
+    }
+
+    function test_B1_deposit_cap_counts_withdrawal_escrow() public {
+        vm.prank(operator);
+        sp.requestWithdraw(90_000 ether);
+        uint256 collateral = uint256(_opBalance()) + 90_000 ether;
+        uint256 overflowing = uint256(type(uint128).max) - collateral + 1;
+        // Fits beside the liquid balance alone, so only an escrow-aware cap rejects it.
+        assertLe(uint256(_opBalance()) + overflowing, uint256(type(uint128).max));
+        apnts.mint(operator, overflowing);
+
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymasterStorage.AmountExceedsUint128.selector);
+        sp.deposit(overflowing);
+
+        vm.prank(operator);
+        sp.deposit(overflowing - 1);
+        vm.prank(operator);
+        sp.cancelWithdraw();
+        assertEq(uint256(_opBalance()), uint256(type(uint128).max), "cancel restores escrow without overflow");
+    }
+
     function test_M01_understaked_operator_is_permissionlessly_paused() public {
         vm.expectRevert(SuperPaymasterStorage.OperatorNotConfigured.selector);
         sp.pauseUnderstakedOperator(address(0xBAD));
