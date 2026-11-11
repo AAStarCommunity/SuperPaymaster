@@ -18,7 +18,7 @@ contract DeployNewBLSModules is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(pk);
 
-        DVTValidator dvt = new DVTValidator(REGISTRY, 1);
+        DVTValidator dvt = new DVTValidator(REGISTRY, 1, new bytes32[](0), new address[](0));
         BLSAggregator bls = new BLSAggregator(REGISTRY, SUPERPAYMASTER, address(dvt));
         dvt.setBLSAggregator(address(bls));
 

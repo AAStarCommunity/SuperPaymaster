@@ -28,7 +28,7 @@ contract DeployV3ModulesSepolia is Script {
         console.log("BLSAggregator deployed at:", address(aggregator));
 
         // 3. Deploy DVTValidator
-        DVTValidator dvt = new DVTValidator(registryAddr, 1);
+        DVTValidator dvt = new DVTValidator(registryAddr, 1, new bytes32[](0), new address[](0));
         console.log("DVTValidator deployed at:", address(dvt));
 
         // 4. Wiring

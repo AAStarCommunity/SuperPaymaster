@@ -59,7 +59,7 @@ contract MockDVTExecution is Script {
             uint256 pid = dvt.createProposal(address(0), 0,
                 string.concat("paper7_b", vm.toString(sz)));
             console.log("createProposal pid:", pid, "batchSize:", sz);
-            try dvt.executeWithProof(pid, us, sc, epoch, proof) {
+            try dvt.executeWithProof(pid, us, sc, epoch, abi.encode(bytes32(0), bytes("")), proof) {
                 console.log("  executeWithProof: SUCCESS");
             } catch {
                 console.log("  executeWithProof: REVERTED (BLS pairing, expected)");

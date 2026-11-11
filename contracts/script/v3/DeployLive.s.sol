@@ -178,7 +178,12 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         console.log("=== Step 4: Deploy Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        dvt = DVTValidator(
+            _deployDefault(
+                "DVTValidator",
+                abi.encode(address(registry), uint256(1), new bytes32[](0), new address[](0))
+            )
+        );
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );

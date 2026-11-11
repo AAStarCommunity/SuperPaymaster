@@ -16,6 +16,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - [IGuardianExitGate](#iguardianexitgate) — `contracts/src/core/Registry.sol`
 - [Registry](#registry) — `contracts/src/core/Registry.sol`
 - [IERC1363Receiver](#ierc1363receiver) — `contracts/src/interfaces/IERC1363.sol`
+- [IEvidenceCategory](#ievidencecategory) — `contracts/src/interfaces/IEvidenceCategory.sol`
 - [IPaymasterRouter](#ipaymasterrouter) — `contracts/src/interfaces/IPaymasterRouter.sol`
 - [ISBT](#isbt) — `contracts/src/interfaces/ISBT.sol`
 - [ISuperPaymaster](#isuperpaymaster) — `contracts/src/interfaces/ISuperPaymaster.sol`
@@ -37,6 +38,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - [MockAgentIdentityRegistry](#mockagentidentityregistry) — `contracts/src/mocks/MockAgentIdentityRegistry.sol`
 - [MockAgentReputationRegistry](#mockagentreputationregistry) — `contracts/src/mocks/MockAgentReputationRegistry.sol`
 - [MockBLSAggregator](#mockblsaggregator) — `contracts/src/mocks/MockBLSAggregator.sol`
+- [MockEvidenceCategory](#mockevidencecategory) — `contracts/src/mocks/MockEvidenceCategory.sol`
 - [MockUSDT](#mockusdt) — `contracts/src/mocks/MockUSDT.sol`
 - [MyNFT](#mynft) — `contracts/src/mocks/MyNFT.sol`
 - [TestSBT](#testsbt) — `contracts/src/mocks/TestSBT.sol`
@@ -1813,6 +1815,35 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `bytes4` | bytes4 `bytes4(keccak256("onTransferReceived(address,address,uint256,bytes)"))` |
+
+## IEvidenceCategory
+
+- **Source:** `contracts/src/interfaces/IEvidenceCategory.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- Deployment-fixed predicate for one DVT raw-evidence category.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x2e28e96e` | `check(address,uint8,uint256,bytes)` | view | — |  |
+
+### Functions
+
+#### `check(address operator, uint8 level, uint256 epoch, bytes body)`
+
+`0x2e28e96e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `operator` | `address` |  |
+| `level` | `uint8` |  |
+| `epoch` | `uint256` |  |
+| `body` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 ## IPaymasterRouter
 
@@ -4488,6 +4519,71 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bool` |  |
 
+## MockEvidenceCategory
+
+- **Source:** `contracts/src/mocks/MockEvidenceCategory.sol`
+- **Functions:** 5 · **Events:** 0 · **Errors:** 0
+- Test-only configurable raw-evidence predicate.
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x67fe5a0c` | `accepted()` | view | — |  |
+| `0x2e28e96e` | `check(address,uint8,uint256,bytes)` | view | — |  |
+| `0x231d13a7` | `setAccepted(bool)` | nonpayable | — |  |
+| `0x6813d787` | `setShouldRevert(bool)` | nonpayable | — |  |
+| `0xd3072d82` | `shouldRevert()` | view | — |  |
+
+### Functions
+
+#### `accepted()`
+
+`0x67fe5a0c` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `check(address arg0, uint8 arg1, uint256 arg2, bytes arg3)`
+
+`0x2e28e96e` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+| `arg1` | `uint8` |  |
+| `arg2` | `uint256` |  |
+| `arg3` | `bytes` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `setAccepted(bool value)`
+
+`0x231d13a7` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `value` | `bool` |  |
+
+#### `setShouldRevert(bool value)`
+
+`0x6813d787` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `value` | `bool` |  |
+
+#### `shouldRevert()`
+
+`0xd3072d82` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
 ## MockUSDT
 
 - **Source:** `contracts/src/mocks/MockUSDT.sol`
@@ -6369,7 +6465,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## DVTValidator
 
 - **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
-- **Functions:** 18 · **Events:** 7 · **Errors:** 16
+- **Functions:** 23 · **Events:** 7 · **Errors:** 23
 - **Title:** DVTValidator
 - Distributed Validator Technology for operator monitoring (V3)
 
@@ -6379,20 +6475,25 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|---|---|
 | `0x4d238c8e` | `addValidator(address)` | nonpayable | onlyOwner | Register a new DVT validator after verifying both role and stake. |
 | `0xc06f58e8` | `BLS_AGGREGATOR()` | view | — |  |
+| `0xeed2375c` | `categoryAt(uint256)` | view | — |  |
+| `0x2be32dbb` | `categoryCount()` | view | — |  |
+| `0x3c442a54` | `checkerOf(bytes32)` | view | — |  |
+| `0x85c78074` | `committeeOf(uint256)` | view | — | Current active validator set. Proposal-specific sortition may replace this later. |
 | `0x2dcc352b` | `createProposal(address,uint8,string,bytes32)` | nonpayable | — | Create a slash proposal that commits to an off-chain evidence hash. |
 | `0x8e24bc9a` | `createProposal(address,uint8,string)` | nonpayable | — | Backward-compatible overload: creates a proposal with no committed         evidence hash (evidenceHash = 0). Prefer the 4-arg form for slashes         so the on-chain consensus binds the justifying evidence. |
-| `0x08f41334` | `executeWithProof(uint256,address[],uint256[],uint256,bytes)` | nonpayable | onlyAuthorizedExecutor | Direct execution with an aggregated proof |
+| `0x8e6a079f` | `executeWithProof(uint256,address[],uint256[],uint256,bytes,bytes)` | nonpayable | onlyAuthorizedExecutor | Direct execution with an aggregated proof |
 | `0xfacd743b` | `isValidator(address)` | view | — |  |
 | `0x424a3d77` | `markProposalExecuted(uint256)` | nonpayable | — | Mark proposal as executed (called by BLSAggregator after successful execution) |
 | `0x2ab09d14` | `nextProposalId()` | view | — |  |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x013cf08b` | `proposals(uint256)` | view | — |  |
 | `0x349a2c26` | `pruneValidator(address)` | nonpayable | — | Permissionless eviction when a validator no longer meets the         role + stake requirements (P0 follow-up). |
-| `0x60153d92` | `queueSlashWithProof(address,uint8,uint256,bytes)` | nonpayable | — | Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal. |
+| `0xa77e91be` | `queueSlashWithProof(address,uint8,uint256,bytes,bytes)` | nonpayable | — | Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal. |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x40a141ff` | `removeValidator(address)` | nonpayable | onlyOwner | Owner-only forced removal that also revokes configured BLS voting power. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0xbc959101` | `setBLSAggregator(address)` | nonpayable | onlyOwner |  |
+| `0xf1bdfcc4` | `TAG_EVIDENCE()` | view | — |  |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
@@ -6417,6 +6518,52 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `categoryAt(uint256 index)`
+
+`0xeed2375c` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `index` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
+
+#### `categoryCount()`
+
+`0x2be32dbb` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `checkerOf(bytes32 arg0)`
+
+`0x3c442a54` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `bytes32` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `committeeOf(uint256 arg0)`
+
+`0x85c78074` · view · access: —
+
+> Current active validator set. Proposal-specific sortition may replace this later.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address[]` |  |
 
 #### `createProposal(address operator, uint8 level, string reason, bytes32 evidenceHash)`
 
@@ -6451,9 +6598,9 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `id` | `uint256` |  |
 
-#### `executeWithProof(uint256 id, address[] repUsers, uint256[] newScores, uint256 epoch, bytes proof)`
+#### `executeWithProof(uint256 id, address[] repUsers, uint256[] newScores, uint256 epoch, bytes evidence, bytes proof)`
 
-`0x08f41334` · nonpayable · access: onlyAuthorizedExecutor
+`0x8e6a079f` · nonpayable · access: onlyAuthorizedExecutor
 
 > Direct execution with an aggregated proof
 
@@ -6463,6 +6610,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `repUsers` | `address[]` |  |
 | `newScores` | `uint256[]` |  |
 | `epoch` | `uint256` |  |
+| `evidence` | `bytes` |  |
 | `proof` | `bytes` |  |
 
 #### `isValidator(address arg0)`
@@ -6536,9 +6684,9 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `v` | `address` |  |
 
-#### `queueSlashWithProof(address operator, uint8 slashLevel, uint256 epoch, bytes proof)`
+#### `queueSlashWithProof(address operator, uint8 slashLevel, uint256 epoch, bytes evidence, bytes proof)`
 
-`0x60153d92` · nonpayable · access: —
+`0xa77e91be` · nonpayable · access: —
 
 > Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal.
 
@@ -6547,6 +6695,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `operator` | `address` |  |
 | `slashLevel` | `uint8` |  |
 | `epoch` | `uint256` |  |
+| `evidence` | `bytes` |  |
 | `proof` | `bytes` |  |
 
 #### `REGISTRY()`
@@ -6582,6 +6731,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `_bls` | `address` |  |
+
+#### `TAG_EVIDENCE()`
+
+`0xf1bdfcc4` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bytes32` |  |
 
 #### `transferOwnership(address newOwner)`
 
@@ -6620,6 +6777,10 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | error |
 |---|---|
 | `0xb0bd6aca` | `AlreadySigned()` |
+| `0xde23721b` | `DuplicateEvidenceCategory(bytes32)` |
+| `0x77df2c95` | `EvidenceConfigLengthMismatch()` |
+| `0xc22af99a` | `EvidenceHashMismatch()` |
+| `0xb9350b74` | `EvidenceRejected(bytes32)` |
 | `0xb59f56e8` | `InvalidFirstProposalId(uint256)` |
 | `0x37603bef` | `NotActiveValidator(address)` |
 | `0x69d6514c` | `NotAuthorizedExecutor()` |
@@ -6631,10 +6792,13 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x997a3f56` | `ProposalExecutedAlready()` |
 | `0x70a4109b` | `ProposalIdSpaceExhausted()` |
 | `0x204cba09` | `StakingNotConfigured()` |
+| `0x1600c037` | `UnknownEvidenceCategory(bytes32)` |
 | `0x84536595` | `ValidatorMissingRole()` |
 | `0x6264d57f` | `ValidatorRoleRevoked(address)` |
 | `0x0208a005` | `ValidatorStakeBelowMinimum(uint256,uint256)` |
 | `0xc23285bd` | `ValidatorStillEligible(address)` |
+| `0xac6e9ae4` | `ZeroEvidenceCategory()` |
+| `0x2c8a6f7a` | `ZeroEvidenceChecker()` |
 
 ## IBLSKeyRevoker
 

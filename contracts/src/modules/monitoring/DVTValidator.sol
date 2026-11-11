@@ -6,6 +6,7 @@ import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IBLSAggregator.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
+import "src/interfaces/IEvidenceCategory.sol";
 
 /// @notice Local sub-view of Registry exposing the staking pointer. Kept here
 ///         (rather than on IRegistry) so existing mocks across the test suite
@@ -31,6 +32,9 @@ interface IBLSKeyRevoker {
  *      abandoned and must be proposed again on the replacement DVT.
  */
 contract DVTValidator is Ownable, IVersioned {
+    bytes32 public constant TAG_EVIDENCE = keccak256("SuperPaymaster.DVT.Evidence.v2");
+    uint256 private constant EVIDENCE_CHECK_GAS = 100_000;
+
     struct ValidatorInfo {
         address validatorAddress;
         bool isActive;
@@ -62,7 +66,11 @@ contract DVTValidator is Ownable, IVersioned {
 
     mapping(address => bool) public isValidator;
     mapping(uint256 => SlashProposal) public proposals;
+    mapping(bytes32 => address) public checkerOf;
     uint256 public nextProposalId;
+    bytes32[] private _categories;
+    address[] private _validators;
+    mapping(address => uint256) private _validatorIndexPlusOne;
 
     event ProposalCreated(uint256 indexed id, address indexed operator, uint8 level);
     event ProposalSigned(uint256 indexed id, address indexed validator);
@@ -109,20 +117,52 @@ contract DVTValidator is Ownable, IVersioned {
     error ValidatorStillEligible(address v);
     error InvalidFirstProposalId(uint256 firstProposalId);
     error ProposalIdSpaceExhausted();
+    error EvidenceConfigLengthMismatch();
+    error ZeroEvidenceCategory();
+    error ZeroEvidenceChecker();
+    error DuplicateEvidenceCategory(bytes32 category);
+    error UnknownEvidenceCategory(bytes32 category);
+    error EvidenceRejected(bytes32 category);
+    error EvidenceHashMismatch();
 
     /// @param firstProposalId First raw proposal id allocated by this deployment.
     /// @dev Must be non-zero and below 2^128. Rotation operators must leave
     ///      enough headroom for the deployment's expected proposal lifetime.
-    constructor(address _registry, uint256 firstProposalId) Ownable(msg.sender) {
+    constructor(address _registry, uint256 firstProposalId, bytes32[] memory categories, address[] memory checkers)
+        Ownable(msg.sender)
+    {
         if (firstProposalId == 0 || firstProposalId >> 128 != 0) {
             revert InvalidFirstProposalId(firstProposalId);
+        }
+        if (categories.length != checkers.length) revert EvidenceConfigLengthMismatch();
+        for (uint256 i; i < categories.length; ++i) {
+            bytes32 category = categories[i];
+            address checker = checkers[i];
+            if (category == bytes32(0)) revert ZeroEvidenceCategory();
+            if (checker == address(0)) revert ZeroEvidenceChecker();
+            if (checkerOf[category] != address(0)) revert DuplicateEvidenceCategory(category);
+            checkerOf[category] = checker;
+            _categories.push(category);
         }
         REGISTRY = IRegistry(_registry);
         nextProposalId = firstProposalId;
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.7.0";
+        return "DVTValidator-0.8.0";
+    }
+
+    function categoryCount() external view returns (uint256) {
+        return _categories.length;
+    }
+
+    function categoryAt(uint256 index) external view returns (bytes32) {
+        return _categories[index];
+    }
+
+    /// @notice Current active validator set. Proposal-specific sortition may replace this later.
+    function committeeOf(uint256) external view returns (address[] memory) {
+        return _validators;
     }
 
     /// @notice Restrict to BLS aggregator or registered DVT validators (P0-4)
@@ -165,7 +205,11 @@ contract DVTValidator is Ownable, IVersioned {
             revert ValidatorStakeBelowMinimum(uint256(amount), cfg.minStake);
         }
 
-        isValidator[_v] = true;
+        if (!isValidator[_v]) {
+            isValidator[_v] = true;
+            _validators.push(_v);
+            _validatorIndexPlusOne[_v] = _validators.length;
+        }
     }
 
     /// @notice Real-time validator liveness gate (P0 follow-up).
@@ -269,11 +313,18 @@ contract DVTValidator is Ownable, IVersioned {
      *         in an earlier tx (front-run protection). Not tied to a proposalId —
      *         queue by (operator, level) so it can precede createProposal.
      */
-    function queueSlashWithProof(address operator, uint8 slashLevel, uint256 epoch, bytes calldata proof) external {
+    function queueSlashWithProof(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
+        bytes calldata evidence,
+        bytes calldata proof
+    ) external {
         // Only an active DVT validator may drive a pre-flag. No BLS_AGGREGATOR
         // exemption here (unlike executeWithProof): the aggregator never calls back
         // into this forwarder, so that branch would be dead code.
         _requireActiveValidator(msg.sender);
+        _checkEvidence(operator, slashLevel, epoch, evidence);
         IBLSAggregator(BLS_AGGREGATOR).queueSlashWithConsensus(operator, slashLevel, epoch, proof);
     }
 
@@ -285,6 +336,7 @@ contract DVTValidator is Ownable, IVersioned {
         address[] calldata repUsers,
         uint256[] calldata newScores,
         uint256 epoch,
+        bytes calldata evidence,
         bytes calldata proof
     ) external onlyAuthorizedExecutor {
         // P0 follow-up: a registered validator that has since exited their
@@ -305,8 +357,36 @@ contract DVTValidator is Ownable, IVersioned {
         if (!p.exists) revert ProposalDoesNotExist();
         if (p.executed) revert ProposalExecutedAlready();
 
+        bytes32 evidenceHash = _checkEvidence(p.operator, p.slashLevel, epoch, evidence);
+        if (evidenceHash != p.evidenceHash) revert EvidenceHashMismatch();
+
         IBLSAggregator(BLS_AGGREGATOR)
-            .verifyAndExecute(id, p.operator, p.slashLevel, repUsers, newScores, epoch, p.evidenceHash, proof);
+            .verifyAndExecute(id, p.operator, p.slashLevel, repUsers, newScores, epoch, evidenceHash, proof);
+    }
+
+    function _checkEvidence(address operator, uint8 level, uint256 epoch, bytes calldata evidence)
+        internal
+        view
+        returns (bytes32 evidenceHash)
+    {
+        (bytes32 category, bytes memory body) = abi.decode(evidence, (bytes32, bytes));
+        address checker = checkerOf[category];
+        if (checker == address(0)) revert UnknownEvidenceCategory(category);
+
+        bytes memory callData = abi.encodeCall(IEvidenceCategory.check, (operator, level, epoch, body));
+        bool ok;
+        uint256 resultSize;
+        uint256 accepted;
+        assembly ("memory-safe") {
+            ok := staticcall(EVIDENCE_CHECK_GAS, checker, add(callData, 0x20), mload(callData), 0, 0)
+            resultSize := returndatasize()
+            if and(ok, eq(resultSize, 0x20)) {
+                returndatacopy(0, 0, 0x20)
+                accepted := mload(0)
+            }
+        }
+        if (!ok || resultSize != 32 || accepted != 1) revert EvidenceRejected(category);
+        return keccak256(abi.encode(TAG_EVIDENCE, category, keccak256(body)));
     }
 
     function setBLSAggregator(address _bls) external onlyOwner {
@@ -334,7 +414,7 @@ contract DVTValidator is Ownable, IVersioned {
         if (hasRole_ && uint256(amount) >= cfg.minStake) {
             revert ValidatorStillEligible(v);
         }
-        isValidator[v] = false;
+        _removeValidatorFromSet(v);
         emit ValidatorPruned(v, hasRole_, uint256(amount));
     }
 
@@ -345,7 +425,21 @@ contract DVTValidator is Ownable, IVersioned {
         if (BLS_AGGREGATOR != address(0)) {
             IBLSKeyRevoker(BLS_AGGREGATOR).revokeBLSPublicKey(v);
         }
-        isValidator[v] = false;
+        _removeValidatorFromSet(v);
         emit ValidatorRemoved(v);
+    }
+
+    function _removeValidatorFromSet(address v) internal {
+        isValidator[v] = false;
+        uint256 indexPlusOne = _validatorIndexPlusOne[v];
+        uint256 index = indexPlusOne - 1;
+        uint256 last = _validators.length - 1;
+        if (index != last) {
+            address moved = _validators[last];
+            _validators[index] = moved;
+            _validatorIndexPlusOne[moved] = indexPlusOne;
+        }
+        _validators.pop();
+        delete _validatorIndexPlusOne[v];
     }
 }
