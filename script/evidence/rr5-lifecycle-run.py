@@ -116,9 +116,13 @@ def verify_sources(out):
             # a plain `forge test` does not fail in setUp. With the variable set (every recorded command) the
             # behaviour is identical. Anything else differing from the measured revision is rejected.
             measured = recorded(path)
-            assert measured.count(skip_patch[0]) == 1, 'skip patch anchor'
             assert hashlib.sha256(measured).hexdigest() == expected, ('harness source', path)
-            assert Path(path).read_bytes() == measured.replace(*skip_patch), ('harness source', path)
+            if measured.count(skip_patch[1]) == 1 and measured.count(skip_patch[0]) == 0:
+                # Measured at a revision that already carries the skip patch: the tree must be identical.
+                assert Path(path).read_bytes() == measured, ('harness source', path)
+            else:
+                assert measured.count(skip_patch[0]) == 1, 'skip patch anchor'
+                assert Path(path).read_bytes() == measured.replace(*skip_patch), ('harness source', path)
             continue
         # Imported helpers and build config are bound to the recorded revision, not the current tree: later
         # commits (e.g. landing a new gas tuple in a shared fixture) must not invalidate this measurement.
