@@ -48,6 +48,8 @@ jobs:
           python3 script/evidence/test_a4_state_check.py
           python3 script/evidence/test_a4_mutations.py
           python3 script/evidence/test_q5_snapshot_timestamp.py
+          python3 script/evidence/test_floor_margin_extract.py
+          python3 script/evidence/test_test_exec_inventory.py
           python3 script/evidence/test_rams_capture.py
           python3 script/evidence/test_rams_gauges.py
           python3 script/evidence/test_w2_op_mainnet_exposure.py
