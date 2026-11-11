@@ -445,11 +445,11 @@ end remains slot 65. Scope aliases normalize only `SuperPaymasterStorage` to the
 
 ### Amsterdam gas floors (SP-c)
 
-Amsterdam raises the measured settlement floors to 355k for the entry guard and 370k for the
-whole-postOp bound (engine nightly `4e8874b2`). The zero `_gasParams` slot is now the shipped release
-tuple `(MIN_POST_OP_GAS, SETTLE_GAS_BOUND, C_WRAP_GAS, C_POSTOP_GAS) =
-(500k, 450k, 5k, 450k)`; the manifest still writes that tuple explicitly, while the defaults are a
-safety net.
+Governance floors now equal the release tuple `(MIN, SETTLE, C_WRAP, C_POSTOP) = (500k, 450k, 5k, 450k)`.
+The old gasleft-delta metric under-counted EIP-8037: bisected real-handleOps requirements are
+BALANCE 375,528 and CREDIT 379,828, so `ceil(W x 1.15) = 436,803`; the old floor tuple is rejected.
+The release tuple settles on Amsterdam with 30,651 headroom (469,349 required vs 500,000).
+Zero-slot defaults and LEGACY constants remain unchanged; the manifest still writes the release tuple explicitly.
 
 `LEGACY_SETTLE_GAS_BOUND = 160k` and `LEGACY_C_WRAP_GAS = 30k` are unchanged. They apply only to an
 unreleased 5.5.0 352-byte context that could survive only within one `handleOps` transaction.

@@ -227,18 +227,21 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     //   MIN_POST_OP_GAS (C-04 floor for paymasterPostOpGasLimit), SETTLE_GAS_BOUND (B-1 / R10-H1
     //   postOp entry guard), C_WRAP_GAS (R10-M3 EntryPoint wrapper), C_POSTOP_GAS (whole postOp
     //   frame upper bound; G-layer rule C_POSTOP >= W_postop x 1.15).
-    //   Amsterdam's worst BALANCE workload is 319,909 gas; with the 1.15 safety factor this is a
-    //   367,896-gas call boundary (engine nightly 4e8874b2). Therefore SETTLE is in [355k, 1M],
-    //   MIN in [SETTLE + 20k, 2M], C_POSTOP in [370k, MIN], and C_WRAP in [5k, 50k].
+    //   The old gasleft-delta metric under-counted EIP-8037 state gas. Bisected real-handleOps
+    //   requirements are BALANCE 375,528 and CREDIT 379,828; ceil(W x 1.15) is 436,803.
+    //   Governance floors equal the release tuple (500k, 450k, 5k, 450k). On Amsterdam it
+    //   settles with 30,651 headroom (469,349 required vs 500,000). SETTLE is in [450k, 1M],
+    //   MIN in [max(500k, SETTLE + 20k), 2M], C_POSTOP in [450k, MIN], C_WRAP in [5k, 50k].
     uint256 internal constant MIN_POST_OP_GAS = 500_000;
     uint256 internal constant SETTLE_GAS_BOUND = 450_000;
     uint256 internal constant C_WRAP_GAS = 5_000;
     uint256 internal constant C_POSTOP_GAS = 450_000;
-    uint256 internal constant GP_SETTLE_MIN = 355_000;
+    uint256 internal constant GP_SETTLE_MIN = 450_000;
     uint256 internal constant GP_SETTLE_MAX = 1_000_000;
     uint256 internal constant GP_MINPOST_OVER_SETTLE = 20_000;
+    uint256 internal constant GP_MINPOST_MIN = 500_000;
     uint256 internal constant GP_MINPOST_MAX = 2_000_000;
-    uint256 internal constant GP_CPOSTOP_MIN = 370_000;
+    uint256 internal constant GP_CPOSTOP_MIN = 450_000;
     uint256 internal constant GP_CWRAP_MIN = 5_000;
     uint256 internal constant GP_CWRAP_MAX = 50_000;
     uint256 internal constant GP_TIMELOCK = 48 hours;
