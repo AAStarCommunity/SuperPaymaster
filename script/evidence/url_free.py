@@ -8,11 +8,13 @@ from pathlib import Path
 import re
 import sys
 
+# No TLD in the hostname list may equal a tracked file extension (test_url_free checks the
+# repository file list): 'sh' was dropped because snapshots list every *.sh script.
 PATTERNS = {
     'scheme': re.compile(r'[A-Za-z][A-Za-z0-9+.-]*://'),
     'ipv4': re.compile(r'(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\d.])'),
     'localhost-port': re.compile(r'\blocalhost:\d{1,5}\b', re.I),
-    'hostname': re.compile(r'\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|xyz|dev|app|cloud|co|ai|tech|network|gg|sh)\b(?!\.\w)', re.I),
+    'hostname': re.compile(r'\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|xyz|dev|app|cloud|co|ai|tech|network|gg)\b(?!\.\w)', re.I),
 }
 
 

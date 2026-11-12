@@ -27,6 +27,13 @@ class UrlFree(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(url_like(text), [])
 
+    def test_repository_file_list_is_not_flagged(self):
+        # Executed-run snapshots record every tracked path; none may look like a host.
+        import subprocess
+        paths = subprocess.check_output(['git', '-C', str(ROOT), 'ls-files'], text=True)
+        self.assertEqual(url_like(paths), [])
+        self.assertIn('hostname', url_like('deploy.example.com'))
+
     def test_directory_scan_names_file_not_match(self):
         with tempfile.TemporaryDirectory(dir=TMP) as d:
             d = Path(d)
