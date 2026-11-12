@@ -68,7 +68,7 @@ def guard_selector():
     return '0x' + a[0].to_bytes(8,'little')[:4].hex()
 
 
-def verify_sources(out):
+def verify_sources(out, historical=False):
     import ast
     sums = {}
     for line in (out/'SHA256SUMS').read_text().splitlines():
@@ -107,6 +107,8 @@ def verify_sources(out):
     assert before == json.loads((out/'source-after.json').read_text())
     for path, digest in before.items():
         assert hashlib.sha256(recorded(path)).hexdigest() == digest, ('production source hash', path)
+    if not historical:
+        assert before == hashes(), 'current production source hashes differ from measurement'
     paths = {TEST, 'contracts/test/fixtures/entrypoint-v0.7.runtime.hex', 'foundry.toml'}
     pending = [TEST]
     while pending:
@@ -119,29 +121,15 @@ def verify_sources(out):
                     pending.append(child)
     for path in sorted(paths):
         expected = before.get(path, hashlib.sha256(recorded(path)).hexdigest())
-        if path == TEST:
-            skip_patch = (b'        variant = vm.envString("LIFECYCLE_VARIANT");\n',
-                          b'        variant = vm.envOr("LIFECYCLE_VARIANT", string(""));\n'
-                          b'        if (bytes(variant).length == 0) vm.skip(true); // runner-only suite: skipped in a plain `forge test`\n')
-            # The only post-run edit to the measured test: skip the suite when LIFECYCLE_VARIANT is unset, so
-            # a plain `forge test` does not fail in setUp. With the variable set (every recorded command) the
-            # behaviour is identical. Anything else differing from the measured revision is rejected.
-            measured = recorded(path)
-            assert hashlib.sha256(measured).hexdigest() == expected, ('harness source', path)
-            if measured.count(skip_patch[1]) == 1 and measured.count(skip_patch[0]) == 0:
-                # Measured at a revision that already carries the skip patch: the tree must be identical.
-                assert Path(path).read_bytes() == measured, ('harness source', path)
-            else:
-                assert measured.count(skip_patch[0]) == 1, 'skip patch anchor'
-                assert Path(path).read_bytes() == measured.replace(*skip_patch), ('harness source', path)
-            continue
-        # Imported helpers and build config are bound to the recorded revision, not the current tree: later
-        # commits (e.g. landing a new gas tuple in a shared fixture) must not invalidate this measurement.
         assert hashlib.sha256(recorded(path)).hexdigest() == expected, ('harness source', path)
+        if not historical:
+            assert Path(path).read_bytes() == recorded(path), ('current measurement harness differs', path)
     runner = 'script/evidence/rr5-lifecycle-run.py'
     original = recorded(runner)
     if runner in before:
         assert hashlib.sha256(original).hexdigest() == before[runner], 'recorded runner hash'
+    if historical:
+        return  # Historical verification binds recorded sources, never today's harness.
     # Verifier-only repairs necessarily change this file's byte hash. Bind all original
     # measurement definitions verbatim, permitting only the verification implementation to change.
     old = ast.parse(original)
@@ -173,8 +161,8 @@ def verify_sources(out):
 
 
 
-def verify(out, partial=False):
-    verify_sources(out)
+def verify(out, partial=False, historical=False):
+    verify_sources(out, historical=historical)
     manifest = json.loads((out/'manifest.json').read_text())
     selected_engines = [e for e in ENGINES if any(k.startswith(e + '/') for k in manifest)]
     assert selected_engines, 'empty engine inventory'
@@ -415,16 +403,20 @@ def main(out, selected_engines=ENGINES):
     print(f'PASS {n} variants, {c} commands; negative control rejected; verified engines: {",".join(selected_engines)}',flush=True)
 
 if __name__=='__main__':
-    if '--verify' in sys.argv[1:] or '--verify-partial' in sys.argv[1:]:
+    if any(flag in sys.argv[1:] for flag in ('--verify', '--verify-partial', '--verify-historical')):
         import argparse
         parser = argparse.ArgumentParser()
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument('--verify', type=Path)
         mode.add_argument('--verify-partial', type=Path)
+        mode.add_argument('--verify-historical', type=Path)
         args = parser.parse_args()
-        out = args.verify or args.verify_partial
-        result = verify(out, partial=args.verify_partial is not None)
+        out = args.verify or args.verify_partial or args.verify_historical
+        result = verify(out, partial=args.verify_partial is not None, historical=args.verify_historical is not None)
         engines = sorted({k.split('/')[0] for k in json.loads((out/'manifest.json').read_text())})
+        if args.verify_historical is not None:
+            print('HISTORICAL (NOT RELEASE EVIDENCE)', result, 'engines:', ','.join(engines))
+            sys.exit(3)
         if args.verify_partial is not None:
             print('PARTIAL (NOT RELEASE EVIDENCE)', result, 'engines:', ','.join(engines))
             sys.exit(3)

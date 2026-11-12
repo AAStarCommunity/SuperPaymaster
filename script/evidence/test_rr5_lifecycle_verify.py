@@ -21,6 +21,7 @@ SOURCE = Path(sys.argv.pop(1) if len(sys.argv) > 1 else
 
 class EvidenceControls(unittest.TestCase):
     def setUp(self):
+        (RUNNER.parents[2]/'.codex-work').mkdir(parents=True, exist_ok=True)
         self.tmp = tempfile.TemporaryDirectory(prefix='rr5-negative-', dir=RUNNER.parents[2]/'.codex-work')
         self.addCleanup(self.tmp.cleanup)
         self.out = Path(self.tmp.name)/'run'
@@ -37,24 +38,36 @@ class EvidenceControls(unittest.TestCase):
         (self.out/'SHA256SUMS').write_text(''.join(
             f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
             for p in sorted(self.out.iterdir()) if p.name != 'SHA256SUMS'))
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify-partial' if partial else '--verify', str(self.out)],
-                                text=True, capture_output=True, cwd=RUNNER.parents[2])
         if partial:
+            spec = importlib.util.spec_from_file_location('rr5_partial', RUNNER)
+            runner = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(runner)
+            self.assertEqual(runner.verify(self.out, partial=True, historical=True)[0], 52)
+            return
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify-historical', str(self.out)],
+                                text=True, capture_output=True, cwd=RUNNER.parents[2])
+        if reason is None:
             self.assertEqual(result.returncode, 3, result.stderr)
-            self.assertIn('PARTIAL (NOT RELEASE EVIDENCE)', result.stdout)
-            self.assertIn('engines: cancun', result.stdout)
-        elif reason is None:
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('PASS (156, 4044)', result.stdout)
-            self.assertIn('verified engines: amsterdam,cancun,prague', result.stdout)
+            self.assertIn('HISTORICAL (NOT RELEASE EVIDENCE) (156, 4044)', result.stdout)
+            self.assertIn('engines: amsterdam,cancun,prague', result.stdout)
         else:
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn(reason, result.stderr)
 
     def test_historical_record_without_compile_evm(self):
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify-historical', str(self.out)],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
+
+    def test_release_rejects_changed_production_source(self):
+        spec = importlib.util.spec_from_file_location('rr5_release', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        before = json.loads((self.out/'source-before.json').read_text())
+        before[next(iter(before))] = '0' * 64
+        with mock.patch.object(runner, 'hashes', return_value=before):
+            with self.assertRaisesRegex(AssertionError, 'current production source hashes'):
+                runner.verify(self.out)
 
     def mark_new_compile_evm_record(self):
         for key, row in self.manifest.items():
@@ -111,20 +124,31 @@ class EvidenceControls(unittest.TestCase):
         (self.out/'amsterdam-version.txt').unlink()
         self.check('engine inventory mismatch')
 
-    def test_recorded_measurement_prefix_changed(self):
-        spec = importlib.util.spec_from_file_location('rr5_runner', RUNNER)
+    def test_release_rejects_changed_current_harness(self):
+        spec = importlib.util.spec_from_file_location('rr5_harness', RUNNER)
         runner = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(runner)
-        original = subprocess.check_output
-        def changed_recorded(argv, *args, **kwargs):
-            result = original(argv, *args, **kwargs)
-            if argv[:2] == ['git', 'show'] and argv[2].endswith(':script/evidence/rr5-lifecycle-run.py'):
-                self.assertIn(b'    serial = 0', result)
-                return result.replace(b'    serial = 0', b'    serial = 1', 1)
-            return result
-        with mock.patch.object(runner.subprocess, 'check_output', side_effect=changed_recorded):
-            with self.assertRaisesRegex(AssertionError, 'measurement main prefix changed'):
+        before = json.loads((self.out/'source-before.json').read_text())
+        original = Path.read_bytes
+        def changed(path):
+            if str(path) == runner.TEST:
+                return b'changed current measurement harness'
+            return original(path)
+        with mock.patch.object(runner, 'hashes', return_value=before), mock.patch.object(Path, 'read_bytes', changed):
+            with self.assertRaisesRegex(AssertionError, 'current measurement harness differs'):
                 runner.verify(self.out)
+
+    def test_historical_ignores_current_harness(self):
+        spec = importlib.util.spec_from_file_location('rr5_historical', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        original = Path.read_bytes
+        def changed(path):
+            if str(path) in (runner.TEST, 'script/evidence/rr5-lifecycle-run.py'):
+                raise AssertionError('historical verifier must not read current measurement code')
+            return original(path)
+        with mock.patch.object(Path, 'read_bytes', changed):
+            self.assertEqual(runner.verify(self.out, historical=True), (156, 4044))
 
     def test_null_band(self):
         for row in self.manifest.values():
