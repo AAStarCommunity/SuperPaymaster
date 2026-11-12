@@ -1,0 +1,27 @@
+name: a7-readback-schema
+
+on:
+  pull_request:
+    paths:
+      - 'docs/release/a7/**'
+      - '.github/workflows/a7-readback-schema.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/release/a7/**'
+
+permissions:
+  contents: read
+
+jobs:
+  schema-self-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7
+        with:
+          python-version: '3.11'
+      - name: Install jsonschema
+        run: python -m pip install 'jsonschema==4.23.0'
+      - name: Both examples validate, negatives are rejected, no oneOf overlaps
+        run: python docs/release/a7/validate_readback_schema.py

@@ -1,0 +1,424 @@
+{
+  "schema": "aoa-a7-readback/1",
+  "header": {
+    "source": "fork",
+    "spCommit": "0000000000000000000000000000000000000000",
+    "tag": null,
+    "chainId": 11155111,
+    "hardfork": "amsterdam",
+    "forkBlock": 12100000,
+    "readbackBlock": 12100042,
+    "readbackBlockHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "anvilVersion": "anvil Version: 1.8.7-nightly",
+    "anvilCommit": "4e8874b2bdc840929585ca73e170993c50a4a531",
+    "dumpSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "providers": [
+      "alchemy",
+      "tenderly"
+    ],
+    "ethConfig": {
+      "provider": "alchemy",
+      "activationTime": 1791294816,
+      "forkId": "0x6c1d9423",
+      "corroboration": {
+        "provider": "tenderly",
+        "blockNumber": 12100000,
+        "blockAccessListHash": true,
+        "slotNumber": true
+      }
+    }
+  },
+  "contracts": {
+    "superPaymaster": {
+      "address": "0x2222222222222222222222222222222222222222",
+      "version": "SuperPaymaster-5.5.1",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "0x3333333333333333333333333333333333333333",
+      "implCodehash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "extension": "0x4444444444444444444444444444444444444444",
+      "extensionCodehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "0x6666666666666666666666666666666666666666",
+      "roles": "n/a:no role system",
+      "REGISTRY": "0x7777777777777777777777777777777777777777",
+      "BLS_AGGREGATOR": "0x8888888888888888888888888888888888888888",
+      "OPERATOR_WITHDRAWAL_DELAY": 172800,
+      "OPERATOR_WITHDRAWAL_WINDOW": 86400,
+      "GUARDIAN_SLASH_FREEZE": 604800
+    },
+    "spAdminExtension": {
+      "address": "0x4444444444444444444444444444444444444444",
+      "version": null,
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "blsAggregator": {
+      "address": "0x8888888888888888888888888888888888888888",
+      "version": "BLSAggregator-4.13.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "domainSeparator": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signerMaskOrder": {
+        "source": "BLSAggregator.sol:<line>",
+        "bits": [
+          "0x9999999999999999999999999999999999999999"
+        ]
+      },
+      "guardianSet": [
+        {
+          "slot": 1,
+          "address": "0x9999999999999999999999999999999999999999",
+          "pubkeyHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "isActive": true
+        }
+      ],
+      "N": 3,
+      "thresholds": {
+        "WARNING": 2,
+        "MINOR": 3,
+        "MAJOR": 3
+      },
+      "MAX_VALIDATORS": 64,
+      "fraudProofVerifier": "0x0000000000000000000000000000000000000000",
+      "DVT_VALIDATOR": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pendingRotation": "n/a:none queued",
+      "pendingFraudProofVerifier": "0x0000000000000000000000000000000000000000",
+      "pendingFraudProofVerifierReadyAt": 0,
+      "minThreshold": 3,
+      "defaultThreshold": 7,
+      "SLASH_THRESHOLD_FLOOR": 2
+    },
+    "disclosureRegistry": {
+      "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "version": "DisclosureRegistry-1.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:immutable, no owner",
+      "pendingOwner": "n/a:immutable, no owner",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "WRITER": "0xcccccccccccccccccccccccccccccccccccccccc",
+      "AGGREGATOR": "0x8888888888888888888888888888888888888888"
+    },
+    "multiSendCallOnly": {
+      "address": "0xdddddddddddddddddddddddddddddddddddddddd",
+      "version": "n/a:MultiSendCallOnly has no version()",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:no owner",
+      "pendingOwner": "n/a:no owner",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "entryPoint": {
+      "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+      "version": "n/a:EntryPoint v0.7 has no version()",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:no owner",
+      "pendingOwner": "n/a:no owner",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "deposit": "1000000000000000000",
+      "staked": true,
+      "stake": "1000000000000000000",
+      "unstakeDelaySec": 86400,
+      "withdrawTime": 0
+    },
+    "evaluationCommunityToken": {
+      "address": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "XPNTs-4.0.3",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "creditPolicy": 0,
+      "policyEpoch": 0,
+      "pendingPolicy": 0,
+      "pendingPolicyEta": 0,
+      "issuanceCap": "1000000000000000000000000",
+      "SUPERPAYMASTER_ADDRESS": "0x2222222222222222222222222222222222222222",
+      "POLICY_OFF": 0
+    },
+    "gTokenStaking": {
+      "address": "0xffffffffffffffffffffffffffffffffffffffff",
+      "version": "Example-0.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system (GTokenStaking holds role locks, not roles)"
+    },
+    "superPaymasterLens": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "SuperPaymasterLens-1.2.2",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "registry": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Registry-5.10.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "0x3333333333333333333333333333333333333333",
+      "implCodehash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": {
+        "ROLE_COMMUNITY": [
+          "0x6666666666666666666666666666666666666666"
+        ]
+      },
+      "rolesSource": {
+        "fromBlock": 12000000,
+        "toBlock": 12100042
+      }
+    },
+    "policyRegistry": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "PolicyRegistry-3.0.2",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "dvtValidator": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "DVTValidator-0.8.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "categoryCount": 0
+    },
+    "reputationSystem": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Reputation-0.5.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "xPNTsFactoryV2": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "xPNTsFactory-3.0.2-v2",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "xPNTsTokenV2Impl": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "XPNTs-4.0.3",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "xPNTsTokenV2Ext": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": null,
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "aoaProtocolRegistry": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Example-0.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "globalTierSource": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "GlobalTierSource-1.0.1",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "aPNTsCapped": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "Example-0.0.0",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "0x5555555555555555555555555555555555555555",
+      "pendingOwner": "0x0000000000000000000000000000000000000000",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system"
+    },
+    "ownerSafe": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "version": "1.4.1",
+      "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:Safe has no owner()",
+      "pendingOwner": "n/a:Safe has no pendingOwner()",
+      "guardian": "n/a:no guardian role",
+      "roles": "n/a:no role system",
+      "threshold": 2,
+      "owners": [
+        "0x7777777777777777777777777777777777777777",
+        "0x8888888888888888888888888888888888888888",
+        "0x9999999999999999999999999999999999999999"
+      ],
+      "singleton": "0xcccccccccccccccccccccccccccccccccccccccc"
+    },
+    "timelockController": {
+      "address": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+      "version": "n/a:TimelockController has no version()",
+      "codehash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+      "erc1967Impl": "n/a:not a proxy",
+      "implCodehash": "n/a:not a proxy",
+      "extension": "n/a:no extension",
+      "extensionCodehash": "n/a:no extension",
+      "owner": "n/a:AccessControl, no owner()",
+      "pendingOwner": "n/a:AccessControl, no pendingOwner()",
+      "guardian": "n/a:no guardian role",
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": [
+          "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B"
+        ],
+        "PROPOSER_ROLE": [
+          "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+        ],
+        "EXECUTOR_ROLE": [
+          "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+        ],
+        "CANCELLER_ROLE": [
+          "0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114"
+        ]
+      },
+      "minDelay": 172800,
+      "rolesSource": {
+        "fromBlock": 12000000,
+        "toBlock": 12100042
+      }
+    }
+  },
+  "checks": {
+    "dvtValidator.categoryCount": 0,
+    "superPaymaster.fraudProofVerifier": "0x0000000000000000000000000000000000000000",
+    "blsAggregator.owner == dvtValidator.owner": true,
+    "evaluationCommunityToken.creditPolicy == evaluationCommunityToken.POLICY_OFF": true,
+    "blsAggregator.thresholds == {WARNING:2, MINOR:3, MAJOR:3}": true
+  },
+  "amsterdamProbe": {
+    "initcode": "0x60206000f3",
+    "sender": "0xdddddddddddddddddddddddddddddddddddddddd",
+    "method": "eth_estimateGas({from: sender, data: initcode, to: null}) at forkBlock on each upstream provider and on the fork; then send the same tx on the fork and read the whole-tx receipt gasUsed",
+    "estimateLive": {
+      "alchemy": 259849,
+      "tenderly": 259849
+    },
+    "estimateFork": 256645,
+    "gasUsedFork": 256645,
+    "expected": {
+      "gasUsed": 256645,
+      "source": "SP A7 fork receipt; cross-checked by upstream eth_simulateV1"
+    },
+    "predicate": "all(estimateSimulate[p] == gasUsedFork == expected.gasUsed for p if int) and all(callAtGasUsed.values())",
+    "estimateSimulate": {
+      "alchemy": 256645,
+      "tenderly": "n/a:no eth_simulateV1"
+    },
+    "callAtGasUsed": {
+      "alchemy": true,
+      "tenderly": true
+    },
+    "callAtGasUsedMinusOne": {
+      "alchemy": false,
+      "tenderly": false
+    }
+  }
+}
