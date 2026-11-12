@@ -357,14 +357,37 @@ contract SuperPaymasterV55GasParamsTest is Test {
         }
     }
 
+    bytes32 internal constant ERC1967_IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+
+    // Every row crosses a real implementation change: upgrades alternate between two freshly
+    // deployed implementations and the ERC-1967 slot must move each time, so no row is a
+    // same-implementation no-op. (Two, not one per row: Amsterdam's per-transaction gas cap
+    // cannot fit eighteen SuperPaymaster deployments in one test.)
+    SuperPaymaster[2] internal impls;
+
+    function _upgradeToOther(uint256 n) internal {
+        address before = address(uint160(uint256(vm.load(address(sp), ERC1967_IMPLEMENTATION_SLOT))));
+        SuperPaymaster next = impls[n % 2];
+        vm.prank(owner);
+        sp.upgradeToAndCall(address(next), bytes(""));
+        address after_ = address(uint160(uint256(vm.load(address(sp), ERC1967_IMPLEMENTATION_SLOT))));
+        assertEq(after_, address(next), "implementation slot moved to the other implementation");
+        assertTrue(after_ != before, "upgrade changed the implementation");
+    }
+
     function test_preupgrade_pending_all_boundaries_rechecked_after_upgrade() public {
-        SuperPaymaster next = new SuperPaymaster(IEntryPoint(EP), IRegistry(address(registry)), address(sp.ETH_USD_PRICE_FEED()));
+        for (uint256 k; k < 2; ++k) {
+            impls[k] = new SuperPaymaster(IEntryPoint(EP), IRegistry(address(registry)), address(sp.ETH_USD_PRICE_FEED()));
+        }
+        uint256 n;
         for (uint256 i; i < 9; ++i) {
             SuperPaymaster.GasParams memory g = _boundary(i, false);
             vm.prank(owner);
             sp.queueGasParams(g.minPostOpGas, g.settleGasBound, g.cWrap, g.cPostop);
-            vm.prank(owner);
-            sp.upgradeToAndCall(address(next), bytes(""));
+            bytes32 queued = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1));
+            _upgradeToOther(n++);
+            assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), queued, "valid pending tuple survives the upgrade");
             vm.warp(vm.getBlockTimestamp() + 48 hours);
             vm.prank(owner);
             sp.executeGasParams();
@@ -373,9 +396,8 @@ contract SuperPaymasterV55GasParamsTest is Test {
             // actual UUPS upgrade must preserve it and the new executor reject it.
             _pendingTuple(_boundary(i, true));
             bytes32 beforePending = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1));
-            vm.prank(owner);
-            sp.upgradeToAndCall(address(next), bytes(""));
-            assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), beforePending);
+            _upgradeToOther(n++);
+            assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), beforePending, "invalid pending tuple survives the upgrade");
             vm.prank(owner);
             vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
             sp.executeGasParams();
