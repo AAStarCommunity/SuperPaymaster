@@ -324,7 +324,7 @@ contract SuperPaymaster_Coverage_Test is Test {
 
     /// @dev 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
     function _buildPaymasterDataFor(address op) internal view returns (bytes memory) {
-        return V2TokenDeployer.pmd(address(paymaster), 0, 200000, op, type(uint256).max, address(xpnts), 0);
+        return V2TokenDeployer.pmd(address(paymaster), 0, 500000, op, type(uint256).max, address(xpnts), 0);
     }
 
     function _buildPaymasterData() internal view returns (bytes memory) {
@@ -669,7 +669,7 @@ contract SuperPaymaster_Coverage_Test is Test {
         // would call exchangeRate() on address(0) and revert instead of failing closed.
         PackedUserOperation memory op;
         op.sender = user1;
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200000, op9, type(uint256).max, address(0), 0);
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 500000, op9, type(uint256).max, address(0), 0);
         vm.prank(address(entryPoint));
         (bool ok, bytes memory ret) =
             address(paymaster).call(abi.encodeCall(paymaster.validatePaymasterUserOp, (op, bytes32(0), 1000)));

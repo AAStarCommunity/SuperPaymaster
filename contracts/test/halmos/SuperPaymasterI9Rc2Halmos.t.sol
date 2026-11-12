@@ -25,8 +25,8 @@ import { SuperPaymasterI9HalmosTest } from "./SuperPaymasterI9Halmos.t.sol";
  *
  *        Word-12 value used for the 384 path (concrete, never symbolic — the same price-point
  *        rationale as the parent's §CF header): the GasParams DEFAULTS that `_gpRaw()` substitutes
- *        for an unset slot (MIN_POST_OP_GAS 200_000 | SETTLE_GAS_BOUND 160_000 << 32 |
- *        C_WRAP_GAS 5_000 << 64 | C_POSTOP_GAS 175_000 << 96), i.e. exactly what a fresh rc.2 proxy
+ *        for an unset slot (MIN_POST_OP_GAS 500_000 | SETTLE_GAS_BOUND 450_000 << 32 |
+ *        C_WRAP_GAS 5_000 << 64 | C_POSTOP_GAS 450_000 << 96), i.e. exactly what a fresh rc.2 proxy
  *        emits, with a fee snapshot of 500 bps (encoded 501 << 128) — deliberately DIFFERENT from the
  *        pinned live fee (1000) so the snapshot branch (`feeSnap - 1`), not the live-fee fallback,
  *        is the one exercised. That the snapshot fee is actually the one charged is asserted
@@ -37,7 +37,7 @@ import { SuperPaymasterI9HalmosTest } from "./SuperPaymasterI9Halmos.t.sol";
 contract SuperPaymasterI9Rc2HalmosTest is SuperPaymasterI9HalmosTest {
     uint256 internal constant SNAP_FEE_BPS = 500; // != pinned live PROTOCOL_FEE_BPS (1000)
     uint256 internal constant GAS_SNAP_WORD =
-        200_000 | (uint256(160_000) << 32) | (uint256(5_000) << 64) | (uint256(175_000) << 96)
+        500_000 | (uint256(450_000) << 32) | (uint256(5_000) << 64) | (uint256(450_000) << 96)
             | ((SNAP_FEE_BPS + 1) << 128);
 
     /// @dev rc.2's emitted shape: the parent's 352-byte context ‖ word 12.

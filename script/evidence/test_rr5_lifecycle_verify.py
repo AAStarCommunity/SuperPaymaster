@@ -3,6 +3,8 @@
 
 python3 script/evidence/test_rr5_lifecycle_verify.py [run-directory]
 """
+import importlib.util
+from unittest import mock
 import hashlib
 import json
 from pathlib import Path
@@ -19,7 +21,8 @@ SOURCE = Path(sys.argv.pop(1) if len(sys.argv) > 1 else
 
 class EvidenceControls(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix='rr5-negative-')
+        (RUNNER.parents[2]/'.codex-work').mkdir(parents=True, exist_ok=True)
+        self.tmp = tempfile.TemporaryDirectory(prefix='rr5-negative-', dir=RUNNER.parents[2]/'.codex-work')
         self.addCleanup(self.tmp.cleanup)
         self.out = Path(self.tmp.name)/'run'
         shutil.copytree(SOURCE, self.out)
@@ -27,7 +30,7 @@ class EvidenceControls(unittest.TestCase):
         self.commands = [json.loads(s) for s in (self.out/'commands.jsonl').read_text().splitlines()]
         self.row = self.manifest['amsterdam/balance/rr_base']
 
-    def check(self, reason=None):
+    def check(self, reason=None, partial=False):
         (self.out/'manifest.json').write_text(json.dumps(self.manifest))
         for c in self.commands:
             c['sha256'] = hashlib.sha256((self.out/c['log']).read_bytes()).hexdigest()
@@ -35,19 +38,117 @@ class EvidenceControls(unittest.TestCase):
         (self.out/'SHA256SUMS').write_text(''.join(
             f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
             for p in sorted(self.out.iterdir()) if p.name != 'SHA256SUMS'))
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
+        if partial:
+            spec = importlib.util.spec_from_file_location('rr5_partial', RUNNER)
+            runner = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(runner)
+            self.assertEqual(runner.verify(self.out, partial=True, historical=True)[0], 52)
+            return
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify-historical', str(self.out)],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
         if reason is None:
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('PASS (156, 4044)', result.stdout)
+            self.assertEqual(result.returncode, 3, result.stderr)
+            self.assertIn('HISTORICAL (NOT RELEASE EVIDENCE) (156, 4044)', result.stdout)
+            self.assertIn('engines: amsterdam,cancun,prague', result.stdout)
         else:
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn(reason, result.stderr)
 
-    def test_untouched(self):
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
+    def test_historical_record_without_compile_evm(self):
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify-historical', str(self.out)],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
+
+    def test_release_rejects_changed_production_source(self):
+        spec = importlib.util.spec_from_file_location('rr5_release', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        before = json.loads((self.out/'source-before.json').read_text())
+        before[next(iter(before))] = '0' * 64
+        with mock.patch.object(runner, 'hashes', return_value=before):
+            with self.assertRaisesRegex(AssertionError, 'current production source hashes'):
+                runner.verify(self.out)
+
+    def mark_new_compile_evm_record(self):
+        for key, row in self.manifest.items():
+            engine = key.split('/', 1)[0]
+            row['compileEvm'] = 'prague' if engine == 'prague' else 'cancun'
+        for command in self.commands:
+            command['compileEvm'] = 'prague' if command['engine'] == 'prague' else 'cancun'
+
+    def test_new_amsterdam_cancun_record_rejects_prague_argv(self):
+        self.mark_new_compile_evm_record()
+        self.check('command argv')
+
+    def test_new_amsterdam_cancun_record_accepts_cancun_argv(self):
+        self.mark_new_compile_evm_record()
+        for command in self.commands:
+            if command['engine'] == 'amsterdam':
+                i = command['argv'].index('--evm-version')
+                command['argv'][i + 1] = 'cancun'
+        self.check()
+
+    def test_missing_production_source(self):
+        before = json.loads((self.out/'source-before.json').read_text())
+        before.pop(next(iter(before)))
+        for name in ('source-before.json', 'source-after.json'):
+            (self.out/name).write_text(json.dumps(before))
+        self.check('production source inventory mismatch')
+
+    def test_cancun_only_rejected_for_release(self):
+        self.manifest = {k: v for k, v in self.manifest.items() if k.startswith('cancun/')}
+        self.commands = [c for c in self.commands if c['engine'] == 'cancun']
+        for engine in ('amsterdam', 'prague'):
+            (self.out / f'{engine}-version.txt').unlink()
+        self.check('missing required engines: amsterdam')
+
+    def test_cancun_only_partial(self):
+        self.manifest = {k: v for k, v in self.manifest.items() if k.startswith('cancun/')}
+        self.commands = [c for c in self.commands if c['engine'] == 'cancun']
+        renamed = {}
+        for i, c in enumerate(self.commands, 1):
+            old = c['id']
+            new = f'{i:05d}' + old[5:]
+            renamed[old] = new
+            (self.out/c['log']).rename(self.out/(new + '.log'))
+            c['id'], c['log'] = new, new + '.log'
+        for row in self.manifest.values():
+            for key, value in row.items():
+                if isinstance(value, str) and value in renamed:
+                    row[key] = renamed[value]
+        for engine in ('amsterdam', 'prague'):
+            (self.out/f'{engine}-version.txt').unlink()
+        self.check(partial=True)
+
+    def test_missing_engine_version(self):
+        (self.out/'amsterdam-version.txt').unlink()
+        self.check('engine inventory mismatch')
+
+    def test_release_rejects_changed_current_harness(self):
+        spec = importlib.util.spec_from_file_location('rr5_harness', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        before = json.loads((self.out/'source-before.json').read_text())
+        original = Path.read_bytes
+        def changed(path):
+            if str(path) == runner.TEST:
+                return b'changed current measurement harness'
+            return original(path)
+        with mock.patch.object(runner, 'hashes', return_value=before), mock.patch.object(Path, 'read_bytes', changed):
+            with self.assertRaisesRegex(AssertionError, 'current measurement harness differs'):
+                runner.verify(self.out)
+
+    def test_historical_ignores_current_harness(self):
+        spec = importlib.util.spec_from_file_location('rr5_historical', RUNNER)
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        original = Path.read_bytes
+        def changed(path):
+            if str(path) in (runner.TEST, 'script/evidence/rr5-lifecycle-run.py'):
+                raise AssertionError('historical verifier must not read current measurement code')
+            return original(path)
+        with mock.patch.object(Path, 'read_bytes', changed):
+            self.assertEqual(runner.verify(self.out, historical=True), (156, 4044))
 
     def test_null_band(self):
         for row in self.manifest.values():
@@ -77,6 +178,15 @@ class EvidenceControls(unittest.TestCase):
         p.write_text(p.read_text().replace('ret: '+self.row['guard_selector'], 'ret: 0x'))
         self.check('point classification')
 
+
+    def test_option_like_output_is_rejected_before_running(self):
+        # '--help' used to be taken as EMPTY_OUT and started a full run there.
+        for argv in (['--help'], ['--engines', 'amsterdam', '-x']):
+            result = subprocess.run([sys.executable, str(RUNNER), *argv],
+                                    text=True, capture_output=True, cwd=self.tmp.name)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn('usage:', result.stderr)
+            self.assertFalse((Path(self.tmp.name)/argv[-1]).exists())
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

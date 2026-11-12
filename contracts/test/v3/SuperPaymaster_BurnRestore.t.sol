@@ -161,7 +161,7 @@ contract SuperPaymaster_BurnRestore_Test is Test {
 
     // Build a 5.5.0 paymasterAndData for operator1 (token field required, R4-H1).
     function _buildPaymasterData() internal view returns (bytes memory) {
-        return V2TokenDeployer.pmd(address(paymaster), uint128(100000), uint128(200000), operator1, type(uint256).max, address(xpnts), 0);
+        return V2TokenDeployer.pmd(address(paymaster), uint128(100000), uint128(500000), operator1, type(uint256).max, address(xpnts), 0);
     }
 
     function _validate(bytes32 opHash, uint256 maxCost) internal returns (bytes memory ctx, uint256 vd) {
@@ -221,7 +221,7 @@ contract SuperPaymaster_BurnRestore_Test is Test {
         PackedUserOperation memory op;
         op.sender = user1;
         op.paymasterAndData = V2TokenDeployer.pmd(
-            address(paymaster), uint128(100000), uint128(200000), operator1, type(uint256).max, address(xpnts), 1
+            address(paymaster), uint128(100000), uint128(500000), operator1, type(uint256).max, address(xpnts), 1
         );
         uint128 opBefore = _opBalance();
         vm.prank(address(entryPoint));

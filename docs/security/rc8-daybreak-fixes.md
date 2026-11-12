@@ -322,9 +322,9 @@ The requested fixes, both conditional C4 lows, version propagation and all speci
 
 ## Delivery split — SP-a / SP-b
 
-The SuperPaymaster fixes recorded from here to the end of this file ship in two PRs. This tree
-(SP-a) contains all of them except four price-path changes in `SuperPaymasterAdmin.sol`, which
-ship in the follow-up SP-b PR together with their tests:
+The SuperPaymaster fixes recorded from here to the end of this file shipped in two PRs. SP-a
+(#619) carried all of them except four price-path changes in `SuperPaymasterAdmin.sol`, which
+SP-b carries together with their tests:
 
 1. `setAPNTSPrice`: the 10% lower limit rounds upward (re-review #7).
 2. `_checkEmergencyPrice`: the 20% lower limit rounds upward (re-review #7).
@@ -333,10 +333,9 @@ ship in the follow-up SP-b PR together with their tests:
 4. `updatePriceDVT`: the Chainlink deviation check is exact in bps instead of a truncated integer
    percentage.
 
-Until SP-b merges, these four paths keep their 5.5.0 behavior. No tag is cut between the two PRs.
-`SuperPaymasterLens-1.2.2`, including the `uint96` reservation ceiling, is in SP-a because it mirrors
-SP-a's validation. Test counts and byte sizes quoted below were measured on the combined tree;
-the SP-a PR body quotes its own.
+No tag was cut between the two PRs. `SuperPaymasterLens-1.2.2`, including the `uint96`
+reservation ceiling, is in SP-a because it mirrors SP-a's validation. Test counts and byte sizes
+quoted below were measured on the combined tree, which is the tree after SP-b.
 
 ## Daybreak re-review #3 — SP-551-07 through SP-551-11
 
@@ -359,18 +358,16 @@ callable by any address immediately. The owner path exposes the atomic
 slots and the storage gap are unchanged. `totalSpent` retains its 5.5.0 meaning: validation adds the
 reserved `a0`, and settlement never adds it again.
 
-`GP_CPOSTOP_MIN` remains 180,000. The measured 154,262-gas worst path requires 177,402 gas at the
-15% safety rule, so 180,000 is the smallest rounded safe floor. Before upgrading SuperPaymaster, the
-executor must read the pending gas-parameter proposal and cancel/requeue it if `cPostop < 180000`.
-After the upgrade, the executor must assert active `cPostop >= 180000`; the release tuple
-`(480000,450000,5000,450000)` satisfies this requirement. `SuperPaymasterLens.version()` and the
+Superseded by "Amsterdam gas floors (SP-c)" below: `GP_CPOSTOP_MIN` is now 450,000 and the release
+tuple is `(500000,450000,5000,450000)`; 480,000 is rejected. The pre-SP-c text (cPostop floor 180,000,
+release tuple `(480000,450000,5000,450000)`) is kept only as history and must not be executed. `SuperPaymasterLens.version()` and the
 release pin now report `SuperPaymasterLens-1.2.1`.
 
 The OP-011-corrected remeasurement is lower but does not relax that conservative floor: validation uses
 272,723 of the 1,150,000 verification budget (877,277 headroom), and the measured worst postOp path
 uses 132,091 gas. Its 15% requirement is 151,905, so release `cPostop=450000` has 317,909 raw gas
 headroom (24,067 bps over the measured path). The maximum measured entry-guard bound is 462,035,
-leaving 17,965 under release `minPostOpGas=480000`.
+leaving 17,965 under the then-proposed `minPostOpGas=480000` (superseded: release is 500,000).
 
 ## Critical OP-011 correction — 2026-11-10
 
@@ -443,6 +440,36 @@ slot 37 `_inflight` (including appended member `Inflight.counted`), slot 38 `_ga
 end remains slot 65. Scope aliases normalize only `SuperPaymasterStorage` to the old
 `SuperPaymaster` declaring name. The self-test mutates a struct member and removes
 `Inflight.counted`; both mutations are rejected.
+
+### Amsterdam gas floors (SP-c)
+
+Governance floors now equal the release tuple `(MIN, SETTLE, C_WRAP, C_POSTOP) = (500k, 450k, 5k, 450k)`.
+The old gasleft-delta metric under-counted EIP-8037: bisected real-handleOps requirements are
+BALANCE 375,528 and CREDIT 379,828, so `ceil(W x 1.15) = 436,803`; the old floor tuple is rejected.
+The release tuple settles on Amsterdam with 30,651 headroom (469,349 required vs 500,000).
+MIN must also cover `SETTLE + floor(SETTLE / 63) + 20,000`: EIP-150 retained gas plus ~12.2k call overhead and ~7.8k margin.
+The release spacing is 477,142, below the unchanged 500,000 absolute floor; the old 620k/600k tuple is rejected.
+Real-EntryPoint BALANCE/CREDIT tests validate the exact governance minimum at SETTLE 450k, 600k and 1M.
+Zero-slot defaults changed with the floors: MIN 200k -> 500k, SETTLE 160k -> 450k, C_POSTOP 180k -> 450k
+(C_WRAP stays 5k). An all-zero slot therefore behaves exactly like the release tuple; the manifest still
+writes the tuple explicitly. LEGACY constants are unchanged.
+
+`LEGACY_SETTLE_GAS_BOUND = 160k` and `LEGACY_C_WRAP_GAS = 30k` are unchanged. They apply only to an
+unreleased 5.5.0 352-byte context that could survive only within one `handleOps` transaction.
+Sepolia upgrades from 5.4.2, whose tag source emits a 160-byte context, so that legacy path is
+unreachable across the 5.4.2 -> 5.5.1 upgrade. The executor's own minimum still admits 480k; that is
+raised to 500k in the separate manifest PR under `script/upgrade`. A release run before that PR lands
+would queue a tuple the contract rejects (`InvalidConfiguration` at queue), so that PR is a release
+prerequisite, not a follow-up.
+
+Migration and integrator notes (release procedure):
+- `_gpRaw` substitutes the defaults only for an all-zero slot. A proxy that already stores a tuple
+  keeps it until governance queues a new one (48 h timelock). Sepolia's 5.4.2 proxy has a zero slot, so
+  it gets the release values on upgrade; any other proxy must be read first.
+- Floors are checked at queue and at execute, so a pending tuple below the new floors can no longer be
+  executed after the upgrade: cancel it and re-queue a valid one.
+- UserOps with `paymasterPostOpGasLimit < 500000` are rejected at validation. SDK/bundler integrators
+  must send at least 500,000.
 
 ### Validation trace and identity configuration (SP-R4-M-01 / L-02)
 
@@ -595,5 +622,21 @@ already reads only `aPNTsBalance`, so escrow is excluded automatically in the sa
 validation.
 
 Accepted residual: during `[readyAt, readyAt + W]`, where `W = 24 hours`, escrowed funds can leave
-without further notice. Those funds did not sponsor operations while escrowed. The remaining
-exposure is the 30% slash on the escrowed slice for at most `W` per request cycle.
+without further notice. Inside that window the escrowed slice can escape the slash entirely: a
+slash that lands after the withdrawal executes finds nothing left of it. Those funds did not
+sponsor operations while escrowed, and the request gave at least 48 hours of public notice
+(`OperatorWithdrawalRequested` carries `readyAt` and `expiresAt`), so the exposure is limited to
+the escrowed slice during at most `W` per request cycle.
+
+Side effect: `xPNTsTokenV2Ext` uses `operators(community).aPNTsBalance` as the backing for the
+community-token issuance ceiling. Because escrow leaves `aPNTsBalance` at request time, the backing
+(and so the ceiling) drops when a withdrawal is requested, not when it executes. That is the
+conservative direction; `isOverIssued()` can turn true up to 48 hours earlier than before.
+
+Deposit cap: a deposit reverts `AmountExceedsUint128` unless the liquid balance, the withdrawal
+escrow, the in-flight reservation and the deposit together fit `uint128`. Every later credit back
+into `aPNTsBalance` (escrow cancel/expire, postOp refund, stale release) therefore cannot overflow.
+Tests: `test_B1_deposit_cap_counts_withdrawal_escrow`,
+`test_B1_deposit_cap_counts_inflight_reservation_then_stale_release_and_slash`, and
+`test_B1_expireWithdraw_at_exactly_expiry_reverts_and_one_second_later_succeeds`; each is red
+against its mutant (escrow ignored, reservation ignored, `<=` relaxed to `<`).

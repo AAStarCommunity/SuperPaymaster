@@ -316,7 +316,7 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // 5.5.0 layout: [PM 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
         op.paymasterAndData = V2TokenDeployer.pmd(
-            address(paymaster), uint128(0), uint128(200000), opAddr, type(uint256).max, address(xtok), 0
+            address(paymaster), uint128(0), uint128(500000), opAddr, type(uint256).max, address(xtok), 0
         );
 
         // No Signature

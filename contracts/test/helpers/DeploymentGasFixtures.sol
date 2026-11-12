@@ -5,11 +5,11 @@ import {Vm} from "forge-std/Vm.sol";
 import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
 import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 
-/// @notice Accepted tuple-480 deployment parameters; see tuple-480/REPORT.md.
+/// @notice Accepted release deployment parameters; see tuple-480/REPORT.md for the preceding tuple.
 library DeploymentGasFixtures {
     using SuperPaymasterAdminCalls for SuperPaymaster;
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    uint32 internal constant MIN_POST = 480_000;
+    uint32 internal constant MIN_POST = 500_000;
     uint32 internal constant SETTLE = 450_000;
     uint32 internal constant WRAP = 5_000;
     uint32 internal constant POSTOP = 450_000;

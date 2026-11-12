@@ -181,7 +181,8 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     ///         checked before anything in the op is parsed. postOp / release are unaffected.
     bool public paused;
 
-    // 5.5.1: delayed operator withdrawals remain in aPNTsBalance and slashable until execution.
+    // 5.5.1: a withdrawal request escrows its amount here, outside aPNTsBalance (so it cannot
+    // sponsor), and the escrow stays slashable until it executes, is cancelled or expires.
     mapping(address => PendingWithdrawal) public pendingWithdrawals;
 
     // 5.5.1: queue provenance makes a guardian freeze time-bounded without changing legacy flags.
@@ -219,21 +220,30 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     uint8 internal constant MODE_BALANCE = 1;
     uint8 internal constant MODE_CREDIT = 2;
 
-    // GOV-5 defaults of the owner-settable `GasParams` (an all-zero slot = these values) and their
-    // hard bounds (checked at queue AND execute; buffer-and-params-experiment.md §B.2):
+    // GOV-5 defaults of the owner-settable `GasParams` and their hard bounds (checked at queue AND
+    // execute; buffer-and-params-experiment.md §B.2). An unset/all-zero slot behaves exactly like
+    // the shipped configuration. The release manifest still writes the tuple explicitly; these
+    // defaults are its safety net.
     //   MIN_POST_OP_GAS (C-04 floor for paymasterPostOpGasLimit), SETTLE_GAS_BOUND (B-1 / R10-H1
     //   postOp entry guard), C_WRAP_GAS (R10-M3 EntryPoint wrapper), C_POSTOP_GAS (whole postOp
     //   frame upper bound; G-layer rule C_POSTOP >= W_postop x 1.15).
-    //   SETTLE in [155k, 1M]; MIN in [SETTLE + 20k, 2M]; C_POSTOP in [180k, MIN]; C_WRAP in [5k, 50k].
-    uint256 internal constant MIN_POST_OP_GAS = 200_000;
-    uint256 internal constant SETTLE_GAS_BOUND = 160_000;
+    //   The old gasleft-delta metric under-counted EIP-8037 state gas. Bisected real-handleOps
+    //   requirements are BALANCE 375,528 and CREDIT 379,828; ceil(W x 1.15) is 436,803.
+    //   Governance floors equal the release tuple (500k, 450k, 5k, 450k). On Amsterdam it
+    //   settles with 30,651 headroom (469,349 required vs 500,000). SETTLE is in [450k, 1M],
+    //   MIN in [max(500k, SETTLE + floor(SETTLE / 63) + 20k), 2M], C_POSTOP in [450k, MIN], C_WRAP in [5k, 50k].
+    uint256 internal constant MIN_POST_OP_GAS = 500_000;
+    uint256 internal constant SETTLE_GAS_BOUND = 450_000;
     uint256 internal constant C_WRAP_GAS = 5_000;
-    uint256 internal constant C_POSTOP_GAS = 180_000;
-    uint256 internal constant GP_SETTLE_MIN = 155_000;
+    uint256 internal constant C_POSTOP_GAS = 450_000;
+    uint256 internal constant GP_SETTLE_MIN = 450_000;
     uint256 internal constant GP_SETTLE_MAX = 1_000_000;
+    // Spacing covers EIP-150 1/64 retained gas (SETTLE / 63 rounds down), plus fixed
+    // call overhead (~12.2k measured) and ~7.8k margin in the 20k fixed part.
     uint256 internal constant GP_MINPOST_OVER_SETTLE = 20_000;
+    uint256 internal constant GP_MINPOST_MIN = 500_000;
     uint256 internal constant GP_MINPOST_MAX = 2_000_000;
-    uint256 internal constant GP_CPOSTOP_MIN = 180_000;
+    uint256 internal constant GP_CPOSTOP_MIN = 450_000;
     uint256 internal constant GP_CWRAP_MIN = 5_000;
     uint256 internal constant GP_CWRAP_MAX = 50_000;
     uint256 internal constant GP_TIMELOCK = 48 hours;
@@ -247,6 +257,10 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     /// @notice Delay before escrowed operator funds become withdrawable. A request immediately
     ///         removes the funds from sponsorship and escrows them; it may execute only during
     ///         [readyAt, readyAt + OPERATOR_WITHDRAWAL_WINDOW].
+    ///         The delay must exceed the worst case from "misbehaviour detectable" to a slash
+    ///         freeze on chain via the guardian route: detection + guardian queueSlash signing,
+    ///         plus OP forced inclusion through L1 under sequencer censorship (~12 h), plus
+    ///         margin. The BLS quorum route is NOT the basis: it has no measured latency today.
     uint48 public constant OPERATOR_WITHDRAWAL_DELAY = 48 hours;
     /// @notice Execution window for a matured operator withdrawal request.
     uint48 public constant OPERATOR_WITHDRAWAL_WINDOW = 24 hours;

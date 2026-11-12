@@ -719,6 +719,44 @@ contract SuperPaymasterV55Test is Test {
         assertEq(sp.totalTrackedBalance(), trackedBefore);
     }
 
+    function test_B1_expireWithdraw_at_exactly_expiry_reverts_and_one_second_later_succeeds() public {
+        vm.prank(operator);
+        sp.requestWithdraw(90_000 ether);
+        (, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        uint48 expiresAt = readyAt + sp.OPERATOR_WITHDRAWAL_WINDOW();
+
+        vm.warp(expiresAt);
+        vm.prank(address(0xCA11));
+        vm.expectRevert(abi.encodeWithSelector(SuperPaymasterStorage.WithdrawalNotReady.selector, expiresAt));
+        sp.expireWithdraw(operator);
+
+        vm.warp(uint256(expiresAt) + 1);
+        vm.prank(address(0xCA11));
+        sp.expireWithdraw(operator);
+        (uint128 pendingAmount,) = sp.pendingWithdrawals(operator);
+        assertEq(pendingAmount, 0, "expired escrow is cleared");
+    }
+
+    function test_B1_deposit_cap_counts_withdrawal_escrow() public {
+        vm.prank(operator);
+        sp.requestWithdraw(90_000 ether);
+        uint256 collateral = uint256(_opBalance()) + 90_000 ether;
+        uint256 overflowing = uint256(type(uint128).max) - collateral + 1;
+        // Fits beside the liquid balance alone, so only an escrow-aware cap rejects it.
+        assertLe(uint256(_opBalance()) + overflowing, uint256(type(uint128).max));
+        apnts.mint(operator, overflowing);
+
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymasterStorage.AmountExceedsUint128.selector);
+        sp.deposit(overflowing);
+
+        vm.prank(operator);
+        sp.deposit(overflowing - 1);
+        vm.prank(operator);
+        sp.cancelWithdraw();
+        assertEq(uint256(_opBalance()), uint256(type(uint128).max), "cancel restores escrow without overflow");
+    }
+
     function test_M01_understaked_operator_is_permissionlessly_paused() public {
         vm.expectRevert(SuperPaymasterStorage.OperatorNotConfigured.selector);
         sp.pauseUnderstakedOperator(address(0xBAD));
@@ -910,6 +948,38 @@ contract SuperPaymasterV55Test is Test {
         assertEq(sp.inflightReserved(operator), 0, "atomic route clears the stale aggregate");
         assertEq(sp.getLatestSlash(operator).amount, 30 ether, "full configured share collected");
         assertEq(_opBalance(), 70 ether, "slash uses the full collateral basis");
+    }
+
+    /// forge-config: default.isolate = true
+    function test_B1_deposit_cap_counts_inflight_reservation_then_stale_release_and_slash() public {
+        _setOpBalance(100 ether);
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        bytes32 h = entryPoint.getUserOpHash(op);
+        vm.prank(address(entryPoint));
+        sp.validatePaymasterUserOp(op, h, 750_000_000_000_000);
+        assertEq(sp.inflightReserved(operator), 90 ether, "validation reserves 90");
+
+        uint256 collateral = uint256(_opBalance()) + sp.inflightReserved(operator);
+        uint256 overflowing = uint256(type(uint128).max) - collateral + 1;
+        // Fits beside the liquid balance alone, so only a reservation-aware cap rejects it.
+        assertLe(uint256(_opBalance()) + overflowing, uint256(type(uint128).max));
+        apnts.mint(operator, overflowing);
+
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymasterStorage.AmountExceedsUint128.selector);
+        sp.deposit(overflowing);
+
+        vm.prank(operator);
+        sp.deposit(overflowing - 1);
+
+        bytes32[] memory stale = new bytes32[](1);
+        stale[0] = h;
+        vm.startPrank(owner);
+        sp.queueSlash(operator);
+        sp.slashOperatorAfterReleasing(operator, ISuperPaymaster.SlashLevel.MAJOR, 1 ether, "release after deposit", stale);
+        vm.stopPrank();
+        assertEq(sp.inflightReserved(operator), 0, "stale release restored without overflow");
+        assertEq(uint256(_opBalance()), uint256(type(uint128).max) - 1 ether, "slash took the penalty after release");
     }
 
     function test_SP55107_pending_slash_does_not_read_time_or_block_admission() public {
@@ -1239,7 +1309,7 @@ contract SuperPaymasterV55Test is Test {
         vm.revertTo(snap);
 
         (SuperPaymaster.GasParams memory gp,) = sp.gasParams();
-        assertEq(gp.minPostOpGas, 480_000);
+        assertEq(gp.minPostOpGas, 500_000);
         assertEq(gp.settleGasBound, 450_000);
         assertEq(gp.cWrap, 5_000);
         assertEq(gp.cPostop, 450_000);

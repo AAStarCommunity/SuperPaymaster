@@ -81,8 +81,9 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
     }
     uint256 internal constant CTX_LEN = 384;
     uint256 internal constant FEE_SNAP_SHIFT = 128;
-    /// @dev 5.5.0 values, applied ONLY to a context produced by the 5.5.0 implementation (no
-    ///      snapshot) that is settled by this implementation after a mid-bundle upgrade.
+    /// @dev 5.5.0 values, applied ONLY to its 352-byte context. Such a context can exist only inside
+    ///      one handleOps transaction, and 5.5.0 was never deployed. Sepolia upgrades from 5.4.2,
+    ///      whose context is 160 bytes, so this path is unreachable across the 5.4.2 -> 5.5.1 upgrade.
     uint256 internal constant LEGACY_SETTLE_GAS_BOUND = 160_000;
     uint256 internal constant LEGACY_C_WRAP_GAS = 30_000;
 
@@ -165,8 +166,13 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
     /// @dev Shared deposit accounting: overflow-check, credit operator balance,
     ///      bump totalTrackedBalance, emit. Used by deposit/onTransferReceived/depositFor.
     function _creditDeposit(address operator, uint256 amount) internal {
-        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount;
-        if (amount > type(uint128).max - collateral) revert AmountExceedsUint128();
+        // Every later credit back into aPNTsBalance (cancel/expire of escrow, postOp refund or stale
+        // release of a reservation) must still fit uint128, so the cap covers all three buckets.
+        uint256 collateral = uint256(operators[operator].aPNTsBalance) + pendingWithdrawals[operator].amount
+            + inflightReserved[operator];
+        if (collateral > type(uint128).max || amount > type(uint128).max - collateral) {
+            revert AmountExceedsUint128();
+        }
         // forge-lint: disable-next-line(unsafe-typecast)
         operators[operator].aPNTsBalance += uint128(amount);
         totalTrackedBalance += amount;

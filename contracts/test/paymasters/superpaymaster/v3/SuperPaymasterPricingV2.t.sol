@@ -235,7 +235,7 @@ contract SuperPaymasterPricingV2Test is Test {
             gasFees: bytes32(0),
             // 5.5.0: [PM 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
             paymasterAndData: V2TokenDeployer.pmd(
-                address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xtok), 0
+                address(paymaster), uint128(100000), uint128(500000), operator, type(uint256).max, address(xtok), 0
             ),
             signature: bytes("")
         });
@@ -333,14 +333,14 @@ contract SuperPaymasterPricingV2Test is Test {
         // 1. Initial State
         paymaster.updatePrice(); // $2000
 
-        // 2. DVT Updates Price to $4000 (with fresh timestamp)
+        // 2. DVT Updates Price by the maximum allowed 20% step (with fresh timestamp)
         vm.warp(block.timestamp + 10 minutes); // Some time passed
 
-        // Simulate Chainlink DOWN so DVT can bypass deviation check
+        // Simulate Chainlink down; the cached-price movement cap still applies.
         priceFeed.setRevert(true);
 
         vm.prank(owner);
-        paymaster.updatePriceDVT(4000 * 1e8, block.timestamp, "", 0);
+        paymaster.updatePriceDVT(2400 * 1e8, block.timestamp, "", 0);
 
         // Restore Chainlink
         priceFeed.setRevert(false);
@@ -352,9 +352,9 @@ contract SuperPaymasterPricingV2Test is Test {
         _validateAndPostOp(keccak256("dvt"));
 
         // Assert:
-        // 1. Cache should still be DVT price ($4000), not Oracle ($5000)
+        // 1. Cache should still be DVT price ($2400), not Oracle ($5000)
         (int256 p,,,) = paymaster.cachedPrice();
-        assertEq(p, 4000 * 1e8);
+        assertEq(p, 2400 * 1e8);
     }
 
     // 5. R10-M3 (new in 5.5.0): postOp prices the charge at the VALIDATION-time snapshot carried
@@ -385,11 +385,11 @@ contract SuperPaymasterPricingV2Test is Test {
         );
     }
 
-    /// @dev Mirrors SP postOp (R10-M3, exp/buffer): bufWei = (C_POSTOP 175k (exp/params default) + ceil((callGas+postOpGas)*10%)
+    /// @dev Mirrors SP postOp (R10-M3): bufWei = (release-default C_POSTOP 450k + ceil((callGas+postOpGas)*10%)
     ///      + C_WRAP 5k) * feePerGas; charge = ceil(ceil(aGas) * (1 + 10% fee)). callGas = 0 here.
     function _expectedCharge(uint256 price, uint256 actualGasCost, uint256 feePerGas) internal pure returns (uint256) {
-        uint256 postOpGas = 200000;
-        uint256 bufWei = (180_000 + Math.ceilDiv(postOpGas * 10, 100) + 5_000) * feePerGas;
+        uint256 postOpGas = 500000;
+        uint256 bufWei = (450_000 + Math.ceilDiv(postOpGas * 10, 100) + 5_000) * feePerGas;
         uint256 aGas = Math.mulDiv((actualGasCost + bufWei) * price, 1e18, 1e8 * 0.02 ether, Math.Rounding.Ceil);
         return Math.mulDiv(aGas, 11000, 10000, Math.Rounding.Ceil);
     }

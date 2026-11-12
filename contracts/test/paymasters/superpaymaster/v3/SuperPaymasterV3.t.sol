@@ -606,7 +606,7 @@ contract SuperPaymasterTest is Test {
 
         // 5.5.0 paymasterAndData: [PM 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
         op.paymasterAndData = V2TokenDeployer.pmd(
-            address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xtok), 0
+            address(paymaster), uint128(100000), uint128(500000), operator, type(uint256).max, address(xtok), 0
         );
         return op;
     }
