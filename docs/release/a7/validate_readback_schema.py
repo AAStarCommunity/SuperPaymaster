@@ -82,7 +82,11 @@ def negatives(base):
     del no_timelock['contracts']['timelockController']
     registry_na_roles = copy.deepcopy(base)
     registry_na_roles['contracts']['registry']['roles'] = 'n/a:not deployed'
-    return {'missing timelockController': no_timelock, 'registry roles n/a': registry_na_roles,
+    top_level = {}
+    for key in ('schema', 'header', 'contracts', 'checks', 'amsterdamProbe'):
+        top_level[f'missing top-level {key}'] = copy.deepcopy(base)
+        del top_level[f'missing top-level {key}'][key]
+    return {**top_level, 'missing timelockController': no_timelock, 'registry roles n/a': registry_na_roles,
             'guardianSet entry without slot': no_slot,
             'roles object on a contract without a role system': roles_obj,
             'missing blsAggregator.pendingFraudProofVerifierReadyAt': no_pending,
