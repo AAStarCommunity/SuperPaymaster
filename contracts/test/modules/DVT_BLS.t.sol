@@ -8,6 +8,7 @@ import "src/interfaces/IVersioned.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 
 import "src/utils/BLS.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice Stand-in for GTokenStaking that always reports unlimited stake —
@@ -107,6 +108,7 @@ contract MockSuperPaymaster {
 
 contract DVTBLSTest is Test {
     DVTValidator dvt;
+    bool realPrecompiles;
     BLSAggregator bls;
     MockRegistryV3 registry;
     MockSuperPaymaster sp;
@@ -116,39 +118,41 @@ contract DVTBLSTest is Test {
 
     uint256 constant THRESHOLD = 7;
 
-    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(seed);
         pk.x_b = bytes32(seed + 1);
         pk.y_a = bytes32(seed + 2);
         pk.y_b = bytes32(seed + 3);
     }
 
-    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+    function _pop(address validator, uint256 scalar) internal view returns (BLS.G2Point memory pop) {
+        if (realPrecompiles) return GenuineBLS.pop(bls, validator, scalar);
+    }
 
     function setUp() public {
         // Mock BLS precompiles BEFORE any registerBLSPublicKey call below —
         // _validateG1Point invokes G1ADD (0x0b) and G1MUL (0x0c) at register
         // time, so the etch must already be in place.
         // 0x0b (G1ADD): returns 128 bytes (0x80) — used by _reconstructPkAgg + on-curve check.
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers these paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
-        vm.etch(address(0x0b), hex"60806000f3");
-        // 0x0c (G1MUL): returns 128 bytes of zeros (identity) so the subgroup
-        // check r*P == O passes for stub keys.
-        vm.etch(address(0x0c), hex"60806000f3");
-        // 0x10 (MapFpToG1): returns 128 bytes (0x80)
-        vm.etch(address(0x10), hex"60806000f3");
-        // 0x11 (MapFp2ToG2): returns 256 bytes (0x100)
-        vm.etch(address(0x11), hex"6101006000f3");
-        // 0x0d (G2ADD): returns 256 bytes (0x100)
-        vm.etch(address(0x0d), hex"6101006000f3");
-        // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
-        // pairing precompile must answer before any registerBLSPublicKey call in this
-        // mocked-precompile harness. Real-pairing coverage of the same registrations
-        // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
+            vm.etch(address(0x0b), hex"60806000f3");
+            // 0x0c (G1MUL): returns 128 bytes of zeros (identity) so the subgroup
+            // check r*P == O passes for stub keys.
+            vm.etch(address(0x0c), hex"60806000f3");
+            // 0x10 (MapFpToG1): returns 128 bytes (0x80)
+            vm.etch(address(0x10), hex"60806000f3");
+            // 0x11 (MapFp2ToG2): returns 256 bytes (0x100)
+            vm.etch(address(0x11), hex"6101006000f3");
+            // 0x0d (G2ADD): returns 256 bytes (0x100)
+            vm.etch(address(0x0d), hex"6101006000f3");
+            // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
+            // pairing precompile must answer before any registerBLSPublicKey call in this
+            // mocked-precompile harness. Real-pairing coverage of the same registrations
+            // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
+            vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
 
         vm.startPrank(owner);
         registry = new MockRegistryV3();
@@ -170,7 +174,7 @@ contract DVTBLSTest is Test {
             dvt.addValidator(v);
             // P0-1: register typed G1 key into slot i. The first 7 keys (slots 1..7)
             // form the default-threshold quorum used by tests below.
-            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i), _emptyPoP());
+            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i), _pop(v, i));
         }
 
         vm.stopPrank();
@@ -178,9 +182,18 @@ contract DVTBLSTest is Test {
 
     /// @notice Build a P0-1 compliant proof: only (signerMask, sigG2). pkAgg
     ///         is reconstructed inside the contract from on-chain keys.
-    function _proofForMask(uint256 signerMask) internal pure returns (bytes memory) {
+    function _proofForMask(uint256 signerMask, bytes32 messageHash) internal view returns (bytes memory) {
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](10);
+            for (uint256 i; i < 10; ++i) scalars[i] = i + 1;
+            return GenuineBLS.proof(messageHash, scalars, signerMask);
+        }
         BLS.G2Point memory sig; // zeroed — pairing precompile is mocked
         return abi.encode(signerMask, abi.encode(sig));
+    }
+
+    function _queueProof(uint256 epoch) internal view returns (bytes memory) {
+        return _proofForMask(0x7F, keccak256(abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), epoch)));
     }
 
     function test_DVT_ProposalFlow() public {
@@ -197,10 +210,10 @@ contract DVTBLSTest is Test {
         vm.startPrank(address(101));
 
         // Mock BLS pairing as success
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         // 7 signers across slots 1..7 = bits 0..6 set = 0x7F.
-        bytes memory mockProof = _proofForMask(0x7F);
+        bytes memory mockProof = _proofForMask(0x7F, keccak256(abi.encode(bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), uint256(0), bytes32(0))));
 
         dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, mockProof);
         vm.stopPrank();
@@ -211,8 +224,8 @@ contract DVTBLSTest is Test {
     }
 
     function test_QueueSlashWithConsensus_FlagsAndBlocksReplay() public {
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1))); // pairing success
-        bytes memory proof = _proofForMask(0x7F); // 7 signers >= MINOR threshold (3)
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1))); // pairing success
+        bytes memory proof = _queueProof(42); // 7 signers >= MINOR threshold (3)
 
         // First queue succeeds and pre-flags the operator on SP.
         vm.prank(address(dvt));
@@ -229,13 +242,15 @@ contract DVTBLSTest is Test {
         bls.queueSlashWithConsensus(op, 1, 42, proof);
 
         // A fresh, legitimate re-queue (new epoch → new hash) is allowed.
+        bytes memory freshProof = _queueProof(43);
         vm.prank(address(dvt));
-        bls.queueSlashWithConsensus(op, 1, 43, proof);
+        bls.queueSlashWithConsensus(op, 1, 43, freshProof);
+        assertTrue(bls.usedSlashQueueHashes(keccak256(abi.encode(bls.domainSeparator(), bls.TAG_QUEUE_SLASH(), op, uint8(1), uint256(43)))));
     }
 
     function test_QueueSlashWithProof_ForwarderFlags() public {
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
-        bytes memory proof = _proofForMask(0x7F);
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        bytes memory proof = _queueProof(7);
         vm.prank(address(101)); // active validator drives the forwarder
         dvt.queueSlashWithProof(op, 1, 7, proof);
         assertTrue(sp.queued(), "operator pre-flagged via DVTValidator forwarder");
@@ -250,9 +265,9 @@ contract DVTBLSTest is Test {
 
         // Mock BLS pairing as success — the test focuses on the access control
         // and proposal lifecycle, not on real pairing arithmetic.
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
-        bytes memory mockProof = _proofForMask(0x7F);
+        bytes memory mockProof = _proofForMask(0x7F, keccak256(abi.encode(bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), uint256(123), bytes32(0))));
 
         vm.prank(address(dvt));
 
