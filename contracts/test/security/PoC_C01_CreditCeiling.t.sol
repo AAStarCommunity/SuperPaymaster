@@ -308,7 +308,7 @@ contract PoC_C01_CreditCeiling_Test is Test {
     }
 
     function _paymasterData() internal view returns (bytes memory) {
-        return V2TokenDeployer.pmd(address(paymaster), uint128(100000), uint128(200000), operator, type(uint256).max, address(xpnts), 0);
+        return V2TokenDeployer.pmd(address(paymaster), uint128(100000), uint128(500000), operator, type(uint256).max, address(xpnts), 0);
     }
 
     function _operatorBalance() internal view returns (uint128 balance) {

@@ -7,7 +7,7 @@ import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPa
 
 import {DeploymentGasFixtures} from "./DeploymentGasFixtures.sol";
 
-/// @notice Accepted default with explicit historical experiment selectors.
+/// @notice Accepted 500k release default with explicit historical experiment selectors.
 library SelectedGasFixtures {
     using SuperPaymasterAdminCalls for SuperPaymaster;
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));

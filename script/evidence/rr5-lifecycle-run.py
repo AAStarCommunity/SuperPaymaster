@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Complete paired lifecycle inventory. No production writes; fresh test per independent point."""
+"""Complete paired lifecycle inventory. No production writes; fresh test per independent point.
+
+Trust boundary: trust the local git checkout, pinned binaries and tool. Release
+evidence is measured on a clean tree; no caller metadata or partial engine set.
+Evidence rewriting with recomputed hashes is out of scope; reviewers rerun.
+"""
 import hashlib
 import json
 import os
@@ -63,7 +68,7 @@ def guard_selector():
     return '0x' + a[0].to_bytes(8,'little')[:4].hex()
 
 
-def verify_sources(out):
+def verify_sources(out, historical=False):
     import ast
     sums = {}
     for line in (out/'SHA256SUMS').read_text().splitlines():
@@ -76,22 +81,34 @@ def verify_sources(out):
         assert hashlib.sha256((out/name).read_bytes()).hexdigest() == digest, ('checksum', name)
     head = (out/'head.txt').read_text().strip()
     assert re.fullmatch('[0-9a-f]{40}', head), 'head format'
-    def recorded(path):
-        return subprocess.check_output(['git','show',f'{head}:{path}'])
+    def recorded(path, rev=None):
+        return subprocess.check_output(['git','show',f'{rev or head}:{path}'])
     assert subprocess.check_output(['git','rev-parse',f'{head}^{{commit}}'],text=True).strip() == head
     # The original record has no tracked changes, only the then-untracked evidence folder.
     assert (out/'working-tree.txt').read_text() in ('', '?? docs/design/aoa-balance-mode/data/rr5-lifecycle-isolation/\n'), 'dirty measurement sources'
-    for engine in ENGINES:
+    recorded_engines = {p.name.removesuffix('-version.txt') for p in out.glob('*-version.txt')}
+    manifest_engines = {k.split('/')[0] for k in json.loads((out/'manifest.json').read_text())}
+    command_engines = {json.loads(line)['engine'] for line in (out/'commands.jsonl').read_text().splitlines()}
+    assert recorded_engines and recorded_engines == manifest_engines == command_engines, 'engine inventory mismatch'
+    assert recorded_engines <= set(ENGINES), 'unknown engine inventory'
+    for engine in recorded_engines:
         version = (out/f'{engine}-version.txt').read_text()
         assert re.fullmatch(r'forge Version: [^\n]+\nCommit SHA: [0-9a-f]{40}\nBuild Timestamp: [^\n]+\nBuild Profile: dist\n', version)
         release, commit = (('1.8.7-nightly', '4e8874b2bdc840929585ca73e170993c50a4a531')
                            if engine == 'amsterdam' else
                            ('1.7.1', '4072e48705af9d93e3c0f6e29e93b5e9a40caed8'))
         assert version.startswith(f'forge Version: {release}\nCommit SHA: {commit}\n')
-    assert (out/'cancun-version.txt').read_bytes() == (out/'prague-version.txt').read_bytes()
+    if all(engine in recorded_engines for engine in ('cancun', 'prague')):
+        assert (out/'cancun-version.txt').read_bytes() == (out/'prague-version.txt').read_bytes()
     before = json.loads((out/'source-before.json').read_text())
+    inventory = subprocess.check_output(
+        ['git', 'ls-tree', '-r', '--name-only', head, 'contracts/src'], text=True).splitlines()
+    assert set(before) == {p for p in inventory if p.endswith('.sol')}, 'production source inventory mismatch'
     assert before == json.loads((out/'source-after.json').read_text())
-    assert all(before.get(p) == h for p,h in hashes().items()), 'production source hashes'
+    for path, digest in before.items():
+        assert hashlib.sha256(recorded(path)).hexdigest() == digest, ('production source hash', path)
+    if not historical:
+        assert before == hashes(), 'current production source hashes differ from measurement'
     paths = {TEST, 'contracts/test/fixtures/entrypoint-v0.7.runtime.hex', 'foundry.toml'}
     pending = [TEST]
     while pending:
@@ -104,42 +121,56 @@ def verify_sources(out):
                     pending.append(child)
     for path in sorted(paths):
         expected = before.get(path, hashlib.sha256(recorded(path)).hexdigest())
-        if path == TEST:
-            skip_patch = (b'        variant = vm.envString("LIFECYCLE_VARIANT");\n',
-                          b'        variant = vm.envOr("LIFECYCLE_VARIANT", string(""));\n'
-                          b'        if (bytes(variant).length == 0) vm.skip(true); // runner-only suite: skipped in a plain `forge test`\n')
-            # The only post-run edit to the measured test: skip the suite when LIFECYCLE_VARIANT is unset, so
-            # a plain `forge test` does not fail in setUp. With the variable set (every recorded command) the
-            # behaviour is identical. Anything else differing from the measured revision is rejected.
-            measured = recorded(path)
-            assert measured.count(skip_patch[0]) == 1, 'skip patch anchor'
-            assert hashlib.sha256(measured).hexdigest() == expected, ('harness source', path)
-            assert Path(path).read_bytes() == measured.replace(*skip_patch), ('harness source', path)
-            continue
-        # Imported helpers and build config are bound to the recorded revision, not the current tree: later
-        # commits (e.g. landing a new gas tuple in a shared fixture) must not invalidate this measurement.
         assert hashlib.sha256(recorded(path)).hexdigest() == expected, ('harness source', path)
+        if not historical:
+            assert Path(path).read_bytes() == recorded(path), ('current measurement harness differs', path)
     runner = 'script/evidence/rr5-lifecycle-run.py'
     original = recorded(runner)
     if runner in before:
         assert hashlib.sha256(original).hexdigest() == before[runner], 'recorded runner hash'
+    if historical:
+        return  # Historical verification binds recorded sources, never today's harness.
     # Verifier-only repairs necessarily change this file's byte hash. Bind all original
     # measurement definitions verbatim, permitting only the verification implementation to change.
     old = ast.parse(original)
     current = ast.parse(Path(runner).read_bytes())
+    def main_prefix(tree):
+        main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+        end = [i for i, n in enumerate(main.body) if isinstance(n, ast.Expr) and
+               ast.unparse(n) == "(out / 'source-after.json').write_text(json.dumps(hashes(), indent=2))"]
+        assert len(end) == 1, 'measurement prefix boundary'
+        main.body = main.body[:end[0] + 1]
+        return hashlib.sha256(ast.dump(main).encode()).hexdigest()
+    old_prefix, current_prefix = main_prefix(old), main_prefix(current)
+    # Audited revisions: 5edd1d30 predates selected_engines/compileEvm; 0f08bf98 records
+    # Cancun compilation for Amsterdam. Accept the exact legacy prefix only with the exact
+    # modern counterpart, never a generic AST exemption. Both digests are derived here with
+    # the running interpreter: ast.dump output differs between Python releases, so a
+    # stored hash only matched the version that produced it.
+    legacy_prefix = main_prefix(ast.parse(recorded(runner, '5edd1d308d5e17fea8cbda586e7ea2c871fc0e33')))
+    modern_prefix = main_prefix(ast.parse(recorded(runner, '0f08bf983ab27ea70c6b6096cad11a5e9ac6bbf1')))
+    assert old_prefix == current_prefix or (old_prefix == legacy_prefix and current_prefix == modern_prefix), \
+        'measurement main prefix changed'
     def measurement_digest(tree):
+        if ast.get_docstring(tree):
+            tree.body = tree.body[1:]
         tree.body = [n for n in tree.body if not (
-            isinstance(n, ast.FunctionDef) and n.name in
-            {'verify', 'verify_sources', 'guard_selector'})]
+            (isinstance(n, ast.FunctionDef) and n.name in
+             {'verify', 'verify_sources', 'guard_selector', 'main'}) or
+            (isinstance(n, ast.If) and ast.unparse(n.test) == "__name__ == '__main__'"))]
         return hashlib.sha256(ast.dump(tree).encode()).hexdigest()
     assert measurement_digest(old) == measurement_digest(current), 'measurement runner changed'
 
 
 
-def verify(out):
-    verify_sources(out)
+def verify(out, partial=False, historical=False):
+    verify_sources(out, historical=historical)
     manifest = json.loads((out/'manifest.json').read_text())
-    keys = [f'{e}/{m}/{v}' for e in ENGINES for m in MODES for v in VARIANTS]
+    selected_engines = [e for e in ENGINES if any(k.startswith(e + '/') for k in manifest)]
+    assert selected_engines, 'empty engine inventory'
+    required_engines = () if partial else ENGINES
+    assert set(required_engines) <= set(selected_engines), 'missing required engines: ' + ','.join(sorted(set(required_engines) - set(selected_engines)))
+    keys = [f'{e}/{m}/{v}' for e in selected_engines for m in MODES for v in VARIANTS]
     assert set(manifest) == set(keys), 'incomplete variant inventory'
     commands = [json.loads(x) for x in (out/'commands.jsonl').read_text().splitlines()]
     cursor = 0
@@ -155,6 +186,10 @@ def verify(out):
         ident = f'{cursor:05d}-{e}-{m}-{v}-{label}'
         assert c['id'] == ident and c['log'] == ident+'.log', ('command order/identity', ident)
         assert (c['engine'], c['mode'], c['variant']) == (e,m,v), ('command tuple', ident)
+        compile_evm = c.get('compileEvm')
+        if compile_evm is not None:
+            assert compile_evm in ('cancun', 'prague'), ('compileEvm', ident)
+            assert compile_evm == ('prague' if e == 'prague' else 'cancun'), ('compileEvm', ident)
         env = c['env']
         root = str(Path(env['FOUNDRY_OUT']).parent.parent)
         if build_root is None: build_root = root
@@ -166,7 +201,8 @@ def verify(out):
         assert binary.endswith('/nightly-4e8874b/forge' if e == 'amsterdam' else '/.foundry/bin/forge')
         expected = [binary,'test','--offline','--match-path',TEST,'--match-contract',f'Lifecycle{m.title()}Test',
                     '--match-test','test_scan_' if scan else 'test_lifecycle','-vvvv' if trace else '-vv']
-        if e != 'cancun': expected += ['--evm-version','prague']
+        if e != 'cancun':
+            expected += ['--evm-version', compile_evm or 'prague']
         if e == 'amsterdam': expected += ['--no-isolate','--hardfork','amsterdam']
         tail = argv[len(expected):]
         if tail[:1] == ['-R']:
@@ -194,6 +230,10 @@ def verify(out):
     for key in keys:
         row = manifest[key]
         e,m,v = key.split('/')
+        command_has_compile_evm = 'compileEvm' in commands[cursor]
+        assert ('compileEvm' in row) == command_has_compile_evm, ('manifest compileEvm', key)
+        if command_has_compile_evm:
+            assert row['compileEvm'] == commands[cursor]['compileEvm'], ('manifest compileEvm', key)
         snap = (v.startswith('rr_') and v != 'rr_no_snapshot') or v == 'fresh_snapshot'
         sid, ps, _ = consume(key,'scan',scan=not snap)
         assert row['scan'] == sid
@@ -241,7 +281,9 @@ def verify(out):
     assert cursor == len(commands), 'extra commands'
     return len(manifest), len(commands)
 
-def main(out):
+def main(out, selected_engines=ENGINES):
+    def write_sums(out):
+        (out/'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(out.iterdir()) if p.name!='SHA256SUMS'))
     if out.exists() and any(out.iterdir()):
         raise SystemExit('output directory must be EMPTY')
     out.mkdir(parents=True, exist_ok=True)
@@ -253,7 +295,8 @@ def main(out):
                'cancun':str(Path.home()/'.foundry/bin/forge'),'prague':str(Path.home()/'.foundry/bin/forge')}
     manifest = {}
     serial = 0
-    for engine in ENGINES:
+    for engine in selected_engines:
+        compile_evm = 'prague' if engine == 'prague' else 'cancun'
         (out/f'{engine}-version.txt').write_text(subprocess.check_output([engines[engine],'--version'],text=True))
         for mode in MODES:
             for variant in VARIANTS:
@@ -269,7 +312,7 @@ def main(out):
                                FOUNDRY_OUT=str(build/engine/'out'),FOUNDRY_CACHE_PATH=str(build/engine/'cache'))
                     cmd = [engines[engine],'test','--offline','--match-path',TEST,'--match-contract',f'Lifecycle{mode.title()}Test',
                            '--match-test','test_scan_' if scan else 'test_lifecycle', '-vvvv' if trace else '-vv']
-                    if engine != 'cancun': cmd += ['--evm-version','prague']
+                    if engine != 'cancun': cmd += ['--evm-version',compile_evm]
                     if engine == 'amsterdam': cmd += ['--no-isolate','--hardfork','amsterdam']
                     deps = env.get('PROFILE_DEPS_ROOT')
                     if deps: cmd += ['-R',f'@chainlink/contracts/={deps}/contracts/lib/chainlink-brownie-contracts/contracts/',
@@ -279,7 +322,7 @@ def main(out):
                     p = subprocess.run(cmd,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
                     filename = ident+'.log'
                     (out/filename).write_text(p.stdout)
-                    c = dict(id=ident,engine=engine,mode=mode,variant=variant,argv=cmd,
+                    c = dict(id=ident,engine=engine,mode=mode,variant=variant,compileEvm=compile_evm,argv=cmd,
                              env={k:env[k] for k in ('TUPLE_CANDIDATE','LIFECYCLE_VARIANT','LIFECYCLE_BUDGET','FOUNDRY_OUT','FOUNDRY_CACHE_PATH')},
                              log=filename,exit=p.returncode,count=241 if scan else 1,sha256=hashlib.sha256(p.stdout.encode()).hexdigest())
                     with (out/'commands.jsonl').open('a') as f: f.write(json.dumps(c)+'\n')
@@ -300,7 +343,7 @@ def main(out):
                 completed=[g for g,k,r in scan if k==3]
                 failures=[g for g,k,r in scan if k in (1,2)]
                 if variant in SPLIT:
-                    row = dict(scan=sid, split=True, last_guard_scan=max(guards),
+                    row = dict(scan=sid, split=True, compileEvm=compile_evm, last_guard_scan=max(guards),
                                non_guard_scan=[min(failures),max(failures)] if failures else None,
                                failure_selectors=sorted({r for g,k,r in scan if k in (1,2)}),
                                guard_selector=next(r for g,k,r in scan if k==0))
@@ -308,7 +351,7 @@ def main(out):
                     (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
                     print(key,'split',row['last_guard_scan'],row['non_guard_scan'],row['failure_selectors'],flush=True)
                     continue
-                row = dict(scan=sid,last_guard_scan=max(guards),first_complete_scan=min(completed),
+                row = dict(scan=sid,compileEvm=compile_evm,last_guard_scan=max(guards),first_complete_scan=min(completed),
                            non_guard_scan=[min(failures),max(failures)] if failures else None,
                            guard_selector=next(r for g,k,r in scan if k==0))
                 def sample(g,label='bisect'):
@@ -337,23 +380,59 @@ def main(out):
                 (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
                 print(key,row['last_guard'],row['non_guard_scan'],row['first_complete'],flush=True)
     (out/'source-after.json').write_text(json.dumps(hashes(),indent=2))
-    n,c=verify(out)
-    (out/'verdict.txt').write_text(f'PASS {n} complete variants; {c} commands exit 0\n')
-    # Negative control: remove one variant, keep logs and commands intact.
+    write_sums(out)
+    partial = list(selected_engines) != list(ENGINES)
+    n,c=verify(out, partial)
+    status = 'PARTIAL (NOT RELEASE EVIDENCE)' if partial else 'PASS'
+    (out/'verdict.txt').write_text(f'{status} {n} complete variants; {c} commands exit 0; engines: {",".join(selected_engines)}\n')
+    # Negative control: remove one variant, keep logs and commands intact. Checksums are refreshed so
+    # the only defect is the missing variant, and the rejection must name it.
     saved=(out/'manifest.json').read_text()
     bad=dict(manifest); bad.pop(next(iter(bad)))
     (out/'manifest.json').write_text(json.dumps(bad))
+    write_sums(out)
     try:
-        p=subprocess.run([sys.executable,__file__,'--verify',str(out)],capture_output=True,text=True)
+        p=subprocess.run([sys.executable,__file__,'--verify-partial' if partial else '--verify',str(out)],capture_output=True,text=True)
         (out/'negative-missing-variant.log').write_text(f'exit {p.returncode}\n'+p.stdout+p.stderr)
-        assert p.returncode!=0
+        assert p.returncode!=0 and 'incomplete variant inventory' in p.stderr, 'negative control rejected for the wrong reason'
     finally: (out/'manifest.json').write_text(saved)
-    n,c=verify(out)
-    (out/'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(out.iterdir()) if p.name!='SHA256SUMS'))
-    print(f'PASS {n} variants, {c} commands; negative control rejected',flush=True)
+    write_sums(out)
+    n,c=verify(out, partial)
+    write_sums(out)
+    if partial:
+        print(f'PARTIAL (NOT RELEASE EVIDENCE) {n} variants, {c} commands; negative control rejected; engines: {",".join(selected_engines)}',flush=True)
+        sys.exit(3)
+    print(f'PASS {n} variants, {c} commands; negative control rejected; verified engines: {",".join(selected_engines)}',flush=True)
 
 if __name__=='__main__':
-    if len(sys.argv)==3 and sys.argv[1]=='--verify':
-        print('PASS',verify(Path(sys.argv[2])))
-    elif len(sys.argv)==2: main(Path(sys.argv[1]))
-    else: raise SystemExit('usage: rr5-lifecycle-run.py [--verify] EMPTY_OUT')
+    if any(flag in sys.argv[1:] for flag in ('--verify', '--verify-partial', '--verify-historical')):
+        import argparse
+        parser = argparse.ArgumentParser()
+        mode = parser.add_mutually_exclusive_group(required=True)
+        mode.add_argument('--verify', type=Path)
+        mode.add_argument('--verify-partial', type=Path)
+        mode.add_argument('--verify-historical', type=Path)
+        args = parser.parse_args()
+        out = args.verify or args.verify_partial or args.verify_historical
+        result = verify(out, partial=args.verify_partial is not None, historical=args.verify_historical is not None)
+        engines = sorted({k.split('/')[0] for k in json.loads((out/'manifest.json').read_text())})
+        if args.verify_historical is not None:
+            print('HISTORICAL (NOT RELEASE EVIDENCE)', result, 'engines:', ','.join(engines))
+            sys.exit(3)
+        if args.verify_partial is not None:
+            print('PARTIAL (NOT RELEASE EVIDENCE)', result, 'engines:', ','.join(engines))
+            sys.exit(3)
+        print('PASS', result, 'verified engines:', ','.join(engines))
+    else:
+        args = sys.argv[1:]
+        selected = ENGINES
+        if '--engines' in args:
+            i = args.index('--engines')
+            if i + 1 >= len(args): raise SystemExit('--engines requires a comma-separated value')
+            names = args[i + 1].split(',')
+            if not names or len(set(names)) != len(names) or any(e not in ENGINES for e in names):
+                raise SystemExit('--engines must be a unique comma-separated subset of: ' + ','.join(ENGINES))
+            selected = [e for e in ENGINES if e in names]
+            del args[i:i + 2]
+        if len(args)==1 and not args[0].startswith('-'): main(Path(args[0]), selected)
+        else: raise SystemExit('usage: rr5-lifecycle-run.py [--engines ENGINE[,ENGINE...]] EMPTY_OUT')

@@ -182,15 +182,24 @@ abstract contract PostOpProfileFixture is Test {
                     trajectories++;
                     uint256[8] memory g = abi.decode(logs[i].data, (uint256[8]));
                     uint256[8] memory expected;
-                    // Budget 480000 (accepted MIN_POST): tuple-land/run/checkpoints.json, measured at 3670d57a.
+                    // Release MIN_POST checkpoints. Amsterdam values are from engine nightly 4e8874b2;
+                    // Cancun/Prague values remain the tuple-land/run/checkpoints.json baseline at 3670d57a.
                     if (vm.envOr("PROFILE_AMSTERDAM", false)) {
-                        expected = credit
-                            ? [uint256(460528), 460251, 350507, 129680, 196851, 294570, 183271, 181095]
-                            : [uint256(460528), 460251, 350507, 129680, 276883, 374602, 263303, 261127];
+                        expected = GasFixture.MIN_POST() == 480_000
+                            ? credit
+                                ? [uint256(460528), 460251, 350507, 129680, 196851, 294570, 183271, 181095]
+                                : [uint256(460528), 460251, 350507, 129680, 276883, 374602, 263303, 261127]
+                            : credit
+                                ? [uint256(480194), 479917, 370173, 149346, 216517, 410994, 397595, 395418]
+                                : [uint256(480194), 479917, 370173, 149346, 296549, 393106, 379707, 377530];
                     } else {
-                        expected = credit
-                            ? [uint256(467706), 467429, 445705, 400918, 350369, 349006, 325707, 323530]
-                            : [uint256(467706), 467429, 445705, 400918, 356781, 355418, 332119, 329942];
+                        expected = GasFixture.MIN_POST() == 480_000
+                            ? credit
+                                ? [uint256(467706), 467429, 445705, 400918, 350369, 349006, 325707, 323530]
+                                : [uint256(467706), 467429, 445705, 400918, 356781, 355418, 332119, 329942]
+                            : credit
+                                ? [uint256(487394), 487117, 465393, 420606, 370057, 368694, 345395, 343218]
+                                : [uint256(487394), 487117, 465393, 420606, 376469, 375106, 351807, 349630];
                     }
                     uint256 low = g[0];
                     for (uint256 j; j < 8; j++) {
@@ -239,7 +248,10 @@ abstract contract PostOpProfileFixture is Test {
 
 abstract contract PostOpProfileBoundary is PostOpProfileFixture {
     function directMinimum() internal returns (uint256) {
-        return vm.envOr("PROFILE_AMSTERDAM", false) ? 469305 : 462035;
+        // Amsterdam engine nightly 4e8874b2; the stable Cancun/Prague value remains unchanged.
+        return vm.envOr("PROFILE_AMSTERDAM", false)
+            ? GasFixture.MIN_POST() == 480_000 ? 469305 : 469349
+            : 462035;
     }
 
     function test_entrypoint_minimum() public {

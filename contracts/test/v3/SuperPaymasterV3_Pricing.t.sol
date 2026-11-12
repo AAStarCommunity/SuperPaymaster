@@ -348,7 +348,7 @@ contract SuperPaymasterV3_Pricing_Test is Test {
     // ─── 5.5.0 postOp formula (spec 03 §10.3 / R10-M3) ─────────────────────────
 
     function _pmd() internal view returns (bytes memory) {
-        return V2TokenDeployer.pmd(address(paymaster), 0, 200000, operator1, type(uint256).max, address(xpntsToken), 0);
+        return V2TokenDeployer.pmd(address(paymaster), 0, 500000, operator1, type(uint256).max, address(xpntsToken), 0);
     }
 
     function _opWithCallGas(uint128 callGas) internal view returns (PackedUserOperation memory op) {
@@ -359,10 +359,10 @@ contract SuperPaymasterV3_Pricing_Test is Test {
 
     /// @notice R10-M3 (exp/buffer): bufWei = (C_POSTOP + ceil((callGas + postOpGas) * 10 / 100) + C_WRAP) * feePerGas,
     ///         charge = min(a0, ceil(calc_snap(actualGasCost + bufWei) * (BPS + fee) / BPS)).
-    ///         C_POSTOP = 180_000 (exp/params default), postOpGas = 200_000, callGas = 100_000, C_WRAP = 5_000, feePerGas = 1 gwei:
-    ///         bufWei = (180_000 + 30_000 + 5_000) * 1e9 = 2.15e14 wei.
-    ///         calc(1e14 + 2.15e14) at $2000 / $0.02 = 3.15e19 aPNTs; charge = 3.465e19.
-    ///         a0 = ceil(calc(1e15) * 1.2) = 1.2e20, so the refund is 8.535e19.
+    ///         C_POSTOP = 450_000 (release default), postOpGas = 500_000, callGas = 100_000, C_WRAP = 5_000, feePerGas = 1 gwei:
+    ///         bufWei = (450_000 + 60_000 + 5_000) * 1e9 = 5.15e14 wei.
+    ///         calc(1e14 + 5.15e14) at $2000 / $0.02 = 6.15e19 aPNTs; charge = 6.765e19.
+    ///         a0 = ceil(calc(1e15) * 1.2) = 1.2e20, so the refund is 5.235e19.
     ///         Discriminates the buffer: with bufWei = 0 the charge would be 1.1e19.
     function test_PostOp_ConservativeBuffer_R10M3() public {
         uint256 maxCost = 1e15;
@@ -376,13 +376,13 @@ contract SuperPaymasterV3_Pricing_Test is Test {
         assertEq(5000 ether - balAfterVal, 1.2e20, "a0 = ceil(calc(maxCost) * 1.2)");
 
         vm.expectEmit(true, true, false, true, address(paymaster));
-        emit ISuperPaymaster.TransactionSponsored(operator1, user1, 3.15e19, 3.465e19);
+        emit ISuperPaymaster.TransactionSponsored(operator1, user1, 6.15e19, 6.765e19);
         vm.prank(address(entryPoint));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 1e14, 1 gwei);
 
         (uint128 balFinal,,,,,,,,) = paymaster.operators(operator1);
-        assertEq(uint256(balFinal) - balAfterVal, 1.2e20 - 3.465e19, "operator refund = a0 - charge");
-        assertEq(paymaster.protocolRevenue(), 3.465e19, "revenue = charge");
+        assertEq(uint256(balFinal) - balAfterVal, 1.2e20 - 6.765e19, "operator refund = a0 - charge");
+        assertEq(paymaster.protocolRevenue(), 6.765e19, "revenue = charge");
     }
 
     /// @notice §10.3: c = min(a0, ...). An actualGasCost far above maxCost is charged exactly a0

@@ -1309,7 +1309,7 @@ contract SuperPaymasterV55Test is Test {
         vm.revertTo(snap);
 
         (SuperPaymaster.GasParams memory gp,) = sp.gasParams();
-        assertEq(gp.minPostOpGas, 480_000);
+        assertEq(gp.minPostOpGas, 500_000);
         assertEq(gp.settleGasBound, 450_000);
         assertEq(gp.cWrap, 5_000);
         assertEq(gp.cPostop, 450_000);

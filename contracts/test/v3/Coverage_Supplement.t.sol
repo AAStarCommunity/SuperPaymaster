@@ -377,7 +377,7 @@ contract CoverageSupplementTest is Test {
     
     function _pmd() internal view returns (bytes memory) {
         // SP 5.5.0 layout: [pm 20][verif 16][postOp 16][operator 20][maxRate 32][token 20][flags 1]
-        return V2TokenDeployer.pmd(address(paymaster), uint128(100), uint128(200000), operator, type(uint256).max, address(xpnts), 0);
+        return V2TokenDeployer.pmd(address(paymaster), uint128(100), uint128(500000), operator, type(uint256).max, address(xpnts), 0);
     }
 
     function _registerAndConfigureOperator() internal {

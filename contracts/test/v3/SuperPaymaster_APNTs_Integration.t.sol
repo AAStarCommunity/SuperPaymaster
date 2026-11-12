@@ -109,7 +109,7 @@ contract SuperPaymaster_APNTs_Integration_Test is Test {
     }
 
     function _buildPaymasterData(uint256 maxRate) internal view returns (bytes memory) {
-        return V2TokenDeployer.pmd(address(sp), 100000, 200000, operator, maxRate, address(xpnts), 0);
+        return V2TokenDeployer.pmd(address(sp), 100000, 500000, operator, maxRate, address(xpnts), 0);
     }
 
     function _op(address sender, uint256 maxRate) internal view returns (PackedUserOperation memory op) {

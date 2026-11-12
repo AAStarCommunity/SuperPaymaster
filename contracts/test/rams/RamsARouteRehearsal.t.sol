@@ -12,6 +12,7 @@ import "src/tokens/v2/GlobalTierSource.sol";
 import "src/tokens/v2/xPNTsTokenV2.sol";
 import "src/tokens/v2/xPNTsTokenV2Ext.sol";
 import "src/tokens/v2/xPNTsFactoryV2.sol";
+import {SPReleaseVersion} from "../../script/v3/SPReleaseVersion.sol";
 import "./RamsAHelpers.sol";
 
 /// @notice OFFLINE-authored Route A rehearsal; every test skips without SEPOLIA_FORK_RPC.
@@ -342,7 +343,7 @@ contract RamsARouteRehearsalTest is Test {
     function _assertUpgrade(bool stopped) internal view {
         assertEq(address(uint160(uint256(vm.load(SP, IMPL_SLOT)))), newImpl, "RAMS: implementation");
         assertEq(newImpl.codehash, newHash, "RAMS: runtime identity");
-        assertEq(sp.version(), "SuperPaymaster-5.5.0", "RAMS: version");
+        assertEq(sp.version(), SPReleaseVersion.SP, "RAMS: version");
         assertEq(sp.paused(), stopped, "RAMS: atomic global pause");
         assertEq(address(sp.entryPoint()), EP, "RAMS: new EP immutable");
         assertEq(address(sp.REGISTRY()), REGISTRY, "RAMS: new Registry immutable");
@@ -351,10 +352,10 @@ contract RamsARouteRehearsalTest is Test {
 
     function _assertGas(bool activated) internal view {
         (SuperPaymasterStorage.GasParams memory p, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();
-        assertEq(p.minPostOpGas, activated ? 480_000 : 200_000, "RAMS: MIN read-back");
-        assertEq(p.settleGasBound, activated ? 450_000 : 160_000, "RAMS: SETTLE read-back");
+        assertEq(p.minPostOpGas, 500_000, "RAMS: MIN read-back");
+        assertEq(p.settleGasBound, 450_000, "RAMS: SETTLE read-back");
         assertEq(p.cWrap, 5000, "RAMS: C_WRAP read-back");
-        assertEq(p.cPostop, activated ? 450_000 : 175_000, "RAMS: C_POSTOP read-back");
+        assertEq(p.cPostop, 450_000, "RAMS: C_POSTOP read-back");
         if (activated) {
             assertEq(
                 keccak256(abi.encode(q)),
@@ -368,13 +369,13 @@ contract RamsARouteRehearsalTest is Test {
 
     function _queue() internal returns (uint256 eta) {
         vm.prank(sp.owner());
-        sp.queueGasParams(480_000, 450_000, 5000, 450_000);
+        sp.queueGasParams(500_000, 450_000, 5000, 450_000);
         return _queuedReadback();
     }
 
     function _queuedReadback() internal view returns (uint256 eta) {
         (, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();
-        assertEq(q.minPostOpGas, 480_000, "RAMS: queued MIN");
+        assertEq(q.minPostOpGas, 500_000, "RAMS: queued MIN");
         assertEq(q.settleGasBound, 450_000, "RAMS: queued SETTLE");
         assertEq(q.cWrap, 5000, "RAMS: queued WRAP");
         assertEq(q.cPostop, 450_000, "RAMS: queued POSTOP");
@@ -428,7 +429,7 @@ contract RamsARouteRehearsalTest is Test {
         PackedUserOperation[] memory signed = new PackedUserOperation[](operators.length);
         for (uint256 i; i < operators.length; ++i) {
             _legacyReady(operators[i]);
-            signed[i] = _op(operators[i], 480_000, false);
+            signed[i] = _op(operators[i], 500_000, false);
             _probe(signed[i], true, 160);
         }
         _pauseAll(true);
@@ -486,7 +487,7 @@ contract RamsARouteRehearsalTest is Test {
         assertEq(_token(NEW_OPERATOR), tok, "RAMS: new token binding");
         _fundOperator(NEW_OPERATOR);
         _fundLegacyUser(tok);
-        _probe(_op(NEW_OPERATOR, 480_000, false), true, 160);
+        _probe(_op(NEW_OPERATOR, 500_000, false), true, 160);
     }
 
     function test_A2_newOperatorRisk_window() public forkOnly {
@@ -496,11 +497,11 @@ contract RamsARouteRehearsalTest is Test {
             _assertOperatorPause(operators[i], true);
         }
         _upgrade(true);
-        _probe(_op(NEW_OPERATOR, 480_000, false), false, 0);
+        _probe(_op(NEW_OPERATOR, 500_000, false), false, 0);
         _assertOperatorPause(NEW_OPERATOR, false);
         // Isolate the global stop from 5.5.0's new token/layout requirements.
         _v2ReadyFor(NEW_OPERATOR);
-        PackedUserOperation memory migrated = _op(NEW_OPERATOR, 480_000, true);
+        PackedUserOperation memory migrated = _op(NEW_OPERATOR, 500_000, true);
         _probe(migrated, false, 0);
         uint256 snapshot = vm.snapshot();
         vm.prank(OWNER);
@@ -516,7 +517,7 @@ contract RamsARouteRehearsalTest is Test {
         _upgrade(true);
         assertEq(sp.owner(), OWNER, "RAMS: owner preserved by atomic delegatecall");
         _assertGas(false);
-        uint128[5] memory limits = [uint128(0), 200_000, 300_000, 480_000, type(uint128).max];
+        uint128[5] memory limits = [uint128(0), 200_000, 300_000, 500_000, type(uint128).max];
         uint256 beforeProbes = sigFailureProbes;
         for (uint256 i; i < operators.length; ++i) {
             for (uint256 j; j < limits.length; ++j) {
@@ -533,18 +534,21 @@ contract RamsARouteRehearsalTest is Test {
         _v2Ready();
         vm.prank(OWNER);
         sp.setOperatorPaused(OWNER, false);
-        _probe(_op(OWNER, 480_000, true), false, 0);
+        _probe(_op(OWNER, 500_000, true), false, 0);
     }
 
-    function test_A3_emptyUpgradeData_admitsUnsafeLimit() public forkOnly {
+    function test_A3_emptyUpgradeData_defaultsRejectUnsafeLimit() public forkOnly {
         _upgrade(false);
         _assertGas(false);
         _v2Ready();
         vm.prank(OWNER);
         sp.setOperatorPaused(OWNER, false);
-        // Hazard prevented by atomic pause: 300k is inside [200k,365k).
-        // Admission alone is asserted here; this is NOT a claim that Amsterdam settlement succeeds.
-        _probe(_op(OWNER, 300_000, true), true, 384);
+        // Empty upgrade data leaves the gas slot zero, so the zero-slot defaults apply. Since rc.8 SP-c
+        // the default MIN_POST_OP_GAS is 500k (Amsterdam guard minimum 469,349), so a 300k limit that
+        // older defaults admitted is now rejected without any atomic pause.
+        _probe(_op(OWNER, 300_000, true), false, 0);
+        // Positive control: the same probe admits the default minimum, so the rejection above is the bound.
+        _probe(_op(OWNER, 500_000, true), true, 384);
     }
 
     struct BundleResult {
@@ -615,13 +619,13 @@ contract RamsARouteRehearsalTest is Test {
 
     function test_A4_legacyContexts() public forkOnly {
         _legacyReady(OWNER);
-        PackedUserOperation memory op = _op(OWNER, 480_000, false);
+        PackedUserOperation memory op = _op(OWNER, 500_000, false);
         _probe(op, true, 160);
         uint256 beforeBalance = IERC20(_token(OWNER)).balanceOf(user);
         _settleOne(op); // handleOps validates, executes AND settles before returning.
         assertLt(IERC20(_token(OWNER)).balanceOf(user), beforeBalance, "RAMS: legacy user charged");
         assertEq(sp.version(), "SuperPaymaster-5.4.2", "RAMS: settled on old implementation");
-        PackedUserOperation memory signedBeforePause = _op(OWNER, 480_000, false);
+        PackedUserOperation memory signedBeforePause = _op(OWNER, 500_000, false);
         _probe(signedBeforePause, true, 160);
         _pauseAll(true);
         _probe(signedBeforePause, false, 0);
@@ -640,7 +644,7 @@ contract RamsARouteRehearsalTest is Test {
 
     function test_A4_hypotheticalSmartAccountOwner_midBundle() public forkOnly {
         _legacyReady(OWNER);
-        PackedUserOperation memory victim = _op(OWNER, 480_000, false);
+        PackedUserOperation memory victim = _op(OWNER, 500_000, false);
         _probe(victim, true, 160);
         vm.prank(OWNER);
         sp.transferOwnership(ownerAccount); // 5.4.2 Ownable is SINGLE step.
@@ -709,7 +713,7 @@ contract RamsARouteRehearsalTest is Test {
         vm.prank(OWNER);
         sp.setGlobalPaused(false);
         assertFalse(sp.paused(), "RAMS: resumed only after gas read-back");
-        PackedUserOperation memory op = _op(OWNER, 480_000, true);
+        PackedUserOperation memory op = _op(OWNER, 500_000, true);
         _probe(op, true, 384);
         bytes32 hash = ep.getUserOpHash(op);
         _settleOne(op); // The orchestrator must run under nightly --hardfork amsterdam.
@@ -722,11 +726,20 @@ contract RamsARouteRehearsalTest is Test {
         _pauseAll(true);
         _upgrade(true);
         _v2Ready();
-        uint32[2] memory bounds = [uint32(450_000), uint32(160_000)];
+        // Legacy SETTLE 160k and anything below GP_SETTLE_MIN can no longer be activated (rc.8 SP-c).
+        uint32[2] memory rejectedBounds = [uint32(160_000), uint32(449_999)];
+        for (uint256 i; i < rejectedBounds.length; ++i) {
+            vm.prank(OWNER);
+            vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+            sp.queueGasParams(500_000, rejectedBounds[i], 5000, 450_000);
+        }
+        uint32[2] memory bounds = [uint32(450_000), uint32(600_000)];
         for (uint256 i; i < bounds.length; ++i) {
             uint256 branch = vm.snapshot();
+            uint32 spacing = bounds[i] + bounds[i] / 63 + 20_000;
+            uint32 minPost = spacing > 500_000 ? spacing : 500_000;
             vm.prank(OWNER);
-            sp.queueGasParams(480_000, bounds[i], 5000, 450_000);
+            sp.queueGasParams(minPost, bounds[i], 5000, 450_000);
             (, SuperPaymasterStorage.PendingGasParams memory q) = sp.gasParams();
             vm.warp(q.eta);
             vm.prank(OWNER);
@@ -737,7 +750,7 @@ contract RamsARouteRehearsalTest is Test {
             _pauseAll(false);
             vm.prank(OWNER);
             sp.setGlobalPaused(false);
-            PackedUserOperation memory op = _op(OWNER, 480_000, true);
+            PackedUserOperation memory op = _op(OWNER, minPost, true);
             uint256 validationSnapshot = vm.snapshot();
             bytes32 opHash = ep.getUserOpHash(op);
             vm.prank(EP);
@@ -746,7 +759,7 @@ contract RamsARouteRehearsalTest is Test {
             // Binary-search callback success threshold with the same reserved context.
             // Each attempt rolls back settlement; gas is the only varied input.
             uint256 low;
-            uint256 high = 600_000;
+            uint256 high = 800_000;
             assertTrue(_postOpAtGas(context, high), "RAMS: analysis upper control");
             while (high - low > 1) {
                 uint256 mid = (high + low) / 2;
@@ -775,18 +788,18 @@ contract RamsARouteRehearsalTest is Test {
         vm.prank(OWNER);
         sp.setGlobalPaused(false);
         PackedUserOperation[] memory rejected = new PackedUserOperation[](1);
-        rejected[0] = _op(OWNER, 479_999, true);
+        rejected[0] = _op(OWNER, 499_999, true);
         _mustReject(
             EP,
             abi.encodeCall(ep.handleOps, (rejected, payable(address(0xBEEF)))),
             abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"),
             "RAMS A5c: MIN-1 admitted"
         );
-        emit log("RAMS A5c: 479,999 rejected with AA34 signature error");
-        _settleOne(_op(OWNER, 480_000, true));
-        emit log("RAMS A5c: 480,000 executed and settled");
-        _settleOne(_op(OWNER, 480_001, true));
-        emit log("RAMS A5c: 480,001 executed and settled");
+        emit log("RAMS A5c: 499,999 rejected with AA34 signature error");
+        _settleOne(_op(OWNER, 500_000, true));
+        emit log("RAMS A5c: 500,000 executed and settled");
+        _settleOne(_op(OWNER, 500_001, true));
+        emit log("RAMS A5c: 500,001 executed and settled");
     }
 
     function test_A3b_probeOnly_globalPause() public forkOnly {
@@ -795,7 +808,7 @@ contract RamsARouteRehearsalTest is Test {
         _v2Ready();
         vm.prank(OWNER);
         sp.setOperatorPaused(OWNER, false);
-        _probe(_op(OWNER, 480_000, true), false, 0);
+        _probe(_op(OWNER, 500_000, true), false, 0);
     }
 
     function _postOpAtGas(bytes memory context, uint256 gasLimit) internal returns (bool ok) {
@@ -866,7 +879,7 @@ contract RamsARouteRehearsalTest is Test {
         vm.warp(began + 1 hours);
         _freshPrice();
         _registerNewOperator(); // Includes real role grants, configureOperator and valid sponsorship probe.
-        _settleOne(_op(NEW_OPERATOR, 480_000, false));
+        _settleOne(_op(NEW_OPERATOR, 500_000, false));
         bytes memory pause = abi.encodeWithSignature("setOperatorPaused(address,bool)", NEW_OPERATOR, true);
         bytes32 salt = keccak256("RAMS gap pause");
         vm.prank(SAFE);
@@ -886,7 +899,7 @@ contract RamsARouteRehearsalTest is Test {
         );
         _freshPrice();
         uint256 gapSnapshot = vm.snapshot();
-        PackedUserOperation memory gapOp = _op(NEW_OPERATOR, 480_000, false);
+        PackedUserOperation memory gapOp = _op(NEW_OPERATOR, 500_000, false);
         bytes32 gapHash = ep.getUserOpHash(gapOp);
         vm.prank(EP);
         (bytes memory gapContext, uint256 gapValidation) =
@@ -896,7 +909,7 @@ contract RamsARouteRehearsalTest is Test {
         vm.prank(SAFE);
         tl.execute(SP, 0, upgrade, bytes32(0), upgradeSalt);
         _assertUpgrade(true);
-        _probe(_op(NEW_OPERATOR, 480_000, false), false, 0);
+        _probe(_op(NEW_OPERATOR, 500_000, false), false, 0);
         emit log_named_uint("Safe route pre-upgrade hours", (vm.getBlockTimestamp() - began) / 1 hours);
     }
 
@@ -987,7 +1000,7 @@ contract RamsARouteRehearsalTest is Test {
     }
 
     function _validationData(address operator) internal returns (uint256 vd, uint256 contextLength) {
-        PackedUserOperation memory op = _op(operator, 480_000, false);
+        PackedUserOperation memory op = _op(operator, 500_000, false);
         bytes32 h = ep.getUserOpHash(op); // compute before the prank: an external call in the arguments consumes it
         uint256 maxCost = RamsBudget.maxCost(op);
         uint256 snapshot = vm.snapshot();
@@ -1116,7 +1129,7 @@ contract RamsARouteRehearsalTest is Test {
         );
         data[1] = abi.encodeWithSignature(
             "queueGasParams(uint32,uint32,uint32,uint32)",
-            uint32(480_000),
+            uint32(500_000),
             uint32(450_000),
             uint32(5000),
             uint32(450_000)
@@ -1265,7 +1278,7 @@ contract RamsARouteRehearsalTest is Test {
         address actual = address(uint160(uint256(vm.load(SP, IMPL_SLOT))));
         require(actual == g.implementation, "RAMS gate: implementation");
         require(actual.code.length != 0 && actual.codehash == g.runtimeHash, "RAMS gate: runtime codehash");
-        require(keccak256(bytes(sp.version())) == keccak256("SuperPaymaster-5.5.0"), "RAMS gate: version");
+        require(keccak256(bytes(sp.version())) == keccak256(bytes(SPReleaseVersion.SP)), "RAMS gate: version");
         require(g.owner != address(0) && sp.owner() == g.owner, "RAMS gate: owner");
         require(sp.guardian() == g.guardian, "RAMS gate: guardian");
         require(sp.paused() == g.paused, "RAMS gate: global pause");
@@ -1327,7 +1340,7 @@ contract RamsARouteRehearsalTest is Test {
         g.owner = address(tl);
         g.guardian = address(0);
         g.paused = true;
-        g.gasHash = keccak256(abi.encode(SuperPaymasterStorage.GasParams(480_000, 450_000, 5000, 450_000)));
+        g.gasHash = keccak256(abi.encode(SuperPaymasterStorage.GasParams(500_000, 450_000, 5000, 450_000)));
         g.pendingHash = keccak256(abi.encode(SuperPaymasterStorage.PendingGasParams(0, 0, 0, 0, 0)));
         g.inventory = vm.envAddress("OPERATORS", ",");
         g.operatorPauses = new bool[](operators.length);

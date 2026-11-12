@@ -141,7 +141,7 @@ contract SuperPaymasterRefundTest is Test {
 
     function _mockUserOp() internal view returns (PackedUserOperation memory op) {
         op.sender = user;
-        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 200000, operator, type(uint256).max, address(xPNTs), 0);
+        op.paymasterAndData = V2TokenDeployer.pmd(address(paymaster), 0, 500000, operator, type(uint256).max, address(xPNTs), 0);
     }
 }
 

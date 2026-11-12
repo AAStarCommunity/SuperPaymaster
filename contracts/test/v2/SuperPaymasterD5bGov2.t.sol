@@ -128,7 +128,7 @@ contract SuperPaymasterD5bGov2Test is Test {
         op.preVerificationGas = 50_000;
         op.gasFees = bytes32(abi.encodePacked(uint128(1 gwei), uint128(1 gwei)));
         op.paymasterAndData = abi.encodePacked(
-            address(sp), uint128(700_000), uint128(300_000), operator, type(uint256).max, address(token), uint8(0)
+            address(sp), uint128(700_000), uint128(500_000), operator, type(uint256).max, address(token), uint8(0)
         );
         bytes32 h = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(OWNER_PK, MessageHashUtils.toEthSignedMessageHash(h));
