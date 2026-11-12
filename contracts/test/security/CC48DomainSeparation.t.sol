@@ -2,12 +2,14 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/core/Registry.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/v3/IMySBT.sol";
 import "src/utils/BLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 /// @notice CC-48 round-2 — versioned domain separation, PoP binding and the
@@ -376,21 +378,15 @@ contract CC48PoPBindingTest is Test {
 
     bool internal pragueAvailable;
 
-    /// @dev These cases stub the curve precompiles so `_validateG1Point` accepts a
-    ///      synthetic key — the owner path never reaches a pairing. Under
-    ///      --evm-version prague those addresses are real precompiles that vm.etch
-    ///      refuses to overwrite (and that would reject the synthetic keys anyway),
-    ///      so the suite steps aside there; RepCreditDomainReplay covers the same
-    ///      properties with genuine keys.
-    function _skipUnderPrague() internal {
-        if (pragueAvailable) vm.skip(true);
+    mapping(bytes32 => BLS.G2Point) internal pops;
+
+    function _pop(BLSAggregator agg, address validator, uint256 seed) internal view returns (BLS.G2Point memory) {
+        return pops[keccak256(abi.encode(address(agg), validator, seed))];
     }
 
     function setUp() public {
         vm.chainId(11155111);
-        bytes memory twoIdentities = new bytes(256);
-        (bool ok, bytes memory result) = address(0x0B).staticcall(twoIdentities);
-        pragueAvailable = ok && result.length == 128;
+        pragueAvailable = MockedPrecompiles.praguePrecompilesAvailable();
         if (!pragueAvailable) {
             vm.etch(address(0x0b), hex"60806000f3");
             vm.etch(address(0x0c), hex"60806000f3");
@@ -412,16 +408,22 @@ contract CC48PoPBindingTest is Test {
         aggA = new BLSAggregator(address(registry), address(0xC0), address(0xC1));
         aggB = new BLSAggregator(address(registry), address(0xC0), address(0xC1));
         vm.stopPrank();
+        if (pragueAvailable) {
+            for (uint256 seed = 1; seed <= 11; seed++) {
+                pops[keccak256(abi.encode(address(aggA), v1, seed))] = GenuineBLS.pop(aggA, v1, seed);
+                pops[keccak256(abi.encode(address(aggA), v2, seed))] = GenuineBLS.pop(aggA, v2, seed);
+                pops[keccak256(abi.encode(address(aggB), v2, seed))] = GenuineBLS.pop(aggB, v2, seed);
+            }
+        }
     }
 
-    function _key(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _key(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (pragueAvailable) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(uint256(0x01));
         pk.x_b = bytes32(seed);
         pk.y_a = bytes32(uint256(0x02));
         pk.y_b = bytes32(seed + 1);
     }
-
-    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
 
     function _keyHash(BLS.G1Point memory pk) internal pure returns (bytes32) {
         return keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b));
@@ -464,36 +466,33 @@ contract CC48PoPBindingTest is Test {
     /// single holder of sk can produce N*sk*H(m). That is a valid aggregate
     /// signature for an N-signer mask held by one party.
     function test_SameKeyCannotBeRegisteredForTwoValidators() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(1);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 1));
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, _keyHash(pk), v1));
-        aggA.registerBLSPublicKey(v2, pk, 2, _emptyPoP());
+        aggA.registerBLSPublicKey(v2, pk, 2, _pop(aggA, v2, 1));
     }
 
     /// Enforced on the OWNER path too. The owner is trusted to curate the set, not
     /// to be immune to a copy-paste; and the whole point of a duplicate key is that
     /// it looks identical to a legitimate one.
     function test_DuplicateRejectionAppliesToTheOwnerPath() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(5);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 5));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, _keyHash(pk), v1));
-        aggA.registerBLSPublicKey(v2, pk, 3, _emptyPoP());
+        aggA.registerBLSPublicKey(v2, pk, 3, _pop(aggA, v2, 5));
         vm.stopPrank();
         assertEq(aggA.validatorAtSlot(3), address(0), "no slot may be bound by the rejected call");
     }
 
     function test_ValidatorMayReRegisterItsOwnKey() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(9);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP()); // idempotent re-register
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 9));
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 9)); // idempotent re-register
         vm.stopPrank();
         (, uint8 slot, bool active) = aggA.getBLSPublicKey(v1);
         assertEq(slot, 1);
@@ -505,25 +504,23 @@ contract CC48PoPBindingTest is Test {
     /// let a revoked (possibly compromised, possibly deliberately shared) key be
     /// re-claimed by a second address — the exact duplicate condition.
     function test_RevocationDoesNotReleaseTheKeyBinding() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(11);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 11));
         aggA.revokeBLSPublicKey(v1);
         assertEq(aggA.validatorAtSlot(1), address(0), "slot is freed");
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, _keyHash(pk), v1));
-        aggA.registerBLSPublicKey(v2, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v2, pk, 1, _pop(aggA, v2, 11));
         // ...but the original owner may take it back.
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 11));
         vm.stopPrank();
         assertEq(aggA.validatorAtSlot(1), v1);
     }
 
     function test_DistinctKeysStillRegisterNormally() public {
-        _skipUnderPrague();
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, _key(1), 1, _emptyPoP());
-        aggA.registerBLSPublicKey(v2, _key(2), 2, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, _key(1), 1, _pop(aggA, v1, 1));
+        aggA.registerBLSPublicKey(v2, _key(2), 2, _pop(aggA, v2, 2));
         vm.stopPrank();
         assertEq(aggA.validatorAtSlot(1), v1);
         assertEq(aggA.validatorAtSlot(2), v2);
@@ -533,11 +530,10 @@ contract CC48PoPBindingTest is Test {
     /// which is exactly why the migration is "redeploy + re-register", not
     /// "keep the old key table".
     function test_KeyBindingIsPerAggregator() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(1);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
-        aggB.registerBLSPublicKey(v2, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 1));
+        aggB.registerBLSPublicKey(v2, pk, 1, _pop(aggB, v2, 1));
         vm.stopPrank();
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
         assertEq(aggB.blsKeyOwner(_keyHash(pk)), v2);
@@ -552,10 +548,9 @@ contract CC48PoPBindingTest is Test {
     /// brand-new secret key. `releaseKeyBinding` is the escape hatch — owner-only, and
     /// only for a key no ACTIVE slot is using.
     function test_OwnerCanReleaseABindingNoActiveSlotUses() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(7);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 7));
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
 
         // Revoking alone must NOT release it — that is the anti-duplicate property.
@@ -569,7 +564,7 @@ contract CC48PoPBindingTest is Test {
 
         // The key's real holder can now claim it at a different address.
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v2, pk, 2, _emptyPoP());
+        aggA.registerBLSPublicKey(v2, pk, 2, _pop(aggA, v2, 7));
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v2);
     }
 
@@ -577,10 +572,9 @@ contract CC48PoPBindingTest is Test {
     /// can never be released out from under it, so the duplicate-key guard cannot be
     /// disarmed by governance one call at a time.
     function test_ReleaseIsRefusedWhileAnActiveSlotHoldsTheKey() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(8);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 8));
 
         vm.prank(owner);
         vm.expectRevert(
@@ -594,14 +588,13 @@ contract CC48PoPBindingTest is Test {
     /// a rotation the key can be live under a different address, and releasing it there
     /// would be the same hole.
     function test_ReleaseIsRefusedWhenTheKeyIsLiveUnderAnotherAddress() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(9);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 9));
         aggA.revokeBLSPublicKey(v1);
         aggA.releaseKeyBinding(_keyHash(pk));
         // Same key, new holder.
-        aggA.registerBLSPublicKey(v2, pk, 2, _emptyPoP());
+        aggA.registerBLSPublicKey(v2, pk, 2, _pop(aggA, v2, 9));
 
         vm.expectRevert(
             abi.encodeWithSelector(BLSAggregator.KeyBindingStillActive.selector, _keyHash(pk), v2)
@@ -611,10 +604,9 @@ contract CC48PoPBindingTest is Test {
     }
 
     function test_ReleaseIsOwnerOnlyAndRejectsAnUnknownKey() public {
-        _skipUnderPrague();
         BLS.G1Point memory pk = _key(10);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _emptyPoP());
+        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 10));
         vm.prank(owner);
         aggA.revokeBLSPublicKey(v1);
 
