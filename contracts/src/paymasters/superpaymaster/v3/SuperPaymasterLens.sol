@@ -62,7 +62,7 @@ interface ISPLensView {
  *         Kept in lock-step with validation by the D-layer consistency test.
  */
 contract SuperPaymasterLens is IVersioned {
-    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.1");
+    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.2");
 
     // --- copies of SuperPaymaster 5.5.1 internal constants ---
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52;
@@ -96,7 +96,7 @@ contract SuperPaymasterLens is IVersioned {
     bytes32 public constant DRYRUN_SPONSORSHIP_PAUSED = bytes32("SPONSORSHIP_PAUSED");
 
     function version() external pure override returns (string memory) {
-        return "SuperPaymasterLens-1.2.2";
+        return "SuperPaymasterLens-1.2.3";
     }
 
     /// @dev D5b: `paused()` is the public getter of SuperPaymasterStorage, answered by the core itself
