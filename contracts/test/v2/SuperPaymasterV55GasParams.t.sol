@@ -304,6 +304,97 @@ contract SuperPaymasterV55GasParamsTest is Test {
         sp.executeGasParams();
     }
 
+    // The same boundary table is exercised at both entry points. For upper bounds,
+    // the invalid neighbour is max + 1 (max - 1 is valid).
+    function _boundary(uint256 i, bool invalid) internal pure returns (SuperPaymaster.GasParams memory g) {
+        g = SuperPaymasterStorage.GasParams(500_000, 450_000, 5_000, 450_000);
+        if (i == 0) g.settleGasBound = invalid ? 449_999 : 450_000;
+        if (i == 1) { g.minPostOpGas = 2_000_000; g.settleGasBound = invalid ? 1_000_001 : 1_000_000; }
+        if (i == 2) { g.settleGasBound = 600_000; g.minPostOpGas = uint32(600_000) + uint32(600_000) / 63 + 20_000 - (invalid ? 1 : 0); }
+        if (i == 3) g.minPostOpGas = invalid ? 499_999 : 500_000;
+        if (i == 4) g.minPostOpGas = invalid ? 2_000_001 : 2_000_000;
+        if (i == 5) g.cPostop = invalid ? 449_999 : 450_000;
+        if (i == 6) g.cPostop = invalid ? 500_001 : 500_000;
+        if (i == 7) g.cWrap = invalid ? 4_999 : 5_000;
+        if (i == 8) g.cWrap = invalid ? 50_001 : 50_000;
+    }
+
+    function _assertTuple(SuperPaymaster.GasParams memory g) internal view {
+        SuperPaymaster.GasParams memory actual = _cur();
+        assertEq(abi.encode(actual), abi.encode(g));
+    }
+
+    function test_all_boundaries_queue_and_execute() public {
+        for (uint256 i; i < 9; ++i) {
+            SuperPaymaster.GasParams memory g = _boundary(i, false);
+            _set(g.minPostOpGas, g.settleGasBound, g.cWrap, g.cPostop);
+            _assertTuple(g);
+            g = _boundary(i, true);
+            _expectBad(g.minPostOpGas, g.settleGasBound, g.cWrap, g.cPostop);
+        }
+    }
+
+    function _pendingTuple(SuperPaymaster.GasParams memory g) internal {
+        vm.store(address(sp), bytes32(GAS_PARAMS_SLOT + 1), bytes32(
+            uint256(g.minPostOpGas) | (uint256(g.settleGasBound) << 32) |
+            (uint256(g.cWrap) << 64) | (uint256(g.cPostop) << 96) |
+            (uint256(uint64(vm.getBlockTimestamp())) << 128)
+        ));
+    }
+
+    function test_all_boundaries_rechecked_at_execute() public {
+        for (uint256 i; i < 9; ++i) {
+            SuperPaymaster.GasParams memory g = _boundary(i, false);
+            _pendingTuple(g);
+            vm.prank(owner);
+            sp.executeGasParams();
+            _assertTuple(g);
+            _pendingTuple(_boundary(i, true));
+            vm.prank(owner);
+            vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+            sp.executeGasParams();
+            _assertTuple(g);
+        }
+    }
+
+    function test_preupgrade_pending_all_boundaries_rechecked_after_upgrade() public {
+        SuperPaymaster next = new SuperPaymaster(IEntryPoint(EP), IRegistry(address(registry)), address(sp.ETH_USD_PRICE_FEED()));
+        for (uint256 i; i < 9; ++i) {
+            SuperPaymaster.GasParams memory g = _boundary(i, false);
+            vm.prank(owner);
+            sp.queueGasParams(g.minPostOpGas, g.settleGasBound, g.cWrap, g.cPostop);
+            vm.prank(owner);
+            sp.upgradeToAndCall(address(next), bytes(""));
+            vm.warp(vm.getBlockTimestamp() + 48 hours);
+            vm.prank(owner);
+            sp.executeGasParams();
+            _assertTuple(g);
+            // Model a predecessor whose queue admitted a now-invalid tuple. The
+            // actual UUPS upgrade must preserve it and the new executor reject it.
+            _pendingTuple(_boundary(i, true));
+            bytes32 beforePending = vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1));
+            vm.prank(owner);
+            sp.upgradeToAndCall(address(next), bytes(""));
+            assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT + 1)), beforePending);
+            vm.prank(owner);
+            vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+            sp.executeGasParams();
+            _assertTuple(g);
+        }
+    }
+
+    function test_upgrade_preserves_zero_slot_and_explicit_tuple() public {
+        SuperPaymaster next = new SuperPaymaster(IEntryPoint(EP), IRegistry(address(registry)), address(sp.ETH_USD_PRICE_FEED()));
+        vm.prank(owner);
+        sp.upgradeToAndCall(address(next), bytes(""));
+        assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0));
+        _assertTuple(_boundary(0, false));
+        _set(550_000, 460_000, 6_000, 450_000);
+        vm.prank(owner);
+        sp.upgradeToAndCall(address(next), bytes(""));
+        _assertTuple(SuperPaymasterStorage.GasParams(550_000, 460_000, 6_000, 450_000));
+    }
+
     // ------------------------------------------------------------------ effects
 
     function test_min_post_op_gas_parameter_drives_validation_and_lens() public {
