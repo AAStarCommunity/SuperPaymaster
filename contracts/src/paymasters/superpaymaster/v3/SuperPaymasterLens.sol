@@ -64,7 +64,7 @@ interface ISPLensView {
 contract SuperPaymasterLens is IVersioned {
     bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.2");
 
-    // --- copies of SuperPaymaster 5.5.1 internal constants ---
+    // --- copies of SuperPaymaster 5.5.2 internal constants ---
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52;
     uint256 internal constant POSTOP_GAS_OFFSET = 36;
     uint256 internal constant RATE_OFFSET = 72;

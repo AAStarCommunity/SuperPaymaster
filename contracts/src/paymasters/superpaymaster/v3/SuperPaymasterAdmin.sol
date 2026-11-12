@@ -708,9 +708,10 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
         uint256 reputationLoss =
             level == ISuperPaymaster.SlashLevel.WARNING ? 10 : (level == ISuperPaymaster.SlashLevel.MINOR ? 20 : 50);
-        if (level == ISuperPaymaster.SlashLevel.MAJOR) config.isPaused = true;
-
-        if (config.isPaused) {
+        // Attribute a pause to the slash only on an actual unpaused -> paused transition, so a
+        // slash of an operator already paused by owner/guardian does not re-attribute that pause.
+        if (level == ISuperPaymaster.SlashLevel.MAJOR && !config.isPaused) {
+            config.isPaused = true;
             emit OperatorPaused(operator, msg.sender, SLASH);
         }
 

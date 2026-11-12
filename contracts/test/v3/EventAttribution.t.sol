@@ -153,8 +153,16 @@ contract EventAttributionTest is Test {
     }
 
     function _expectSlash(address by, ISuperPaymaster.SlashLevel level, uint256 amount, uint256 score) internal {
-        vm.expectEmit(true, true, true, true);
-        emit OperatorPaused(operator, by, 5);
+        _expectSlash(by, level, amount, score, true);
+    }
+
+    function _expectSlash(address by, ISuperPaymaster.SlashLevel level, uint256 amount, uint256 score, bool pauses)
+        internal
+    {
+        if (pauses) {
+            vm.expectEmit(true, true, true, true);
+            emit OperatorPaused(operator, by, 5);
+        }
         vm.expectEmit(true, true, true, true);
         emit OperatorSlashed(operator, amount, level, by);
         vm.expectEmit(true, true, true, true);
@@ -169,13 +177,39 @@ contract EventAttributionTest is Test {
         vm.stopPrank();
     }
 
-    function test_OwnerMinorSlash_AlreadyPaused_SLASH() public {
+    function test_OwnerMinorSlash_AlreadyPaused_NoPauseReattribution() public {
         vm.startPrank(owner);
         sp.setOperatorPaused(operator, true);
         sp.queueSlash(operator);
-        _expectSlash(owner, ISuperPaymaster.SlashLevel.MINOR, 100 ether, 80);
+        _expectSlash(owner, ISuperPaymaster.SlashLevel.MINOR, 100 ether, 80, false);
+        vm.recordLogs();
         sp.slashOperator(operator, ISuperPaymaster.SlashLevel.MINOR, 100 ether, "minor");
         vm.stopPrank();
+        _assertNoPauseEvent();
+    }
+
+    function test_OwnerMajorSlash_AlreadyPaused_NoPauseReattribution() public {
+        vm.startPrank(owner);
+        sp.setOperatorPaused(operator, true);
+        sp.queueSlash(operator);
+        _expectSlash(owner, ISuperPaymaster.SlashLevel.MAJOR, 100 ether, 50, false);
+        vm.recordLogs();
+        sp.slashOperator(operator, ISuperPaymaster.SlashLevel.MAJOR, 100 ether, "major");
+        vm.stopPrank();
+        _assertNoPauseEvent();
+        (,, bool paused,,,,,,) = sp.operators(operator);
+        assertTrue(paused, "operator stays paused");
+    }
+
+    /// @dev Absence check with a live instrument: the selector must match the declared event.
+    function _assertNoPauseEvent() internal {
+        bytes32 topic = keccak256("OperatorPaused(address,address,uint8)");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; ++i) {
+            if (logs[i].emitter == address(sp) && logs[i].topics.length > 0) {
+                assertTrue(logs[i].topics[0] != topic, "slash must not re-attribute an existing pause");
+            }
+        }
     }
 
     function test_BLSMajorSlash_PreservesExternalCaller() public {
