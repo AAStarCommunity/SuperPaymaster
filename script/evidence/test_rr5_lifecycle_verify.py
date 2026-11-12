@@ -29,7 +29,7 @@ class EvidenceControls(unittest.TestCase):
         self.commands = [json.loads(s) for s in (self.out/'commands.jsonl').read_text().splitlines()]
         self.row = self.manifest['amsterdam/balance/rr_base']
 
-    def check(self, reason=None):
+    def check(self, reason=None, partial=False):
         (self.out/'manifest.json').write_text(json.dumps(self.manifest))
         for c in self.commands:
             c['sha256'] = hashlib.sha256((self.out/c['log']).read_bytes()).hexdigest()
@@ -37,9 +37,13 @@ class EvidenceControls(unittest.TestCase):
         (self.out/'SHA256SUMS').write_text(''.join(
             f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
             for p in sorted(self.out.iterdir()) if p.name != 'SHA256SUMS'))
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out), '--require-engines', 'amsterdam'],
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify-partial' if partial else '--verify', str(self.out)],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
-        if reason is None:
+        if partial:
+            self.assertEqual(result.returncode, 3, result.stderr)
+            self.assertIn('PARTIAL (NOT RELEASE EVIDENCE)', result.stdout)
+            self.assertIn('engines: cancun', result.stdout)
+        elif reason is None:
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('PASS (156, 4044)', result.stdout)
             self.assertIn('verified engines: amsterdam,cancun,prague', result.stdout)
@@ -48,7 +52,7 @@ class EvidenceControls(unittest.TestCase):
             self.assertIn(reason, result.stderr)
 
     def test_historical_record_without_compile_evm(self):
-        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out), '--require-engines', 'amsterdam'],
+        result = subprocess.run([sys.executable, str(RUNNER), '--verify', str(self.out)],
                                 text=True, capture_output=True, cwd=RUNNER.parents[2])
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -84,6 +88,24 @@ class EvidenceControls(unittest.TestCase):
         for engine in ('amsterdam', 'prague'):
             (self.out / f'{engine}-version.txt').unlink()
         self.check('missing required engines: amsterdam')
+
+    def test_cancun_only_partial(self):
+        self.manifest = {k: v for k, v in self.manifest.items() if k.startswith('cancun/')}
+        self.commands = [c for c in self.commands if c['engine'] == 'cancun']
+        renamed = {}
+        for i, c in enumerate(self.commands, 1):
+            old = c['id']
+            new = f'{i:05d}' + old[5:]
+            renamed[old] = new
+            (self.out/c['log']).rename(self.out/(new + '.log'))
+            c['id'], c['log'] = new, new + '.log'
+        for row in self.manifest.values():
+            for key, value in row.items():
+                if isinstance(value, str) and value in renamed:
+                    row[key] = renamed[value]
+        for engine in ('amsterdam', 'prague'):
+            (self.out/f'{engine}-version.txt').unlink()
+        self.check(partial=True)
 
     def test_missing_engine_version(self):
         (self.out/'amsterdam-version.txt').unlink()

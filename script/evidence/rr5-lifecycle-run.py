@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Complete paired lifecycle inventory. No production writes; fresh test per independent point."""
+"""Complete paired lifecycle inventory. No production writes; fresh test per independent point.
+
+Trust boundary: trust the local git checkout, pinned binaries and tool. Release
+evidence is measured on a clean tree; no caller metadata or partial engine set.
+Evidence rewriting with recomputed hashes is out of scope; reviewers rerun.
+"""
 import hashlib
 import json
 import os
@@ -157,6 +162,8 @@ def verify_sources(out):
     assert old_prefix == current_prefix or (old_prefix == legacy_prefix and current_prefix == modern_prefix), \
         'measurement main prefix changed'
     def measurement_digest(tree):
+        if ast.get_docstring(tree):
+            tree.body = tree.body[1:]
         tree.body = [n for n in tree.body if not (
             (isinstance(n, ast.FunctionDef) and n.name in
              {'verify', 'verify_sources', 'guard_selector', 'main'}) or
@@ -166,11 +173,12 @@ def verify_sources(out):
 
 
 
-def verify(out, required_engines=('amsterdam',)):
+def verify(out, partial=False):
     verify_sources(out)
     manifest = json.loads((out/'manifest.json').read_text())
     selected_engines = [e for e in ENGINES if any(k.startswith(e + '/') for k in manifest)]
     assert selected_engines, 'empty engine inventory'
+    required_engines = () if partial else ENGINES
     assert set(required_engines) <= set(selected_engines), 'missing required engines: ' + ','.join(sorted(set(required_engines) - set(selected_engines)))
     keys = [f'{e}/{m}/{v}' for e in selected_engines for m in MODES for v in VARIANTS]
     assert set(manifest) == set(keys), 'incomplete variant inventory'
@@ -383,8 +391,10 @@ def main(out, selected_engines=ENGINES):
                 print(key,row['last_guard'],row['non_guard_scan'],row['first_complete'],flush=True)
     (out/'source-after.json').write_text(json.dumps(hashes(),indent=2))
     write_sums(out)
-    n,c=verify(out)
-    (out/'verdict.txt').write_text(f'PASS {n} complete variants; {c} commands exit 0; verified engines: {",".join(selected_engines)}\n')
+    partial = list(selected_engines) != list(ENGINES)
+    n,c=verify(out, partial)
+    status = 'PARTIAL (NOT RELEASE EVIDENCE)' if partial else 'PASS'
+    (out/'verdict.txt').write_text(f'{status} {n} complete variants; {c} commands exit 0; engines: {",".join(selected_engines)}\n')
     # Negative control: remove one variant, keep logs and commands intact. Checksums are refreshed so
     # the only defect is the missing variant, and the rejection must name it.
     saved=(out/'manifest.json').read_text()
@@ -392,27 +402,32 @@ def main(out, selected_engines=ENGINES):
     (out/'manifest.json').write_text(json.dumps(bad))
     write_sums(out)
     try:
-        p=subprocess.run([sys.executable,__file__,'--verify',str(out)],capture_output=True,text=True)
+        p=subprocess.run([sys.executable,__file__,'--verify-partial' if partial else '--verify',str(out)],capture_output=True,text=True)
         (out/'negative-missing-variant.log').write_text(f'exit {p.returncode}\n'+p.stdout+p.stderr)
         assert p.returncode!=0 and 'incomplete variant inventory' in p.stderr, 'negative control rejected for the wrong reason'
     finally: (out/'manifest.json').write_text(saved)
     write_sums(out)
-    n,c=verify(out)
+    n,c=verify(out, partial)
     write_sums(out)
+    if partial:
+        print(f'PARTIAL (NOT RELEASE EVIDENCE) {n} variants, {c} commands; negative control rejected; engines: {",".join(selected_engines)}',flush=True)
+        sys.exit(3)
     print(f'PASS {n} variants, {c} commands; negative control rejected; verified engines: {",".join(selected_engines)}',flush=True)
 
 if __name__=='__main__':
-    if '--verify' in sys.argv[1:]:
+    if '--verify' in sys.argv[1:] or '--verify-partial' in sys.argv[1:]:
         import argparse
         parser = argparse.ArgumentParser()
-        parser.add_argument('--verify', type=Path, required=True)
-        parser.add_argument('--require-engines', default='amsterdam')
+        mode = parser.add_mutually_exclusive_group(required=True)
+        mode.add_argument('--verify', type=Path)
+        mode.add_argument('--verify-partial', type=Path)
         args = parser.parse_args()
-        required = args.require_engines.split(',')
-        if not required or any(e not in ENGINES for e in required):
-            parser.error('invalid required engines')
-        result = verify(args.verify, required)
-        engines = sorted({k.split('/')[0] for k in json.loads((args.verify/'manifest.json').read_text())})
+        out = args.verify or args.verify_partial
+        result = verify(out, partial=args.verify_partial is not None)
+        engines = sorted({k.split('/')[0] for k in json.loads((out/'manifest.json').read_text())})
+        if args.verify_partial is not None:
+            print('PARTIAL (NOT RELEASE EVIDENCE)', result, 'engines:', ','.join(engines))
+            sys.exit(3)
         print('PASS', result, 'verified engines:', ','.join(engines))
     else:
         args = sys.argv[1:]
