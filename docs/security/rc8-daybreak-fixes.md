@@ -358,18 +358,16 @@ callable by any address immediately. The owner path exposes the atomic
 slots and the storage gap are unchanged. `totalSpent` retains its 5.5.0 meaning: validation adds the
 reserved `a0`, and settlement never adds it again.
 
-`GP_CPOSTOP_MIN` remains 180,000. The measured 154,262-gas worst path requires 177,402 gas at the
-15% safety rule, so 180,000 is the smallest rounded safe floor. Before upgrading SuperPaymaster, the
-executor must read the pending gas-parameter proposal and cancel/requeue it if `cPostop < 180000`.
-After the upgrade, the executor must assert active `cPostop >= 180000`; the release tuple
-`(480000,450000,5000,450000)` satisfies this requirement. `SuperPaymasterLens.version()` and the
+Superseded by "Amsterdam gas floors (SP-c)" below: `GP_CPOSTOP_MIN` is now 450,000 and the release
+tuple is `(500000,450000,5000,450000)`; 480,000 is rejected. The pre-SP-c text (cPostop floor 180,000,
+release tuple `(480000,450000,5000,450000)`) is kept only as history and must not be executed. `SuperPaymasterLens.version()` and the
 release pin now report `SuperPaymasterLens-1.2.1`.
 
 The OP-011-corrected remeasurement is lower but does not relax that conservative floor: validation uses
 272,723 of the 1,150,000 verification budget (877,277 headroom), and the measured worst postOp path
 uses 132,091 gas. Its 15% requirement is 151,905, so release `cPostop=450000` has 317,909 raw gas
 headroom (24,067 bps over the measured path). The maximum measured entry-guard bound is 462,035,
-leaving 17,965 under release `minPostOpGas=480000`.
+leaving 17,965 under the then-proposed `minPostOpGas=480000` (superseded: release is 500,000).
 
 ## Critical OP-011 correction — 2026-11-10
 
@@ -452,13 +450,26 @@ The release tuple settles on Amsterdam with 30,651 headroom (469,349 required vs
 MIN must also cover `SETTLE + floor(SETTLE / 63) + 20,000`: EIP-150 retained gas plus ~12.2k call overhead and ~7.8k margin.
 The release spacing is 477,142, below the unchanged 500,000 absolute floor; the old 620k/600k tuple is rejected.
 Real-EntryPoint BALANCE/CREDIT tests validate the exact governance minimum at SETTLE 450k, 600k and 1M.
-Zero-slot defaults and LEGACY constants remain unchanged; the manifest still writes the release tuple explicitly.
+Zero-slot defaults changed with the floors: MIN 200k -> 500k, SETTLE 160k -> 450k, C_POSTOP 180k -> 450k
+(C_WRAP stays 5k). An all-zero slot therefore behaves exactly like the release tuple; the manifest still
+writes the tuple explicitly. LEGACY constants are unchanged.
 
 `LEGACY_SETTLE_GAS_BOUND = 160k` and `LEGACY_C_WRAP_GAS = 30k` are unchanged. They apply only to an
 unreleased 5.5.0 352-byte context that could survive only within one `handleOps` transaction.
 Sepolia upgrades from 5.4.2, whose tag source emits a 160-byte context, so that legacy path is
-unreachable across the 5.4.2 -> 5.5.1 upgrade. The executor's 500k minimum lands in the separate
-manifest PR under `script/upgrade`; until that deploys, the executor admits the 480k/500k interval.
+unreachable across the 5.4.2 -> 5.5.1 upgrade. The executor's own minimum still admits 480k; that is
+raised to 500k in the separate manifest PR under `script/upgrade`. A release run before that PR lands
+would queue a tuple the contract rejects (`InvalidConfiguration` at queue), so that PR is a release
+prerequisite, not a follow-up.
+
+Migration and integrator notes (release procedure):
+- `_gpRaw` substitutes the defaults only for an all-zero slot. A proxy that already stores a tuple
+  keeps it until governance queues a new one (48 h timelock). Sepolia's 5.4.2 proxy has a zero slot, so
+  it gets the release values on upgrade; any other proxy must be read first.
+- Floors are checked at queue and at execute, so a pending tuple below the new floors can no longer be
+  executed after the upgrade: cancel it and re-queue a valid one.
+- UserOps with `paymasterPostOpGasLimit < 500000` are rejected at validation. SDK/bundler integrators
+  must send at least 500,000.
 
 ### Validation trace and identity configuration (SP-R4-M-01 / L-02)
 

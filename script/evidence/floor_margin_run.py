@@ -4,6 +4,10 @@
 Trust boundary: trust the local git checkout (HEAD and tree), the pinned Forge
 binary and this tool. Caller metadata is never release evidence. An attacker
 who can rewrite evidence and recompute hashes is out of scope; reviewers rerun.
+
+This is a local evidence tool: --nightly is executed as given, and the child
+process inherits the caller's environment except for the variables this tool
+sets. Point it only at the pinned nightly.
 """
 import argparse
 import hashlib
