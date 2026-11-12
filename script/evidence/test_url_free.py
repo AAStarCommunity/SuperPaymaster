@@ -18,7 +18,9 @@ class UrlFree(unittest.TestCase):
                            ('error resolving rpc.internal:8545', 'host-port'), ('dial [2001:db8::1]:8545', 'ipv6'),
                            ('peer 2001:db8::1', 'ipv6'), ('node fe80::1', 'ipv6'),
                            ('error resolving rpc:8545', 'host-port'), ('dial tcp node:443', 'host-port'),
-                           ('transport error connecting anvil:8545', 'host-port')]:
+                           ('transport error connecting anvil:8545', 'host-port'),
+                           ('dial tcp rpc:8545: connect: connection refused', 'host-port'),
+                           ('error resolving rpc:8545: no such host', 'host-port'), ('connecting to node:443: timeout', 'host-port')]:
             with self.subTest(text=text):
                 self.assertIn(kind, url_like(text))
 

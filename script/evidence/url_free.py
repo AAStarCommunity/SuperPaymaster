@@ -22,8 +22,8 @@ FILE_EXTENSIONS = {
 HOST_PORT = re.compile(_NOT_AFTER + r'((?:[A-Za-z0-9-]+\.)+([A-Za-z0-9-]+)):\d{2,5}(?!\d)')
 # Single-label host:port (`rpc:8545`, `anvil:8545`): any 4-5 digit port, or any port after a
 # network-diagnostic word (`dial tcp node:443`). Source lines are dotted (`x.t.sol:85`) or short.
-SINGLE_HOST_PORT = re.compile(_NOT_AFTER + r'[A-Za-z][A-Za-z0-9-]*:\d{4,5}(?![\d:])')
-DIAG_HOST_PORT = re.compile(r'(?i)\b(?:dial(?:\s+(?:tcp|udp))?|resolv\w*|connect\w*(?:\s+to)?|host|endpoint|peer|node|rpc|url)\s+[A-Za-z][A-Za-z0-9-]*:\d{2,5}(?![\d:])')
+SINGLE_HOST_PORT = re.compile(_NOT_AFTER + r'[A-Za-z][A-Za-z0-9-]*:\d{4,5}(?!\d)')
+DIAG_HOST_PORT = re.compile(r'(?i)\b(?:dial(?:\s+(?:tcp|udp))?|resolv\w*|connect\w*(?:\s+to)?|host|endpoint|peer|node|rpc|url)\s+[A-Za-z][A-Za-z0-9-]*:\d{2,5}(?!\d)')
 IPV6 = re.compile(r'\[[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\](?::\d{1,5})?|(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])')
 PATTERNS = {
     'scheme': re.compile(r'[A-Za-z][A-Za-z0-9+.-]*://'),
