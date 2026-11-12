@@ -46,6 +46,8 @@ import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
  *                 echo input point1 (offset 0x100) => result.X == u1.
  *    This is purely a test harness to read internal field output; it does NOT
  *    alter BLS.sol. CI in the 4 program repos asserts the same (u0,u1) bytes.
+ *    Prague/Amsterdam instead expect both exact map inputs and compare the full
+ *    real G2 output with the independently generated g2Affine JSON vectors.
  */
 contract BLSGoldenVectorsWrapper {
     function hashToG2(bytes memory m) external view returns (BLS.G2Point memory) {
@@ -55,6 +57,7 @@ contract BLSGoldenVectorsWrapper {
 
 contract BLSGoldenVectors_Test is Test {
     BLSGoldenVectorsWrapper internal wrapper;
+    bool internal realMode;
 
     address constant G2ADD = address(0x0d);
     address constant MAP_FP2_TO_G2 = address(0x11);
@@ -83,15 +86,13 @@ contract BLSGoldenVectors_Test is Test {
     }
 
     function setUp() public {
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers the production paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
+        realMode = MockedPrecompiles.praguePrecompilesAvailable();
         wrapper = new BLSGoldenVectorsWrapper();
     }
 
     /// @dev Run hash_to_field on-chain and surface u0 (result.X with g2add echoing point0).
     function _u0(bytes memory m) internal returns (BLS.G2Point memory) {
+        if (realMode) return wrapper.hashToG2(m);
         vm.etch(MAP_FP2_TO_G2, MAP_ECHO);
         vm.etch(G2ADD, G2ADD_ECHO_P0);
         return wrapper.hashToG2(m);
@@ -99,12 +100,33 @@ contract BLSGoldenVectors_Test is Test {
 
     /// @dev Run hash_to_field on-chain and surface u1 (result.X with g2add echoing point1).
     function _u1(bytes memory m) internal returns (BLS.G2Point memory) {
+        if (realMode) return wrapper.hashToG2(m);
         vm.etch(MAP_FP2_TO_G2, MAP_ECHO);
         vm.etch(G2ADD, G2ADD_ECHO_P1);
         return wrapper.hashToG2(m);
     }
 
     function _assertVec(Vec memory v) internal {
+        if (realMode) {
+            vm.expectCall(MAP_FP2_TO_G2, abi.encode(v.u0c0a, v.u0c0b, v.u0c1a, v.u0c1b));
+            vm.expectCall(MAP_FP2_TO_G2, abi.encode(v.u1c0a, v.u1c0b, v.u1c1a, v.u1c1b));
+            BLS.G2Point memory point = wrapper.hashToG2(v.message);
+            string memory json = vm.readFile("docs/design/bls-golden-vectors.json");
+            uint256 index = keccak256(bytes(v.label)) == keccak256("canonical_0x11x32") ? 0
+                : keccak256(bytes(v.label)) == keccak256("empty") ? 1
+                : keccak256(bytes(v.label)) == keccak256("one_byte_a") ? 2
+                : keccak256(bytes(v.label)) == keccak256("ninetysix_0xab") ? 3
+                : keccak256(bytes(v.label)) == keccak256("userophash_like") ? 4 : type(uint256).max;
+            require(index != type(uint256).max, string.concat("no golden vector for label ", v.label));
+            string memory base = string.concat("[", vm.toString(index), "].g2Affine.");
+            bytes memory expected;
+            string[8] memory fields = ["x.c0.a", "x.c0.b", "x.c1.a", "x.c1.b", "y.c0.a", "y.c0.b", "y.c1.a", "y.c1.b"];
+            for (uint256 i = 0; i < fields.length; ++i) {
+                expected = bytes.concat(expected, abi.encode(vm.parseJsonBytes32(json, string.concat(base, fields[i]))));
+            }
+            assertEq(abi.encode(point), expected, v.label);
+            return;
+        }
         BLS.G2Point memory r0 = _u0(v.message);
         assertEq(r0.x_c0_a, v.u0c0a, string.concat(v.label, ": u0.c0 high"));
         assertEq(r0.x_c0_b, v.u0c0b, string.concat(v.label, ": u0.c0 low"));
