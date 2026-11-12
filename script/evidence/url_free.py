@@ -18,13 +18,20 @@ FILE_EXTENSIONS = {
     'sol', 'py', 'json', 'jsonl', 'ndjson', 'log', 'md', 'js', 'mjs', 'ts', 'txt', 'sh', 'diff', 'patch', 'yml',
     'yaml', 'toml', 'gz', 'hex', 'tsv', 'csv', 'err', 'out', 'stdout', 'stderr', 'sha256', 'spec', 'adoc', 'pdf',
     'svg', 'png', 'lock', 'yul', 'tex', 'cmd', 'raw', 'exit', 'start', 'end', 'load', 'calldata', 'chainid',
-    'graphql', 'nix', 'example', 'bak', 'old', 'ref', 'rsp', 'pyc', 'redacted', 'superseded'}
-HOST_PORT = re.compile(_NOT_AFTER + r'((?:[A-Za-z0-9-]+\.)+([A-Za-z0-9-]+)):\d{2,5}(?!\d)')
-# Single-label host:port (`rpc:8545`, `anvil:8545`): any 4-5 digit port, or any port after a
-# network-diagnostic word (`dial tcp node:443`). Source lines are dotted (`x.t.sol:85`) or short.
-SINGLE_HOST_PORT = re.compile(_NOT_AFTER + r'[A-Za-z][A-Za-z0-9-]*:\d{4,5}(?!\d)')
-DIAG_HOST_PORT = re.compile(r'(?i)\b(?:dial(?:\s+(?:tcp|udp))?|resolv\w*|connect\w*(?:\s+to)?|host|endpoint|peer|node|rpc|url)\s+[A-Za-z][A-Za-z0-9-]*:\d{2,5}(?!\d)')
-IPV6 = re.compile(r'\[[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\](?::\d{1,5})?|(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])')
+    'graphql', 'nix', 'rs', 'example', 'bak', 'old', 'ref', 'rsp', 'pyc', 'redacted', 'superseded'}
+# Ports are 1-5 digits; a port must not run into a word character (`rpc:0x...` is not one).
+# Labels allow '_' (container/local DNS) and a root dot before the port (`rpc.internal.:8545`).
+_PORT = r':\d{1,5}(?![\w])'
+HOST_PORT = re.compile(_NOT_AFTER + r'((?:[A-Za-z0-9_-]+\.)+([A-Za-z0-9_-]+))\.?' + _PORT)
+# Single-label host:port (`rpc:443`, `"rpc:443"`, `(rpc:80)`, `rpc_node:8545`, `rpc.:8545`).
+SINGLE_HOST_PORT = re.compile(_NOT_AFTER + r'[A-Za-z][A-Za-z0-9_-]*\.?' + _PORT)
+DIAG_HOST_PORT = re.compile(r'(?i)\b(?:dial(?:\s+(?:tcp|udp))?|resolv\w*|connect\w*(?:\s+to)?|host|endpoint|peer|node|rpc|url)\s+[A-Za-z][A-Za-z0-9_-]*' + _PORT)
+IPV6 = re.compile(r'\[[0-9A-Fa-f.]*:[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*(?:%\w+)?\](?::\d{1,5})?|(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])')
+# Bracketed IPv6 needs two colons (`[:8]` is a Python slice).
+# All-hex unbracketed IPv6 (`abcd::cafe`, `::`) only after a network word, because `abc::def`
+# is also a Rust path; outside such context a digit is required (see _ipv6).
+IPV6_IN_CONTEXT = re.compile(r'(?i)(?:caused by:|connect\w*(?:\s+to)?|address|addr|endpoint|peer|node|rpc|url)\s*["\'(\[]?\s*'
+                             r'((?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4})(?![\w:])')
 PATTERNS = {
     'scheme': re.compile(r'[A-Za-z][A-Za-z0-9+.-]*://'),
     'ipv4': re.compile(r'(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\d.])'),
@@ -34,14 +41,17 @@ PATTERNS = {
 
 
 def _host_port(text):
-    return any(m.group(2).lower() not in FILE_EXTENSIONS and not m.group(2).isdigit() for m in HOST_PORT.finditer(text))
+    return any(m.group(2).lower() not in FILE_EXTENSIONS for m in HOST_PORT.finditer(text))
 
 
 def _ipv6(text):
-    # Unbracketed: require '::' or seven colons so clock times (01:28:11) do not match.
-    # An address always has a digit; `abc::def`-style identifiers do not.
-    return any(m.group(0).startswith('[') or (any(c.isdigit() for c in m.group(0)) and ('::' in m.group(0) or m.group(0).count(':') == 7))
-               for m in IPV6.finditer(text))
+    # Unbracketed: require '::' or seven colons so clock times (01:28:11) do not match, and a
+    # decimal digit so Rust paths (`abc::def`) do not; all-hex addresses need network context.
+    def shaped(t):
+        return '::' in t or t.count(':') == 7
+    return (any(m.group(0).startswith('[') or (any(c.isdigit() for c in m.group(0)) and shaped(m.group(0)))
+                for m in IPV6.finditer(text))
+            or any(shaped(m.group(1)) for m in IPV6_IN_CONTEXT.finditer(text)))
 
 
 def url_like(text):

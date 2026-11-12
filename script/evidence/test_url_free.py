@@ -24,6 +24,21 @@ class UrlFree(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(kind, url_like(text))
 
+    def test_daybreak_r8_endpoint_corpus(self):
+        # Every form Daybreak round 8 found missing, alone and inside realistic wrappers.
+        forms = ['rpc.internal:0', 'rpc.internal:1', 'rpc:443', 'rpc:1', 'rpc_node:8545', 'rpc_node:443',
+                 'rpc_node.internal:8545', 'rpc.:8545', 'rpc.internal.:8545', 'rpc.123:8545']
+        wrappers = ['{}', '"{}"', '({})', '{}: Connection refused (os error 61)', 'Caused by: {}: connect',
+                    'error sending request for url ({})', 'endpoint "{}"', 'endpoint ({})', 'connect {}']
+        for form in forms:
+            for w in wrappers:
+                with self.subTest(text=w.format(form)):
+                    self.assertIn('host-port', url_like(w.format(form)))
+        for text in ['peer abcd::cafe', 'endpoint "abcd::cafe"', 'endpoint (abcd::cafe)', 'Caused by: abcd::cafe',
+                     'peer ::', 'peer ::ffff', 'peer aaaa:aaaa:aaaa:aaaa:aaaa:aaaa:aaaa:aaaa']:
+            with self.subTest(text=text):
+                self.assertIn('ipv6', url_like(text))
+
     def test_forge_output_is_not_flagged(self):
         for text in ['forge Version: 1.8.7-nightly', 'Solc 0.8.33 finished in 200.53s',
                      'Ran 16 tests for contracts/test/rams/RamsARouteRehearsal.t.sol:RamsARouteRehearsalTest',
@@ -33,7 +48,9 @@ class UrlFree(unittest.TestCase):
                      # Paths, source lines, clock times and Rust-style identifiers are not endpoints.
                      '/tmp/work.dev/run/version.log', '~/Dev/x.dev/y', 'contracts/test/rams/RamsARouteRehearsal.t.sol:85',
                      '2026-11-12T01:28:11.5318925Z', 'foundry_evm::executors::invariant', 'abc::def', 'deploy-core.sh',
-                     'RamsARouteRehearsal.t.sol:85', 'at contracts/x.sol:1234', '[PASS] test_a() (gas: 16060896)', 'block 12112256']:
+                     'RamsARouteRehearsal.t.sol:85', 'at contracts/x.sol:1234', '[PASS] test_a() (gas: 16060896)', 'block 12112256',
+                     'at crates/evm/src/x.rs:12:5', 'ret: 0x8890295d', 'selector:0x8890295d', '"rc": 0',
+                     'Suite result: ok. 16 passed; 0 failed; 0 skipped; finished in 5.71ms', "j['head'][:8]"]:
             with self.subTest(text=text):
                 self.assertEqual(url_like(text), [])
 
