@@ -81,8 +81,8 @@ def verify_sources(out, historical=False):
         assert hashlib.sha256((out/name).read_bytes()).hexdigest() == digest, ('checksum', name)
     head = (out/'head.txt').read_text().strip()
     assert re.fullmatch('[0-9a-f]{40}', head), 'head format'
-    def recorded(path):
-        return subprocess.check_output(['git','show',f'{head}:{path}'])
+    def recorded(path, rev=None):
+        return subprocess.check_output(['git','show',f'{rev or head}:{path}'])
     assert subprocess.check_output(['git','rev-parse',f'{head}^{{commit}}'],text=True).strip() == head
     # The original record has no tracked changes, only the then-untracked evidence folder.
     assert (out/'working-tree.txt').read_text() in ('', '?? docs/design/aoa-balance-mode/data/rr5-lifecycle-isolation/\n'), 'dirty measurement sources'
@@ -142,11 +142,13 @@ def verify_sources(out, historical=False):
         main.body = main.body[:end[0] + 1]
         return hashlib.sha256(ast.dump(main).encode()).hexdigest()
     old_prefix, current_prefix = main_prefix(old), main_prefix(current)
-    # Audited git-show prefixes: 5edd1d30 predates selected_engines/compileEvm;
-    # 0f08bf98 records Cancun compilation for Amsterdam. Accept the exact legacy
-    # prefix only with the exact modern counterpart, never a generic AST exemption.
-    legacy_prefix = '54e6e79b82a356533b76daf811c131927ea9121eff0a44baacc88ff3dd8e4729'
-    modern_prefix = 'ba9ad94534dc76e7ef9f3d9b681699d94859f388491cbc0dfcddb34a022508a5'
+    # Audited revisions: 5edd1d30 predates selected_engines/compileEvm; 0f08bf98 records
+    # Cancun compilation for Amsterdam. Accept the exact legacy prefix only with the exact
+    # modern counterpart, never a generic AST exemption. Both digests are derived here with
+    # the running interpreter: ast.dump output differs between Python releases, so a
+    # stored hash only matched the version that produced it.
+    legacy_prefix = main_prefix(ast.parse(recorded(runner, '5edd1d308d5e17fea8cbda586e7ea2c871fc0e33')))
+    modern_prefix = main_prefix(ast.parse(recorded(runner, '0f08bf983ab27ea70c6b6096cad11a5e9ac6bbf1')))
     assert old_prefix == current_prefix or (old_prefix == legacy_prefix and current_prefix == modern_prefix), \
         'measurement main prefix changed'
     def measurement_digest(tree):
