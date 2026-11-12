@@ -12,6 +12,11 @@ import {MockAirAccount} from "../bundler/BLayerAccounts.sol";
 import {IPBTok} from "../v2/SuperPaymasterV55PostOpBound.t.sol";
 import {Vm} from "forge-std/Vm.sol";
 
+interface FloorDelegationVm {
+    function signAndAttachDelegation(address implementation, uint256 privateKey) external;
+    function getEvmVersion() external view returns (string memory);
+}
+
 using SuperPaymasterAdminCalls for SuperPaymaster;
 
 contract AmsterdamHandleOpsFloorTest is SuperPaymasterV55PostOpBoundTest {
@@ -161,16 +166,27 @@ contract AmsterdamHandleOpsFloorTest is SuperPaymasterV55PostOpBoundTest {
         uint256[] memory balances = new uint256[](count);
         for (uint256 i; i < count; i++) {
             uint256 identity = variant == 0 ? (i + 3 - position) % 3 : i;
-            bool credit = variant == 0 && identity == 1;
+            bool credit = (variant == 0 && identity == 1) || variant == 4;
             address u;
-            if (variant == 2) {
+            if (variant >= 2) {
                 MockAirAccount account = new MockAirAccount(EP);
-                account.initialize(vm.addr(OWNER_PK), address(token), address(sp));
-                u = address(account);
+                if (variant >= 3) {
+                    u = vm.addr(OWNER_PK);
+                    assertEq(u.code.length, 0, "sender starts as EOA");
+                    FloorDelegationVm(address(vm)).signAndAttachDelegation(address(account), OWNER_PK);
+                    assertEq(u.code, abi.encodePacked(hex"ef0100", address(account)), "EIP-7702 delegation designator");
+                } else u = address(account);
+                MockAirAccount(payable(u)).initialize(vm.addr(OWNER_PK), address(token), address(sp));
                 vm.prank(address(registry));
                 sp.updateSBTStatus(u, true);
-                vm.prank(operator);
-                IPBTok(address(token)).mint(u, 10_000 ether);
+                if (credit) {
+                    registry.setCreditLimit(u, 50_000 ether);
+                    vm.prank(u);
+                    IPBTok(address(token)).requestCredit(50_000 ether);
+                } else {
+                    vm.prank(operator);
+                    IPBTok(address(token)).mint(u, 10_000 ether);
+                }
             } else u = _freshUser(900 + identity, credit);
             PackedUserOperation memory op;
             op.sender = u;
@@ -209,7 +225,7 @@ contract AmsterdamHandleOpsFloorTest is SuperPaymasterV55PostOpBoundTest {
             address u = ops[i].sender;
             settled = settled && token.usedOpHashes(hashes[i]) && token.lockedOf(u) == 0
                 && token.creditReservedOf(u) == 0
-                && (variant == 0 && (i + 3 - position) % 3 == 1 ? token.debts(u) > 0 : token.balanceOf(u) < balances[i]);
+                && ((variant == 0 && (i + 3 - position) % 3 == 1) || variant == 4 ? token.debts(u) > 0 : token.balanceOf(u) < balances[i]);
         }
         revert HandleOpsProbe(settled);
     }
@@ -261,6 +277,15 @@ contract AmsterdamHandleOpsFloorTest is SuperPaymasterV55PostOpBoundTest {
     function test_variance_600000_bundle_2() public { _variance(600000, 2, 0); }
     function test_variance_600000_large_0() public { _variance(600000, 0, 1); }
     function test_variance_600000_account_0() public { _variance(600000, 0, 2); }
+
+    function test_variance_7702() public {
+        string memory evm = FloorDelegationVm(address(vm)).getEvmVersion();
+        vm.skip(keccak256(bytes(evm)) == keccak256("cancun"), "EIP-7702 requires Prague or later");
+        _variance(450_000, 0, 3);
+        _variance(450_000, 0, 4);
+        _variance(600_000, 0, 3);
+        _variance(600_000, 0, 4);
+    }
 
     function test_old_floor_rejected_at_queue() public {
         vm.prank(owner);

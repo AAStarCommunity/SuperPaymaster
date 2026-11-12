@@ -2,8 +2,8 @@ import hashlib
 import unittest
 from floor_margin_extract import extract
 
-HEADER = 'Ran 24 tests for contracts/test/measure/AmsterdamHandleOpsFloor.t.sol:AmsterdamHandleOpsFloorTest\n'
-SUMMARY = 'Suite result: ok. 24 passed; 0 failed; 0 skipped; finished in 1s\n'
+HEADER = 'Ran 25 tests for contracts/test/measure/AmsterdamHandleOpsFloor.t.sol:AmsterdamHandleOpsFloorTest\n'
+SUMMARY = 'Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 1s\n'
 
 
 def fixture():
@@ -14,7 +14,7 @@ def fixture():
             blocks.append(f'[PASS] test_handleOps_scaled_{s}_{credit}()\nSETTLE: {s}\nCREDIT: {credit}\nscaled minimum minPost: {minimum}\nreal guard crossing: {minimum-7000}\nscaled margin: 7000\n')
     for s in (450000, 600000):
         minimum = max(500000, s + s//63 + 20000)
-        for v in range(3):
+        for v in range(5):
             for p in (range(3) if v == 0 else [0]):
                 blocks.append(f'[PASS] test_variance_{s}_{v}_{p}()\nvariance SETTLE: {s}\nvariance variant: {v}\nvariance position: {p}\nvariance minimum: {minimum}\nvariance crossing: {minimum-7000+p}\n')
     return blocks
@@ -33,6 +33,14 @@ class FloorTests(unittest.TestCase):
         self.assertEqual(r['argv'], 'verbatim argv')
         self.assertEqual([p['spread'] for p in r['position_spread']], [2, 2])
         self.assertEqual(r['summary']['min_margin'], 6998)
+
+    def test_delegated_crossing_contributes_to_spread(self):
+        blocks = fixture()
+        blocks[-1] = blocks[-1].replace('variance crossing: 622523', 'variance crossing: 622623')
+        report = parse(HEADER + ''.join(blocks) + SUMMARY)
+        self.assertEqual(report['summary']['max_observed_spread'], 100)
+        self.assertEqual(report['summary']['min_margin'], 6900)
+        self.assertEqual(report['provenance'], 'caller-asserted')
 
     def test_union_rams_and_conflicting_controls(self):
         blocks = fixture()
