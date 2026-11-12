@@ -44,7 +44,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
         with:
-          node-version: 20
+          node-version: 22   # ams-calibrate.mjs needs JSON.parse source-text access (Node >= 21)
           cache: pnpm
 
       - name: Install Node dependencies for offline fixture validators
