@@ -5,7 +5,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from test_exec_inventory import inventory, main
+from test_exec_inventory import inventory, main, bound_inventory, verify
+
+TMP = Path(__file__).resolve().parents[2] / '.codex-work'
+TMP.mkdir(exist_ok=True)
 
 HEADER = 'Ran 2 tests for a.t.sol:C\n'
 DECLARED = {'a.t.sol': {'C': ['test_a', 'test_b']}}
@@ -29,7 +32,7 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual((rc, report['executed']), (0, 2))
 
     def test_abstract_base_excluded_and_listed(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=TMP) as d:
             Path(d, 'a.t.sol').write_text('abstract contract Base {}\ncontract C is Base {}\n')
             declared = {'a.t.sol': {'Base': ['test_a', 'test_b'], 'C': ['test_a', 'test_b']}}
             report, rc = inventory(declared, [HEADER + '[PASS] test_a()\n[PASS] test_b()'], 'fixture', (), d)
@@ -42,7 +45,7 @@ class InventoryTests(unittest.TestCase):
     def test_comment_string_and_path_controls(self):
         for fake in ('// abstract contract C', '/* abstract contract C */',
                      'contract X { string s = "abstract contract C"; }'):
-            with self.subTest(fake=fake), tempfile.TemporaryDirectory() as d:
+            with self.subTest(fake=fake), tempfile.TemporaryDirectory(dir=TMP) as d:
                 Path(d, 'a.t.sol').write_text(fake + '\ncontract C {}')
                 Path(d, 'b.t.sol').write_text('abstract contract C {}')
                 declared = {**DECLARED, 'b.t.sol': {'C': ['test_a']}}
@@ -72,8 +75,33 @@ class InventoryTests(unittest.TestCase):
         report, rc = self.run_logs(HEADER + '[FAIL: broken] setUp()', allow=['broken'])
         self.assertEqual((rc, report['setup_failures']), (1, ['a.t.sol:C']))
 
+    def test_bound_inventory_mutations(self):
+        with tempfile.TemporaryDirectory(dir=TMP) as tmp:
+            root = Path(tmp)
+            declared, log, output = [root / n for n in ('declared', 'log', 'report.json')]
+            declared.write_text(json.dumps(DECLARED))
+            (root / 'a.t.sol').write_text('contract C {}')
+            original_log = HEADER + '[PASS] test_a()\n[PASS] test_b()'
+            log.write_text(original_log)
+            report, rc = bound_inventory(declared, [log], 'fixture', [], root)
+            self.assertEqual(rc, 0)
+            output.write_text(json.dumps(report))
+            self.assertEqual(verify(output), 0)
+            for field, value in [('executed', 999), ('head', '0' * 40)]:
+                with self.subTest(field=field):
+                    output.write_text(json.dumps({**report, field: value}))
+                    with self.assertRaisesRegex(ValueError, 'inventory mismatch'):
+                        verify(output)
+            output.write_text(json.dumps(report))
+            log.write_text(original_log + '\nedited')
+            with self.assertRaisesRegex(ValueError, 'input hash mismatch'):
+                verify(output)
+            log.unlink()
+            with self.assertRaises(OSError):
+                verify(output)
+
     def test_unknown_cli_error_and_output(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=TMP) as tmp:
             root = Path(tmp)
             (root / 'declared').write_text(json.dumps(DECLARED))
             (root / 'a.t.sol').write_text('contract C {}\n')
