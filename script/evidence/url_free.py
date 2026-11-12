@@ -12,7 +12,7 @@ import sys
 # or a word character) or when its last label is a file extension (`x.t.sol:85` is a source line,
 # `deploy-core.sh` a script). No TLD in the list may equal a tracked file extension (test_url_free
 # checks the repository file list). Known limit: a bare internal hostname with no port and no
-# common TLD (`rpc.internal`) is not detectable; the configured RPC itself is scrubbed verbatim.
+# common TLD (`rpc`, `rpc.internal`) is not detectable; the configured RPC itself is scrubbed verbatim.
 _NOT_AFTER = r'(?<![\w/~.-])'
 FILE_EXTENSIONS = {
     'sol', 'py', 'json', 'jsonl', 'ndjson', 'log', 'md', 'js', 'mjs', 'ts', 'txt', 'sh', 'diff', 'patch', 'yml',
@@ -20,6 +20,10 @@ FILE_EXTENSIONS = {
     'svg', 'png', 'lock', 'yul', 'tex', 'cmd', 'raw', 'exit', 'start', 'end', 'load', 'calldata', 'chainid',
     'graphql', 'nix', 'example', 'bak', 'old', 'ref', 'rsp', 'pyc', 'redacted', 'superseded'}
 HOST_PORT = re.compile(_NOT_AFTER + r'((?:[A-Za-z0-9-]+\.)+([A-Za-z0-9-]+)):\d{2,5}(?!\d)')
+# Single-label host:port (`rpc:8545`, `anvil:8545`): any 4-5 digit port, or any port after a
+# network-diagnostic word (`dial tcp node:443`). Source lines are dotted (`x.t.sol:85`) or short.
+SINGLE_HOST_PORT = re.compile(_NOT_AFTER + r'[A-Za-z][A-Za-z0-9-]*:\d{4,5}(?![\d:])')
+DIAG_HOST_PORT = re.compile(r'(?i)\b(?:dial(?:\s+(?:tcp|udp))?|resolv\w*|connect\w*(?:\s+to)?|host|endpoint|peer|node|rpc|url)\s+[A-Za-z][A-Za-z0-9-]*:\d{2,5}(?![\d:])')
 IPV6 = re.compile(r'\[[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\](?::\d{1,5})?|(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])')
 PATTERNS = {
     'scheme': re.compile(r'[A-Za-z][A-Za-z0-9+.-]*://'),
@@ -43,7 +47,7 @@ def _ipv6(text):
 def url_like(text):
     """Return the pattern classes found in text (no matched substrings)."""
     found = {name for name, p in PATTERNS.items() if p.search(text)}
-    if _host_port(text):
+    if _host_port(text) or SINGLE_HOST_PORT.search(text) or DIAG_HOST_PORT.search(text):
         found.add('host-port')
     if _ipv6(text):
         found.add('ipv6')
