@@ -35,7 +35,7 @@ jobs:
       - name: Install Node dependencies for offline fixture validators
         run: pnpm install --frozen-lockfile
 
-      - name: RR5 lifecycle evidence verifier
+      - name: RR5 historical evidence and release rejection controls
         run: python3 script/evidence/test_rr5_lifecycle_verify.py
 
       - name: Other offline evidence verifier suites
@@ -51,6 +51,8 @@ jobs:
           python3 script/evidence/test_floor_margin_run.py
           python3 script/evidence/test_floor_margin_extract.py
           python3 script/evidence/test_test_exec_inventory.py
+          python3 script/evidence/test_executed_runners.py
+          python3 script/evidence/test_url_free.py
           python3 script/evidence/test_rams_capture.py
           python3 script/evidence/test_rams_gauges.py
           python3 script/evidence/test_w2_op_mainnet_exposure.py

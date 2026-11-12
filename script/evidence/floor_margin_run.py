@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 from floor_margin_extract import extract
+from url_free import assert_dir_url_free
 
 TEST = 'contracts/test/measure/AmsterdamHandleOpsFloor.t.sol'
 
@@ -66,6 +67,7 @@ def run(nightly, out, root):
                   sources=sources, inputs=[dict(path=str(out / 'floor.log'),
                   sha256=hashlib.sha256((out / 'floor.log').read_bytes()).hexdigest())])
     (out / 'floor-margin.json').write_text(json.dumps(report, indent=2) + '\n')
+    assert_dir_url_free(out)
     return report
 
 
