@@ -1,5 +1,9 @@
 """Extract scaled floor measurements; ratio = minimum margin / maximum spread.
 
+Trust boundary: trust the local git checkout, pinned binaries and tool. This
+offline parser accepts caller assertions, not release provenance. Evidence writers
+who also recompute hashes are out of scope; reviewers rerun the execution tool.
+
 Repeat --log to union logs for the labelled engine. Rams crossings are synthetic
 callback guard crossings, not settlement exhaustion. Unscaled floor checks are
 admission-censored and excluded from the scaled crossing comparison.
@@ -81,7 +85,6 @@ def extract(logs, engine, head, engine_version, argv):
                     if identity in variance and variance[identity] != vf:
                         raise ValueError('conflicting variance measurements')
                     variance[identity], vf = vf, {}
-                    variance_active = False
             if not active or not match or match[1] not in LABELS:
                 continue
             key = LABELS[match[1]]
@@ -112,12 +115,13 @@ def extract(logs, engine, head, engine_version, argv):
         raise ValueError('missing floor suite header')
     if set(rows) != {(s, w) for s in (450000, 600000, 1000000) for w in ('balance', 'credit')}:
         raise ValueError('incomplete or unexpected scaled matrix')
-    if set(variance) != {(s, v, p) for s in (450000, 600000) for v in range(3) for p in (range(3) if v == 0 else [0])}:
+    if set(variance) != {(s, v, p) for s in (450000, 600000) for v in range(5) for p in (range(3) if v == 0 else [0])}:
         raise ValueError('incomplete variance matrix')
     groups = []
     for settle in sorted({s for s, _ in rows}):
         workloads = {w: row for (s, w), row in sorted(rows.items()) if s == settle}
         crossings = [r['crossing'] for r in workloads.values()]
+        crossings += [v['crossing'] for v in variance.values() if v['SETTLE'] == settle]
         group = dict(settle=settle, workloads=workloads,
                      crossing_spread=max(crossings) - min(crossings))
         if settle in forks:
@@ -129,8 +133,8 @@ def extract(logs, engine, head, engine_version, argv):
                       spread=max(variance[s, 0, p]['crossing'] for p in range(3)) - min(variance[s, 0, p]['crossing'] for p in range(3)))
                  for s in (450000, 600000)]
     minimum = min(minimum, *(v['minimum'] - v['crossing'] for v in variance.values()))
-    spread = max(*(g['crossing_spread'] for g in groups), *(g['spread'] for g in positions))
-    return dict(engine=engine, head=head, engine_version=engine_version, argv=argv,
+    spread = max(g['crossing_spread'] for g in groups)
+    return dict(provenance='caller-asserted', engine=engine, head=head, engine_version=engine_version, argv=argv,
                 input_sha256=[hashlib.sha256(log.encode()).hexdigest() for log in logs],
                 variance=list(variance.values()), position_spread=positions, bisection_resolution_gas=1,
                 bracket='adjacent failing/settling gas values: crossing - 1 fails; crossing settles',
@@ -153,6 +157,7 @@ def main(argv=None):
         report = extract([Path(f).read_text() for f in a.log], a.engine, a.head, a.engine_version, a.argv)
         report['inputs'] = [dict(path=f, sha256=hashlib.sha256(Path(f).read_bytes()).hexdigest()) for f in a.log]
         Path(a.out_json).write_text(json.dumps(report, indent=2) + '\n')
+        print('caller-asserted: offline re-parse, not release evidence')
         return 0
     except (ValueError, OSError) as exc:
         print(f'error: {exc}', file=sys.stderr)
