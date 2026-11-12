@@ -6,6 +6,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice Toggleable staking stub — per-validator amount can be flipped to
@@ -119,6 +120,9 @@ contract MockRegistryToggleableBLS is IRegistry {
  * The new check rejects such proofs at the slot level.
  */
 contract BLSAggregatorLivenessTest is Test {
+    bytes quorumSignature;
+    bytes partialSignature;
+    bool realPrecompiles;
     BLSAggregator bls;
     MockRegistryToggleableBLS registry;
     MockStakingToggleableBLS staking;
@@ -128,33 +132,35 @@ contract BLSAggregatorLivenessTest is Test {
     address dvt = address(0xC1);
     address attacker = address(0xDEAD);
 
-    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(uint256(0x01));
         pk.x_b = bytes32(seed);
         pk.y_a = bytes32(uint256(0x02));
         pk.y_b = bytes32(seed + 1);
     }
 
-    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+    function _pop(address validator, uint256 scalar) internal view returns (BLS.G2Point memory pop) {
+        if (realPrecompiles) return GenuineBLS.pop(bls, validator, scalar);
+    }
 
     function setUp() public {
         // BLS precompile mocks. G1ADD + G1MUL must succeed for stub keys to
         // pass _validateG1Point during register; G1MUL returning 128 zero
         // bytes is interpreted as r*P == O ⇒ in prime-order subgroup.
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers these paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
-        vm.etch(address(0x0b), hex"60806000f3");
-        vm.etch(address(0x0c), hex"60806000f3");
-        vm.etch(address(0x0d), hex"6101006000f3");
-        vm.etch(address(0x10), hex"60806000f3");
-        vm.etch(address(0x11), hex"6101006000f3");
-        // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
-        // pairing precompile must answer before any registerBLSPublicKey call in this
-        // mocked-precompile harness. Real-pairing coverage of the same registrations
-        // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
+            vm.etch(address(0x0b), hex"60806000f3");
+            vm.etch(address(0x0c), hex"60806000f3");
+            vm.etch(address(0x0d), hex"6101006000f3");
+            vm.etch(address(0x10), hex"60806000f3");
+            vm.etch(address(0x11), hex"6101006000f3");
+            // CC-48 round-3: PoP is now mandatory on BOTH registration paths, so the
+            // pairing precompile must answer before any registerBLSPublicKey call in this
+            // mocked-precompile harness. Real-pairing coverage of the same registrations
+            // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
+            vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
 
         vm.startPrank(owner);
         registry = new MockRegistryToggleableBLS();
@@ -168,15 +174,22 @@ contract BLSAggregatorLivenessTest is Test {
             address v = address(uint160(uint256(slot) + 0x100));
             registry.setHasDvtRole(v, true);
             staking.setLocked(v, 200);
-            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot, _emptyPoP());
+            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot, _pop(v, slot));
         }
         vm.stopPrank();
 
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](7);
+            for (uint256 i; i < 7; ++i) scalars[i] = i + 1;
+            (, quorumSignature) = abi.decode(GenuineBLS.proof(keccak256("msg"), scalars, 0x7F), (uint256, bytes));
+            (, partialSignature) = abi.decode(GenuineBLS.proof(keccak256("msg"), scalars, 0x7B), (uint256, bytes));
+        }
         // Mock pairing precompile to succeed when we want it to.
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
     }
 
-    function _sigBytes() internal pure returns (bytes memory) {
+    function _sigBytes() internal view returns (bytes memory) {
+        if (realPrecompiles) return quorumSignature;
         BLS.G2Point memory sig;
         return abi.encode(sig);
     }
@@ -270,13 +283,14 @@ contract BLSAggregatorLivenessTest is Test {
         assertTrue(bls.verify(keccak256("msg"), uint256(0x7F), uint256(6), _sigBytes()));
     }
 
-    function test_ReconstructPkAgg_AllowsPartialMask_WhenExcludedSlotIsCompromised() public view {
+    function test_ReconstructPkAgg_AllowsPartialMask_WhenExcludedSlotIsCompromised() public {
+        if (realPrecompiles) registry.setHasDvtRole(address(0x103), false);
         // If we DROP slot 3 from the mask (use only slots 1,2,4,5,6,7,8...) the
         // aggregator should not even look at slot 3. Confirms the per-slot check
         // is gated on signerMask membership, not on the entire registered set.
         // We exclude slot 3 (bit 2) from the mask: 0x7B = 0b01111011 = slots 1,2,4,5,6,7.
         // That's only 6 signers, below the 7 default threshold — use threshold 6.
-        bool ok = bls.verify(keccak256("msg"), uint256(0x7B), uint256(6), _sigBytes());
+        bool ok = bls.verify(keccak256("msg"), uint256(0x7B), uint256(6), realPrecompiles ? partialSignature : _sigBytes());
         assertTrue(ok, "Partial mask excluding compromised slot should verify");
     }
 
@@ -336,7 +350,7 @@ contract BLSAggregatorLivenessTest is Test {
         // Newcomer can claim slot 7.
         registry.setHasDvtRole(newcomer, true);
         staking.setLocked(newcomer, 200);
-        bls.registerBLSPublicKey(newcomer, _stubKey(uint256(99)), 7, _emptyPoP());
+        bls.registerBLSPublicKey(newcomer, _stubKey(uint256(99)), 7, _pop(newcomer, 99));
         vm.stopPrank();
 
         assertEq(bls.validatorAtSlot(7), newcomer);

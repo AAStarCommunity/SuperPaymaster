@@ -6,6 +6,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice CC-89 stage-2 Phase-2 E2E harness (SP half real, DVT verifier mocked).
@@ -153,6 +154,7 @@ contract MockSP {
 }
 
 contract GuardianSlashE2ETest is Test {
+    bool realPrecompiles;
     BLSAggregator bls;
     MockRegistry registry;
     MockStaking staking;
@@ -171,18 +173,17 @@ contract GuardianSlashE2ETest is Test {
     function setUp() public {
         // Mock BLS precompiles (same shape as DVT_BLS.t.sol) so verifyAndExecute
         // passes _reconstructPkAgg + pairing without real BLS signing.
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers these paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
-        vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
-        vm.etch(address(0x0c), hex"60806000f3"); // G1MUL → 128 bytes (identity)
-        vm.etch(address(0x10), hex"60806000f3"); // MapFpToG1
-        vm.etch(address(0x11), hex"6101006000f3"); // MapFp2ToG2 → 256 bytes
-        vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 bytes
-        // BLS12_PAIRING (0x0f) → success (1); focuses the harness on commitment +
-        // slash wiring, not real pairing arithmetic (same approach as DVT_BLS.t.sol).
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
+            vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
+            vm.etch(address(0x0c), hex"60806000f3"); // G1MUL → 128 bytes (identity)
+            vm.etch(address(0x10), hex"60806000f3"); // MapFpToG1
+            vm.etch(address(0x11), hex"6101006000f3"); // MapFp2ToG2 → 256 bytes
+            vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 bytes
+            // BLS12_PAIRING (0x0f) → success (1); focuses the harness on commitment +
+            // slash wiring, not real pairing arithmetic (same approach as DVT_BLS.t.sol).
+            vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
 
         staking = new MockStaking();
         registry = new MockRegistry(MIN_STAKE);
@@ -194,7 +195,7 @@ contract GuardianSlashE2ETest is Test {
         bls = new BLSAggregator(address(registry), address(spC), address(dvtC));
         // register 7 validators into slots 1..7 + give each a ROLE_DVT lock ≥ minStake
         for (uint8 i = 0; i < 7; i++) {
-            bls.registerBLSPublicKey(signers[i], _stubKey(i + 1), i + 1, _emptyPoP());
+            bls.registerBLSPublicKey(signers[i], _stubKey(i + 1), i + 1, _pop(signers[i], i + 1));
         }
         vm.stopPrank();
         for (uint8 i = 0; i < 7; i++) {
@@ -204,15 +205,25 @@ contract GuardianSlashE2ETest is Test {
         verifier = new MockVerifier(bls);
     }
 
-    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(seed);
         pk.x_b = bytes32(seed + 1);
         pk.y_a = bytes32(seed + 2);
         pk.y_b = bytes32(seed + 3);
     }
-    function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
+    function _pop(address validator, uint256 scalar) internal view returns (BLS.G2Point memory pop) {
+        if (realPrecompiles) return GenuineBLS.pop(bls, validator, scalar);
+    }
 
-    function _proof(uint256 signerMask) internal pure returns (bytes memory) {
+    function _proof(uint256 signerMask, uint256 pid, address op, uint8 level, uint256 epoch, bytes32 evidenceHash) internal view returns (bytes memory) {
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](7);
+            for (uint256 i; i < 7; ++i) scalars[i] = i + 1;
+            return GenuineBLS.proof(keccak256(abi.encode(
+                bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), pid, op, level, epoch, evidenceHash
+            )), scalars, signerMask);
+        }
         BLS.G2Point memory sig;
         return abi.encode(signerMask, abi.encode(sig));
     }
@@ -232,7 +243,7 @@ contract GuardianSlashE2ETest is Test {
         address disputedToken = address(0x7000); // the over-issued token under dispute
         bytes32 evidenceHash = keccak256(abi.encode("DVT_OVERISSUE_EVIDENCE_V1", disputedToken, op, epoch));
         uint256 mask = 0x7F; // slots 1..7
-        bytes memory proof = _proof(mask);
+        bytes memory proof = _proof(mask, pid, op, slashLevel, epoch, evidenceHash);
 
         vm.prank(owner);
         bls.verifyAndExecute(pid, op, slashLevel, new address[](0), new uint256[](0), epoch, evidenceHash, proof);
@@ -308,9 +319,10 @@ contract GuardianSlashE2ETest is Test {
         // lock is below minStake, not that it is zero. At MIN_STAKE exactly (margin 0) ANY
         // non-zero penalty drops below the gate — which is why the operational rule is to
         // stake above minStake, and why the cap alone is not the whole fix.
+        bytes memory nextProof = _proof(0x7F, 99, address(0xABCD), 1, 101, bytes32(0));
         vm.prank(owner);
-        vm.expectRevert(); // SlotValidatorStakeBelowMinimum(1, 0x101, 0, 30e)
-        bls.verifyAndExecute(99, address(0xABCD), 1, new address[](0), new uint256[](0), 101, bytes32(0), _proof(0x7F));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorStakeBelowMinimum.selector, uint8(1), signers[0], MIN_STAKE - expectedPenalty, MIN_STAKE));
+        bls.verifyAndExecute(99, address(0xABCD), 1, new address[](0), new uint256[](0), 101, bytes32(0), nextProof);
     }
 
     // ============================================================
