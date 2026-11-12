@@ -7,6 +7,7 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 contract MockStakingPermissionlessRegistration {
@@ -99,6 +100,9 @@ contract MockRegistryPermissionlessRegistration is IRegistry {
 contract BLSPermissionlessRegistrationTest is Test {
     event PermissionlessBLSRegistrationSet(bool enabled);
 
+    BLS.G1Point genuineKey;
+    BLS.G2Point validPoP;
+    bool realPrecompiles;
     BLSAggregator bls;
     MockRegistryPermissionlessRegistration registry;
     MockStakingPermissionlessRegistration staking;
@@ -110,15 +114,14 @@ contract BLSPermissionlessRegistrationTest is Test {
     address stranger = address(0xBAD);
 
     function setUp() public {
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers these paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
-        vm.etch(address(0x0b), hex"60806000f3"); // G1ADD returns 128 zero bytes.
-        vm.etch(address(0x0c), hex"60806000f3"); // G1MUL returns identity.
-        vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD returns 256 zero bytes.
-        vm.etch(address(0x11), hex"6101006000f3"); // MapFp2ToG2 returns 256 zero bytes.
-        vm.etch(address(0x0F), hex"600060005260206000f3"); // Pairing returns false.
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
+            vm.etch(address(0x0b), hex"60806000f3"); // G1ADD returns 128 zero bytes.
+            vm.etch(address(0x0c), hex"60806000f3"); // G1MUL returns identity.
+            vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD returns 256 zero bytes.
+            vm.etch(address(0x11), hex"6101006000f3"); // MapFp2ToG2 returns 256 zero bytes.
+            vm.etch(address(0x0F), hex"600060005260206000f3"); // Pairing returns false.
+        }
 
         vm.startPrank(owner);
         registry = new MockRegistryPermissionlessRegistration();
@@ -126,9 +129,14 @@ contract BLSPermissionlessRegistrationTest is Test {
         registry.setStakingAddr(address(staking));
         bls = new BLSAggregator(address(registry), sp, dvt);
         vm.stopPrank();
+        if (realPrecompiles) {
+            genuineKey = GenuineBLS.publicKey(1);
+            validPoP = GenuineBLS.pop(bls, validator, 1);
+        }
     }
 
-    function _key(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _key(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return genuineKey;
         pk.x_a = bytes32(uint256(0x01));
         pk.x_b = bytes32(seed);
         pk.y_a = bytes32(uint256(0x02));
@@ -157,12 +165,11 @@ contract BLSPermissionlessRegistrationTest is Test {
         assertEq(bls.blsKeyOwner(keccak256(abi.encode(_key(1).x_a, _key(1).x_b, _key(1).y_a, _key(1).y_b))), address(0));
     }
 
-    /// ...and it still works once the PoP verifies (pairing mocked true here; the real
-    /// pairing is exercised in contracts/test/paper7/RepCreditDomainReplay.t.sol).
+    /// Registration succeeds with a valid PoP; Cancun uses the pairing stub.
     function test_ownerPathWorksWithAValidPoP() public {
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         vm.prank(owner);
-        bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
+        bls.registerBLSPublicKey(validator, _key(1), 1, validPoP);
 
         (, uint8 slot, bool active) = bls.getBLSPublicKey(validator);
         assertTrue(active);
@@ -220,9 +227,18 @@ contract BLSPermissionlessRegistrationTest is Test {
         bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
     }
 
-    function test_switchOn_validRoleValidPoP_TODO() public pure {
-        // TODO: Constructing a valid BLS12-381 G1/G2 keypair plus proof-of-possession
-        // requires real EIP-2537 precompile behavior and off-chain BLS signing, which is
-        // impractical in this mocked unit-test context.
+    function test_switchOn_validRoleValidPoP() public {
+        vm.prank(owner);
+        bls.setPermissionlessBLSRegistration(true);
+        registry.setHasDvtRole(validator, true);
+        staking.setLocked(validator, 200);
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        vm.prank(validator);
+        bls.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+        (BLS.G1Point memory stored, uint8 slot, bool active) = bls.getBLSPublicKey(validator);
+        assertTrue(active, "self-registration activates key");
+        assertEq(slot, 1, "self-registration assigns slot");
+        assertEq(abi.encode(stored), abi.encode(_key(1)), "self-registration stores key");
+        assertEq(bls.validatorAtSlot(1), validator, "self-registration binds validator");
     }
 }
