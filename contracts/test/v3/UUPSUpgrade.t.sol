@@ -130,7 +130,7 @@ contract UUPSUpgradeTest is Test {
 
     function test_Registry_InitialState() public view {
         assertEq(registry.owner(), owner);
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.1"));
         assertEq(address(registry.GTOKEN_STAKING()), mockStaking);
         assertEq(address(registry.MYSBT()), mockSBT);
         assertTrue(registry.isReputationSource(owner));
@@ -202,7 +202,7 @@ contract UUPSUpgradeTest is Test {
         // 5.5.0 (AOA balance mode, spec 03 §3.3): version bumped from 5.4.2 because the public
         // ABI changed (retryPendingDebt/clearPendingDebt/pendingDebts/dryRunValidation removed,
         // inflightOf/releaseStaleSponsorship added) and one storage slot (`_inflight`) was appended.
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.5.1"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.5.2"));
         assertEq(paymaster.APNTS_TOKEN(), mockAPNTs);
         assertEq(paymaster.treasury(), treasury);
         assertEq(paymaster.priceStalenessThreshold(), 3600);
@@ -369,7 +369,7 @@ contract UUPSUpgradeTest is Test {
         registry.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.1"));
 
         vm.stopPrank();
     }
@@ -383,7 +383,7 @@ contract UUPSUpgradeTest is Test {
         paymaster.upgradeToAndCall(address(notUUPS), "");
 
         // Verify original still works (5.5.0: see test_SuperPaymaster_InitialState for the bump reason)
-        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.5.1"));
+        assertEq(keccak256(bytes(paymaster.version())), keccak256("SuperPaymaster-5.5.2"));
 
         vm.stopPrank();
     }
