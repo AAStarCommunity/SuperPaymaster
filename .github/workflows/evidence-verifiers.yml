@@ -20,6 +20,17 @@ jobs:
         with:
           # RR5 release/historical verification reads the recorded measurement commits.
           fetch-depth: 0
+          submodules: recursive
+
+      # test_a4_mutations imports script/upgrade/test_manifest_exec, which reads the archived L-1
+      # Registry build from /private/tmp/l1-builds; materialize it as a3a-executor.yml does.
+      - name: Materialize the L-1 Registry test fixture (CI has no local archive)
+        run: |
+          sudo mkdir -p /private/tmp/l1-builds && sudo chown "$USER" /private/tmp/l1-builds
+          cd script/upgrade && python3 -B -c "import pathlib, l1_registry_fixture as f; d = pathlib.Path('/private/tmp/l1-builds')/f.COMMIT; d.mkdir(exist_ok=True); f.materialize_fixture(d); print('materialized', d)"
+
+      - name: Install jsonschema (manifest tests import its fixtures)
+        run: python3 -m pip install --quiet --break-system-packages 'jsonschema==4.23.0'
 
       # test_a4_state_check.py and test_a4_mutations.py use cast only for local ABI hashing.
       - name: Install Foundry CLI
