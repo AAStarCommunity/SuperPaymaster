@@ -71,6 +71,7 @@ contract BLSAggregatorUnitTest is Test {
     BLSAggregator bls;
     bool internal realMode;
     mapping(bytes32 => mapping(address => BLS.G2Point)) internal pops;
+    mapping(bytes32 => mapping(address => bool)) private popPrepared;
     MockRegistryUnit registry;
 
     address owner = address(1);
@@ -112,31 +113,63 @@ contract BLSAggregatorUnitTest is Test {
     function _key(uint256 seed) internal returns (BLS.G1Point memory pk) {
         if (realMode) {
             pk = GenuineBLS.publicKey(seed);
-            // Prepare PoPs before prank/expectRevert so helper external calls
-            // cannot consume the cheatcode intended for registration.
-            address[3] memory validators = [address(0x42), address(0x43), address(0x55)];
-            for (uint256 i = 0; i < validators.length; ++i) {
-                pops[keccak256(abi.encode(pk))][validators[i]] = GenuineBLS.pop(bls, validators[i], seed);
-            }
-            return pk;
+        } else {
+            pk.x_a = bytes32(uint256(0x01));
+            pk.x_b = bytes32(seed);
+            pk.y_a = bytes32(uint256(0x02));
+            pk.y_b = bytes32(seed + 1);
         }
-        pk.x_a = bytes32(uint256(0x01));
-        pk.x_b = bytes32(seed);
-        pk.y_a = bytes32(uint256(0x02));
-        pk.y_b = bytes32(seed + 1);
+        // Prepare PoPs before prank/expectRevert so helper external calls
+        // cannot consume the cheatcode intended for registration.
+        address[3] memory validators = [address(0x42), address(0x43), address(0x55)];
+        for (uint256 i = 0; i < validators.length; ++i) {
+            _preparePop(pk, seed, validators[i]);
+        }
+    }
+
+    function _preparePop(BLS.G1Point memory pk, uint256 seed, address validator) internal {
+        bytes32 id = keccak256(abi.encode(pk));
+        if (realMode) {
+            pops[id][validator] = GenuineBLS.pop(bls, validator, seed);
+        }
+        popPrepared[id][validator] = true;
     }
 
     function _popFor(BLS.G1Point memory pk, address validator) internal view returns (BLS.G2Point memory) {
-        return pops[keccak256(abi.encode(pk))][validator];
+        bytes32 id = keccak256(abi.encode(pk));
+        if (!popPrepared[id][validator]) {
+            revert("BLSAggregatorUnit: PoP not prepared for validator; call _preparePop first");
+        }
+        return pops[id][validator];
     }
 
     function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
 
+    /// @dev External wrapper so expectRevert can observe the helper's revert.
+    function popForExternal(BLS.G1Point memory pk, address validator) external view returns (BLS.G2Point memory) {
+        return _popFor(pk, validator);
+    }
+
+    function test_PopFor_UnpreparedValidator_Reverts() public {
+        BLS.G1Point memory pk = _key(7);
+        this.popForExternal(pk, address(0x42)); // prepared by _key: must not revert
+        vm.expectRevert(bytes("BLSAggregatorUnit: PoP not prepared for validator; call _preparePop first"));
+        this.popForExternal(pk, address(0x99));
+    }
+
     /// @dev Returns the real BLS12-381 G1 generator point (uncompressed, EIP-2537).
     ///      Gx = 0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb
     ///      Gy = 0x08b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1
-    function _realG1Generator() internal pure returns (BLS.G1Point memory pk) {
-        return GenuineBLS.g1Generator();
+    function _realG1Generator() internal returns (BLS.G1Point memory pk) {
+        pk = GenuineBLS.g1Generator();
+        // Cancun registers this generator without _key. Mark the same three
+        // validators prepared so the empty stub PoP is explicit, not a miss.
+        if (!realMode) {
+            address[3] memory validators = [address(0x42), address(0x43), address(0x55)];
+            for (uint256 i = 0; i < validators.length; ++i) {
+                _preparePop(pk, 0, validators[i]);
+            }
+        }
     }
 
     // ========================================
