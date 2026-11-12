@@ -106,7 +106,7 @@ else:
         ops = self.root/'operators'
         ops.write_text('0x'+'1'*40)
         with mock.patch.object(rams, 'snapshot', return_value={'head': 'a'*40}):
-            with self.assertRaisesRegex(ValueError, 'URL-like content in evidence: test.log: hostname'):
+            with self.assertRaisesRegex(ValueError, r'URL-like content in evidence: test\.log: [a-z,-]*host'):
                 rams.run(self.forge, rpc, 'dummy', 123, ops, self.root/'rams', self.root)
 
     def test_rams_never_saves_url(self):
