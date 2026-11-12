@@ -24,6 +24,7 @@ jobs:
       # test_a4_state_check.py and test_a4_mutations.py use cast only for local ABI hashing.
       - name: Install Foundry CLI
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf  # v1
+        with: { version: v1.7.1 }   # same pin as a3a-executor.yml and security.yml
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115  # v6
         with:
@@ -43,6 +44,9 @@ jobs:
 
       - name: Other offline evidence verifier suites
         run: |
+          # a3a_exec.py defaults ENGINE to a local pinned-nightly path that a runner does not have;
+          # point it at the installed cast/anvil, as a3a-executor.yml does.
+          export A3A_ENGINE_DIR="$(dirname "$(command -v cast)")"
           python3 script/evidence/test_a3a_funding_provenance.py
           python3 script/evidence/test_a3a_newpin_senders_reread.py
           python3 script/evidence/test_a3a_v4_reread.py
