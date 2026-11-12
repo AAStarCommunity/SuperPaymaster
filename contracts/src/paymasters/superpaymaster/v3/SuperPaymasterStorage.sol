@@ -271,6 +271,14 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     // Events
     // ====================================
 
+    /// @dev Stable pause reasons; never reorder or renumber. Zero is reserved and never emitted.
+    ///      OWNER_PAUSE = 1, GUARDIAN_PAUSE = 2, OWNER_UNPAUSE = 3, UNDERSTAKED = 4, SLASH = 5.
+    uint8 internal constant OWNER_PAUSE = 1;
+    uint8 internal constant GUARDIAN_PAUSE = 2;
+    uint8 internal constant OWNER_UNPAUSE = 3;
+    uint8 internal constant UNDERSTAKED = 4;
+    uint8 internal constant SLASH = 5;
+
     // V3.1: Credit & Reputation Events
     event UserReputationAccrued(address indexed user, uint256 aPNTsValue);
     event APNTsTokenUpdated(address indexed oldToken, address indexed newToken);
@@ -280,13 +288,14 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
     event EmergencyPriceQueued(int256 newPrice, uint256 eta);
     event EmergencyPriceExecuted(int256 newPrice);
     event EmergencyPriceCancelled(int256 cancelledPrice);
-    event PriceModeChanged(uint8 oldMode, uint8 newMode);
+    event PriceModeChanged(uint8 oldMode, uint8 newMode, address by);
     event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event BLSAggregatorUpdated(address indexed oldAggregator, address indexed newAggregator);
-    event OperatorPaused(address indexed operator);
-    event OperatorUnpaused(address indexed operator);
+    event OperatorPaused(address indexed operator, address indexed by, uint8 reason);
+    event OperatorUnpaused(address indexed operator, address indexed by, uint8 reason);
     event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
+    event SBTStatusUpdated(address indexed user, bool status);
     event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event XPNTsFactoryUpdated(address indexed oldFactory, address indexed newFactory);
@@ -297,10 +306,10 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
         bytes32 proofHash,
         uint256 timestamp
     );
-    event SlashQueued(address indexed operator);
-    event SlashCancelled(address indexed operator);
+    event SlashQueued(address indexed operator, address indexed by);
+    event SlashCancelled(address indexed operator, address indexed by);
     event BlsSlashCooldownPrimed(uint48 floorUntil);
-    event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
+    event PriceUpdated(int256 indexed price, uint256 indexed timestamp, address by);
     event OracleFallbackTriggered(uint256 timestamp);
     /// @dev Reserved; never emitted from validatePaymasterUserOp (ERC-7562 bans LOG* there).
     event ValidationFailed(bytes32 indexed userOpHash, bytes32 reasonCode);

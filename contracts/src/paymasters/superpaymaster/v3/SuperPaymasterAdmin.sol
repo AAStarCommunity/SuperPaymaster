@@ -106,9 +106,9 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         if (!isPaused && !_hasEffectiveSuperStake(operator)) revert Unauthorized();
         operators[operator].isPaused = isPaused;
         if (isPaused) {
-            emit OperatorPaused(operator);
+            emit OperatorPaused(operator, msg.sender, msg.sender == owner() ? OWNER_PAUSE : GUARDIAN_PAUSE);
         } else {
-            emit OperatorUnpaused(operator);
+            emit OperatorUnpaused(operator, msg.sender, OWNER_UNPAUSE);
         }
     }
 
@@ -118,7 +118,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         if (_hasEffectiveSuperStake(operator)) revert OperatorMeetsMinimumStake();
         if (!operators[operator].isPaused) {
             operators[operator].isPaused = true;
-            emit OperatorPaused(operator);
+            emit OperatorPaused(operator, msg.sender, UNDERSTAKED);
         }
     }
 
@@ -195,6 +195,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     function updateSBTStatus(address user, bool status) external {
         if (msg.sender != address(REGISTRY)) revert Unauthorized();
         sbtHolders[user] = status;
+        emit SBTStatusUpdated(user, status);
     }
 
     // ====================================
@@ -439,7 +440,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         cachedPrice.decimals = 8;
 
         if (priceMode != 1) {
-            emit PriceModeChanged(priceMode, 1);
+            emit PriceModeChanged(priceMode, 1, msg.sender);
             priceMode = 1;
             emergencyActivatedAt = block.timestamp;
         }
@@ -448,7 +449,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         emergencyPendingPrice = 0;
 
         emit EmergencyPriceExecuted(newPrice);
-        emit PriceUpdated(newPrice, block.timestamp);
+        emit PriceUpdated(newPrice, block.timestamp, msg.sender);
     }
 
     /**
@@ -506,12 +507,12 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         });
 
         if (chainlinkRecovered == 1 && priceMode != 0) {
-            emit PriceModeChanged(priceMode, 0);
+            emit PriceModeChanged(priceMode, 0, msg.sender);
             priceMode = 0;
             emergencyActivatedAt = 0;
         }
 
-        emit PriceUpdated(price, updatedAt);
+        emit PriceUpdated(price, updatedAt, msg.sender);
     }
 
     /// @notice Update price cache from Chainlink oracle (keeper-callable).
@@ -527,7 +528,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
 
             // P0-10: Chainlink came back — leave EMERGENCY mode and drop any queued override.
             if (priceMode != 0) {
-                emit PriceModeChanged(priceMode, 0);
+                emit PriceModeChanged(priceMode, 0, msg.sender);
                 priceMode = 0;
                 emergencyActivatedAt = 0;
             }
@@ -538,7 +539,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
                 emit EmergencyPriceCancelled(cancelled);
             }
 
-            emit PriceUpdated(price, updatedAt);
+            emit PriceUpdated(price, updatedAt, msg.sender);
         } catch {
             // Chainlink down: keeper should call updatePriceDVT() with BLS proof, or the owner can
             // use emergencySetPrice + executeEmergencyPrice.
@@ -582,7 +583,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         }
         _pendingSlash[operator] = true;
         slashQueues[operator] = SlashQueue(actor, uint48(block.timestamp), byGuardian);
-        emit SlashQueued(operator);
+        emit SlashQueued(operator, msg.sender);
     }
 
     /// @dev Effective end of the BLS-slash cooldown: max(per-operator cooldown, global floor).
@@ -601,7 +602,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     /// @notice Cancel a previously queued slash (owner only). Idempotent.
     function cancelSlash(address operator) external onlyOwner {
         _clearSlashQueue(operator);
-        emit SlashCancelled(operator);
+        emit SlashCancelled(operator, msg.sender);
     }
 
     /// @notice Whether `operator` currently has an effective withdrawal-blocking slash status.
@@ -650,7 +651,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     function updateReputation(address operator, uint256 newScore) external onlyOwner {
         if (newScore > type(uint32).max) revert ScoreExceedsUint32();
         operators[operator].reputation = uint32(newScore);
-        emit ISuperPaymaster.ReputationUpdated(operator, newScore);
+        emit ISuperPaymaster.ReputationUpdated(operator, newScore, msg.sender);
     }
 
     /**
@@ -710,7 +711,7 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         if (level == ISuperPaymaster.SlashLevel.MAJOR) config.isPaused = true;
 
         if (config.isPaused) {
-            emit OperatorPaused(operator);
+            emit OperatorPaused(operator, msg.sender, SLASH);
         }
 
         if (config.reputation > reputationLoss) config.reputation -= uint32(reputationLoss);
@@ -750,8 +751,8 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
             })
         );
 
-        emit ISuperPaymaster.OperatorSlashed(operator, penaltyAmount, level);
-        emit ISuperPaymaster.ReputationUpdated(operator, config.reputation);
+        emit ISuperPaymaster.OperatorSlashed(operator, penaltyAmount, level, msg.sender);
+        emit ISuperPaymaster.ReputationUpdated(operator, config.reputation, msg.sender);
         return penaltyAmount;
     }
 

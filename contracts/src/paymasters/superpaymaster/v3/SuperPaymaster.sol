@@ -88,7 +88,7 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
     uint256 internal constant LEGACY_C_WRAP_GAS = 30_000;
 
     function version() external pure virtual override returns (string memory) {
-        return "SuperPaymaster-5.5.1";
+        return "SuperPaymaster-5.5.2";
     }
 
     // ====================================
