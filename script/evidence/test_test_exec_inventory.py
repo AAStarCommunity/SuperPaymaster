@@ -8,7 +8,7 @@ import unittest
 from test_exec_inventory import inventory, main, bound_inventory, verify
 
 TMP = Path(__file__).resolve().parents[2] / '.codex-work'
-TMP.mkdir(exist_ok=True)
+TMP.mkdir(parents=True, exist_ok=True)
 
 HEADER = 'Ran 2 tests for a.t.sol:C\n'
 DECLARED = {'a.t.sol': {'C': ['test_a', 'test_b']}}
