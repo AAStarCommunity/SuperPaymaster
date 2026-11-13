@@ -44,6 +44,8 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     mapping(address => bool) private _collectionListed;
     mapping(address => mapping(bytes32 => bool)) private _ruleActive;
     uint256 public constant MAX_BOOSTED_COLLECTIONS = 50;
+    // One-based position in communityActiveRules; zero means absent. Append-only storage.
+    mapping(address => mapping(bytes32 => uint256)) private _activeRuleIndex;
 
     error Unauthorized();
     error NotAuthorized();
@@ -67,7 +69,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     }
 
     function version() external pure override returns (string memory) {
-        return "Reputation-0.5.0";
+        return "Reputation-0.6.0";
     }
 
     /**
@@ -103,9 +105,21 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         // base/bonus capped at 10_000 points per rule; max capped at 100_000 (max cumulative bonus).
         if (base > 10_000 || bonus > 10_000 || max > 100_000) revert InvalidInput();
 
-        if (!_ruleListed[community][ruleId]) {
-            _ruleListed[community][ruleId] = true;
-            communityActiveRules[community].push(ruleId);
+        _ruleListed[community][ruleId] = true;
+        bytes32[] storage activeRules = communityActiveRules[community];
+        uint256 index = _activeRuleIndex[community][ruleId];
+        if (base > 0 && index == 0) {
+            activeRules.push(ruleId);
+            _activeRuleIndex[community][ruleId] = activeRules.length;
+        } else if (base == 0 && index != 0) {
+            uint256 last = activeRules.length;
+            if (index != last) {
+                bytes32 moved = activeRules[last - 1];
+                activeRules[index - 1] = moved;
+                _activeRuleIndex[community][moved] = index;
+            }
+            activeRules.pop();
+            delete _activeRuleIndex[community][ruleId];
         }
         _ruleActive[community][ruleId] = base > 0;
         communityRules[community][ruleId] = Rule(base, bonus, max, desc);
@@ -242,7 +256,6 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         // then the community multiplier and global NFT boosts.
         bytes32[] memory rules = communityActiveRules[community];
         for (uint256 i = 0; i < rules.length; i++) {
-            if (!_ruleActive[community][rules[i]]) continue;
             baseScore += communityRules[community][rules[i]].baseScore;
         }
 
@@ -273,22 +286,10 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     /**
      * @notice Get all active rule IDs for a community
      * @param community The community address
-     * @return ruleIds Array of active rule identifiers
+     * @return ruleIds Array of active rule identifiers; order may change on removal
      */
     function getActiveRules(address community) external view returns (bytes32[] memory ruleIds) {
-        bytes32[] storage listedRules = communityActiveRules[community];
-        uint256 activeCount;
-        for (uint256 i = 0; i < listedRules.length; i++) {
-            if (_ruleActive[community][listedRules[i]]) activeCount++;
-        }
-
-        ruleIds = new bytes32[](activeCount);
-        uint256 outputIndex;
-        for (uint256 i = 0; i < listedRules.length; i++) {
-            bytes32 ruleId = listedRules[i];
-            if (!_ruleActive[community][ruleId]) continue;
-            ruleIds[outputIndex++] = ruleId;
-        }
+        return communityActiveRules[community];
     }
 
     /**

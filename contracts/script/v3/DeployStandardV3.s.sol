@@ -185,8 +185,8 @@ contract DeployStandardV3 is Script {
 
     function _deployModules() internal {
         repSystem = new ReputationSystem(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
-        dvt = new DVTValidator(address(registry), 1);
+        dvt = new DVTValidator(address(registry), 1, address(0));
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(addr_registry);

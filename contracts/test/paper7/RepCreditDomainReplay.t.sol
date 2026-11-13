@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GToken} from "src/tokens/GToken.sol";
 import {GTokenStaking} from "src/core/GTokenStaking.sol";
 import {MySBT} from "src/tokens/MySBT.sol";
@@ -37,7 +39,7 @@ contract DomainReplayDVTStub {
  *      knowledge and must never appear in a deployment — see the migration note
  *      in the CC-48 thread on the compromised experiment stack.
  */
-contract RepCreditDomainReplay is Test {
+contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     uint256 internal constant VALIDATOR_COUNT = 5;
     uint256 internal constant DVT_STAKE = 30 ether;
     bytes32 internal constant ROLE_DVT = keccak256("DVT");
@@ -105,8 +107,8 @@ contract RepCreditDomainReplay is Test {
             // each aggregator. That is the migration cost the release notes describe,
             // demonstrated here rather than asserted.
             BLS.G1Point memory pk = _publicKey(scalar);
-            aggA.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggA, validator, pk, scalar));
-            aggB.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggB, validator, pk, scalar));
+            _registerKey(aggA, address(dvtSink), validator, pk, uint8(i + 1), _pop(aggA, validator, pk, scalar));
+            _registerKey(aggB, address(dvtSink), validator, pk, uint8(i + 1), _pop(aggB, validator, pk, scalar));
         }
         aggA.setDefaultThreshold(3);
         aggB.setDefaultThreshold(3);
@@ -314,7 +316,7 @@ contract RepCreditDomainReplay is Test {
 
         // v0 registers its own key — the honest path still works.
         vm.prank(v0);
-        agg.registerBLSPublicKey(v0, pk, 1, popForV0);
+        gateways[address(agg)].registerBLSPublicKey(v0, pk, 1, popForV0);
         (, uint8 slot, bool active) = agg.getBLSPublicKey(v0);
         assertEq(slot, 1);
         assertTrue(active);
@@ -324,7 +326,7 @@ contract RepCreditDomainReplay is Test {
         BLS.G1Point memory pkV1 = _publicKey(secretScalars[1]);
         vm.prank(v1);
         vm.expectRevert(BLSAggregator.InvalidPoP.selector);
-        agg.registerBLSPublicKey(v1, pkV1, 2, popForV0);
+        gateways[address(agg)].registerBLSPublicKey(v1, pkV1, 2, popForV0);
     }
 
     /// Address binding alone is not enough: one operator holding two ROLE_DVT
@@ -341,7 +343,7 @@ contract RepCreditDomainReplay is Test {
         BLS.G1Point memory pk = _publicKey(sk);
 
         vm.prank(v0);
-        agg.registerBLSPublicKey(v0, pk, 1, _pop(agg, v0, pk, sk));
+        gateways[address(agg)].registerBLSPublicKey(v0, pk, 1, _pop(agg, v0, pk, sk));
 
         // A genuinely valid PoP for v1 over the SAME key — the same person owns sk.
         BLS.G2Point memory popForV1 = _pop(agg, v1, pk, sk);
@@ -349,7 +351,7 @@ contract RepCreditDomainReplay is Test {
 
         vm.prank(v1);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, keyHash, v0));
-        agg.registerBLSPublicKey(v1, pk, 2, popForV1);
+        gateways[address(agg)].registerBLSPublicKey(v1, pk, 2, popForV1);
 
         assertEq(agg.validatorAtSlot(2), address(0), "no second slot may be bound to the same key");
     }
@@ -365,15 +367,15 @@ contract RepCreditDomainReplay is Test {
 
         BLS.G2Point memory popForFirst = _pop(first, v0, pk, secretScalars[0]);
         vm.prank(v0);
-        first.registerBLSPublicKey(v0, pk, 1, popForFirst);
+        gateways[address(first)].registerBLSPublicKey(v0, pk, 1, popForFirst);
 
         vm.prank(v0);
         vm.expectRevert(BLSAggregator.InvalidPoP.selector);
-        second.registerBLSPublicKey(v0, pk, 1, popForFirst);
+        gateways[address(second)].registerBLSPublicKey(v0, pk, 1, popForFirst);
 
         // Re-signing under the new contract's domain is the intended migration.
         vm.prank(v0);
-        second.registerBLSPublicKey(v0, pk, 1, _pop(second, v0, pk, secretScalars[0]));
+        gateways[address(second)].registerBLSPublicKey(v0, pk, 1, _pop(second, v0, pk, secretScalars[0]));
         (, , bool active) = second.getBLSPublicKey(v0);
         assertTrue(active);
     }
@@ -382,8 +384,13 @@ contract RepCreditDomainReplay is Test {
     // Helpers
     // =================================================================
 
+    mapping(address => DVTValidator) private gateways;
+
     function _freshAggregatorWithPermissionlessRegistration() internal returns (BLSAggregator agg) {
-        agg = new BLSAggregator(address(registry), address(0xBEEF), address(dvtSink));
+        DVTValidator gateway = new DVTValidator(address(registry), 1, address(0));
+        agg = new BLSAggregator(address(registry), address(0xBEEF), address(gateway));
+        gateway.setBLSAggregator(address(agg));
+        gateways[address(agg)] = gateway;
         agg.setPermissionlessBLSRegistration(true);
     }
 

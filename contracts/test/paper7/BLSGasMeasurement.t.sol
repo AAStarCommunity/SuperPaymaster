@@ -55,7 +55,7 @@ contract RepCreditPragueE2E is Test {
         registry.setStaking(address(staking));
         registry.setMySBT(address(sbt));
 
-        dvt = new DVTValidator(address(registry), 1);
+        dvt = new DVTValidator(address(registry), 1, address(0));
         aggregator = new BLSAggregator(address(registry), address(0xBEEF), address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         registry.setBLSAggregator(address(aggregator));
@@ -84,7 +84,7 @@ contract RepCreditPragueE2E is Test {
             // owner-side onboarding used here signs a genuine one with the validator's
             // own secret scalar under this aggregator's domain.
             BLS.G1Point memory pk = _publicKey(scalar);
-            aggregator.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggregator, validator, pk, scalar));
+            dvt.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggregator, validator, pk, scalar));
         }
     }
 

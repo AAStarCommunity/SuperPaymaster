@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GToken} from "src/tokens/GToken.sol";
 import {GTokenStaking} from "src/core/GTokenStaking.sol";
 import {MySBT} from "src/tokens/MySBT.sol";
@@ -97,7 +98,7 @@ contract PragueAlwaysFalseVerifierImpl {
  *      never appear in a deployment (see the compromised experiment stack note in the
  *      CC-48 thread).
  */
-contract CC48PragueStateMachine is Test {
+contract CC48PragueStateMachine is BLSRegistrationTestHelper {
     uint256 internal constant VALIDATOR_COUNT = 5;
     uint256 internal constant DVT_STAKE = 30 ether;
     bytes32 internal constant ROLE_DVT = keccak256("DVT");
@@ -160,7 +161,7 @@ contract CC48PragueStateMachine is Test {
             // Real PoP, signed with the validator's own scalar under this aggregator's
             // domain — mandatory on both registration paths since CC-48 round-3.
             BLS.G1Point memory pk = _publicKey(scalar);
-            agg.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(validator, pk, scalar));
+            _registerKey(agg, address(dvtSink), validator, pk, uint8(i + 1), _pop(validator, pk, scalar));
         }
         agg.setDefaultThreshold(3);
 

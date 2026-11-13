@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {BLSAggregator} from "src/modules/monitoring/BLSAggregator.sol";
 import {BLS} from "src/utils/BLS.sol";
 import {FraudProofVerifierConformance as Conformance} from "../helpers/FraudProofVerifierConformance.sol";
@@ -80,7 +81,7 @@ import {XRegistry, XStaking, XDVT, XSP, XToken} from "./CC115CrossRepoConformanc
  * Prague command above is the gate. Skipping is never silently green here — see
  * `test_GenuinePrague_PrecompilesAreRealNotInjected`.
  */
-contract CC115GenuinePragueCrossRepo is Test {
+contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     BLSAggregator internal aggA;
     BLSAggregator internal aggB;
     XRegistry internal registry;
@@ -130,7 +131,7 @@ contract CC115GenuinePragueCrossRepo is Test {
             BLS.G1Point memory pk = _publicKey(secretScalars[i]);
             // Genuine PoP on the real precompiles: mandatory on both registration paths
             // since CC-48 round-3, and the owner path is no exception.
-            aggA.registerBLSPublicKey(validators[i], pk, i + 1, _pop(aggA, validators[i], pk, secretScalars[i]));
+            _registerKey(aggA, address(dvt), validators[i], pk, i + 1, _pop(aggA, validators[i], pk, secretScalars[i]));
         }
         vm.stopPrank();
         for (uint8 i = 0; i < 7; i++) {

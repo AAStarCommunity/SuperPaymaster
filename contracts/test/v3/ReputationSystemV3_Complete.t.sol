@@ -588,6 +588,68 @@ contract ReputationSystem_Complete_Test is Test {
     }
 
     /// @notice Updating an existing rule does NOT push a duplicate into communityActiveRules
+    function test_L1_DisabledRuleHistoryDoesNotGrowReadGas() public {
+        vm.prank(community1);
+        repSystem.setRule(bytes32(0), 10, 0, 0, "active");
+        _ruleReadGas(); // Warm the same view state before both measurements.
+        uint256 beforeGas = _ruleReadGas();
+        vm.startPrank(community1);
+        for (uint256 i = 1; i <= 200; ++i) {
+            repSystem.setRule(bytes32(i), 10, 0, 0, "on");
+            repSystem.setRule(bytes32(i), 0, 0, 0, "off");
+        }
+        vm.stopPrank();
+        uint256 afterGas = _ruleReadGas();
+        emit log_named_uint("L1 read gas before history", beforeGas);
+        emit log_named_uint("L1 read gas after 200 disabled rules", afterGas);
+        assertLt(afterGas, beforeGas + 2_000, "L1: disabled rule history grows read gas");
+    }
+
+    function _ruleReadGas() internal returns (uint256 used) {
+        uint256 start = gasleft();
+        bytes32[] memory rules = repSystem.getActiveRules(community1);
+        (uint256 score,) = repSystem.calculateReputation(user1, community1, 0);
+        (uint256 base, uint256 nft, uint256 activity,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        used = start - gasleft();
+        assertEq(rules.length, 1, "only the live rule is listed");
+        assertEq(score, 10);
+        assertEq(base + nft + activity, score, "breakdown equals score after rule churn");
+    }
+
+    function test_Version() public view {
+        assertEq(repSystem.version(), "Reputation-0.6.0");
+    }
+
+    function test_ActiveRules_SwapRemovalReenableAndCommunityIsolation() public {
+        vm.startPrank(community1);
+        repSystem.setRule(bytes32(0), 10, 0, 0, "first");
+        repSystem.setRule(bytes32(uint256(1)), 20, 0, 0, "middle");
+        repSystem.setRule(bytes32(uint256(2)), 30, 0, 0, "last");
+        repSystem.setRule(bytes32(uint256(1)), 0, 0, 0, "remove middle");
+        repSystem.setRule(bytes32(uint256(2)), 0, 0, 0, "remove moved last");
+        repSystem.setRule(bytes32(uint256(1)), 20, 0, 0, "reenable");
+        repSystem.setRule(bytes32(uint256(1)), 20, 0, 0, "update");
+        repSystem.setRule(bytes32(uint256(9)), 0, 0, 0, "disabled on first write");
+        vm.stopPrank();
+        bytes32[] memory active = repSystem.getActiveRules(community1);
+        assertEq(active.length, 2, "active rules listed exactly once");
+        assertEq(active[0], bytes32(0));
+        assertEq(active[1], bytes32(uint256(1)));
+        (uint256 score,) = repSystem.calculateReputation(user1, community1, 0);
+        (uint256 base, uint256 nft, uint256 activity,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(score, 30);
+        assertEq(base + nft + activity, score);
+        assertEq(repSystem.getActiveRules(community2).length, 0, "community sets are independent");
+        vm.startPrank(community1);
+        repSystem.setRule(bytes32(0), 0, 0, 0, "remove first");
+        repSystem.setRule(bytes32(uint256(1)), 0, 0, 0, "remove only");
+        repSystem.setRule(bytes32(uint256(1)), 0, 0, 0, "remove again");
+        vm.stopPrank();
+        assertEq(repSystem.getActiveRules(community1).length, 0);
+        (score,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(score, 0);
+    }
+
     function test_SetRule_UpdateExistingDoesNotDuplicate() public {
         bytes32 rid = keccak256("STABLE");
         vm.startPrank(community1);

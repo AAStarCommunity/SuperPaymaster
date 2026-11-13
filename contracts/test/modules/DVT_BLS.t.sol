@@ -166,7 +166,7 @@ contract DVTBLSTest is Test {
         sp = new MockSuperPaymaster();
 
         // Circular dependency handling
-        dvt = new DVTValidator(address(registry), 1);
+        dvt = new DVTValidator(address(registry), 1, address(0));
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
 
         dvt.setBLSAggregator(address(bls));
@@ -177,7 +177,7 @@ contract DVTBLSTest is Test {
             dvt.addValidator(v);
             // P0-1: register typed G1 key into slot i. The first 7 keys (slots 1..7)
             // form the default-threshold quorum used by tests below.
-            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i), _pop(v, i));
+            dvt.registerBLSPublicKey(v, _stubKey(uint256(i)), uint8(i), _pop(v, i));
         }
 
         vm.stopPrank();
@@ -410,7 +410,7 @@ contract DVTBLSTest is Test {
         }
 
         vm.startPrank(owner);
-        DVTValidator replacement = new DVTValidator(address(registry), lastExecutedId + 1);
+        DVTValidator replacement = new DVTValidator(address(registry), lastExecutedId + 1, address(dvt));
         replacement.setBLSAggregator(address(bls));
         replacement.addValidator(address(101));
         bls.setDVTValidator(address(replacement));
@@ -430,6 +430,184 @@ contract DVTBLSTest is Test {
         assertTrue(bls.executedProposals(replacementId));
         (,,, bool executed,,) = replacement.proposals(replacementId);
         assertTrue(executed);
+    }
+
+    function _replacement(address predecessor, uint256 firstId) internal returns (DVTValidator replacement) {
+        vm.startPrank(owner);
+        replacement = new DVTValidator(address(registry), firstId, predecessor);
+        replacement.setBLSAggregator(address(bls));
+        replacement.addValidator(address(101));
+        vm.stopPrank();
+    }
+
+    function test_M1_NotYetCurrentCannotAllocateEitherOverload() public {
+        DVTValidator replacement = _replacement(address(dvt), 1);
+        vm.startPrank(address(101));
+        vm.expectRevert(DVTValidator.NotCurrentDVT.selector);
+        replacement.createProposal(op, 1, "not current");
+        vm.expectRevert(DVTValidator.NotCurrentDVT.selector);
+        replacement.createProposal(op, 1, "not current", keccak256("evidence"));
+        vm.stopPrank();
+        assertEq(replacement.nextProposalId(), 1, "failed creates do not allocate IDs");
+    }
+
+    function test_M1_RotatedAwayCannotAllocateEitherOverload() public {
+        DVTValidator replacement = _replacement(address(dvt), 1);
+        vm.prank(owner);
+        bls.setDVTValidator(address(replacement));
+        vm.startPrank(address(101));
+        vm.expectRevert(DVTValidator.NotCurrentDVT.selector);
+        dvt.createProposal(op, 1, "rotated away");
+        vm.expectRevert(DVTValidator.NotCurrentDVT.selector);
+        dvt.createProposal(op, 1, "rotated away", keccak256("evidence"));
+        vm.stopPrank();
+        assertEq(dvt.nextProposalId(), 1);
+    }
+
+    function test_M1_LiveFloorIncludesAllocationsAfterReplacementDeployment() public {
+        DVTValidator replacement = _replacement(address(dvt), 1);
+        for (uint256 i = 1; i <= 5; ++i) {
+            vm.prank(address(101));
+            assertEq(dvt.createProposal(op, 1, "before rotation"), i);
+        }
+        vm.prank(owner);
+        bls.setDVTValidator(address(replacement));
+        vm.prank(address(101));
+        assertEq(replacement.createProposal(op, 1, "fresh"), 6, "live floor prevents pending ID reuse");
+        vm.prank(address(101));
+        assertEq(replacement.createProposal(op, 1, "fresh", keccak256("evidence")), 7);
+        assertEq(dvt.nextProposalId(), 6, "previous counter stays final");
+        assertEq(replacement.nextProposalId(), 8);
+    }
+
+    function test_M1_EmptyIntermediateRotationPreservesLiveFloor() public {
+        DVTValidator intermediate = _replacement(address(dvt), 1);
+        DVTValidator replacement = _replacement(address(intermediate), 1);
+        vm.prank(address(101));
+        dvt.createProposal(op, 1, "allocated after both deployments");
+        vm.startPrank(owner);
+        bls.setDVTValidator(address(intermediate));
+        bls.setDVTValidator(address(replacement));
+        vm.stopPrank();
+        vm.prank(address(101));
+        assertEq(replacement.createProposal(op, 1, "fresh"), 2);
+    }
+
+    function test_M1_ZeroPredecessorAndExplicitFirstIdWork() public {
+        assertEq(dvt.previousDVT(), address(0));
+        vm.prank(address(101));
+        assertEq(dvt.createProposal(op, 1, "first deployment"), 1);
+        DVTValidator replacement = _replacement(address(dvt), 100);
+        vm.prank(owner);
+        bls.setDVTValidator(address(replacement));
+        vm.prank(address(101));
+        assertEq(replacement.createProposal(op, 1, "explicit higher floor"), 100);
+        assertEq(replacement.version(), "DVTValidator-0.8.0");
+    }
+
+    function test_M1_PreviousCounterExhaustionReverts() public {
+        DVTValidator previous = _replacement(address(dvt), type(uint128).max);
+        vm.prank(owner);
+        bls.setDVTValidator(address(previous));
+        vm.prank(address(101));
+        assertEq(previous.createProposal(op, 1, "last ID"), type(uint128).max);
+        DVTValidator replacement = _replacement(address(previous), 1);
+        vm.prank(owner);
+        bls.setDVTValidator(address(replacement));
+        vm.prank(address(101));
+        vm.expectRevert(DVTValidator.ProposalIdSpaceExhausted.selector);
+        replacement.createProposal(op, 1, "exhausted");
+    }
+
+    function test_M1_RotationCannotReplayAbandonedProposal() public {
+        if (!realPrecompiles) { vm.skip(true); return; }
+        for (uint256 i = 1; i <= 42; ++i) {
+            vm.prank(address(101));
+            assertEq(dvt.createProposal(op, 1, "rotation"), i);
+        }
+        bytes memory executedProof = _proofForMask(0x7F, keccak256(abi.encode(
+            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), uint256(41), op, uint8(1), uint256(9), bytes32(0)
+        )));
+        vm.prank(address(101));
+        dvt.executeWithProof(41, new address[](0), new uint256[](0), 9, executedProof);
+        assertTrue(bls.executedProposals(41));
+        bytes memory abandonedProof = _proofForMask(0x7F, keccak256(abi.encode(
+            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), uint256(42), op, uint8(1), uint256(9), bytes32(0)
+        )));
+        bytes memory queueProof = _queueProof(9);
+        vm.prank(address(101));
+        dvt.queueSlashWithProof(op, 1, 9, queueProof);
+        assertTrue(sp.queued());
+
+        (bool replayed, bytes memory replayError) = address(this).call(abi.encodeCall(this.replayAbandonedProposal, (abandonedProof)));
+        assertFalse(replayed, "M1: abandoned signature executed after DVT rotation");
+        assertEq(replayError, abi.encodeWithSelector(BLSAggregator.SignatureVerificationFailed.selector), "M1: replay reaches pairing and fails for the fresh ID");
+        assertFalse(bls.executedProposals(42));
+    }
+
+    function replayAbandonedProposal(bytes calldata proof) external {
+        require(msg.sender == address(this));
+        vm.startPrank(owner);
+        DVTValidator replacement = new DVTValidator(address(registry), 42, address(dvt));
+        replacement.setBLSAggregator(address(bls));
+        replacement.addValidator(address(101));
+        bls.setDVTValidator(address(replacement));
+        vm.stopPrank();
+        vm.startPrank(address(101));
+        uint256 freshId = replacement.createProposal(op, 1, "rotation");
+        assertEq(freshId, 43, "pending predecessor IDs must be abandoned");
+        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, proof);
+        vm.stopPrank();
+    }
+
+    function test_M3_RemovedValidatorCannotSelfRestoreVotingPower() public {
+        vm.startPrank(owner);
+        bls.setPermissionlessBLSRegistration(true);
+        dvt.removeValidator(address(101));
+        vm.stopPrank();
+        assertFalse(dvt.isValidator(address(101)));
+        assertTrue(registry.hasRole(keccak256("DVT"), address(101)));
+        bytes32 digest = keccak256("owner removal must persist");
+        bytes memory proof = _proofForMask(0x7F, digest);
+        (, bytes memory signature) = abi.decode(proof, (uint256, bytes));
+        BLS.G1Point memory key = _stubKey(1);
+        BLS.G2Point memory pop = _pop(address(101), 1);
+        vm.prank(address(101));
+        (bool registered,) = address(bls).call(abi.encodeCall(bls.registerBLSPublicKey, (address(101), key, 1, pop)));
+        (bool verified, bytes memory result) = address(bls).staticcall(abi.encodeCall(bls.verify, (digest, 0x7F, 7, signature)));
+        assertFalse(verified && abi.decode(result, (bool)), "M3: owner-removed key regained voting power");
+        assertFalse(registered, "M3: suspended validator registered directly through aggregator");
+        assertTrue(dvt.isSuspended(address(101)), "owner suspension persists");
+        vm.prank(address(101));
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.ValidatorSuspended.selector, address(101)));
+        dvt.registerBLSPublicKey(address(101), key, 1, pop);
+        vm.prank(address(101));
+        vm.expectRevert();
+        dvt.addValidator(address(101));
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.ValidatorSuspended.selector, address(101)));
+        dvt.registerBLSPublicKey(address(101), key, 1, pop);
+        vm.prank(owner);
+        dvt.addValidator(address(101));
+        assertFalse(dvt.isSuspended(address(101)), "only owner reinstates");
+        vm.prank(address(101));
+        dvt.registerBLSPublicKey(address(101), key, 1, pop);
+        assertTrue(bls.verify(digest, 0x7F, 7, signature), "owner reinstatement restores voting");
+
+    }
+
+    function test_M2_RemovalPreservesReachableSlashQuorum() public {
+        vm.startPrank(owner);
+        for (uint256 i = 104; i <= 110; ++i) bls.revokeBLSPublicKey(address(uint160(i)));
+        assertEq(bls.defaultThreshold(), 7);
+        assertEq(bls.slashThresholds(1), 3);
+        (bool removed,) = address(dvt).call(abi.encodeCall(dvt.removeValidator, (address(101))));
+        vm.stopPrank();
+        assertFalse(removed, "M2: removal destroyed a reachable slash quorum");
+        assertTrue(dvt.isValidator(address(101)));
+        assertFalse(dvt.isSuspended(address(101)), "failed removal must not suspend");
+        (,, bool active) = bls.getBLSPublicKey(address(101));
+        assertTrue(active);
     }
 
     function test_Fail_NotValidator() public {

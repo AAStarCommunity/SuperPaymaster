@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/utils/BLS.sol";
@@ -109,7 +110,7 @@ contract MockRegistryReconstruct is IRegistry {
  *     pkAgg: G1 addition is commutative, so two masks with the same set of
  *     bits must produce the same pkAgg.
  */
-contract BLSAggregatorPkAggReconstructTest is Test {
+contract BLSAggregatorPkAggReconstructTest is BLSRegistrationTestHelper {
     BLSAggregator bls;
     bool realPrecompiles;
     bytes fullSignature;
@@ -165,7 +166,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // Register 7 validators into slots 1..7 — exactly meets defaultThreshold.
         for (uint8 slot = 1; slot <= 7; slot++) {
             address v = address(uint160(uint256(slot) + 1000));
-            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot,
+            _registerKey(bls, dvt, v, _stubKey(uint256(slot)), slot,
                 realPrecompiles ? GenuineBLS.pop(bls, v, slot) : _emptyPoP());
         }
         vm.stopPrank();

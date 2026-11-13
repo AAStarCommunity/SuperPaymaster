@@ -16,10 +16,10 @@ contract DeployBLSModules is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        BLSAggregator aggregator = new BLSAggregator(registryAddr, spAddr, address(0));
+        DVTValidator dvt = new DVTValidator(registryAddr, 1, address(0));
+        BLSAggregator aggregator = new BLSAggregator(registryAddr, spAddr, address(dvt));
         aggregator.setMinThreshold(3);
 
-        DVTValidator dvt = new DVTValidator(registryAddr, 1);
         dvt.setBLSAggregator(address(aggregator));
 
         // CC-48 round-6 HIGH-1: an EOA-owned aggregator on a live chain hands one hot key

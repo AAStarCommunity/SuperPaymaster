@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import "forge-std/Test.sol";
 import "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
@@ -104,6 +105,7 @@ contract BLSPermissionlessRegistrationTest is Test {
     BLS.G2Point validPoP;
     bool realPrecompiles;
     BLSAggregator bls;
+    DVTValidator gateway;
     MockRegistryPermissionlessRegistration registry;
     MockStakingPermissionlessRegistration staking;
 
@@ -127,7 +129,10 @@ contract BLSPermissionlessRegistrationTest is Test {
         registry = new MockRegistryPermissionlessRegistration();
         staking = new MockStakingPermissionlessRegistration();
         registry.setStakingAddr(address(staking));
+        gateway = new DVTValidator(address(registry), 1, address(0));
+        dvt = address(gateway);
         bls = new BLSAggregator(address(registry), sp, dvt);
+        gateway.setBLSAggregator(address(bls));
         vm.stopPrank();
         if (realPrecompiles) {
             genuineKey = GenuineBLS.publicKey(1);
@@ -158,7 +163,7 @@ contract BLSPermissionlessRegistrationTest is Test {
     function test_ownerPathAlsoRequiresPoP() public {
         vm.prank(owner);
         vm.expectRevert(BLSAggregator.InvalidPoP.selector);
-        bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
+        gateway.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
 
         (, , bool active) = bls.getBLSPublicKey(validator);
         assertFalse(active, "no key may be bound without a PoP");
@@ -169,7 +174,7 @@ contract BLSPermissionlessRegistrationTest is Test {
     function test_ownerPathWorksWithAValidPoP() public {
         if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         vm.prank(owner);
-        bls.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+        gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
 
         (, uint8 slot, bool active) = bls.getBLSPublicKey(validator);
         assertTrue(active);
@@ -178,8 +183,8 @@ contract BLSPermissionlessRegistrationTest is Test {
 
     function test_nonOwnerSwitchOff_revert() public {
         vm.prank(stranger);
-        vm.expectRevert(BLSAggregator.PermissionlessRegistrationDisabled.selector);
-        bls.registerBLSPublicKey(stranger, _key(1), 1, _emptyPoP());
+        vm.expectRevert(DVTValidator.PermissionlessRegistrationDisabled.selector);
+        gateway.registerBLSPublicKey(stranger, _key(1), 1, _emptyPoP());
     }
 
     function test_setSwitch_ownerSucceeds_emitsEvent() public {
@@ -202,8 +207,8 @@ contract BLSPermissionlessRegistrationTest is Test {
         bls.setPermissionlessBLSRegistration(true);
 
         vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, stranger));
-        bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.UnauthorizedCaller.selector, stranger));
+        gateway.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
     }
 
     function test_switchOn_noDVTRole_revert() public {
@@ -212,8 +217,8 @@ contract BLSPermissionlessRegistrationTest is Test {
         registry.setHasDvtRole(validator, false);
 
         vm.prank(validator);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorRoleRevoked.selector, uint8(1), validator));
-        bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.ValidatorRoleRevoked.selector, validator));
+        gateway.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
     }
 
     function test_switchOn_validRoleInvalidPoP_revert() public {
@@ -224,7 +229,7 @@ contract BLSPermissionlessRegistrationTest is Test {
 
         vm.prank(validator);
         vm.expectRevert(BLSAggregator.InvalidPoP.selector);
-        bls.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
+        gateway.registerBLSPublicKey(validator, _key(1), 1, _emptyPoP());
     }
 
     function test_switchOn_validRoleValidPoP() public {
@@ -234,11 +239,71 @@ contract BLSPermissionlessRegistrationTest is Test {
         staking.setLocked(validator, 200);
         if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
         vm.prank(validator);
-        bls.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+        gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
         (BLS.G1Point memory stored, uint8 slot, bool active) = bls.getBLSPublicKey(validator);
         assertTrue(active, "self-registration activates key");
         assertEq(slot, 1, "self-registration assigns slot");
         assertEq(abi.encode(stored), abi.encode(_key(1)), "self-registration stores key");
         assertEq(bls.validatorAtSlot(1), validator, "self-registration binds validator");
     }
+    function test_switchOn_lowStake_revert() public {
+        vm.prank(owner);
+        bls.setPermissionlessBLSRegistration(true);
+        registry.setHasDvtRole(validator, true);
+        staking.setLocked(validator, 99);
+        vm.prank(validator);
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.ValidatorStakeBelowMinimum.selector, 99, 100));
+        gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+    }
+
+    function test_permissionlessAssignsLowestFreeSlotAndKeepsItOnReregistration() public {
+        BLS.G1Point memory otherKey = realPrecompiles ? GenuineBLS.publicKey(2) : _key(2);
+        BLS.G2Point memory otherPoP;
+        if (realPrecompiles) otherPoP = GenuineBLS.pop(bls, stranger, 2);
+        else vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        vm.startPrank(owner);
+        bls.setPermissionlessBLSRegistration(true);
+        gateway.registerBLSPublicKey(stranger, otherKey, 1, otherPoP);
+        vm.stopPrank();
+        registry.setHasDvtRole(validator, true);
+        staking.setLocked(validator, 200);
+        assertFalse(gateway.isValidator(validator), "no owner admission needed");
+        vm.prank(validator);
+        gateway.registerBLSPublicKey(validator, _key(1), 64, validPoP);
+        (, uint8 slot,) = bls.getBLSPublicKey(validator);
+        assertEq(slot, 2, "caller cannot choose its slot");
+        vm.prank(owner);
+        bls.revokeBLSPublicKey(stranger);
+        vm.prank(validator);
+        gateway.registerBLSPublicKey(validator, _key(1), 64, validPoP);
+        (, slot,) = bls.getBLSPublicKey(validator);
+        assertEq(slot, 2, "active registration keeps its slot even if a lower slot is free");
+    }
+
+    function test_ownerCanSuspendPermissionlessKeyWithoutLocalAdmission() public {
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        vm.prank(owner);
+        bls.setPermissionlessBLSRegistration(true);
+        registry.setHasDvtRole(validator, true);
+        staking.setLocked(validator, 200);
+        vm.prank(validator);
+        gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+        assertFalse(gateway.isValidator(validator));
+        // One key is below all configured quorums, so removing it destroys none.
+        vm.prank(owner);
+        gateway.removeValidator(validator);
+        assertTrue(gateway.isSuspended(validator));
+        (,, bool active) = bls.getBLSPublicKey(validator);
+        assertFalse(active);
+        vm.prank(validator);
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.ValidatorSuspended.selector, validator));
+        gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+        vm.prank(owner);
+        gateway.addValidator(validator);
+        vm.prank(validator);
+        gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
+        (,, active) = bls.getBLSPublicKey(validator);
+        assertTrue(active);
+    }
+
 }

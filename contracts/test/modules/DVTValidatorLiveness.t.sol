@@ -140,7 +140,7 @@ contract DVTValidatorLivenessTest is Test {
             registry.setHasDvtRole(validator, true);
             staking.setLocked(validator, 200);
             if (!dvt.isValidator(validator)) dvt.addValidator(validator);
-            bls.registerBLSPublicKey(validator, _stubKey(slot), slot, _emptyPoP());
+            dvt.registerBLSPublicKey(validator, _stubKey(slot), slot, _emptyPoP());
         }
         vm.stopPrank();
     }
@@ -152,7 +152,7 @@ contract DVTValidatorLivenessTest is Test {
         registry.setStakingAddr(address(staking));
         sp = new MockSP();
 
-        dvt = new DVTValidator(address(registry), 1);
+        dvt = new DVTValidator(address(registry), 1, address(0));
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         dvt.setBLSAggregator(address(bls));
 
@@ -375,11 +375,15 @@ contract DVTValidatorLivenessTest is Test {
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         vm.startPrank(owner);
-        bls.registerBLSPublicKey(validator1, _stubKey(1), 1, _emptyPoP());
-        bls.registerBLSPublicKey(validator2, _stubKey(2), 2, _emptyPoP());
+        dvt.registerBLSPublicKey(validator1, _stubKey(1), 1, _emptyPoP());
+        dvt.registerBLSPublicKey(validator2, _stubKey(2), 2, _emptyPoP());
         registry.setHasDvtRole(operator, true);
         staking.setLocked(operator, 200);
-        bls.registerBLSPublicKey(operator, _stubKey(3), 3, _emptyPoP());
+        dvt.registerBLSPublicKey(operator, _stubKey(3), 3, _emptyPoP());
+        // Four eligible keys leave the reachable 3-signature slash quorums intact.
+        registry.setHasDvtRole(randomUser, true);
+        staking.setLocked(randomUser, 200);
+        dvt.registerBLSPublicKey(randomUser, _stubKey(4), 4, _emptyPoP());
         dvt.removeValidator(validator1);
         vm.stopPrank();
 
@@ -455,7 +459,10 @@ contract DVTValidatorLivenessTest is Test {
 
         vm.startPrank(owner);
         BLSAggregator mismatched = new BLSAggregator(address(registry), address(sp), randomUser);
+        vm.stopPrank();
+        vm.prank(randomUser); // Exercise the configured DVT boundary of the other aggregator.
         mismatched.registerBLSPublicKey(validator1, _stubKey(11), 1, _emptyPoP());
+        vm.startPrank(owner);
         dvt.setBLSAggregator(address(mismatched));
 
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, address(dvt)));

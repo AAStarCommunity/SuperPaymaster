@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/utils/BLS.sol";
 import "src/interfaces/v3/IRegistry.sol";
@@ -67,7 +68,7 @@ contract MockRegistryUnit is IRegistry {
  *         old `bytes(48)` compressed-key API is gone, along with the ability
  *         for callers to inject pkAgg into proofs.
  */
-contract BLSAggregatorUnitTest is Test {
+contract BLSAggregatorUnitTest is BLSRegistrationTestHelper {
     BLSAggregator bls;
     bool internal realMode;
     mapping(bytes32 => mapping(address => BLS.G2Point)) internal pops;
@@ -180,7 +181,7 @@ contract BLSAggregatorUnitTest is Test {
         BLS.G1Point memory pk = _key(0xAB);
 
         vm.prank(owner);
-        bls.registerBLSPublicKey(address(0x42), pk, 1, _popFor(pk, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk, 1, _popFor(pk, address(0x42)));
 
         (BLS.G1Point memory stored, uint8 slot, bool active) = bls.getBLSPublicKey(address(0x42));
         assertTrue(active, "Key should be active");
@@ -194,7 +195,7 @@ contract BLSAggregatorUnitTest is Test {
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidAddress.selector, address(0)));
-        bls.registerBLSPublicKey(address(0), pk, 1, _emptyPoP());
+        _registerKey(bls, dvt, address(0), pk, 1, _emptyPoP());
     }
 
     function test_RegisterBLSPublicKey_SlotZero_Reverts() public {
@@ -202,7 +203,7 @@ contract BLSAggregatorUnitTest is Test {
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(0)));
-        bls.registerBLSPublicKey(address(0x42), pk, 0, _popFor(pk, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk, 0, _popFor(pk, address(0x42)));
     }
 
     function test_RegisterBLSPublicKey_SlotAboveMax_Reverts() public {
@@ -210,7 +211,7 @@ contract BLSAggregatorUnitTest is Test {
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(65)));
-        bls.registerBLSPublicKey(address(0x42), pk, 65, _popFor(pk, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk, 65, _popFor(pk, address(0x42)));
     }
 
     function test_RegisterBLSPublicKey_SlotCollision_Reverts() public {
@@ -218,17 +219,19 @@ contract BLSAggregatorUnitTest is Test {
         BLS.G1Point memory pk2 = _key(0x02);
 
         vm.startPrank(owner);
-        bls.registerBLSPublicKey(address(0x42), pk1, 3, _popFor(pk1, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk1, 3, _popFor(pk1, address(0x42)));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotAlreadyTaken.selector, uint8(3)));
-        bls.registerBLSPublicKey(address(0x43), pk2, 3, _popFor(pk2, address(0x43)));
+        _registerKey(bls, dvt, address(0x43), pk2, 3, _popFor(pk2, address(0x43)));
         vm.stopPrank();
     }
 
-    function test_RegisterBLSPublicKey_OnlyOwner_Reverts() public {
-        BLS.G1Point memory pk = _key(0xAB);
-
+    function test_RegisterBLSPublicKey_OnlyDVT_Reverts() public {
+        BLS.G1Point memory pk = _key(1);
         vm.prank(attacker);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, attacker));
+        bls.registerBLSPublicKey(address(0x42), pk, 1, _popFor(pk, address(0x42)));
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, owner));
         bls.registerBLSPublicKey(address(0x42), pk, 1, _popFor(pk, address(0x42)));
     }
 
@@ -237,8 +240,8 @@ contract BLSAggregatorUnitTest is Test {
         BLS.G1Point memory pk2 = _key(0x02);
 
         vm.startPrank(owner);
-        bls.registerBLSPublicKey(address(0x42), pk1, 5, _popFor(pk1, address(0x42)));
-        bls.registerBLSPublicKey(address(0x42), pk2, 5, _popFor(pk2, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk1, 5, _popFor(pk1, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk2, 5, _popFor(pk2, address(0x42)));
         vm.stopPrank();
 
         (BLS.G1Point memory stored, uint8 slot, bool active) = bls.getBLSPublicKey(address(0x42));
@@ -251,11 +254,11 @@ contract BLSAggregatorUnitTest is Test {
         BLS.G1Point memory pk = _key(0x01);
 
         vm.startPrank(owner);
-        bls.registerBLSPublicKey(address(0x42), pk, 4, _popFor(pk, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk, 4, _popFor(pk, address(0x42)));
         // Switching slot for an already-active validator could leave a dangling
         // slot pointer — explicitly disallowed.
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotAlreadyTaken.selector, uint8(7)));
-        bls.registerBLSPublicKey(address(0x42), pk, 7, _popFor(pk, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk, 7, _popFor(pk, address(0x42)));
         vm.stopPrank();
     }
 
@@ -264,11 +267,11 @@ contract BLSAggregatorUnitTest is Test {
         BLS.G1Point memory pk2 = _key(0x02);
 
         vm.startPrank(owner);
-        bls.registerBLSPublicKey(address(0x42), pk1, 8, _popFor(pk1, address(0x42)));
+        _registerKey(bls, dvt, address(0x42), pk1, 8, _popFor(pk1, address(0x42)));
         bls.revokeBLSPublicKey(address(0x42));
 
         // After revoke, slot 8 is free for a fresh validator.
-        bls.registerBLSPublicKey(address(0x43), pk2, 8, _popFor(pk2, address(0x43)));
+        _registerKey(bls, dvt, address(0x43), pk2, 8, _popFor(pk2, address(0x43)));
         vm.stopPrank();
 
         (, uint8 slot, bool active) = bls.getBLSPublicKey(address(0x43));
@@ -394,7 +397,7 @@ contract BLSAggregatorUnitTest is Test {
     function test_ValidG1Point_Registers_Successfully() public {
         BLS.G1Point memory gen = realMode ? _key(1) : _realG1Generator();
         vm.prank(owner);
-        bls.registerBLSPublicKey(address(0x55), gen, 1, _popFor(gen, address(0x55)));
+        _registerKey(bls, dvt, address(0x55), gen, 1, _popFor(gen, address(0x55)));
 
         (, uint8 slot, bool active) = bls.getBLSPublicKey(address(0x55));
         assertTrue(active, "Generator should be registered");
@@ -408,7 +411,7 @@ contract BLSAggregatorUnitTest is Test {
 
         vm.prank(owner);
         vm.expectRevert(BLSAggregator.InvalidBLSKeyNotOnCurve.selector);
-        bls.registerBLSPublicKey(address(0x56), identity, 2, _emptyPoP());
+        _registerKey(bls, dvt, address(0x56), identity, 2, _emptyPoP());
     }
 
     /// @notice A point that is not on the BLS12-381 G1 curve must be rejected.
@@ -429,7 +432,7 @@ contract BLSAggregatorUnitTest is Test {
 
         vm.prank(owner);
         vm.expectRevert(BLSAggregator.InvalidBLSKeyNotOnCurve.selector);
-        bls.registerBLSPublicKey(address(0x57), badPoint, 3, _emptyPoP());
+        _registerKey(bls, dvt, address(0x57), badPoint, 3, _emptyPoP());
     }
 
     /// @notice A small-subgroup point (on the G1 curve but not in the prime-order
@@ -468,6 +471,6 @@ contract BLSAggregatorUnitTest is Test {
 
         vm.prank(owner);
         vm.expectRevert(BLSAggregator.InvalidBLSKeyNotInSubgroup.selector);
-        bls.registerBLSPublicKey(address(0x58), smallSubgroupPoint, 4, _emptyPoP());
+        _registerKey(bls, dvt, address(0x58), smallSubgroupPoint, 4, _emptyPoP());
     }
 }

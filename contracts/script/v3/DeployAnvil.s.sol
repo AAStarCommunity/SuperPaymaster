@@ -190,7 +190,7 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
         // DVTValidator must be deployed before BLSAggregator (constructor rejects address(0))
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1), address(0))));
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );

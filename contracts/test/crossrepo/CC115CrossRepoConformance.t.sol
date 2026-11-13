@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
@@ -89,7 +90,7 @@ contract XToken {
     function isOverIssued() external view returns (bool) { return over; }
 }
 
-contract CC115CrossRepoConformance is Test {
+contract CC115CrossRepoConformance is BLSRegistrationTestHelper {
     BLSAggregator internal aggA;
     BLSAggregator internal aggB;
     XRegistry internal registry;
@@ -143,7 +144,7 @@ contract CC115CrossRepoConformance is Test {
         aggA = new BLSAggregator(address(registry), address(sp), address(dvt));
         aggB = new BLSAggregator(address(registry), address(sp), address(dvt));
         for (uint8 i = 0; i < 7; i++) {
-            aggA.registerBLSPublicKey(validators[i], _stubKey(i + 1), i + 1,
+            _registerKey(aggA, address(dvt), validators[i], _stubKey(i + 1), i + 1,
                 realPrecompiles ? GenuineBLS.pop(aggA, validators[i], i + 1) : _emptyPoP());
         }
         vm.stopPrank();

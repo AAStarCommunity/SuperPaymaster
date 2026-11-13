@@ -10,7 +10,7 @@ pragma solidity ^0.8.26;
  *   2. Registry.safeMintForRole(ROLE_DVT, validator, ...) -- 30 GT stake
  *   3. DVTValidator.addValidator(validator)
  *   4. BLSAggregator.setMinThreshold(1) + setDefaultThreshold(1)
- *   5. BLSAggregator.registerBLSPublicKey(validator, <env-supplied key>, slot=1, <env PoP>)
+ *   5. DVTValidator.registerBLSPublicKey(validator, <env-supplied key>, slot=1, <env PoP>)
  *
  * CC-48 round-3 — TWO breaking changes to this script, both deliberate:
  *   - It used to register the BLS12-381 G1 GENERATOR, i.e. the public key for secret
@@ -81,6 +81,7 @@ contract RegisterDVTValidator is Script {
 
         require(bls.owner() == v, "Not BLS owner");
         require(dvt.owner() == v, "Not DVT owner");
+        require(bls.DVT_VALIDATOR() == address(dvt) && dvt.BLS_AGGREGATOR() == address(bls), "DVT/BLS pairing mismatch");
         require(gt.balanceOf(v) >= 33 ether, "Need >= 33 GT");
 
         bool hasDVT = reg.hasRole(ROLE_DVT, v);
@@ -126,7 +127,7 @@ contract RegisterDVTValidator is Script {
                 "CC-48: BLS_PUBKEY derives from a publicly-known scalar; generate a real key"
             );
             console.log("[5] registerBLSPublicKey(slot=1, env key + PoP)...");
-            bls.registerBLSPublicKey(v, pubkey, 1, _popFromEnv());
+            dvt.registerBLSPublicKey(v, pubkey, 1, _popFromEnv());
             console.log("    BLS key registered");
         } else {
             console.log("[5] BLS key already registered");

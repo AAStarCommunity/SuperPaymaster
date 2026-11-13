@@ -2268,7 +2268,10 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         a.need('pop_aggregator', pop['aggregator'], agg)
         a.need('pop_pin', pop['pinBlockHash'], pin['blockHash'])
         words = u.uints('0x'+pop['calldata'][10:])
-        add('A10.'+str(i), agg, pop['calldata'],
+        # 4.14.0 routes owner registration through the paired DVT 0.8.0.
+        # The frozen 4.12.0 manifest still uses its original direct entry.
+        registration_target = d['dvt'] if AGG_VERSION == 'BLSAggregator-4.14.0' else agg
+        add('A10.'+str(i), registration_target, pop['calldata'],
             [word_pred(agg, 'validatorAtSlot(uint8)', int(pop['validator'], 16), pop['slot']),
              predicate(agg, 'getBLSPublicKey(address)', (pop['validator'],), words[1:5]+[pop['slot'], 1])])
     for suffix, setter, getter in (('min', 'setMinThreshold', 'minThreshold'), ('default', 'setDefaultThreshold', 'defaultThreshold')):

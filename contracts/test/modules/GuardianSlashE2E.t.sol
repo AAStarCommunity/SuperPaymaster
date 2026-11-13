@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
@@ -153,7 +154,7 @@ contract MockSP {
     function executeSlashWithBLS(address, uint8, bytes calldata) external {}
 }
 
-contract GuardianSlashE2ETest is Test {
+contract GuardianSlashE2ETest is BLSRegistrationTestHelper {
     bool realPrecompiles;
     BLSAggregator bls;
     MockRegistry registry;
@@ -195,7 +196,7 @@ contract GuardianSlashE2ETest is Test {
         bls = new BLSAggregator(address(registry), address(spC), address(dvtC));
         // register 7 validators into slots 1..7 + give each a ROLE_DVT lock ≥ minStake
         for (uint8 i = 0; i < 7; i++) {
-            bls.registerBLSPublicKey(signers[i], _stubKey(i + 1), i + 1, _pop(signers[i], i + 1));
+            _registerKey(bls, address(dvtC), signers[i], _stubKey(i + 1), i + 1, _pop(signers[i], i + 1));
         }
         vm.stopPrank();
         for (uint8 i = 0; i < 7; i++) {

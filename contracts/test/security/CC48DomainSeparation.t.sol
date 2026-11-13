@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/core/Registry.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
@@ -111,7 +112,7 @@ contract DomSepBoundVerifier {
 // Domain separator: derivation, cross-contract distinctness, Registry parity
 // =====================================================================
 
-contract CC48DomainSeparatorTest is Test {
+contract CC48DomainSeparatorTest is BLSRegistrationTestHelper {
     BLSAggregator aggA;
     BLSAggregator aggB;
     DomSepRegistryStub stubRegistry;
@@ -269,7 +270,7 @@ contract CC48DomainSeparatorTest is Test {
 // Fraud-proof verifier domain
 // =====================================================================
 
-contract CC48FraudProofDomainTest is Test {
+contract CC48FraudProofDomainTest is BLSRegistrationTestHelper {
     BLSAggregator aggA;
     BLSAggregator aggB;
     DomSepRegistryStub registry;
@@ -366,7 +367,7 @@ contract CC48FraudProofDomainTest is Test {
 // PoP binding + duplicate public key rejection
 // =====================================================================
 
-contract CC48PoPBindingTest is Test {
+contract CC48PoPBindingTest is BLSRegistrationTestHelper {
     BLSAggregator aggA;
     BLSAggregator aggB;
     DomSepRegistryStub registry;
@@ -468,11 +469,11 @@ contract CC48PoPBindingTest is Test {
     function test_SameKeyCannotBeRegisteredForTwoValidators() public {
         BLS.G1Point memory pk = _key(1);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 1));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 1));
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, _keyHash(pk), v1));
-        aggA.registerBLSPublicKey(v2, pk, 2, _pop(aggA, v2, 1));
+        _registerKey(aggA, address(0xC1), v2, pk, 2, _pop(aggA, v2, 1));
     }
 
     /// Enforced on the OWNER path too. The owner is trusted to curate the set, not
@@ -481,9 +482,9 @@ contract CC48PoPBindingTest is Test {
     function test_DuplicateRejectionAppliesToTheOwnerPath() public {
         BLS.G1Point memory pk = _key(5);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 5));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 5));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, _keyHash(pk), v1));
-        aggA.registerBLSPublicKey(v2, pk, 3, _pop(aggA, v2, 5));
+        _registerKey(aggA, address(0xC1), v2, pk, 3, _pop(aggA, v2, 5));
         vm.stopPrank();
         assertEq(aggA.validatorAtSlot(3), address(0), "no slot may be bound by the rejected call");
     }
@@ -491,8 +492,8 @@ contract CC48PoPBindingTest is Test {
     function test_ValidatorMayReRegisterItsOwnKey() public {
         BLS.G1Point memory pk = _key(9);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 9));
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 9)); // idempotent re-register
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 9));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 9)); // idempotent re-register
         vm.stopPrank();
         (, uint8 slot, bool active) = aggA.getBLSPublicKey(v1);
         assertEq(slot, 1);
@@ -506,21 +507,21 @@ contract CC48PoPBindingTest is Test {
     function test_RevocationDoesNotReleaseTheKeyBinding() public {
         BLS.G1Point memory pk = _key(11);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 11));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 11));
         aggA.revokeBLSPublicKey(v1);
         assertEq(aggA.validatorAtSlot(1), address(0), "slot is freed");
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, _keyHash(pk), v1));
-        aggA.registerBLSPublicKey(v2, pk, 1, _pop(aggA, v2, 11));
+        _registerKey(aggA, address(0xC1), v2, pk, 1, _pop(aggA, v2, 11));
         // ...but the original owner may take it back.
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 11));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 11));
         vm.stopPrank();
         assertEq(aggA.validatorAtSlot(1), v1);
     }
 
     function test_DistinctKeysStillRegisterNormally() public {
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, _key(1), 1, _pop(aggA, v1, 1));
-        aggA.registerBLSPublicKey(v2, _key(2), 2, _pop(aggA, v2, 2));
+        _registerKey(aggA, address(0xC1), v1, _key(1), 1, _pop(aggA, v1, 1));
+        _registerKey(aggA, address(0xC1), v2, _key(2), 2, _pop(aggA, v2, 2));
         vm.stopPrank();
         assertEq(aggA.validatorAtSlot(1), v1);
         assertEq(aggA.validatorAtSlot(2), v2);
@@ -532,8 +533,8 @@ contract CC48PoPBindingTest is Test {
     function test_KeyBindingIsPerAggregator() public {
         BLS.G1Point memory pk = _key(1);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 1));
-        aggB.registerBLSPublicKey(v2, pk, 1, _pop(aggB, v2, 1));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 1));
+        _registerKey(aggB, address(0xC1), v2, pk, 1, _pop(aggB, v2, 1));
         vm.stopPrank();
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
         assertEq(aggB.blsKeyOwner(_keyHash(pk)), v2);
@@ -550,7 +551,7 @@ contract CC48PoPBindingTest is Test {
     function test_OwnerCanReleaseABindingNoActiveSlotUses() public {
         BLS.G1Point memory pk = _key(7);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 7));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 7));
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
 
         // Revoking alone must NOT release it — that is the anti-duplicate property.
@@ -564,7 +565,7 @@ contract CC48PoPBindingTest is Test {
 
         // The key's real holder can now claim it at a different address.
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v2, pk, 2, _pop(aggA, v2, 7));
+        _registerKey(aggA, address(0xC1), v2, pk, 2, _pop(aggA, v2, 7));
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v2);
     }
 
@@ -574,7 +575,7 @@ contract CC48PoPBindingTest is Test {
     function test_ReleaseIsRefusedWhileAnActiveSlotHoldsTheKey() public {
         BLS.G1Point memory pk = _key(8);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 8));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 8));
 
         vm.prank(owner);
         vm.expectRevert(
@@ -590,11 +591,11 @@ contract CC48PoPBindingTest is Test {
     function test_ReleaseIsRefusedWhenTheKeyIsLiveUnderAnotherAddress() public {
         BLS.G1Point memory pk = _key(9);
         vm.startPrank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 9));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 9));
         aggA.revokeBLSPublicKey(v1);
         aggA.releaseKeyBinding(_keyHash(pk));
         // Same key, new holder.
-        aggA.registerBLSPublicKey(v2, pk, 2, _pop(aggA, v2, 9));
+        _registerKey(aggA, address(0xC1), v2, pk, 2, _pop(aggA, v2, 9));
 
         vm.expectRevert(
             abi.encodeWithSelector(BLSAggregator.KeyBindingStillActive.selector, _keyHash(pk), v2)
@@ -606,7 +607,7 @@ contract CC48PoPBindingTest is Test {
     function test_ReleaseIsOwnerOnlyAndRejectsAnUnknownKey() public {
         BLS.G1Point memory pk = _key(10);
         vm.prank(owner);
-        aggA.registerBLSPublicKey(v1, pk, 1, _pop(aggA, v1, 10));
+        _registerKey(aggA, address(0xC1), v1, pk, 1, _pop(aggA, v1, 10));
         vm.prank(owner);
         aggA.revokeBLSPublicKey(v1);
 
@@ -624,7 +625,7 @@ contract CC48PoPBindingTest is Test {
 // Combined (reputation + slash) proposal shape is removed
 // =====================================================================
 
-contract CC48CombinedProposalTest is Test {
+contract CC48CombinedProposalTest is BLSRegistrationTestHelper {
     BLSAggregator agg;
     DomSepRegistryStub registry;
     DomSepStakingStub staking;

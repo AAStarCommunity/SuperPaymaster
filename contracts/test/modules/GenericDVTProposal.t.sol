@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
@@ -122,7 +123,7 @@ contract MockDVTValidator {
  * @title GenericDVTProposalTest
  * @notice Tests for executeProposal functionality including boundary conditions
  */
-contract GenericDVTProposalTest is Test {
+contract GenericDVTProposalTest is BLSRegistrationTestHelper {
     bool realPrecompiles;
     BLSAggregator bls;
     MockRegistryForProposal registry;
@@ -184,7 +185,7 @@ contract GenericDVTProposalTest is Test {
         // aggregator can reconstruct pkAgg from on-chain state.
         for (uint8 i = 1; i <= 64; i++) {
             address v = address(uint160(uint256(i) + 200));
-            bls.registerBLSPublicKey(v, _stubKey(uint256(i)), i, _pop(v, i));
+            _registerKey(bls, address(dvtValidator), v, _stubKey(uint256(i)), i, _pop(v, i));
         }
 
         vm.stopPrank();
@@ -397,7 +398,7 @@ contract GenericDVTProposalTest is Test {
         BLS.G2Point memory pop = _pop(address(0xF065), 6500);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(65)));
-        bls.registerBLSPublicKey(address(0xF065), pk, 65, pop);
+        _registerKey(bls, address(dvtValidator), address(0xF065), pk, 65, pop);
     }
 
     // ========================================

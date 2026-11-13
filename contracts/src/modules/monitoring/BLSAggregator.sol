@@ -742,70 +742,24 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///                    `popDigest(validator, publicKey)`. REQUIRED on BOTH paths
     ///                    (CC-48 round-3); a registration without a valid PoP reverts.
     ///
-    /// @dev    SECURITY — PoP is enforced on both registration paths.
-    ///         There are exactly two registration paths and NEITHER of them skips the
-    ///         proof-of-possession check:
-    ///           • Owner path (`msg.sender == owner()`): the owner still decides WHO is
-    ///             onboarded and at WHICH slot, but no longer decides whether the key is
-    ///             really the registrant's. Before round-3 this path skipped PoP on the
-    ///             argument that a compromised owner is game-over anyway. That argument
-    ///             covers authorization, not this property: `blsKeyOwner` is a permanent,
-    ///             deliberately irreversible binding, so one mistyped address bound a
-    ///             third party's public key forever, and an owner could pre-empt a
-    ///             validator's own self-registration by binding its key first. Both are
-    ///             gone: producing `popSignature` requires the corresponding secret key.
-    ///           • Permissionless path (`permissionlessBLSRegistration == true`, off by
-    ///             default): an untrusted staked ROLE_DVT validator self-registers its OWN
-    ///             key. Unchanged — PoP was always enforced here.
-    ///         Recovery: `releaseKeyBinding` (owner-only, and only while NO active slot
-    ///         holds the key) is the escape hatch for a binding created in error. It
-    ///         cannot touch a live signer's binding, so the anti-duplicate property is
-    ///         preserved; see the runbook in docs/architecture/dvt-validator-workflow.md.
-    ///         Defense-in-depth: a registered key can only contribute to an aggregate if
-    ///         its validator address still holds ROLE_DVT with locked stake >= minStake at
-    ///         verification time (re-checked live in `_reconstructPkAgg`); a key registered
-    ///         for an address lacking the role/stake can never enter a slash/reputation proof.
+    /// @dev Registration authorization, suspension and permissionless slot assignment
+    ///      are enforced by DVT_VALIDATOR. Key validity, PoP, uniqueness and slot
+    ///      consistency remain enforced here for every registration.
     function registerBLSPublicKey(
         address validator,
         BLS.G1Point calldata publicKey,
         uint8 slot,
         BLS.G2Point calldata popSignature
     ) external {
+        if (msg.sender != DVT_VALIDATOR) revert UnauthorizedCaller(msg.sender);
         if (validator == address(0)) revert InvalidAddress(address(0));
         if (slot == 0 || slot > MAX_VALIDATORS) revert SlotOutOfRange(slot);
-
-        // Access control ONLY. The owner may register any validator's key at the
-        // caller-chosen slot; otherwise — only when the permissionless switch is on — a
-        // validator may self-register their OWN key, provided they currently hold
-        // ROLE_DVT with sufficient stake. Authorization is the whole of what differs
-        // between the two paths: since round-3 a valid proof-of-possession is REQUIRED
-        // on BOTH of them (enforced unconditionally a few lines below), so neither the
-        // owner nor a self-registrant can bind a key they do not hold the secret for.
-        // PoP blocks the rogue-key attack that off-chain key vetting used to be relied
-        // on for.
-        // Cheap auth checks run BEFORE the G1/pairing precompiles so an unauthorized
-        // caller reverts without paying for them; G1 is still validated before _verifyPoP.
-        bool ownerCall = msg.sender == owner();
-        if (!ownerCall) {
-            if (!permissionlessBLSRegistration) revert PermissionlessRegistrationDisabled();
-            if (msg.sender != validator) revert UnauthorizedCaller(msg.sender);
-            _requireDVTStake(validator, slot);
-        }
 
         // CC-48 round-3: proof-of-possession is MANDATORY on BOTH paths. On-curve +
         // prime-order subgroup membership is validated first, so `_verifyPoP` never
         // pairs against a small-subgroup point.
         _validateG1Point(publicKey);
         if (!_verifyPoP(validator, publicKey, popSignature)) revert InvalidPoP();
-
-        if (!ownerCall) {
-            // Permissionless callers do NOT choose their slot: the contract assigns the
-            // lowest free slot deterministically (re-registration keeps the prior slot).
-            // This removes the slot-squatting / front-running vector where a caller could
-            // grab or deny a specific slot. (Filling the whole capped set still costs
-            // minStake per identity and remains owner-revocable.)
-            slot = _assignSlot(validator);
-        }
 
         // CC-48 round-2: one public key, one validator address — forever. Enforced on
         // the OWNER path too: the owner is trusted to curate keys, not to be immune to
@@ -1474,35 +1428,6 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         p.y_b = bytes32(uint256(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1));
     }
 
-    /// @dev H-02: deterministic slot assignment for the permissionless path. A validator
-    ///      that already has an active key keeps its slot; otherwise the lowest free slot
-    ///      is returned. Reverts when the capped set is full. The caller cannot influence
-    ///      which slot it gets, so it cannot squat or front-run a specific slot.
-    function _assignSlot(address validator) internal view returns (uint8) {
-        BLSValidatorKey storage existing = _blsKeys[validator];
-        if (existing.isActive) return existing.index;
-        for (uint8 s = 1; s <= MAX_VALIDATORS; s++) {
-            if (validatorAtSlot[s] == address(0)) return s;
-        }
-        revert SlotOutOfRange(uint8(MAX_VALIDATORS + 1));
-    }
-
-    /// @dev H-02: a self-registering validator must currently hold ROLE_DVT in the
-    ///      Registry with locked stake >= the role's minStake. Mirrors the per-signer
-    ///      liveness check used during aggregate verification (reads staking pointer +
-    ///      minStake live so governance can rotate them without redeploying).
-    function _requireDVTStake(address validator, uint8 slot) internal view {
-        bytes32 roleDvt = keccak256("DVT");
-        if (!REGISTRY.hasRole(roleDvt, validator)) revert SlotValidatorRoleRevoked(slot, validator);
-        IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
-        if (address(staking) == address(0)) revert StakingNotConfigured();
-        uint256 minStake = REGISTRY.getRoleConfig(roleDvt).minStake;
-        (uint128 amount,,,,) = staking.roleLocks(validator, roleDvt);
-        if (uint256(amount) < minStake) {
-            revert SlotValidatorStakeBelowMinimum(slot, validator, uint256(amount), minStake);
-        }
-    }
-
     /// @dev H-02: proof-of-possession — verify the registrant signed their OWN public key
     ///      under a PoP-specific domain, proving they hold the secret key. Without it a
     ///      permissionless registrant could submit a rogue key (pk_rogue = pk_target − Σpk_i)
@@ -1781,65 +1706,24 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         emit GuardianExitCancelled(msg.sender, cooldownUntil);
     }
 
-    /// @notice Highest signer count any BLS-gated path can demand right now.
-    /// @dev    Reputation/blacklist proposals clear `defaultThreshold`; slash proposals
-    ///         clear the per-severity `slashThresholds`. The committee floor has to
-    ///         respect whichever is largest, otherwise exits could quietly strand the
-    ///         severity with the strictest quorum.
-    function _maxRequiredThreshold() internal view returns (uint256 required) {
-        required = defaultThreshold;
+    /// @notice Whether losing one signer from this count breaks a configured quorum.
+    function _isRequiredThreshold(uint256 count) internal view returns (bool) {
+        if (count == defaultThreshold) return true;
         for (uint8 lvl = 0; lvl <= uint8(ISuperPaymasterSlash.SlashLevel.MAJOR);) {
-            uint256 t = uint256(slashThresholds[lvl]);
-            if (t > required) required = t;
+            if (count == uint256(slashThresholds[lvl])) return true;
             unchecked {
                 ++lvl;
             }
         }
+        return false;
     }
 
-    /// @notice Count the guardians that would still be able to sign once every
-    ///         outstanding exit notice (including `leaving`'s) has matured.
-    /// @dev    CC-48 MEDIUM-2 / BLOCKER-1 (second half). Guardians that merely
-    ///         ANNOUNCED an exit are excluded here even before `readyAt`, because the
-    ///         floor has to hold at the end state, not just today.
-    ///
-    ///         Stake IS re-read here, and the earlier reasoning for not doing so was
-    ///         wrong. That reasoning ran: `_reconstructPkAgg` already enforces minStake
-    ///         at verification time, so this gate need not. But "only checked at
-    ///         verification time" is precisely the hole — a guardian slashed below
-    ///         minStake still counted toward `remaining` here while being rejected as a
-    ///         signer there, so the gate approved exits that drop the real signing set
-    ///         below threshold. The two sides must apply the same eligibility predicate.
-    ///         The cost is bounded: MAX_VALIDATORS is small and exits are rare.
-    ///
-    ///         Consequence, stated plainly: with N guardians that can actually sign and
-    ///         a required threshold of N, NO guardian can open an exit notice until
-    ///         governance seats a replacement or lowers the threshold. That is
-    ///         deliberate — the alternative is letting one member unilaterally park the
-    ///         committee below quorum.
-    ///
-    ///         Note this bites on the way IN to that state, not out of it. A committee
-    ///         already short of its threshold (Sepolia at the time of writing: N = 3
-    ///         against defaultThreshold = 7) takes the early return below and exits stay
-    ///         open.
-    ///
-    ///         The repair is where the trap is. **Seat guardians until N reaches
-    ///         `_maxRequiredThreshold() + 1`** — that is the one remedy a single role can
-    ///         carry out. Lowering the bar instead is not one knob and is not the owner's
-    ///         to turn: `_maxRequiredThreshold()` is the MAX over `defaultThreshold` and
-    ///         all three `slashThresholds`, so every one of those inputs must come down.
-    ///         `setDefaultThreshold`/`setMinThreshold` are `onlyOwner` (floor 2), while
-    ///         `setSlashThreshold` requires `slashPolicyAdmin` (floor
-    ///         `SLASH_THRESHOLD_FLOOR`). An owner acting alone on the Sepolia figures
-    ///         above reaches `max(2, 2, 3, 3) = 3 == N` and freezes precisely the
-    ///         guardians it meant to free; clearing it needs four transactions across
-    ///         two roles. And with N <= 2 no combination works at all, because both
-    ///         floors are 2 — for such a committee, seating a guardian is the ONLY exit.
-    ///
-    ///         The check only fires when THIS exit is what breaks quorum. If the
-    ///         committee is already short of the threshold, the BLS paths are dead
-    ///         anyway and holding guardians hostage buys nothing — so exits stay open
-    ///         and the fix is governance's (raise the set, or lower the threshold).
+    /// @notice Preserve every currently reachable quorum when one guardian leaves.
+    /// @dev Count live role/stake-backed keys, excluding other announced exits.
+    ///      With one signer departing, before >= threshold && after < threshold
+    ///      is exactly before == threshold. An unreachable higher threshold must
+    ///      not hide a working lower one. The owner retains the explicit emergency
+    ///      override in revokeBLSPublicKey.
     function _requireCommitteeSurvivesExit(address leaving) internal view {
         // A guardian with no active BLS key is not part of any signer mask, so its
         // departure cannot move the committee below quorum — nothing to check.
@@ -1877,10 +1761,9 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                 ++remaining;
             }
         }
-        uint256 required = _maxRequiredThreshold();
         if (!leavingEligible) return;
-        if (remaining + 1 < required) return; // already below quorum without this exit
-        if (remaining < required) revert GuardianExitWouldBreakQuorum(remaining, required);
+        uint256 before = remaining + 1;
+        if (_isRequiredThreshold(before)) revert GuardianExitWouldBreakQuorum(remaining, before);
     }
 
     /// @notice Registry-only atomic gate called by Registry.exitRole(ROLE_DVT).

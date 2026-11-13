@@ -29,6 +29,7 @@ require('dotenv').config({ path: process.env.ENV_FILE || path.join(__dirname, '.
 const BLS_ABI = [
   'function permissionlessBLSRegistration() view returns (bool)',
   'function owner() view returns (address)',
+  'function DVT_VALIDATOR() view returns (address)',
   'function MAX_VALIDATORS() view returns (uint256)',
   'function registerBLSPublicKey(address validator, tuple(bytes32 x_a, bytes32 x_b, bytes32 y_a, bytes32 y_b) publicKey, uint8 slot, tuple(bytes32 x_c0_a, bytes32 x_c0_b, bytes32 x_c1_a, bytes32 x_c1_b, bytes32 y_c0_a, bytes32 y_c0_b, bytes32 y_c1_a, bytes32 y_c1_b) popSignature)',
   'error PermissionlessRegistrationDisabled()',
@@ -53,6 +54,7 @@ async function main() {
   const blsAddr = config.blsAggregator;
   if (!blsAddr) { console.log('⚠️  SKIP: blsAggregator not in config'); process.exit(2); }
   const bls = new ethers.Contract(blsAddr, BLS_ABI, caller);
+  const dvt = new ethers.Contract(await bls.DVT_VALIDATOR(), BLS_ABI, caller);
 
   console.log('📌 Configuration:');
   console.log(`  BLSAggregator: ${blsAddr}`);
@@ -61,7 +63,7 @@ async function main() {
   // Step 1: switch must be OFF, and caller must not be the owner (else the test is vacuous)
   console.log('📊 Step 1: Read switch + owner');
   const permissionless = await bls.permissionlessBLSRegistration();
-  const owner = await bls.owner();
+  const owner = await dvt.owner();
   console.log(`  permissionlessBLSRegistration: ${permissionless}`);
   console.log(`  owner: ${owner}`);
   permissionless === false ? pass('switch is OFF (deployed default)') : fail('switch is ON — H-02 default changed');
@@ -79,7 +81,7 @@ async function main() {
   const slot = 1; // valid range [1, MAX_VALIDATORS] so we reach the access check, not SlotOutOfRange
 
   try {
-    await bls.registerBLSPublicKey.staticCall(caller.address, g1, slot, g2);
+    await dvt.registerBLSPublicKey.staticCall(caller.address, g1, slot, g2);
     fail('registration was NOT rejected — H-02 switch BROKEN');
   } catch (e) {
     const name = e?.revert?.name || e?.shortMessage || String(e?.message || e);
@@ -88,8 +90,7 @@ async function main() {
     } else if (name.includes('SlotOutOfRange') || name.includes('InvalidAddress')) {
       fail(`reverted too early (${name}) — did not reach the switch gate`);
     } else {
-      // Any revert here still means the non-owner could not register; treat as pass but note it.
-      pass(`registration rejected (${name})`);
+      fail(`unexpected registration error (${name}) — switch gate was not verified`);
     }
   }
 
