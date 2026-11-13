@@ -15,17 +15,27 @@
 // stateMutability.
 // =============================================================================
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
 const ABIS = join(ROOT, "abis");
 const OUT = join(ROOT, "out");
 
+// Full entry, not just types: an event's `indexed` flags decide topic vs. data
+// decoding, `anonymous` removes topic0, and tuple `components` are the struct
+// layout. A shape that dropped them let `OperatorPaused.by` lose `indexed` in
+// abis/ with this check green (Codex R3 on the event PR).
+const param = (x) => ({
+  n: x.name ?? "", t: x.type, x: !!x.indexed,
+  c: (x.components ?? []).map(param),
+});
 const shape = (f) => JSON.stringify({
   t: f.type, n: f.name ?? "",
-  i: (f.inputs ?? []).map((x) => x.type),
-  o: (f.outputs ?? []).map((x) => x.type),
+  i: (f.inputs ?? []).map(param),
+  o: (f.outputs ?? []).map(param),
   m: f.stateMutability ?? "",
+  a: !!f.anonymous,
 });
 
 // Only first-party contracts are comparable. abis/ also carries EntryPoint,
@@ -67,6 +77,7 @@ for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   // No artifact means this bundle has no contract to compare against. Say so
   // rather than counting it as agreement: an empty comparison and a passing one
   // are the same reading otherwise.
+  if (name.endsWith(".full")) continue; // checked below as the merge of its halves
   if (!FIRST_PARTY.has(name)) { external.push(name); continue; }
   // A first-party bundle whose artifact is missing is NOT a pass. The first
   // version pushed it to `skipped` and exited 0, so a partial or stale `out/`
@@ -90,9 +101,14 @@ for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
     for (const e of extra.slice(0, 6)) console.error(`   only in abis/   : ${e}`);
   }
 }
+// The merged core+extension bundles (*.full.json) have no single artifact; they
+// are checked as the merge of their two (already checked) halves.
+const full = spawnSync("python3", ["scripts/gen-sp-full-abi.py", "--check"], { encoding: "utf8" });
+process.stdout.write(full.stdout ?? "");
+if (full.status !== 0) { console.error(full.stderr || "FAIL: merged *.full.json check did not pass"); stale++; }
 console.log(`compared ${checked} bundles against out/`);
 if (skipped.length) console.log(`no artifact, NOT compared: ${skipped.join(", ")}`);
 if (external.length) console.log(`external / pinned to a deployment, NOT compared: ${external.join(", ")}`);
 if (checked === 0) { console.error("FAIL: nothing was compared — run `forge build` first"); process.exit(2); }
 if (stale) { console.error(`\n${stale} bundle(s) stale — run scripts/extract_v3_abis.sh and commit.`); process.exit(1); }
-console.log("abis/ matches the compiled contracts (full shape and bytecode, not just names)");
+console.log("abis/ matches the compiled contracts (full entries, bytecode, merged bundles)");
