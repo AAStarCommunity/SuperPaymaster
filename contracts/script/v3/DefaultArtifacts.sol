@@ -183,6 +183,9 @@ contract T4ArtifactReader is Script {
         return pick;
     }
 
+    /// @dev Honoured only by this reader's profile.default resolution. The registry-size
+    ///      diagnostic below and DeployAPNTsCapped still read `out/`, so a deploy shell must leave
+    ///      DEFAULT_ARTIFACTS_OUT unset (or `out`) and the rc.8 runbook asserts that.
     function _artifactOutDir() internal view virtual returns (string memory) {
         return _envArtifactOutDir("DEFAULT_ARTIFACTS_OUT");
     }
