@@ -191,10 +191,11 @@ explicit-floor recovery operation requires governance to supply an audited upper
 bound on all allocated IDs; it must never lower the stored floor. This recovery
 is an immediate owner authority, not automatic discovery of missing history.
 
-Pending slash proposals must be proposed again with fresh IDs on the replacement
-DVT. This is an allocation guarantee, not cryptographic revocation: outstanding
-generic proofs and reputation proofs submitted through an authorized Registry
-source retain their signed authorization across rotation. Full-width hashed
+Pending slash and aggregator-routed reputation proposals executed through the
+current DVT need fresh IDs and proofs after rotation, including after reactivation.
+The floor does not revoke owner-direct `verifyAndExecute` with caller-chosen IDs,
+generic proofs, authorized direct Registry reputation proofs or unused consensus
+queue pre-flags; see the disclosed M1 residuals below. Full-width hashed
 ReputationSystem IDs remain valid on the direct Registry route.
 
 ### Validator-removal quorum floor
@@ -779,3 +780,52 @@ tests using AnchoredOverIssueFraudProofVerifier are **local adapter** evidence,
 not evidence of compatibility with the unadapted pinned upstream verifier.
 The historical Python executor remains byte-identical to origin/main; rc.8
 routing belongs in another PR.
+
+### M1 execution floor and disclosed residuals (2026-11-13)
+
+`BLSAggregator.verifyAndExecute` rejects `proposalId < proposalFloor` with
+`InvalidProposalId` only when `msg.sender == DVT_VALIDATOR`. M1 covers slash and
+aggregator-routed reputation proposals executed through the current DVT, where
+IDs are DVT-allocated. An allocated id with a ready proof becomes stale on that
+path when a later rotation raises the floor; reactivating its original DVT does
+not restore it. A newly allocated id at or above the fresh floor remains
+executable with its own valid proof. Every caller, including the owner, still
+receives `InvalidProposalId` for zero or an id at or above `2^128`. The monotonic
+floor preserves the exhausted value `2^128` across rotations.
+
+The accepted, disclosed residuals are:
+
+- Owner-direct `verifyAndExecute` accepts caller-chosen ids below the floor.
+  This is the documented owner-mediated residual: rotation does not revoke that
+  route's unused signed authorizations. Signature, replay and DVT callback checks
+  still apply; the floor must not treat an owner-chosen id as a DVT allocation.
+- Unused pre-rotation generic proposals remain owner/DVT-executable through
+  `executeProposal`; their typed replay keys are separate from the raw-id floor.
+- Pre-rotation reputation proofs can still reach Registry through an authorized
+  reputation source. That route remains source-gated, enforces per-user epoch
+  progression and bounds score changes to ±100. It does not inherit the
+  aggregator's execution floor.
+- An unused pre-rotation consensus queue proof can still set a reversible
+  pre-flag. A BLS-queued freeze has **no time expiry**:
+  `SuperPaymasterStorage._isSlashPending` expires only a guardian queue after
+  `GUARDIAN_SLASH_FREEZE`. The owner can always cancel the flag with
+  `SuperPaymasterAdmin.cancelSlash`. `usedSlashQueueHashes` makes the proof
+  one-shot per `(operator, level, epoch)`, even after cancellation. The pre-flag
+  moves no funds: execution through the current DVT requires a separate fresh
+  slash proof with an id at or above the current floor. Relabelling an old proof
+  with a fresh id also fails signature verification. Owner-direct execution with
+  caller-chosen ids remains the residual described above. The independent owner
+  slash authority is unchanged.
+
+`RotationFloorExecution.t.sol` covers stale current-DVT execution after reactivation,
+fresh execution, later rotation invalidation, stale queue versus DVT fund-moving execution,
+exact namespace exhaustion, suspended key ownership and the disclosed queue
+residual. Signature-dependent tests execute with genuine Prague precompiles and
+skip on Cancun. `test_RotationAllocationFloorPreservesAuthorizedRegistryProof`
+also checks that the same stale reputation proof fails through the reactivated DVT
+before succeeding through the authorized Registry source. The same real-Registry
+suite adds `test_PostRotationDvtReputationUpdateExecutes` and
+`test_OwnerDirectLowIdStillExecutesAfterRotation`, proving successful reputation
+updates with genuine signatures on both authorized routes. Final suite counts,
+runtime size and changed files are recorded in `.rv-narrow.md`; ABI/docs
+regeneration is left to the calling session.

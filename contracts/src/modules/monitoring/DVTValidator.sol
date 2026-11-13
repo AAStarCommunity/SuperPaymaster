@@ -43,8 +43,13 @@ interface IBLSKeyRegistration {
  *      BLSAggregator's contract-enforced delay.
  *      Only the aggregator's current DVT can allocate proposal IDs. Each allocation
  *      reads the aggregator's monotonic proposalFloor, captured at activation.
- *      Pending slash proposals need fresh IDs on a replacement. This allocation rule
- *      does not revoke outstanding generic or direct Registry reputation authorizations.
+ *      The aggregator enforces that floor on slash and aggregator-routed reputation
+ *      executed through the current DVT, including after reactivation. Stale proposals
+ *      need fresh IDs and proofs on this path. Owner-direct verifyAndExecute with
+ *      caller-chosen IDs, generic proposals, authorized direct Registry reputation
+ *      proofs and unused consensus queue pre-flags remain outside this execution floor.
+ *      Pre-flags have no automatic expiry, are owner-cancellable via
+ *      SuperPaymasterAdmin.cancelSlash and are one-shot per (operator, level, epoch).
  */
 contract DVTValidator is Ownable, IVersioned {
     struct ValidatorInfo {
@@ -338,6 +343,10 @@ contract DVTValidator is Ownable, IVersioned {
 
     /**
      * @notice Direct execution with an aggregated proof
+     * @dev BLSAggregator rejects ids below proposalFloor on this current-DVT path
+     *      for slash and aggregator-routed reputation, even when this DVT allocated
+     *      the id before rotation and has since been reactivated. Owner-direct
+     *      verifyAndExecute with caller-chosen ids remains outside this floor.
      */
     function executeWithProof(
         uint256 id,

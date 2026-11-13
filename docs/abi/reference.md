@@ -5484,7 +5484,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xed8f4299` | `pendingGuardianSlashCount(address)` | view | — |  |
 | `0x0d8b9eab` | `permissionlessBLSRegistration()` | view | — | H-02: when true, a staked ROLE_DVT validator may self-register their OWN         BLS key (with proof-of-possession) instead of requiring an owner call.         Default false — onboarding stays owner-gated (off-chain trust established         first) until governance flips it on. Closes the otherwise-inconsistent         path where Registry ROLE_DVT is permissionless (self-service stake) but         BLS-key registration here was owner-only. |
 | `0xbaeb0e66` | `popDigest(address,(bytes32,bytes32,bytes32,bytes32))` | view | — | Canonical proof-of-possession digest for (validator, publicKey). |
-| `0x276a58ef` | `proposalFloor()` | view | — | Monotonic lower bound on allocation, retained across DVT rotations. |
+| `0x276a58ef` | `proposalFloor()` | view | — | Monotonic lower bound on allocation and execution through the current         DVT (slash and aggregator-routed reputation), retained across rotations. |
 | `0xa74c1ca8` | `proposalNonces(uint256)` | view | — |  |
 | `0xfa3608ff` | `proposalSignersCommitment(uint256)` | view | — | A' attribution (CC-89 stage-2): commitment to the exact signer         ADDRESS set of each executed proposal, snapshotted at execution time         before any revokeBLSPublicKey can reassign a slot. A fraud-proof         verifier matches proof-supplied claimedSigners against this to         attribute a fraudulent slash to real addresses. It is a 1-slot         fingerprint and is NOT reversible — the address list's data         availability is the DVT detection layer's (redundant watchers) job. |
 | `0xb3b8b48f` | `proposeFraudProofVerifier(address)` | nonpayable | onlyOwner | Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`. |
@@ -5525,7 +5525,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xa3c57093` | `validatorAtSlot(uint8)` | view | — | 1-indexed slot → validator address. signerMask bit `i` (0-indexed)         corresponds to validator at slot `i+1`. |
 | `0x6d01be91` | `VERIFIER_ROTATION_DELAY()` | view | — | Verifier rotations mature no faster than a full case window, so         governance cannot retroactively kill a queued case by swapping in a         verifier that returns false (CC-48 MEDIUM-1). |
 | `0xfc3c298e` | `verify(bytes32,uint256,uint256,bytes)` | view | — | External BLS pairing verification used by Registry / ReputationSystem. |
-| `0xd38f1586` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes32,bytes)` | nonpayable | nonReentrant |  |
+| `0xd38f1586` | `verifyAndExecute(uint256,address,uint8,address[],uint256[],uint256,bytes32,bytes)` | nonpayable | nonReentrant | Execute slash or reputation consensus with a floor on the current DVT path. |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
 ### Functions
@@ -5669,7 +5669,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Execute any proposal via BLS consensus (Generic DVT)
 
-*@dev* Allows executing arbitrary calls to authorized target contracts after BLS signature verification.      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).
+*@dev* Allows executing arbitrary calls to authorized target contracts after BLS signature verification.      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).      Accepted residual: unused pre-rotation generic proofs remain owner/DVT-executable;      proposalFloor applies only to slash and aggregator-routed reputation executed through the current DVT.
 
 | param | type | description |
 |---|---|---|
@@ -5966,7 +5966,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x276a58ef` · view · access: —
 
-> Monotonic lower bound on allocation, retained across DVT rotations.
+> Monotonic lower bound on allocation and execution through the current         DVT (slash and aggregator-routed reputation), retained across rotations.
 
 | returns | type | description |
 |---|---|---|
@@ -6030,7 +6030,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Step 1 of the two-step slash: a DVT quorum pre-flags `operator` for         slashing (SP.queueSlash), blocking their withdraw until the slash is         executed (verifyAndExecute) or the owner cancels it. Kept SEPARATE         from execution so the flag lands in an earlier tx — closing the         front-run window an atomic queue+execute would reopen.
 
-*@dev* Dedicated (not the generic executeProposal) so it (a) is gated at the         per-severity slash threshold, (b) does NOT consume a proposalId /         executedProposals slot, leaving the execute-step proposalId intact (a         BLS re-queue is NOT a no-op on SP: it refreshes slashQueues provenance and         timestamp, emits again, and may revert during the BLS cooldown), and (c) requires a         real quorum, so no single validator can DoS an operator's withdraw.         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof         can never be replayed as an execute proof.
+*@dev* Dedicated (not the generic executeProposal) so it (a) is gated at the         per-severity slash threshold, (b) does NOT consume a proposalId /         executedProposals slot, leaving the execute-step proposalId intact (a         BLS re-queue is NOT a no-op on SP: it refreshes slashQueues provenance and         timestamp, emits again, and may revert during the BLS cooldown), and (c) requires a         real quorum, so no single validator can DoS an operator's withdraw.         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof         can never be replayed as an execute proof.         Accepted residual: unused pre-rotation queue proofs remain valid. The         pre-flag moves no funds and is always owner-cancellable via         SuperPaymasterAdmin.cancelSlash. A BLS-queued freeze has no time expiry         in SuperPaymasterStorage._isSlashPending; GUARDIAN_SLASH_FREEZE expires         only guardian queues. usedSlashQueueHashes makes each (operator,         level, epoch) one-shot. BLS fund movement requires a separate slash         proof; execution through the current DVT requires an id at or above         proposalFloor. Owner-direct execution with caller-chosen ids is exempt.
 
 | param | type | description |
 |---|---|---|
@@ -6143,7 +6143,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Atomically capture all outgoing allocations before activating a DVT.
 
-*@dev* Reverts on an unreadable outgoing counter; never guesses a replacement floor.
+*@dev* Reverts on an unreadable outgoing counter; never guesses a replacement floor.      Raising the floor invalidates earlier slash and aggregator-routed reputation      proposals executed through the current DVT, including after reactivation.
 
 | param | type | description |
 |---|---|---|
@@ -6420,6 +6420,10 @@ Authoritative, auto-generated reference for every external/public function, even
 #### `verifyAndExecute(uint256 proposalId, address operator, uint8 slashLevel, address[] repUsers, uint256[] newScores, uint256 epoch, bytes32 evidenceHash, bytes proof)`
 
 `0xd38f1586` · nonpayable · access: nonReentrant
+
+> Execute slash or reputation consensus with a floor on the current DVT path.
+
+*@dev* Rotation invalidates earlier DVT allocations on both branches, even if      their allocating DVT becomes current again. Owner-direct execution with      caller-chosen ids is the documented owner-mediated residual. All callers      still require nonzero ids below 2^128. Direct Registry reputation proofs      retain their source gate, per-user epoch and +/-100 score-delta bounds.
 
 | param | type | description |
 |---|---|---|
@@ -6793,6 +6797,8 @@ Authoritative, auto-generated reference for every external/public function, even
 `0x08f41334` · nonpayable · access: onlyAuthorizedExecutor
 
 > Direct execution with an aggregated proof
+
+*@dev* BLSAggregator rejects ids below proposalFloor on this current-DVT path      for slash and aggregator-routed reputation, even when this DVT allocated      the id before rotation and has since been reactivated. Owner-direct      verifyAndExecute with caller-chosen ids remains outside this floor.
 
 | param | type | description |
 |---|---|---|

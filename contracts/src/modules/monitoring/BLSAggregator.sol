@@ -423,7 +423,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         Key: keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b)).
     mapping(bytes32 => address) public blsKeyOwner;
 
-    /// @notice Monotonic lower bound on allocation, retained across DVT rotations.
+    /// @notice Monotonic lower bound on allocation and execution through the current
+    ///         DVT (slash and aggregator-routed reputation), retained across rotations.
+    /// @dev Owner-direct verifyAndExecute with caller-chosen ids, generic proposals,
+    ///      authorized direct Registry reputation proofs and unused consensus queue
+    ///      pre-flags are outside this execution floor.
     uint256 public proposalFloor;
     /// @notice Authoritative suspension, independent of key activity or DVT admission.
     mapping(address => bool) public suspended;
@@ -946,6 +950,14 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///         real quorum, so no single validator can DoS an operator's withdraw.
     ///         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof
     ///         can never be replayed as an execute proof.
+    ///         Accepted residual: unused pre-rotation queue proofs remain valid. The
+    ///         pre-flag moves no funds and is always owner-cancellable via
+    ///         SuperPaymasterAdmin.cancelSlash. A BLS-queued freeze has no time expiry
+    ///         in SuperPaymasterStorage._isSlashPending; GUARDIAN_SLASH_FREEZE expires
+    ///         only guardian queues. usedSlashQueueHashes makes each (operator,
+    ///         level, epoch) one-shot. BLS fund movement requires a separate slash
+    ///         proof; execution through the current DVT requires an id at or above
+    ///         proposalFloor. Owner-direct execution with caller-chosen ids is exempt.
     function queueSlashWithConsensus(address operator, uint8 slashLevel, uint256 epoch, bytes calldata proof)
         external
         nonReentrant
@@ -969,6 +981,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         emit SlashPreQueued(operator, slashLevel, epoch, requiredThreshold);
     }
 
+    /// @notice Execute slash or reputation consensus with a floor on the current DVT path.
+    /// @dev Rotation invalidates earlier DVT allocations on both branches, even if
+    ///      their allocating DVT becomes current again. Owner-direct execution with
+    ///      caller-chosen ids is the documented owner-mediated residual. All callers
+    ///      still require nonzero ids below 2^128. Direct Registry reputation proofs
+    ///      retain their source gate, per-user epoch and +/-100 score-delta bounds.
     function verifyAndExecute(
         uint256 proposalId,
         address operator,
@@ -982,10 +1000,12 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (msg.sender != DVT_VALIDATOR && msg.sender != owner()) {
             revert UnauthorizedCaller(msg.sender);
         }
-        if (proposalId == 0) revert InvalidProposalId();
         // Raw ids (slash AND reputation) live below 2^128, providing 128-bit
-        // cryptographic separation from generic and queue keccak keys.
-        if (proposalId >> 128 != 0) revert InvalidProposalId();
+        // cryptographic separation from generic and queue keccak keys. Only the DVT
+        // path uses DVT-allocated ids; owner-direct ids are caller-chosen.
+        if (proposalId == 0 || proposalId >> 128 != 0 || (msg.sender == DVT_VALIDATOR && proposalId < proposalFloor)) {
+            revert InvalidProposalId();
+        }
         if (executedProposals[proposalId]) {
             revert ProposalAlreadyExecuted(proposalId);
         }
@@ -1076,6 +1096,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
      * @notice Execute any proposal via BLS consensus (Generic DVT)
      * @dev Allows executing arbitrary calls to authorized target contracts after BLS signature verification.
      *      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).
+     *      Accepted residual: unused pre-rotation generic proofs remain owner/DVT-executable;
+     *      proposalFloor applies only to slash and aggregator-routed reputation executed through the current DVT.
      * @param proposalId Unique proposal ID
      * @param target Target contract to call
      * @param callData Encoded function call (abi.encodeCall)
@@ -1508,6 +1530,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
 
     /// @notice Atomically capture all outgoing allocations before activating a DVT.
     /// @dev Reverts on an unreadable outgoing counter; never guesses a replacement floor.
+    ///      Raising the floor invalidates earlier slash and aggregator-routed reputation
+    ///      proposals executed through the current DVT, including after reactivation.
     function setDVTValidator(address _dv) external onlyOwner {
         uint256 floor = DVT_VALIDATOR == address(0) ? proposalFloor : IDVTValidator(DVT_VALIDATOR).nextProposalId();
         _setDVTValidator(_dv, floor);

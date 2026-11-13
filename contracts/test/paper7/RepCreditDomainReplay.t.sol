@@ -382,11 +382,73 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         assertTrue(active);
     }
 
-    // =================================================================
-    // Helpers
-    // =================================================================
+    function test_PostRotationDvtReputationUpdateExecutes() public {
+        _skipWithoutPrague();
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        uint256 oldId = oldDvt.createProposal(address(0), 0, "before rotation");
 
-    /// @notice Rotation allocates fresh DVT IDs; it does not revoke unused Registry authorizations.
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        next.addValidator(validators[0]);
+        aggA.setDVTValidator(address(next));
+        assertEq(aggA.proposalFloor(), oldId + 1);
+        vm.prank(validators[0]);
+        uint256 id = next.createProposal(address(0), 0, "post-rotation reputation");
+        assertEq(id, aggA.proposalFloor(), "the fresh floor itself is executable");
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory proof = _proof(_reputationHash(address(aggA), address(registry), block.chainid, id, users, scores, 1), 3);
+
+        assertEq(registry.globalReputation(users[0]), 0);
+        vm.prank(validators[0]);
+        next.executeWithProof(id, users, scores, 1, proof);
+        assertEq(registry.globalReputation(users[0]), 50);
+        assertTrue(aggA.executedProposals(id));
+        (,,, bool executed,,) = next.proposals(id);
+        assertTrue(executed);
+        assertFalse(aggA.executedProposals(oldId));
+    }
+
+    /// @notice Documented owner-mediated residual: owner-direct verifyAndExecute
+    ///         can execute a caller-chosen id below the floor after rotation.
+    /// @dev Keep an existing proposal on the reactivated DVT to satisfy its callback;
+    ///      the genuine proof and all replay checks still apply to the owner's call.
+    function test_OwnerDirectLowIdStillExecutesAfterRotation() public {
+        _skipWithoutPrague();
+        uint256 callerChosenId = 41;
+        DVTValidator oldDvt = new DVTValidator(address(registry), callerChosenId);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        assertEq(oldDvt.createProposal(address(0), 0, "pending reputation"), callerChosenId);
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory proof = _proof(
+            _reputationHash(address(aggA), address(registry), block.chainid, callerChosenId, users, scores, 1), 3
+        );
+
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        aggA.setDVTValidator(address(next));
+        aggA.setDVTValidator(address(oldDvt));
+        assertEq(aggA.proposalFloor(), callerChosenId + 1);
+        assertLt(callerChosenId, aggA.proposalFloor());
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
+        vm.prank(validators[0]);
+        oldDvt.executeWithProof(callerChosenId, users, scores, 1, proof);
+
+        assertEq(registry.globalReputation(users[0]), 0);
+        aggA.verifyAndExecute(callerChosenId, address(0), 0, users, scores, 1, bytes32(0), proof);
+        assertEq(registry.globalReputation(users[0]), 50, "owner-direct low id executes after rotation");
+        assertTrue(aggA.executedProposals(callerChosenId));
+        (,,, bool executed,,) = oldDvt.proposals(callerChosenId);
+        assertTrue(executed);
+    }
+
+    /// @notice Rotation rejects stale current-DVT execution but preserves unused authorized Registry proofs.
     /// @dev Regression for the scope of the guarantee (review F7), not a signature-generation change.
     function test_RotationAllocationFloorPreservesAuthorizedRegistryProof() public {
         if (!pragueAvailable) { vm.skip(true); return; }
@@ -402,12 +464,23 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         next.setBLSAggregator(address(aggA));
         aggA.setDVTValidator(address(next));
         assertEq(next.nextProposalId(), id + 1, "DVT allocation cannot reuse pending ID");
+        aggA.setDVTValidator(address(oldDvt));
+        assertLt(id, aggA.proposalFloor());
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
+        vm.prank(validators[0]);
+        oldDvt.executeWithProof(id, users, scores, 1, proof);
+        assertEq(registry.globalReputation(users[0]), 0, "stale current-DVT execution cannot update reputation");
+        assertFalse(aggA.executedProposals(id));
         registry.setReputationSource(address(this), true);
         registry.batchUpdateGlobalReputation(id, users, scores, 1, proof);
         assertEq(registry.globalReputation(users[0]), 50, "authorized direct Registry proofs survive rotation");
         assertFalse(aggA.executedProposals(id), "direct Registry route has its own replay state");
         assertEq(aggA.proposalSignersCommitment(id), bytes32(0));
     }
+
+    // =================================================================
+    // Helpers
+    // =================================================================
 
     mapping(address => DVTValidator) private gateways;
 
