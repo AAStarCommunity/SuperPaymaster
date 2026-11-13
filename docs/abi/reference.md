@@ -8589,7 +8589,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1d2282c9` | `cancelAPNTsTokenChange()` | nonpayable | onlyOwner | Abort a queued APNTS_TOKEN swap before it executes. |
 | `0x0c883112` | `cancelEmergencyPrice()` | nonpayable | onlyOwner | Cancel a queued emergency price. |
 | `0xec11fa81` | `cancelGasParams()` | nonpayable | onlyOwner |  |
-| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). Idempotent. |
+| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). Idempotent; emits only when a flag or         a queue record (including an expired guardian queue) was actually cleared. |
 | `0x5c7c4b5f` | `configureOperator(address,address)` | nonpayable | — | Registers msg.sender as an operator with the given xPNTs token (must be the token the         wired factory issued for msg.sender, and a balance-mode v2 token). |
 | `0xd0e30db0` | `deposit()` | payable | — |  |
 | `0x60d7442b` | `EMERGENCY_TIMELOCK()` | view | — |  |
@@ -8775,7 +8775,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xfcc6bd8a` · nonpayable · access: onlyOwner
 
-> Cancel a previously queued slash (owner only). Idempotent.
+> Cancel a previously queued slash (owner only). Idempotent; emits only when a flag or         a queue record (including an expired guardian queue) was actually cleared.
 
 | param | type | description |
 |---|---|---|
