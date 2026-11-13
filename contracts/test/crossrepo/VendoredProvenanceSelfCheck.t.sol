@@ -21,7 +21,7 @@ import "forge-std/Test.sol";
  *
  *         What this file can and cannot do:
  *           - CAN, offline, with no new infrastructure: re-run each header's own recipe
- *             ("strip N header lines, reverse the one declared deviation, sha256 the rest")
+ *             ("strip N header lines, reverse the declared deviations, sha256 the rest")
  *             and require the result to equal the upstream digest the header names. That
  *             catches any local edit to a vendored BODY. The header is NOT covered by
  *             that recipe — it is stripped before hashing — so the whole file is pinned
@@ -58,16 +58,19 @@ contract VendoredProvenanceSelfCheck is Test {
     ///      say nothing about the header — and the header is where the provenance claim
     ///      lives. Updating a vendored copy has to touch these constants deliberately.
     bytes32 internal constant VERIFIER_FILE_SHA =
-        0x1e5fd65daf17fba09cfe3d6ad548c2cb116462284941f1d9db832c79f0f4e875;
+        0xfd98b6b74fe2b3196c8914d1aa09ab11e02bc9f9b8acb0425969f136fd166ff7;
     bytes32 internal constant IFACE_FILE_SHA =
         0x730c30c56622e6cd82769bf252b47ad9f50bac5f17c2f7e68af049367418c17a;
 
-    /// @dev The single declared deviation in the verifier copy: both vendored files sit side
+    /// @dev The import-path deviation in the verifier copy: both vendored files sit side
     ///      by side here, so the interface import is relative to this directory instead of
-    ///      upstream's src/interfaces. Reversing it must reproduce upstream byte-for-byte.
+    ///      upstream's src/interfaces. Both this rewrite and the virtual addition below
+    ///      must be reversed to reproduce upstream byte-for-byte.
     string internal constant LOCAL_IMPORT = 'import {IFraudProofVerifier} from "./IFraudProofVerifier.sol";';
     string internal constant UPSTREAM_IMPORT =
         'import {IFraudProofVerifier} from "../interfaces/IFraudProofVerifier.sol";';
+    string internal constant LOCAL_VERIFY = ") external view virtual override returns (bool) {";
+    string internal constant UPSTREAM_VERIFY = ") external view override returns (bool) {";
 
     /// The header is part of the claim, so pin the whole file too. The body assertions
     /// strip the header before hashing and are blind to it by construction; editing the
@@ -88,17 +91,18 @@ contract VendoredProvenanceSelfCheck is Test {
         );
     }
 
-    /// The verifier copy declares exactly one deviation. Reverse precisely that, and the
-    /// result must be upstream. A second, undeclared deviation therefore fails here — which
+    /// The verifier copy declares exactly two deviations. Reverse precisely both, and the
+    /// result must be upstream. Any further, undeclared deviation therefore fails here — which
     /// is the whole reason the header states the deviation in reversible form ("from X to Y")
     /// rather than as "some necessary path adjustments".
     function test_VendoredVerifierStillHashesToUpstreamOnceTheDeclaredDeviationIsReversed() public view {
         bytes memory body = _stripLines(bytes(vm.readFile(VERIFIER_PATH)), VERIFIER_HEADER_LINES);
         bytes memory restored = _replaceOnce(body, bytes(LOCAL_IMPORT), bytes(UPSTREAM_IMPORT));
+        restored = _replaceOnce(restored, bytes(LOCAL_VERIFY), bytes(UPSTREAM_VERIFY));
         assertEq(
             sha256(restored),
             VERIFIER_UPSTREAM_SHA,
-            "vendored OverIssueFraudProofVerifier no longer reproduces upstream once its one declared deviation is reversed"
+            "vendored OverIssueFraudProofVerifier no longer reproduces upstream once both declared deviations are reversed"
         );
     }
 
@@ -107,14 +111,15 @@ contract VendoredProvenanceSelfCheck is Test {
     /// could grow or shrink and the recipe would silently describe a different file.
     function test_HeaderLineCountsArePinnedNotApproximate() public view {
         bytes memory raw = bytes(vm.readFile(VERIFIER_PATH));
+        assertEq(sha256(_restore(_stripLines(raw, VERIFIER_HEADER_LINES))), VERIFIER_UPSTREAM_SHA, "correct slicing must match before testing offsets");
         for (uint256 off = 1; off <= 2; ++off) {
             assertTrue(
-                sha256(_replaceOnce(_stripLines(raw, VERIFIER_HEADER_LINES - off), bytes(LOCAL_IMPORT), bytes(UPSTREAM_IMPORT)))
+                sha256(_restore(_stripLines(raw, VERIFIER_HEADER_LINES - off)))
                     != VERIFIER_UPSTREAM_SHA,
                 "stripping FEWER lines than declared must not also match"
             );
             assertTrue(
-                sha256(_replaceOnce(_stripLines(raw, VERIFIER_HEADER_LINES + off), bytes(LOCAL_IMPORT), bytes(UPSTREAM_IMPORT)))
+                sha256(_restore(_stripLines(raw, VERIFIER_HEADER_LINES + off)))
                     != VERIFIER_UPSTREAM_SHA,
                 "stripping MORE lines than declared must not also match"
             );
@@ -129,6 +134,10 @@ contract VendoredProvenanceSelfCheck is Test {
             sha256(body) != VERIFIER_UPSTREAM_SHA,
             "the un-reversed body must differ from upstream, or the deviation is not real"
         );
+    }
+
+    function _restore(bytes memory body) internal pure returns (bytes memory) {
+        return _replaceOnce(_replaceOnce(body, bytes(LOCAL_IMPORT), bytes(UPSTREAM_IMPORT)), bytes(LOCAL_VERIFY), bytes(UPSTREAM_VERIFY));
     }
 
     // ---- helpers ----
