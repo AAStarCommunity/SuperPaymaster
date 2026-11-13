@@ -104,6 +104,8 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     function setOperatorPaused(address operator, bool isPaused) external {
         _requirePauseAuthority(isPaused);
         if (!isPaused && !_hasEffectiveSuperStake(operator)) revert Unauthorized();
+        // Events mark transitions only: a repeat call must not re-attribute the current state.
+        if (operators[operator].isPaused == isPaused) return;
         operators[operator].isPaused = isPaused;
         if (isPaused) {
             emit OperatorPaused(operator, msg.sender, msg.sender == owner() ? OWNER_PAUSE : GUARDIAN_PAUSE);
@@ -599,8 +601,10 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         emit BlsSlashCooldownPrimed(_blsSlashCdFloor);
     }
 
-    /// @notice Cancel a previously queued slash (owner only). Idempotent.
+    /// @notice Cancel a previously queued slash (owner only). Idempotent; emits only when a flag or
+    ///         a queue record (including an expired guardian queue) was actually cleared.
     function cancelSlash(address operator) external onlyOwner {
+        if (!_pendingSlash[operator] && slashQueues[operator].queuedAt == 0) return;
         _clearSlashQueue(operator);
         emit SlashCancelled(operator, msg.sender);
     }

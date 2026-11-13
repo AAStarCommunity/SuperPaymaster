@@ -203,13 +203,49 @@ contract EventAttributionTest is Test {
 
     /// @dev Absence check with a live instrument: the selector must match the declared event.
     function _assertNoPauseEvent() internal {
-        bytes32 topic = keccak256("OperatorPaused(address,address,uint8)");
+        _assertNoEvent(keccak256("OperatorPaused(address,address,uint8)"), "slash must not re-attribute an existing pause");
+    }
+
+    function _assertNoEvent(bytes32 topic, string memory why) internal {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         for (uint256 i = 0; i < logs.length; ++i) {
             if (logs[i].emitter == address(sp) && logs[i].topics.length > 0) {
-                assertTrue(logs[i].topics[0] != topic, "slash must not re-attribute an existing pause");
+                assertTrue(logs[i].topics[0] != topic, why);
             }
         }
+    }
+
+    /// @dev Live instrument for _assertNoEvent: the same recording does see a real transition.
+    function test_NoEventInstrument_SeesARealPause() public {
+        vm.recordLogs();
+        vm.prank(guardian);
+        sp.setOperatorPaused(operator, true);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool seen;
+        for (uint256 i = 0; i < logs.length; ++i) {
+            if (logs[i].emitter == address(sp) && logs[i].topics[0] == keccak256("OperatorPaused(address,address,uint8)")) seen = true;
+        }
+        assertTrue(seen, "instrument must see a real OperatorPaused");
+    }
+
+    function test_GuardianRepeatPause_AfterOwnerPause_NoReattribution() public {
+        vm.prank(owner);
+        sp.setOperatorPaused(operator, true);
+        vm.recordLogs();
+        vm.prank(guardian);
+        sp.setOperatorPaused(operator, true);
+        _assertNoEvent(keccak256("OperatorPaused(address,address,uint8)"), "a repeat pause must not re-attribute the pause");
+        (,, bool paused,,,,,,) = sp.operators(operator);
+        assertTrue(paused, "operator stays paused");
+    }
+
+    function test_OwnerRepeatUnpause_NoEvent() public {
+        (,, bool paused,,,,,,) = sp.operators(operator);
+        assertFalse(paused, "precondition: unpaused");
+        vm.recordLogs();
+        vm.prank(owner);
+        sp.setOperatorPaused(operator, false);
+        _assertNoEvent(keccak256("OperatorUnpaused(address,address,uint8)"), "unpausing an unpaused operator must not emit");
     }
 
     function test_BLSMajorSlash_PreservesExternalCaller() public {
@@ -245,6 +281,35 @@ contract EventAttributionTest is Test {
         vm.expectEmit(true, true, true, true);
         emit SlashCancelled(operator, owner);
         sp.cancelSlash(operator);
+    }
+
+    function test_CancelSlash_NoQueue_NoEvent() public {
+        vm.recordLogs();
+        vm.prank(owner);
+        sp.cancelSlash(operator);
+        _assertNoEvent(keccak256("SlashCancelled(address,address)"), "nothing queued: no SlashCancelled");
+    }
+
+    function test_CancelSlash_Twice_SecondIsSilent() public {
+        _queue(guardian);
+        vm.prank(owner);
+        sp.cancelSlash(operator);
+        vm.recordLogs();
+        vm.prank(owner);
+        sp.cancelSlash(operator);
+        _assertNoEvent(keccak256("SlashCancelled(address,address)"), "second cancel must not emit");
+    }
+
+    function test_CancelSlash_ExpiredGuardianQueue_StillClearsAndEmits() public {
+        _queue(guardian);
+        vm.warp(block.timestamp + sp.GUARDIAN_SLASH_FREEZE() + 1);
+        assertFalse(sp.isSlashPending(operator), "precondition: guardian queue expired");
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit SlashCancelled(operator, owner);
+        sp.cancelSlash(operator);
+        (, uint48 queuedAt,) = sp.slashQueues(operator);
+        assertEq(queuedAt, 0, "expired queue record is cleared");
     }
 
     function test_UpdateReputation_Owner() public {
