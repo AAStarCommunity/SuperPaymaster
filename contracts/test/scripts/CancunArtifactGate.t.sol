@@ -3,7 +3,14 @@ pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
 import {T4ArtifactReader} from "../../script/v3/DefaultArtifacts.sol";
+// Imported so APNTsCapped is compiled into this run's output root even under --match-path.
 import {APNTsCapped} from "../../src/tokens/APNTsCapped.sol";
+
+/// @dev Compiled in the same compiler job as the gate, so its creation code always matches its
+///      own artifact. A dependency's embedded code need not: CI's test job runs
+///      `forge build --skip test` and then `forge test`, which compiles APNTsCapped again for the
+///      test files, and `type(APNTsCapped).creationCode` then matches no artifact.
+contract CompilationProbe {}
 
 /// @notice Skip only a positively identified non-Cancun compilation, never resolver failures.
 abstract contract CancunArtifactGate is Test {
@@ -12,21 +19,31 @@ abstract contract CancunArtifactGate is Test {
         if (nonCancun) vm.skip(true, string.concat("non-cancun compilation: evmVersion=", evm));
     }
 
-    /// @dev The skip decision, separate from vm.skip so the control test can assert it.
+    /// @dev The skip decision, separate from vm.skip so the control test can assert it. The
+    ///      compilation is identified by the probe's artifact in this run's output root.
     function _isNonCancunCompilation() internal view returns (bool nonCancun, string memory evm) {
-        (bool known, string memory json) = _liveArtifact();
+        (bool known, string memory probe) = _probeArtifact();
         if (!known) return (false, "");
-        evm = vm.parseJsonString(json, ".metadata.settings.evmVersion");
+        evm = vm.parseJsonString(vm.readFile(probe), ".metadata.settings.evmVersion");
         nonCancun = bytes(evm).length != 0 && keccak256(bytes(evm)) != keccak256("cancun");
     }
 
-    /// @dev This run's own artifact. An `--out` outside the project (the executed-inventory
-    ///      runner and the fuzz gate write under the evidence dir) is outside fs_permissions
-    ///      ("./"), so such a run is "not identified" and the suite runs against the
-    ///      profile.default artifacts. Inside the project every read error propagates.
+    /// @dev An `--out` outside the project (the executed-inventory runner and the fuzz gate
+    ///      write under the evidence dir) is outside fs_permissions ("./"), so such a run is
+    ///      "not identified" and the suite runs against the profile.default artifacts. Inside
+    ///      the project every read error propagates.
+    function _probeArtifact() internal view returns (bool known, string memory path) {
+        path = vm.getArtifactPathByCode(type(CompilationProbe).creationCode);
+        known = vm.indexOf(path, string.concat(vm.projectRoot(), "/")) == 0;
+    }
+
+    /// @dev APNTsCapped's artifact in this run's output root, next to the probe's.
     function _liveArtifact() internal view returns (bool known, string memory json) {
-        string memory path = vm.getArtifactPathByCode(type(APNTsCapped).creationCode);
-        if (vm.indexOf(path, string.concat(vm.projectRoot(), "/")) != 0) return (false, "");
+        string memory probe;
+        (known, probe) = _probeArtifact();
+        if (!known) return (false, "");
+        string memory path = vm.replace(probe, "/CancunArtifactGate.t.sol/CompilationProbe.json", "/APNTsCapped.sol/APNTsCapped.json");
+        require(keccak256(bytes(path)) != keccak256(bytes(probe)), string.concat("unexpected probe artifact path: ", probe));
         return (true, vm.readFile(path));
     }
 }
@@ -87,7 +104,7 @@ contract NonCancunArtifactControlTest is CancunArtifactGate {
         assertEq(vm.parseJsonString(badRuns, ".metadata.settings.evmVersion"), "cancun");
         assertFalse(reader.isDefaultArtifact("APNTsCapped", badRuns), "non-default runs must not resolve");
         // The skip decision: an unidentified or cancun compilation runs the suites.
-        (bool nonCancun,) = _isNonCancunCompilation();
+        (bool nonCancun, string memory probeEvm) = _isNonCancunCompilation();
         // This run's own artifact, when identified: a non-cancun compilation never resolves.
         if (!known) {
             emit log_string("live APNTsCapped artifact outside the project: not identified");
@@ -96,11 +113,15 @@ contract NonCancunArtifactControlTest is CancunArtifactGate {
         }
         emit log_string(string.concat("live APNTsCapped evmVersion=", evm));
         if (keccak256(bytes(evm)) == keccak256("cancun")) {
-            assertFalse(nonCancun, "a cancun compilation must run the suites");
             assertTrue(reader.isDefaultArtifact("APNTsCapped", live));
         } else {
-            assertTrue(nonCancun, "a non-cancun compilation must skip the suites");
             assertFalse(reader.isDefaultArtifact("APNTsCapped", live), "non-cancun artifact must not resolve");
+        }
+        emit log_string(string.concat("probe evmVersion=", probeEvm));
+        if (keccak256(bytes(probeEvm)) == keccak256("cancun")) {
+            assertFalse(nonCancun, "a cancun compilation must run the suites");
+        } else {
+            assertTrue(nonCancun, "a non-cancun compilation must skip the suites");
         }
     }
 
