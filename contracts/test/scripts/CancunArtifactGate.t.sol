@@ -8,10 +8,21 @@ import {APNTsCapped} from "../../src/tokens/APNTsCapped.sol";
 /// @notice Skip only a positively identified non-Cancun compilation, never resolver failures.
 abstract contract CancunArtifactGate is Test {
     function _skipNonCancunCompilation() internal {
-        string memory json = vm.readFile(vm.getArtifactPathByCode(type(APNTsCapped).creationCode));
-        string memory evm = vm.parseJsonString(json, ".metadata.settings.evmVersion");
-        if (bytes(evm).length != 0 && keccak256(bytes(evm)) != keccak256("cancun")) {
+        (bool known, string memory evm) = _liveArtifact();
+        if (known) evm = vm.parseJsonString(evm, ".metadata.settings.evmVersion");
+        if (known && bytes(evm).length != 0 && keccak256(bytes(evm)) != keccak256("cancun")) {
             vm.skip(true, string.concat("non-cancun compilation: evmVersion=", evm));
+        }
+    }
+
+    /// @dev This run's own artifact. An `--out` outside fs_permissions (the executed-inventory
+    ///      runner writes under the evidence dir) makes it unreadable; that is "not identified",
+    ///      so the suite runs against profile.default artifacts instead of skipping.
+    function _liveArtifact() internal view returns (bool ok, string memory json) {
+        try vm.readFile(vm.getArtifactPathByCode(type(APNTsCapped).creationCode)) returns (string memory j) {
+            return (true, j);
+        } catch {
+            return (false, "");
         }
     }
 }
@@ -42,10 +53,15 @@ contract ArtifactPredicateHarness is T4ArtifactReader {
 ///      cancun profile.default; prague evmVersion and non-default optimizer runs are rejected.
 contract NonCancunArtifactControlTest is CancunArtifactGate {
     function test_nonCancunProfileDefault_doesNotResolve() public {
-        string memory json = vm.readFile(vm.getArtifactPathByCode(type(APNTsCapped).creationCode));
-        string memory evm = vm.parseJsonString(json, ".metadata.settings.evmVersion");
-        emit log_string(string.concat("live APNTsCapped evmVersion=", evm));
         ArtifactPredicateHarness reader = new ArtifactPredicateHarness();
+        (bool known, string memory json) = _liveArtifact();
+        if (!known) {
+            // Live artifact outside fs_permissions: control the predicate on the resolved default one.
+            emit log_string("live APNTsCapped artifact unreadable; using the profile.default artifact");
+            json = vm.readFile(reader.t4DefaultArtifact("APNTsCapped"));
+        }
+        string memory evm = vm.parseJsonString(json, ".metadata.settings.evmVersion");
+        emit log_string(string.concat("APNTsCapped evmVersion=", evm));
         if (keccak256(bytes(evm)) == keccak256("cancun")) {
             assertTrue(reader.isDefaultArtifact("APNTsCapped", json));
             string memory prague = vm.replace(json, '"evmVersion":"cancun"', '"evmVersion":"prague"');
