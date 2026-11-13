@@ -643,6 +643,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x6a627842` | `mint(address)` | TestSBT |
 | `0x6b09de45` | `repayDebt(uint256)` | xPNTsTokenV2Ext |
 | `0x6b09de45` | `repayDebt(uint256)` | xPNTsToken |
+| `0x6b3da550` | `resetNFTHoldStart(address,address)` | ReputationSystem |
 | `0x6b683896` | `getImplementation(string)` | PaymasterFactory |
 | `0x6bdb96f6` | `guardianExitCooldownUntil(address)` | BLSAggregator |
 | `0x6c583e59` | `paymasterByOperator(address)` | PaymasterFactory |
@@ -1852,6 +1853,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xfce698f7` | `ECDSAInvalidSignatureLength(uint256)` | APNTsCapped |
 | `0xfd684c3b` | `InvalidUser()` | MySBT |
 | `0xfdc8ad38` | `X402FeeExceedsMax()` | X402Facilitator |
+| `0xfe575d41` | `StillHoldsNFT()` | ReputationSystem |
 | `0xfefa4dc9` | `NotFactoryToken()` | xPNTsFactoryV2 |
 | `0xfeffcf0a` | `RecoveryNotComplete()` | xPNTsTokenV2 |
 
@@ -1992,6 +1994,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925` | `Approval(address,address,uint256)` | MockUSDT |
 | `0x8d05946ad7acf1695cdb2c1c7b76b11a907b33e5224f086eea17d6a23841e17f` | `DebtRecordFailed(address,address,uint256)` | SuperPaymaster |
 | `0x8d40190be3ba9bd5405f39db59a71214e7e4dd9715cfe657b2970b0538ab9086` | `StandbyDesignated(address)` | xPNTsTokenV2 |
+| `0x901ee7b9b0e25f780300b01a125d1fa7351ebfe86c59ac33ec7030b62f21e43e` | `NFTHoldStartReset(address,address)` | ReputationSystem |
 | `0x90de8705b1aaf3966be0e8ec8acf9aed10a6d3d0d572ec8f96112409e2820c61` | `DAOMultisigUpdated(address,address,uint256)` | MySBT |
 | `0x9255a7c0ff8f13508480e90b4262cef466dd9c1bf72a08ab689bbf3fe2083a5c` | `SpenderDisabledByUser(address,address,bool)` | xPNTsTokenV2 |
 | `0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec` | `AgentRegistriesUpdated(address,address)` | SuperPaymaster |

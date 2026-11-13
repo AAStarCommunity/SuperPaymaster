@@ -4254,10 +4254,10 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `baseScore` | `uint256` | Base score from membership |
+| `baseScore` | `uint256` | Rule base total after the community multiplier has already been applied |
 | `nftBonus` | `uint256` | Bonus from bound NFTs |
 | `activityBonus` | `uint256` | Bonus from recent activity |
-| `multiplier` | `uint256` | Community-specific multiplier (100 = 1x) |
+| `multiplier` | `uint256` | Community factor in 1e18 units (1e18 = 1x); do not multiply baseScore again |
 
 #### `version()`
 
@@ -6872,7 +6872,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## ReputationSystem
 
 - **Source:** `contracts/src/modules/reputation/ReputationSystem.sol`
-- **Functions:** 24 · **Events:** 6 · **Errors:** 9
+- **Functions:** 25 · **Events:** 7 · **Errors:** 10
 - **Title:** ReputationSystem
 - Advanced reputation calculation and management for the Mycelium Ecosystem.
 
@@ -6896,13 +6896,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x6b3da550` | `resetNFTHoldStart(address,address)` | nonpayable | — | Clear a user's registration age after they no longer own the boosted NFT. |
 | `0x097f6b7c` | `setCommunityReputation(address,address,uint256)` | nonpayable | — | Set specific community reputation score (called by DVT/Trusted Source) |
 | `0x4a2357b9` | `setEntropyFactor(address,uint256)` | nonpayable | onlyOwner | Governance sets the Entropy Factor for a community. |
 | `0x30cd71a8` | `setNFTBoost(address,uint256)` | nonpayable | onlyOwner |  |
 | `0x6df80b4e` | `setRule(bytes32,uint256,uint256,uint256,string)` | nonpayable | — | Community admins can set their own scoring rules. |
 | `0x9172ff45` | `syncToRegistry(address,address[],bytes32[][],uint256[][],uint256,bytes)` | nonpayable | — | Sync computed reputation score to the Registry for the given user. |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
-| `0x2f446881` | `updateNFTHoldStart(address)` | nonpayable | — | Manually update NFT hold start time for reputation boost |
+| `0x2f446881` | `updateNFTHoldStart(address)` | nonpayable | — | Register the waiting period for an NFT reputation boost. |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
 ### Functions
@@ -7032,7 +7033,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `ruleIds` | `bytes32[]` | Array of active rule identifiers |
+| `ruleIds` | `bytes32[]` | Array of active rule identifiers; order may change on removal |
 
 #### `getReputationBreakdown(address user, address community, uint256 arg2)`
 
@@ -7107,6 +7108,19 @@ Authoritative, auto-generated reference for every external/public function, even
 `0x715018a6` · nonpayable · access: —
 
 *@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
+
+#### `resetNFTHoldStart(address user, address collection)`
+
+`0x6b3da550` · nonpayable · access: —
+
+> Clear a user's registration age after they no longer own the boosted NFT.
+
+*@dev* Permissionless watcher resets improve freshness but cannot prove strict      continuity for third-party collections without transfer hooks.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `collection` | `address` |  |
 
 #### `setCommunityReputation(address community, address user, uint256 score)`
 
@@ -7191,9 +7205,9 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x2f446881` · nonpayable · access: —
 
-> Manually update NFT hold start time for reputation boost
+> Register the waiting period for an NFT reputation boost.
 
-*@dev* Users must call this after acquiring a boosted NFT. Boost starts 7 days later.
+*@dev* Eligibility starts seven days later and also requires current ownership.      This records registration age, not continuous ownership history.
 
 | param | type | description |
 |---|---|---|
@@ -7216,6 +7230,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6c1649831c4a2bebf79dfe8a2623ce1f5c65c9ab62903600dc011ee60a11c408` | `CommunityReputationUpdated(address,address,uint256)` |
 | `0x21281390931aaf470d02c340b1ca10fabd02c8d7cdd1efcdbb3dc3fe5a0d0749` | `EntropyFactorUpdated(address,uint256)` |
 | `0xcde4878b12c6b6c93c3eb3433ffbfdb24eb29698d8ac6ac98caf5db49d823457` | `NFTBoostAdded(address,uint256)` |
+| `0x901ee7b9b0e25f780300b01a125d1fa7351ebfe86c59ac33ec7030b62f21e43e` | `NFTHoldStartReset(address,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0xdb8ed69eccdb6ff5105e3934ba9b515bb1b9d366e3a0c25a5f852ee20b6783e2` | `ReputationComputed(address,uint256)` |
 | `0x868a11f79934bfa7243fd979d39bf00f37050e24b3ffc20a11f12a8b7e48d995` | `RuleUpdated(address,bytes32,uint256,uint256)` |
@@ -7232,6 +7247,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xea8e4eb5` | `NotAuthorized()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0xfe575d41` | `StillHoldsNFT()` |
 | `0x82b42900` | `Unauthorized()` |
 
 ## BasePaymasterUpgradeable
