@@ -1,8 +1,8 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-11-13T11:27:31Z",
-  "totalHash": "0466af1764b873cbf9201cb79b646808f1f86086b54a9168fb558292a74064e4",
+  "buildTime": "2026-11-13T11:40:55Z",
+  "totalHash": "c9db13ce36285dad2e350a8398be384e44e2a15b503ee8d1763469095cf040e0",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
@@ -33,7 +33,7 @@
     { "name": "xPNTsFactory.json", "hash": "d90511e08d19146af0207a386701232774c5b2c3db3cb9bff81e06f42af78a5d" },
     { "name": "xPNTsFactoryV2.json", "hash": "959eadd9840650ff6a7d2638aa0b7cdae4e08456b71d9203efca65804a15d5e6" },
     { "name": "xPNTsToken.json", "hash": "e0fde871cb0292ba6133504b4a487b70870ec9fb73bb42440f4ea3f827528270" },
-    { "name": "xPNTsTokenV2.full.json", "hash": "e7def77e1cbfb6378a1cdf04b1e2191b2c995c9b252264c9ca582d0c7b703826" },
+    { "name": "xPNTsTokenV2.full.json", "hash": "97c85ae791b6fbbbbfdccf4106e3eeb576e32cad11a70f9ce4cefb44c62d5527" },
     { "name": "xPNTsTokenV2.json", "hash": "7da9d3e2b03974a40aaa8c559673196f739c9083f99f1a8e3d85d6e052839253" },
     { "name": "xPNTsTokenV2Ext.json", "hash": "0236725c882a15ba6329ddf326777bbd6e3fdb4cce1b163a016bd5eceaec7f61" }
   ]
