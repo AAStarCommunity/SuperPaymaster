@@ -11,7 +11,7 @@ The pre-existing OpenZeppelin v5.1.0 `package-lock.json` edit was preserved.
 
 ### C4-H-01: separate signing cutoff and withdrawal readiness
 
-`BLSAggregator-4.13.0` retains the two-day public notice. For request time `t`:
+`BLSAggregator-4.14.0` retains the two-day public notice. For request time `t`:
 
 - `readyAt = t + 2 days`: signing stops, exactly as before.
 - `withdrawAt = readyAt + GUARDIAN_FRAUD_CHALLENGE = t + 3 days`.
@@ -53,16 +53,34 @@ exact maturity, withdrawal at exact new expiry, and rejection one second later.
 Existing cutoff, cancellation, cooldown, expired-key exclusion and committee-floor
 tests remain in place; existing withdrawal/expiry timings were updated.
 
-### C4-L-01 deferred, C4-L-02 included
+### C4-L-01 and C4-L-02 fixed in rc.8 (BLSAggregator-4.14.0)
 
-C4-L-02 is included: generic `executeProposal` stores `proposalSignersCommitment` after signature
-verification and before calling the arbitrary target (test_GenericCommitmentIsStoredBeforeTargetCall,
+C4-L-02: generic `executeProposal` stores the signer commitment after signature verification and before
+calling the arbitrary target (test_GenericCommitmentIsStoredBeforeTargetCall,
 test_Prague_GenericProposalRecordsSigners).
 
-C4-L-01 is NOT fixed in rc.8. A first attempt removed the generic-path `markProposalExecuted` callback; the
-Daybreak re-review showed that generic and slash proposals still share `executedProposals`, so a fresh generic
-id could then pre-consume a slash proposal id that DVTValidator allocates later (a new reachable path). The
-callback is restored exactly as before rc.8 and C4-L-01 is deferred to 5.5.1 (disjoint id namespaces).
+C4-L-01: generic and slash proposals no longer share one id space. This supersedes the 11-09 note that
+deferred C4-L-01 to 5.5.1; DSR then ruled it into rc.8, together with the typed keys and
+MAX_VALIDATORS = 64 (commit "typed replay/commitment keys, anchored signer commitments, MAX_VALIDATORS 64").
+- The generic path keys replay protection and its commitment by
+  `uint256(keccak256(abi.encode(TAG_PROPOSAL, proposalId)))`. The `markProposalExecuted` callback to
+  DVTValidator is removed, so a generic id can no longer pre-consume a slash id that DVTValidator allocates
+  later.
+- Raw slash and reputation ids must be below 2^128 (`InvalidProposalId`), which separates them from the
+  keccak-derived generic and queue keys by 128 bits.
+- Each path stores its commitment under its own key, and the commitment also binds
+  `blockhash(block.number - 1)`. Every write emits `SignersCommitted(key, signerMask)`.
+- MAX_VALIDATORS is 64, and slot 65 reverts with `SlotOutOfRange`.
+
+Tests that run on Prague with genuine keys:
+- both paths keep both commitments: test_QueueSlashGeneric_OverlappingInputsKeepAllCommitments;
+- the crafted collision: test_SlashRawIdEqualToGenericKeyCannotOverwriteGenericCommitment;
+- slot 65: test_RegisterBLSPublicKey_SlotAboveMax_Reverts, test_Verify_RejectsBitsBeyondMaxValidators;
+- the typed key per path in the recompute: test_QueueSlashGeneric_OverlappingInputsKeepAllCommitments,
+  test_GenericCommitmentIsStoredBeforeTargetCall.
+
+Version: `BLSAggregator-4.14.0`. Main had already carried `4.13.0` for the build with C4-L-01 deferred.
+That build was never deployed, but two bytecodes must not share a version.
 
 ### C2-01: invalidate stale standby roles
 

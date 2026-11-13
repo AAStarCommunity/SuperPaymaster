@@ -47,6 +47,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - [IRegistryStakingAwareBLS](#iregistrystakingawarebls) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [ISuperPaymasterSlash](#isuperpaymasterslash) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [DVTValidator](#dvtvalidator) — `contracts/src/modules/monitoring/DVTValidator.sol`
+- [IBLSKeyRevoker](#iblskeyrevoker) — `contracts/src/modules/monitoring/DVTValidator.sol`
 - [IRegistryStakingAware](#iregistrystakingaware) — `contracts/src/modules/monitoring/DVTValidator.sol`
 - [ReputationSystem](#reputationsystem) — `contracts/src/modules/reputation/ReputationSystem.sol`
 - [BasePaymasterUpgradeable](#basepaymasterupgradeable) — `contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol`
@@ -5416,7 +5417,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BLSAggregator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 77 · **Events:** 32 · **Errors:** 56
+- **Functions:** 77 · **Events:** 33 · **Errors:** 56
 - **Title:** BLSAggregator
 - BLS signature aggregation and verification for DVT slash consensus (V3)
 
@@ -5474,7 +5475,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x79cada55` | `reputationMessageHash(uint256,address[],uint256[],uint256)` | view | — | Canonical reputation-batch pre-image. MUST stay byte-identical to         `Registry._reputationMessageHash` — Registry independently re-verifies         the same signature, and any divergence turns every reputation proposal         into an unexplained `BLSFailed`. |
 | `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens. |
-| `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | onlyOwner | Revoke a previously registered BLS validator key. |
+| `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | — | Revoke a previously registered BLS validator key. |
 | `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set default threshold for legacy calls (verifyAndExecute) |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner |  |
 | `0x8f857b3e` | `setGuardianSlashBps(uint16)` | nonpayable | — | Set the fraction of a colluding guardian's lock burned per slash. |
@@ -5994,7 +5995,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Step 1 of the two-step slash: a DVT quorum pre-flags `operator` for         slashing (SP.queueSlash), blocking their withdraw until the slash is         executed (verifyAndExecute) or the owner cancels it. Kept SEPARATE         from execution so the flag lands in an earlier tx — closing the         front-run window an atomic queue+execute would reopen.
 
-*@dev* Dedicated (not the generic executeProposal) so it (a) is gated at the         per-severity slash threshold, (b) does NOT consume a proposalId /         executedProposals slot (queueSlash is idempotent — re-flagging is a         no-op), leaving the execute-step proposalId intact, and (c) requires a         real quorum, so no single validator can DoS an operator's withdraw.         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof         can never be replayed as an execute proof.
+*@dev* Dedicated (not the generic executeProposal) so it (a) is gated at the         per-severity slash threshold, (b) does NOT consume a proposalId /         executedProposals slot, leaving the execute-step proposalId intact (a         BLS re-queue is NOT a no-op on SP: it refreshes slashQueues provenance and         timestamp, emits again, and may revert during the BLS cooldown), and (c) requires a         real quorum, so no single validator can DoS an operator's withdraw.         The queue message is domain-separated ("QUEUE_SLASH") so a queue proof         can never be replayed as an execute proof.
 
 | param | type | description |
 |---|---|---|
@@ -6071,11 +6072,11 @@ Authoritative, auto-generated reference for every external/public function, even
 
 #### `revokeBLSPublicKey(address validator)`
 
-`0xb33a3a62` · nonpayable · access: onlyOwner
+`0xb33a3a62` · nonpayable · access: —
 
 > Revoke a previously registered BLS validator key.
 
-*@dev* P0 follow-up: stricter semantics than the prior idempotent stub.         Reverts with `KeyNotActive` if the key is not currently active so         off-chain operators get a clear failure signal instead of a         silent no-op. The full key bytes are intentionally preserved         (only `isActive` is cleared and `validatorAtSlot[slot]` is reset         to address(0)) so historical proofs that reference the slot can         still be audited via `getBLSPublicKey`. Re-registration of the         same validator must use `registerBLSPublicKey` again, which will         pass `_validateG1Point` and either reuse or claim a new slot.
+*@dev* P0 follow-up: stricter semantics than the prior idempotent stub.         Reverts with `KeyNotActive` if the key is not currently active so         off-chain operators get a clear failure signal instead of a         silent no-op. The full key bytes are intentionally preserved         (only `isActive` is cleared and `validatorAtSlot[slot]` is reset         to address(0)) so historical proofs that reference the slot can         still be audited via `getBLSPublicKey`. Re-registration of the         same validator must use `registerBLSPublicKey` again, which will         pass `_validateG1Point` and either reuse or claim a new slot.         The configured DVTValidator may also revoke a key so its         owner-only removal clears voting power atomically, subject to         the same committee-survival check as a voluntary exit. The         timelocked owner remains the emergency eviction override.
 
 | param | type | description |
 |---|---|---|
@@ -6383,6 +6384,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xf75669458e39b3e450bebdf8e3f8396a4ca0b4057017be244aa5af43321b2807` | `ProposalExecuted(uint256,address,bytes32)` |
 | `0x5ce6898a418ad55caa812016e4cdd4a200158714e584a9627d17df3369316ef3` | `ReputationEpochTriggered(uint256,uint256)` |
 | `0xc01e569e10d83e340f392c404e4d6006701961fc894f6ac91d65194b023f5ccc` | `SignatureAggregated(uint256,bytes,uint256)` |
+| `0xc8ca1b0c8f4d48918ac261651da1d4368d1857353a7436c0087f6ac29b9a4acc` | `SignersCommitted(uint256,uint256)` |
 | `0xdc03af820a47844ae941d24c94db31b6ecff21c6470f4c6b96932841ddab0e6a` | `SlashConsensusReached(uint256,uint8,uint256,bytes32)` |
 | `0x85137418138b73abf7daf3f3556f050e536be403436e0ee7649eaee69d1faaca` | `SlashExecuted(uint256,address,uint8)` |
 | `0x5a163cafd0e94f7603c97b468343661c51934d542f331a9fd362eb41072a8f49` | `SlashPolicyAdminUpdated(address,address)` |
@@ -6584,7 +6586,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## DVTValidator
 
 - **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
-- **Functions:** 18 · **Events:** 7 · **Errors:** 14
+- **Functions:** 18 · **Events:** 7 · **Errors:** 16
 - **Title:** DVTValidator
 - Distributed Validator Technology for operator monitoring (V3)
 
@@ -6605,7 +6607,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x349a2c26` | `pruneValidator(address)` | nonpayable | — | Permissionless eviction when a validator no longer meets the         role + stake requirements (P0 follow-up). |
 | `0x60153d92` | `queueSlashWithProof(address,uint8,uint256,bytes)` | nonpayable | — | Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal. |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
-| `0x40a141ff` | `removeValidator(address)` | nonpayable | onlyOwner | Owner-only forced removal — used when governance wants to evict         a validator regardless of their current role/stake state (e.g.         emergency response to an off-chain key compromise). |
+| `0x40a141ff` | `removeValidator(address)` | nonpayable | onlyOwner | Owner-only forced removal that also revokes configured BLS voting power. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0xbc959101` | `setBLSAggregator(address)` | nonpayable | onlyOwner |  |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
@@ -6745,7 +6747,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Permissionless eviction when a validator no longer meets the         role + stake requirements (P0 follow-up).
 
-*@dev* Anyone can call this. The function reverts (`ValidatorStillEligible`)         if the validator still has ROLE_DVT AND stake >= minStake — so it         only succeeds when there's a genuine drift between the local         flag and on-chain reality. This gives off-chain monitors / public-         goods bots a way to prune stale validators without waiting for         the owner. The BLS slot is NOT freed here; revocation of the BLS         key remains an `onlyOwner` action via `BLSAggregator.revokeBLSPublicKey`         to keep slot lifecycle decisions privileged.
+*@dev* Anyone can call this. The function reverts (`ValidatorStillEligible`)         if the validator still has ROLE_DVT AND stake >= minStake — so it         only succeeds when there's a genuine drift between the local         flag and on-chain reality. This gives off-chain monitors / public-         goods bots a way to prune stale validators without waiting for         the owner. The BLS slot is NOT freed here; use owner-only         `removeValidator` when BLS voting power must also be revoked.
 
 | param | type | description |
 |---|---|---|
@@ -6776,7 +6778,9 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x40a141ff` · nonpayable · access: onlyOwner
 
-> Owner-only forced removal — used when governance wants to evict         a validator regardless of their current role/stake state (e.g.         emergency response to an off-chain key compromise).
+> Owner-only forced removal that also revokes configured BLS voting power.
+
+*@dev* Reverts atomically if a configured aggregator cannot revoke the key.
 
 | param | type | description |
 |---|---|---|
@@ -6833,6 +6837,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | error |
 |---|---|
 | `0xb0bd6aca` | `AlreadySigned()` |
+| `0xb59f56e8` | `InvalidFirstProposalId(uint256)` |
 | `0x37603bef` | `NotActiveValidator(address)` |
 | `0x69d6514c` | `NotAuthorizedExecutor()` |
 | `0x2ec5b449` | `NotValidator()` |
@@ -6841,11 +6846,33 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
 | `0xd9c78e02` | `ProposalDoesNotExist()` |
 | `0x997a3f56` | `ProposalExecutedAlready()` |
+| `0x70a4109b` | `ProposalIdSpaceExhausted()` |
 | `0x204cba09` | `StakingNotConfigured()` |
 | `0x84536595` | `ValidatorMissingRole()` |
 | `0x6264d57f` | `ValidatorRoleRevoked(address)` |
 | `0x0208a005` | `ValidatorStakeBelowMinimum(uint256,uint256)` |
 | `0xc23285bd` | `ValidatorStillEligible(address)` |
+
+## IBLSKeyRevoker
+
+- **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | — |  |
+
+### Functions
+
+#### `revokeBLSPublicKey(address validator)`
+
+`0xb33a3a62` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
 
 ## IRegistryStakingAware
 
@@ -6872,7 +6899,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## ReputationSystem
 
 - **Source:** `contracts/src/modules/reputation/ReputationSystem.sol`
-- **Functions:** 24 · **Events:** 6 · **Errors:** 9
+- **Functions:** 25 · **Events:** 7 · **Errors:** 10
 - **Title:** ReputationSystem
 - Advanced reputation calculation and management for the Mycelium Ecosystem.
 
@@ -6896,13 +6923,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
+| `0x6b3da550` | `resetNFTHoldStart(address,address)` | nonpayable | — | Clear a user's registration age after they no longer own the boosted NFT. |
 | `0x097f6b7c` | `setCommunityReputation(address,address,uint256)` | nonpayable | — | Set specific community reputation score (called by DVT/Trusted Source) |
 | `0x4a2357b9` | `setEntropyFactor(address,uint256)` | nonpayable | onlyOwner | Governance sets the Entropy Factor for a community. |
 | `0x30cd71a8` | `setNFTBoost(address,uint256)` | nonpayable | onlyOwner |  |
 | `0x6df80b4e` | `setRule(bytes32,uint256,uint256,uint256,string)` | nonpayable | — | Community admins can set their own scoring rules. |
 | `0x9172ff45` | `syncToRegistry(address,address[],bytes32[][],uint256[][],uint256,bytes)` | nonpayable | — | Sync computed reputation score to the Registry for the given user. |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
-| `0x2f446881` | `updateNFTHoldStart(address)` | nonpayable | — | Manually update NFT hold start time for reputation boost |
+| `0x2f446881` | `updateNFTHoldStart(address)` | nonpayable | — | Register the waiting period for an NFT reputation boost. |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
 ### Functions
@@ -7108,6 +7136,19 @@ Authoritative, auto-generated reference for every external/public function, even
 
 *@dev* Leaves the contract without owner. It will not be possible to call `onlyOwner` functions. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby disabling any functionality that is only available to the owner.
 
+#### `resetNFTHoldStart(address user, address collection)`
+
+`0x6b3da550` · nonpayable · access: —
+
+> Clear a user's registration age after they no longer own the boosted NFT.
+
+*@dev* Permissionless watcher resets improve freshness but cannot prove strict      continuity for third-party collections without transfer hooks.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
+| `collection` | `address` |  |
+
 #### `setCommunityReputation(address community, address user, uint256 score)`
 
 `0x097f6b7c` · nonpayable · access: —
@@ -7191,9 +7232,9 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x2f446881` · nonpayable · access: —
 
-> Manually update NFT hold start time for reputation boost
+> Register the waiting period for an NFT reputation boost.
 
-*@dev* Users must call this after acquiring a boosted NFT. Boost starts 7 days later.
+*@dev* Eligibility starts seven days later and also requires current ownership.      This records registration age, not continuous ownership history.
 
 | param | type | description |
 |---|---|---|
@@ -7216,6 +7257,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x6c1649831c4a2bebf79dfe8a2623ce1f5c65c9ab62903600dc011ee60a11c408` | `CommunityReputationUpdated(address,address,uint256)` |
 | `0x21281390931aaf470d02c340b1ca10fabd02c8d7cdd1efcdbb3dc3fe5a0d0749` | `EntropyFactorUpdated(address,uint256)` |
 | `0xcde4878b12c6b6c93c3eb3433ffbfdb24eb29698d8ac6ac98caf5db49d823457` | `NFTBoostAdded(address,uint256)` |
+| `0x901ee7b9b0e25f780300b01a125d1fa7351ebfe86c59ac33ec7030b62f21e43e` | `NFTHoldStartReset(address,address)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0xdb8ed69eccdb6ff5105e3934ba9b515bb1b9d366e3a0c25a5f852ee20b6783e2` | `ReputationComputed(address,uint256)` |
 | `0x868a11f79934bfa7243fd979d39bf00f37050e24b3ffc20a11f12a8b7e48d995` | `RuleUpdated(address,bytes32,uint256,uint256)` |
@@ -7232,6 +7274,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xea8e4eb5` | `NotAuthorized()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0xfe575d41` | `StillHoldsNFT()` |
 | `0x82b42900` | `Unauthorized()` |
 
 ## BasePaymasterUpgradeable

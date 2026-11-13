@@ -38,7 +38,7 @@ jq '.deployedBytecode.immutableReferences | {vars: length, sites: (map(length)|a
 ```
 
 **2. There is no direct verifier setter.** SP 4.11 arms a fraud-proof verifier only
-via `proposeFraudProofVerifier` (owner) → wait `VERIFIER_ROTATION_DELAY` (5 days since BLSAggregator-4.13.0) →
+via `proposeFraudProofVerifier` (owner) → wait `VERIFIER_ROTATION_DELAY` (5 days since BLSAggregator-4.14.0) →
 `applyFraudProofVerifier` (permissionless). A new aggregator starts dormant at
 `address(0)`. A manifest that jumps from deployment to an active verifier is
 describing a contract that does not exist, so every step has its own receipt,

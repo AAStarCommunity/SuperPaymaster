@@ -62,7 +62,7 @@
     },
     "blsAggregator": {
       "address": "0x8888888888888888888888888888888888888888",
-      "version": "BLSAggregator-4.13.0",
+      "version": "BLSAggregator-4.14.0",
       "codehash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "erc1967Impl": "n/a:not a proxy",
       "implCodehash": "n/a:not a proxy",
