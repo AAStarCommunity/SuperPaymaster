@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
 import "src/tokens/GToken.sol";
@@ -312,6 +313,9 @@ contract CC48TotalCreditExposureTest is Test {
 
 contract CC48ExitNoticeTest is Test {
     BLSAggregator bls;
+    bool realPrecompiles;
+    bytes msgSignature;
+    bytes mSignature;
     CC48LivenessRegistryStub registry;
     CC48StakingStub staking;
 
@@ -322,7 +326,8 @@ contract CC48ExitNoticeTest is Test {
         return address(uint160(uint256(slot) + 0x100));
     }
 
-    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(uint256(0x01));
         pk.x_b = bytes32(seed);
         pk.y_a = bytes32(uint256(0x02));
@@ -331,7 +336,13 @@ contract CC48ExitNoticeTest is Test {
 
     function _emptyPoP() internal pure returns (BLS.G2Point memory pop) {}
 
-    function _sigBytes() internal pure returns (bytes memory) {
+    function _signature(bytes32 message) internal view returns (bytes memory) {
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](N);
+            for (uint256 i = 0; i < N; i++) scalars[i] = i + 1;
+            (, bytes memory signature) = abi.decode(GenuineBLS.proof(message, scalars, _fullMask()), (uint256, bytes));
+            return signature;
+        }
         BLS.G2Point memory sig;
         return abi.encode(sig);
     }
@@ -341,10 +352,8 @@ contract CC48ExitNoticeTest is Test {
     }
 
     function setUp() public {
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers these paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
         vm.etch(address(0x0b), hex"60806000f3");
         vm.etch(address(0x0c), hex"60806000f3");
         vm.etch(address(0x0d), hex"6101006000f3");
@@ -355,6 +364,7 @@ contract CC48ExitNoticeTest is Test {
         // mocked-precompile harness. Real-pairing coverage of the same registrations
         // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
         vm.warp(365 days); // keep cooldown/readyAt arithmetic away from t = 0
 
         vm.startPrank(owner);
@@ -365,13 +375,15 @@ contract CC48ExitNoticeTest is Test {
         for (uint8 slot = 1; slot <= N; slot++) {
             registry.setHasDvtRole(_v(slot), true);
             staking.setLocked(_v(slot), 200);
-            bls.registerBLSPublicKey(_v(slot), _stubKey(uint256(slot)), slot, _emptyPoP());
+            bls.registerBLSPublicKey(_v(slot), _stubKey(uint256(slot)), slot,
+                realPrecompiles ? GenuineBLS.pop(bls, _v(slot), slot) : _emptyPoP());
         }
         // 3-of-5: leaves room for two exits before the floor bites.
         bls.setDefaultThreshold(3);
         vm.stopPrank();
 
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        msgSignature = _signature(keccak256("msg"));
+        mSignature = _signature(keccak256("m"));
     }
 
     /// The regression this whole item exists for: pre-fix, filing an exit notice
@@ -384,16 +396,16 @@ contract CC48ExitNoticeTest is Test {
         bls.requestGuardianExit();
 
         // Same block: the notice is on record but consensus is untouched.
-        assertTrue(bls.verify(keccak256("msg"), _fullMask(), 3, _sigBytes()), "front-run had no effect");
+        assertTrue(bls.verify(keccak256("msg"), _fullMask(), 3, msgSignature), "front-run had no effect");
 
         // Still untouched one second before the notice matures.
         vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() - 1);
-        assertTrue(bls.verify(keccak256("msg"), _fullMask(), 3, _sigBytes()), "in-flight proof survives the notice");
+        assertTrue(bls.verify(keccak256("msg"), _fullMask(), 3, msgSignature), "in-flight proof survives the notice");
 
         // Only once the announced delay has fully elapsed is the slot excluded.
         vm.warp(block.timestamp + 1);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), _v(3)));
-        bls.verify(keccak256("msg"), _fullMask(), 3, _sigBytes());
+        bls.verify(keccak256("msg"), _fullMask(), 3, msgSignature);
     }
 
     /// The exclusion is always announced a full GUARDIAN_EXIT_DELAY ahead, so a
@@ -434,14 +446,14 @@ contract CC48ExitNoticeTest is Test {
         for (uint256 round = 0; round < 5; round++) {
             vm.prank(_v(4));
             bls.requestGuardianExit();
-            assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, _sigBytes()), "no halt on request");
+            assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, mSignature), "no halt on request");
 
             vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() - 1);
-            assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, _sigBytes()), "no halt before readyAt");
+            assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, mSignature), "no halt before readyAt");
 
             vm.prank(_v(4));
             bls.cancelGuardianExit();
-            assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, _sigBytes()), "no halt after cancel");
+            assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, mSignature), "no halt after cancel");
 
             vm.warp(block.timestamp + bls.GUARDIAN_EXIT_COOLDOWN());
         }
@@ -589,11 +601,11 @@ contract CC48ExitNoticeTest is Test {
         vm.warp(block.timestamp + bls.GUARDIAN_EXIT_DELAY() + bls.GUARDIAN_FRAUD_CHALLENGE() + bls.GUARDIAN_EXIT_WINDOW() + 1);
 
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(3), _v(3)));
-        bls.verify(keccak256("m"), _fullMask(), 3, _sigBytes());
+        bls.verify(keccak256("m"), _fullMask(), 3, mSignature);
 
         vm.prank(_v(3));
         bls.cancelGuardianExit();
-        assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, _sigBytes()));
+        assertTrue(bls.verify(keccak256("m"), _fullMask(), 3, mSignature));
     }
 
     /// MEDIUM-1 — a queued case must outlive any verifier rotation started after it,

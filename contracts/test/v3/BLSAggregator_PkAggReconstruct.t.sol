@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/utils/BLS.sol";
 import "src/interfaces/v3/IRegistry.sol";
@@ -110,6 +111,9 @@ contract MockRegistryReconstruct is IRegistry {
  */
 contract BLSAggregatorPkAggReconstructTest is Test {
     BLSAggregator bls;
+    bool realPrecompiles;
+    bytes fullSignature;
+    bytes partialSignature;
     MockRegistryReconstruct registry;
 
     address owner = address(0x1);
@@ -120,7 +124,8 @@ contract BLSAggregatorPkAggReconstructTest is Test {
     ///         precompiles are mocked, what matters is that each slot's stored
     ///         key is *different* and that the contract reads from on-chain
     ///         storage rather than caller input.
-    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(uint256(0xA0) | seed);
         pk.x_b = bytes32(uint256(0xB0) | seed << 8);
         pk.y_a = bytes32(uint256(0xC0) | seed << 16);
@@ -138,10 +143,8 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // G2ADD (0x0d): returns 256 zero bytes.
         // MAP_FP_TO_G1 (0x10): returns 128 zero bytes.
         // MAP_FP2_TO_G2 (0x11): returns 256 zero bytes.
-        // CC-48 round-3 MEDIUM-5: this harness injects fake EIP-2537 precompiles, which
-        // is impossible on a real Prague EVM. Step aside there; contracts/test/paper7/
-        // covers these paths with genuine keys and pairings.
-        if (MockedPrecompiles.skipIfReal()) return;
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
         vm.etch(address(0x0b), hex"60806000f3"); // G1ADD → 128 bytes
         vm.etch(address(0x0c), hex"60806000f3"); // G1MUL → 128 bytes (r*P = identity ✓)
         vm.etch(address(0x0d), hex"6101006000f3"); // G2ADD → 256 bytes
@@ -152,6 +155,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // mocked-precompile harness. Real-pairing coverage of the same registrations
         // lives in contracts/test/paper7/ (RepCreditDomainReplay, CC48PragueE2E).
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
 
         vm.startPrank(owner);
         registry = new MockRegistryReconstruct();
@@ -161,12 +165,21 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // Register 7 validators into slots 1..7 — exactly meets defaultThreshold.
         for (uint8 slot = 1; slot <= 7; slot++) {
             address v = address(uint160(uint256(slot) + 1000));
-            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot, _emptyPoP());
+            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot,
+                realPrecompiles ? GenuineBLS.pop(bls, v, slot) : _emptyPoP());
         }
         vm.stopPrank();
+        fullSignature = _signature(0x7F);
+        partialSignature = _signature(0x15);
     }
 
-    function _sigBytes() internal pure returns (bytes memory) {
+    function _signature(uint256 mask) internal view returns (bytes memory) {
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](7);
+            for (uint256 i = 0; i < 7; i++) scalars[i] = i + 1;
+            (, bytes memory signature) = abi.decode(GenuineBLS.proof(_msg(), scalars, mask), (uint256, bytes));
+            return signature;
+        }
         BLS.G2Point memory sig; // zeroed; pairing precompile is mocked
         return abi.encode(sig);
     }
@@ -199,9 +212,9 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // Pairing succeeds → verify returns true. The interesting thing is
         // that we did NOT pass any public key — pkAgg is read entirely from
         // on-chain `validatorAtSlot` storage.
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
-        bool ok = bls.verify(_msg(), uint256(0x7F), uint256(7), _sigBytes());
+        bool ok = bls.verify(_msg(), uint256(0x7F), uint256(7), fullSignature);
         assertTrue(ok, "Pairing should succeed when proof is valid");
     }
 
@@ -223,7 +236,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         uint256 forgedMask = (uint256(1) << 0) | (uint256(1) << 1) | (uint256(1) << 7);
 
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(8)));
-        bls.verify(_msg(), forgedMask, uint256(3), _sigBytes());
+        bls.verify(_msg(), forgedMask, uint256(3), fullSignature);
     }
 
     function test_Verify_RejectsBitsBeyondMaxValidators() public {
@@ -233,12 +246,12 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         uint256 maskBeyondMax = (uint256(1) << 13); // bit 13 = slot 14
 
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotOutOfRange.selector, uint8(14)));
-        bls.verify(_msg(), maskBeyondMax, uint256(3), _sigBytes());
+        bls.verify(_msg(), maskBeyondMax, uint256(3), fullSignature);
     }
 
     function test_Verify_RejectsEmptySignerMask() public {
         vm.expectRevert(BLSAggregator.EmptySignerMask.selector);
-        bls.verify(_msg(), uint256(0), uint256(3), _sigBytes());
+        bls.verify(_msg(), uint256(0), uint256(3), fullSignature);
     }
 
     function test_Verify_RejectsBelowThreshold() public {
@@ -247,7 +260,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         uint256 mask = uint256(0x03); // slots 1, 2
 
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidSignatureCount.selector, uint256(2), uint256(3)));
-        bls.verify(_msg(), mask, uint256(3), _sigBytes());
+        bls.verify(_msg(), mask, uint256(3), fullSignature);
     }
 
     // ====================================
@@ -259,7 +272,7 @@ contract BLSAggregatorPkAggReconstructTest is Test {
         // commutative, so the iteration order can't change pkAgg. We can't
         // observe pkAgg directly, so we instead assert verify() returns
         // the same boolean for two masks selecting the same validator set.
-        vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        if (!realPrecompiles) vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
 
         // Mask A: slots 1,3,5 (= 0b00010101 = 0x15)
         uint256 maskA = uint256(0x15);
@@ -274,8 +287,9 @@ contract BLSAggregatorPkAggReconstructTest is Test {
 
         assertEq(maskA, maskB, "Masks should encode identical sets");
 
-        bool okA = bls.verify(_msg(), maskA, uint256(3), _sigBytes());
-        bool okB = bls.verify(_msg(), maskB, uint256(3), _sigBytes());
+        bool okA = bls.verify(_msg(), maskA, uint256(3), partialSignature);
+        bool okB = bls.verify(_msg(), maskB, uint256(3), partialSignature);
+        assertTrue(okA, "Selected on-chain keys must verify the partial signature");
         assertEq(okA, okB, "verify() must be deterministic for equal masks");
     }
 
@@ -283,23 +297,10 @@ contract BLSAggregatorPkAggReconstructTest is Test {
     // P0-1 #5 — BLSValidator.sol is gone (compile-time guarantee)
     // ====================================
 
-    /// @dev If `BLSValidator.sol` or `IBLSValidator.sol` were still present in
-    ///      the repo, importing them would fail compilation. By NOT importing
-    ///      them anywhere in the contract tree we get a structural guarantee
-    ///      that the deleted code can't sneak back via a forgotten reference.
-    ///      This trivial assertion exists to make the intent explicit in CI.
-    function test_DeletedBLSValidator_NoLongerImported() public pure {
-        // The expected post-P0-1 invariants:
-        //  * `contracts/src/modules/validators/BLSValidator.sol`        DELETED
-        //  * `contracts/src/interfaces/v3/IBLSValidator.sol`            DELETED
-        //  * `contracts/src/mocks/MockBLSValidator.sol`                 DELETED
-        //  * `contracts/test/modules/validators/BLSValidator.t.sol`     DELETED
-        // If any of these came back, the corresponding `import "..."` in
-        // Registry / tests would resurrect — and `forge build` of THIS file
-        // (which imports nothing from the deleted set) would still pass, but
-        // the broader suite would. We rely on directory-level checks in CI;
-        // here we only enforce that this file does not depend on any deleted
-        // symbol.
-        assertTrue(true);
+    /// @dev Fail if any retired validator source is reintroduced.
+    function test_DeletedBLSValidator_NoLongerImported() public {
+        assertFalse(vm.exists("contracts/src/modules/validators/BLSValidator.sol"));
+        assertFalse(vm.exists("contracts/src/interfaces/v3/IBLSValidator.sol"));
+        assertFalse(vm.exists("contracts/src/mocks/MockBLSValidator.sol"));
     }
 }

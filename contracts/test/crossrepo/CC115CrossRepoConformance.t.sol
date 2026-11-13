@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
@@ -32,11 +33,8 @@ import {OverIssueFraudProofVerifier} from "./vendor/OverIssueFraudProofVerifier.
  *           saying "when the real DVT OverIssueFraudProofVerifier lands, swap it in". This
  *           is that swap.
  *
- *         BLS precompiles are mocked so `verifyAndExecute` reaches the commitment write
- *         without real pairing arithmetic — the same approach `GuardianSlashE2E` and
- *         `DVT_BLS` take, and impossible on a real Prague EVM, so this suite steps aside
- *         there (`MockedPrecompiles.skipIfReal`). The property under test is ENCODING
- *         PARITY across two repositories, not pairing correctness.
+ *         Cancun uses precompile stubs; Prague/Amsterdam use genuine keys and
+ *         signatures to reach the same cross-repository encoding assertions.
  */
 
 // ---- minimal stand-ins for what BLSAggregator's constructor and reads require ----
@@ -116,16 +114,18 @@ contract CC115CrossRepoConformance is Test {
     uint256 internal constant MASK = 0x7F;
 
     address[] internal guardians;
-    bool internal skipped;
+    bool internal realPrecompiles;
 
     function setUp() public {
-        if (MockedPrecompiles.skipIfReal()) { skipped = true; return; }
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
         vm.etch(address(0x0b), hex"60806000f3");
         vm.etch(address(0x0c), hex"60806000f3");
         vm.etch(address(0x10), hex"60806000f3");
         vm.etch(address(0x11), hex"6101006000f3");
         vm.etch(address(0x0d), hex"6101006000f3");
         vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
 
         // Sepolia, because a domain separator that only differs by chainid is the WEAK
         // replay case; aggA and aggB below differ only by ADDRESS, which is the hard one
@@ -143,7 +143,8 @@ contract CC115CrossRepoConformance is Test {
         aggA = new BLSAggregator(address(registry), address(sp), address(dvt));
         aggB = new BLSAggregator(address(registry), address(sp), address(dvt));
         for (uint8 i = 0; i < 7; i++) {
-            aggA.registerBLSPublicKey(validators[i], _stubKey(i + 1), i + 1, _emptyPoP());
+            aggA.registerBLSPublicKey(validators[i], _stubKey(i + 1), i + 1,
+                realPrecompiles ? GenuineBLS.pop(aggA, validators[i], i + 1) : _emptyPoP());
         }
         vm.stopPrank();
         for (uint8 i = 0; i < 7; i++) {
@@ -161,7 +162,7 @@ contract CC115CrossRepoConformance is Test {
         // in the argument list would consume the prank and send verifyAndExecute from the
         // test contract, which is neither the owner nor DVT_VALIDATOR.
         bytes32 evidence = verifier.evidenceHash(address(token), OPERATOR, EPOCH);
-        bytes memory blsProof = _blsProof(MASK);
+        bytes memory blsProof = _blsProof(MASK, evidence);
         vm.prank(owner);
         aggA.verifyAndExecute(
             PID, OPERATOR, SLASH_LEVEL, new address[](0), new uint256[](0), EPOCH, evidence, blsProof
@@ -175,7 +176,6 @@ contract CC115CrossRepoConformance is Test {
     /// SP's `assertDomainBound`: accepts its own domain, rejects a sibling aggregator's,
     /// rejects an arbitrary digest.
     function test_RealDvtVerifierPassesAssertDomainBound() public view {
-        if (skipped) return;
         Conformance.assertDomainBound(
             address(verifier), address(aggA), address(aggB), _fraudProofId(), guardians, _fraudProof()
         );
@@ -185,7 +185,6 @@ contract CC115CrossRepoConformance is Test {
     /// the superset, and an unrelated set of the same size. This is the gate the pre-B1
     /// subset-lenient verifier would have failed.
     function test_RealDvtVerifierPassesAssertSetBound() public view {
-        if (skipped) return;
         Conformance.assertSetBound(
             address(verifier), address(aggA), _fraudProofId(), guardians, _fraudProof()
         );
@@ -198,7 +197,6 @@ contract CC115CrossRepoConformance is Test {
     /// The outer layer: the verifier's domain reconstruction must equal the aggregator's,
     /// for the SAME aggregator, and must NOT equal a sibling's.
     function test_DomainSeparatorParityWithRealAggregator() public view {
-        if (skipped) return;
         assertEq(verifier.domainSeparator(), aggA.domainSeparator(), "verifier rebuilds aggA's domain");
         assertTrue(aggA.domainSeparator() != aggB.domainSeparator(), "siblings must not share a domain");
         assertTrue(verifier.domainSeparator() != aggB.domainSeparator(), "and the verifier is bound to aggA");
@@ -207,7 +205,6 @@ contract CC115CrossRepoConformance is Test {
     /// The digest SP actually hands to `verify` must be the one the verifier expects,
     /// across several ids and set shapes — not just the happy one above.
     function test_FraudProofDigestParityAcrossIdsAndSets() public view {
-        if (skipped) return;
         uint256[3] memory ids = [uint256(1), _fraudProofId(), type(uint256).max];
         for (uint256 i = 0; i < ids.length; ++i) {
             assertEq(
@@ -233,7 +230,6 @@ contract CC115CrossRepoConformance is Test {
     /// green upstream tests could not see while the anchor came from a mock that shared
     /// the verifier's own encoding.
     function test_InnerCommitmentLayoutParityAgainstRealAggregatorWrite() public view {
-        if (skipped) return;
         assertTrue(aggA.proposalSignersCommitment(PID) != bytes32(0), "SP wrote a real anchor");
         assertTrue(
             verifier.verify(
@@ -247,7 +243,6 @@ contract CC115CrossRepoConformance is Test {
     /// pins that the acceptance above is earned by the evidence and not by a verifier
     /// that says yes to everything.
     function test_OverIssuedTokenFlipsTheSameProofToRejected() public {
-        if (skipped) return;
         bytes32 digest = aggA.fraudProofDigest(_fraudProofId(), guardians);
         assertTrue(verifier.verify(digest, _fraudProofId(), guardians, _fraudProof()), "accepted while not over-issued");
         token.setOverIssued(true);
@@ -256,7 +251,6 @@ contract CC115CrossRepoConformance is Test {
 
     /// The pre-4.11 three-parameter selector must be gone from the vendored build.
     function test_LegacyThreeParamSelectorIsAbsent() public view {
-        if (skipped) return;
         assertEq(
             bytes4(keccak256("verify(bytes32,uint256,address[],bytes)")),
             bytes4(0x61077735),
@@ -279,11 +273,20 @@ contract CC115CrossRepoConformance is Test {
         return abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians);
     }
 
-    function _blsProof(uint256 signerMask) internal pure returns (bytes memory) {
+    function _blsProof(uint256 signerMask, bytes32 evidence) internal view returns (bytes memory) {
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](7);
+            for (uint256 i = 0; i < 7; i++) scalars[i] = i + 1;
+            bytes32 message = keccak256(abi.encode(
+                aggA.domainSeparator(), aggA.TAG_EXECUTE_SLASH(), PID, OPERATOR, SLASH_LEVEL, EPOCH, evidence
+            ));
+            return GenuineBLS.proof(message, scalars, signerMask);
+        }
         BLS.G2Point memory sig;
         return abi.encode(signerMask, abi.encode(sig));
     }
-    function _stubKey(uint256 seed) internal pure returns (BLS.G1Point memory pk) {
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
         pk.x_a = bytes32(seed); pk.x_b = bytes32(seed + 1);
         pk.y_a = bytes32(seed + 2); pk.y_b = bytes32(seed + 3);
     }
