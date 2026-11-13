@@ -15,9 +15,12 @@ COMMON=(test --offline --fuzz-seed 0x5eed -vv)
 AMS_COMMON=(test --offline --no-isolate --fuzz-seed 0x5eed -vv)
 run() { local name=$1 rc=0; shift; "$@" > "$OUT/$name.log" 2>&1 || rc=$?; echo "$name exit $rc" >> "$OUT/exits.txt"
   grep -qE "tests passed, [0-9]+ failed" "$OUT/$name.log" || { echo "$name: no test summary (exit $rc)" >&2; exit 3; }; }
+# Prague-compiled runs get their own output root so ./out keeps the cancun profile.default
+# build the deploy-script suites (contracts/test/scripts) check against.
+PRAGUE_OUT=(env FOUNDRY_OUT=prague/out FOUNDRY_CACHE_PATH=prague/cache)
 run cancun-forge171 "$STABLE" "${COMMON[@]}"
-run prague-forge171 "$STABLE" "${COMMON[@]}" --evm-version prague
-run amsterdam "$AMS" "${AMS_COMMON[@]}" --evm-version prague --hardfork amsterdam
+run prague-forge171 "${PRAGUE_OUT[@]}" "$STABLE" "${COMMON[@]}" --evm-version prague
+run amsterdam "${PRAGUE_OUT[@]}" "$AMS" "${AMS_COMMON[@]}" --evm-version prague --hardfork amsterdam
 # M-1 mutation: the postOp entry guard reads the live settle bound instead of the validation snapshot.
 SRC=contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol
 FROM='uint256 snapSettle = uint32(snap >> 32);'; TO='uint256 snapSettle = _gasParams.settleGasBound;'
@@ -27,7 +30,7 @@ sed -i '' "s/$(printf '%s' "$FROM" | sed 's/[][\/.*^$]/\\&/g')/$TO/" "$SRC"
 grep -qF "$TO" "$SRC"
 D5B=contracts/test/v2/SuperPaymasterD5bUpgradeRace.t.sol
 run mutation-m1-d5b-cancun "$STABLE" test --offline --match-path "$D5B" -vv
-run mutation-m1-d5b-amsterdam "$AMS" test --offline --match-path "$D5B" -vv --evm-version prague --hardfork amsterdam
+run mutation-m1-d5b-amsterdam "${PRAGUE_OUT[@]}" "$AMS" test --offline --match-path "$D5B" -vv --evm-version prague --hardfork amsterdam
 git checkout -- "$SRC"; trap - EXIT
 test -z "$(git status --porcelain)"
 echo "restored; tree clean" >> "$OUT/exits.txt"

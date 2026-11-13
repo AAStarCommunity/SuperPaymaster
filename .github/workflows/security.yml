@@ -138,10 +138,14 @@ jobs:
         if: steps.changes.outputs.contract == 'true'
         # verbosity < 3 disables vm.startDebugTraceRecording; OP-011 gates will fail closed.
         # No -v/-vv here: this run inherits foundry.toml `verbosity = 3`.
-        # Own --out/--cache-path: ./out keeps the cancun profile.default build from the step
-        # above, which the deploy-script suites (contracts/test/scripts) check against; a Prague
-        # compile into ./out would replace it and those suites would fail, not skip.
-        run: forge test --evm-version prague --out prague/out --cache-path prague/cache
+        # Own output root: ./out keeps the cancun profile.default build from the step above,
+        # which the deploy-script suites (contracts/test/scripts) check against; a Prague
+        # compile into ./out would replace it and those suites would fail, not skip. Set via
+        # FOUNDRY_OUT so suites that read their own engine's artifacts through it still do.
+        env:
+          FOUNDRY_OUT: prague/out
+          FOUNDRY_CACHE_PATH: prague/cache
+        run: forge test --evm-version prague
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'
         run: |

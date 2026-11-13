@@ -41,10 +41,10 @@ forge test
 # exit-notice, credit-cap, key-scan and guardian-slash paths against REAL EIP-2537
 # precompiles with real keys and signatures. Must be green — suites that need
 # precompile injection skip themselves (contracts/test/helpers/MockedPrecompiles.sol).
-# Use its own --out: the deploy-script suites (contracts/test/scripts) check against the
-# cancun profile.default build in ./out (run a plain `forge build` first), and a Prague
+# Use its own output root: the deploy-script suites (contracts/test/scripts) check against
+# the cancun profile.default build in ./out (run a plain `forge build` first), and a Prague
 # compile into ./out would replace it.
-forge test --evm-version prague --out prague/out --cache-path prague/cache
+FOUNDRY_OUT=prague/out FOUNDRY_CACHE_PATH=prague/cache forge test --evm-version prague
 
 # Run a specific test file
 forge test --match-path contracts/test/v3/Registry.t.sol
