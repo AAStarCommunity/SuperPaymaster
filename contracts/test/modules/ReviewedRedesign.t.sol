@@ -181,20 +181,46 @@ contract ReviewedRedesign is DVTBLSTest {
     }
 
     function test_Review_RetiredCountersCannotAccumulateDependencies() public {
+        uint256 gasBefore = gasleft();
+        uint256 rotations = 32;
         DVTValidator current = dvt;
-        for (uint256 i; i < 128; ++i) {
+        // setDVTValidator gas at the 2nd, 16th and 32nd rotation: a predecessor walk would grow with i.
+        // The 1st rotation is excluded only because it writes proposalFloor from zero (a fresh SSTORE).
+        uint256[3] memory rotationGas;
+        for (uint256 i; i < rotations; ++i) {
             vm.prank(address(101));
             assertEq(current.createProposal(op, 1, "pending"), i + 1);
-            DVTValidator next = _replacement(1);
-            vm.prank(owner);
+            // Run the real constructor/runtime without repeated code-deposit gas.
+            // Rotation and allocation remain metered within one capped test call.
+            DVTValidator next = DVTValidator(address(uint160(0xD000 + i)));
+            vm.startPrank(owner);
+            deployCodeTo("DVTValidator.sol:DVTValidator", abi.encode(address(registry), uint256(1)), address(next));
+            next.setBLSAggregator(address(bls));
+            next.addValidator(address(101));
+            uint256 g = gasleft();
             bls.setDVTValidator(address(next));
+            g -= gasleft();
+            if (i == 1) rotationGas[0] = g;
+            else if (i == 15) rotationGas[1] = g;
+            else if (i == rotations - 1) rotationGas[2] = g;
+            vm.stopPrank();
             vm.mockCallRevert(address(current), abi.encodeWithSignature("nextProposalId()"), hex"deadbeef");
+            vm.expectCall(address(current), bytes(""), uint64(0));
             current = next;
         }
-        assertEq(current.nextProposalId(), 129, "no retired-counter recursion after 128 rotations");
+        assertEq(current.nextProposalId(), rotations + 1, "no retired-counter recursion after 32 rotations");
+        emit log_named_uint("setDVTValidator gas, rotation 2", rotationGas[0]);
+        emit log_named_uint("setDVTValidator gas, rotation 16", rotationGas[1]);
+        emit log_named_uint("setDVTValidator gas, rotation 32", rotationGas[2]);
+        assertEq(rotationGas[1], rotationGas[0], "rotation cost must not grow with the rotation number (16 vs 2)");
+        assertEq(rotationGas[2], rotationGas[0], "rotation cost must not grow with the rotation number (32 vs 2)");
         vm.expectCall(address(bls), abi.encodeWithSignature("proposalFloor()"), uint64(1));
         vm.prank(address(101));
-        assertEq(current.createProposal(op, 1, "still live"), 129);
+        assertEq(current.createProposal(op, 1, "still live"), rotations + 1);
+        uint256 gasUsed = gasBefore - gasleft();
+        emit log_named_uint("retired-counter test call gas", gasUsed);
+        // Reserve room for intrinsic gas, dispatch, logging and this assertion.
+        assertLt(gasUsed + 100_000, uint256(1) << 24, "test call must fit the EIP-7825 cap");
     }
 
     function test_Review_ExitAndRemovalPreserveGenericMinimum() public {
