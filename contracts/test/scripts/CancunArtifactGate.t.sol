@@ -8,22 +8,22 @@ import {APNTsCapped} from "../../src/tokens/APNTsCapped.sol";
 /// @notice Skip only a positively identified non-Cancun compilation, never resolver failures.
 abstract contract CancunArtifactGate is Test {
     function _skipNonCancunCompilation() internal {
-        (bool known, string memory evm) = _liveArtifact();
-        if (known) evm = vm.parseJsonString(evm, ".metadata.settings.evmVersion");
-        if (known && bytes(evm).length != 0 && keccak256(bytes(evm)) != keccak256("cancun")) {
+        (bool known, string memory json) = _liveArtifact();
+        if (!known) return;
+        string memory evm = vm.parseJsonString(json, ".metadata.settings.evmVersion");
+        if (bytes(evm).length != 0 && keccak256(bytes(evm)) != keccak256("cancun")) {
             vm.skip(true, string.concat("non-cancun compilation: evmVersion=", evm));
         }
     }
 
-    /// @dev This run's own artifact. An `--out` outside fs_permissions (the executed-inventory
-    ///      runner writes under the evidence dir) makes it unreadable; that is "not identified",
-    ///      so the suite runs against profile.default artifacts instead of skipping.
-    function _liveArtifact() internal view returns (bool ok, string memory json) {
-        try vm.readFile(vm.getArtifactPathByCode(type(APNTsCapped).creationCode)) returns (string memory j) {
-            return (true, j);
-        } catch {
-            return (false, "");
-        }
+    /// @dev This run's own artifact. An `--out` outside the project (the executed-inventory
+    ///      runner and the fuzz gate write under the evidence dir) is outside fs_permissions
+    ///      ("./"), so such a run is "not identified" and the suite runs against the
+    ///      profile.default artifacts. Inside the project every read error propagates.
+    function _liveArtifact() internal view returns (bool known, string memory json) {
+        string memory path = vm.getArtifactPathByCode(type(APNTsCapped).creationCode);
+        if (vm.indexOf(path, string.concat(vm.projectRoot(), "/")) != 0) return (false, "");
+        return (true, vm.readFile(path));
     }
 }
 
@@ -43,6 +43,10 @@ contract ArtifactPredicateHarness is T4ArtifactReader {
         return _validateArtifactOutDir(outputRoot);
     }
 
+    function envRoot(string calldata name) external view returns (string memory) {
+        return _envArtifactOutDir(name);
+    }
+
     function isDefaultArtifact(string memory name, string memory json) external view returns (bool) {
         string memory src = _sourceOf(name);
         return _isDefaultBuild(json, src, keccak256(bytes(vm.readFile(src))), _expectedRuns(name));
@@ -54,35 +58,62 @@ contract ArtifactPredicateHarness is T4ArtifactReader {
 contract NonCancunArtifactControlTest is CancunArtifactGate {
     function test_nonCancunProfileDefault_doesNotResolve() public {
         ArtifactPredicateHarness reader = new ArtifactPredicateHarness();
-        (bool known, string memory json) = _liveArtifact();
+        // Known-valid cancun/500 baseline on every engine: the resolved profile.default artifact.
+        string memory base = vm.readFile(reader.t4DefaultArtifact("APNTsCapped"));
+        assertEq(vm.parseJsonString(base, ".metadata.settings.evmVersion"), "cancun");
+        assertEq(vm.parseJsonUint(base, ".metadata.settings.optimizer.runs"), 500);
+        assertTrue(reader.isDefaultArtifact("APNTsCapped", base));
+        // Two independent single-field mutations of the baseline, each rejected on its own.
+        string memory prague = vm.replace(base, '"evmVersion":"cancun"', '"evmVersion":"prague"');
+        assertEq(vm.parseJsonString(prague, ".metadata.settings.evmVersion"), "prague");
+        assertEq(vm.parseJsonUint(prague, ".metadata.settings.optimizer.runs"), 500);
+        assertFalse(reader.isDefaultArtifact("APNTsCapped", prague), "prague artifact must not resolve");
+        string memory badRuns = vm.replace(base, '"runs":500', '"runs":200');
+        assertEq(vm.parseJsonUint(badRuns, ".metadata.settings.optimizer.runs"), 200);
+        assertEq(vm.parseJsonString(badRuns, ".metadata.settings.evmVersion"), "cancun");
+        assertFalse(reader.isDefaultArtifact("APNTsCapped", badRuns), "non-default runs must not resolve");
+        // This run's own artifact, when identified: a non-cancun compilation never resolves.
+        (bool known, string memory live) = _liveArtifact();
         if (!known) {
-            // Live artifact outside fs_permissions: control the predicate on the resolved default one.
-            emit log_string("live APNTsCapped artifact unreadable; using the profile.default artifact");
-            json = vm.readFile(reader.t4DefaultArtifact("APNTsCapped"));
+            emit log_string("live APNTsCapped artifact outside the project: not identified");
+            return;
         }
-        string memory evm = vm.parseJsonString(json, ".metadata.settings.evmVersion");
-        emit log_string(string.concat("APNTsCapped evmVersion=", evm));
+        string memory evm = vm.parseJsonString(live, ".metadata.settings.evmVersion");
+        emit log_string(string.concat("live APNTsCapped evmVersion=", evm));
         if (keccak256(bytes(evm)) == keccak256("cancun")) {
-            assertTrue(reader.isDefaultArtifact("APNTsCapped", json));
-            string memory prague = vm.replace(json, '"evmVersion":"cancun"', '"evmVersion":"prague"');
-            assertEq(vm.parseJsonString(prague, ".metadata.settings.evmVersion"), "prague");
-            assertFalse(reader.isDefaultArtifact("APNTsCapped", prague), "prague artifact must not resolve");
-            string memory badRuns = vm.replace(json, '"runs":500', '"runs":200');
-            assertEq(vm.parseJsonUint(badRuns, ".metadata.settings.optimizer.runs"), 200);
-            assertFalse(reader.isDefaultArtifact("APNTsCapped", badRuns), "non-default runs must not resolve");
+            assertTrue(reader.isDefaultArtifact("APNTsCapped", live));
         } else {
-            assertFalse(reader.isDefaultArtifact("APNTsCapped", json), "non-cancun artifact must not resolve");
+            assertFalse(reader.isDefaultArtifact("APNTsCapped", live), "non-cancun artifact must not resolve");
         }
     }
+
+    function test_envOutputRoot_isReadAndValidated() public {
+        ArtifactPredicateHarness reader = new ArtifactPredicateHarness();
+        // A name of its own: the process-wide DEFAULT_ARTIFACTS_OUT is read by concurrent suites.
+        string memory name = "DEFAULT_ARTIFACTS_OUT_GATE_TEST";
+        assertEq(reader.envRoot(name), "out", "unset must default to out");
+        vm.setEnv(name, ".ams-out/build");
+        assertEq(reader.envRoot(name), ".ams-out/build", "a valid root must be taken from the env");
+        vm.setEnv(name, "/abs");
+        vm.expectRevert(bytes("DefaultArtifacts: output root must be relative"));
+        reader.envRoot(name);
+        vm.setEnv(name, "a/../b");
+        vm.expectRevert(bytes("DefaultArtifacts: output root contains parent segment"));
+        reader.envRoot(name);
+    }
+
     function test_invalidOutputRoots_revert() public {
         ArtifactPredicateHarness reader = new ArtifactPredicateHarness();
-        string[5] memory roots = ["/abs", "../x", "out/", "", "out/../x"];
-        string[5] memory reasons = [
+        string[8] memory roots = ["/abs", "../x", "out/", "", "out/../x", "a\\..\\x", "C:\\out", "C:/out"];
+        string[8] memory reasons = [
             "DefaultArtifacts: output root must be relative",
             "DefaultArtifacts: output root contains parent segment",
             "DefaultArtifacts: output root has trailing slash",
             "DefaultArtifacts: output root is empty",
-            "DefaultArtifacts: output root contains parent segment"
+            "DefaultArtifacts: output root contains parent segment",
+            "DefaultArtifacts: output root has a backslash or drive separator",
+            "DefaultArtifacts: output root has a backslash or drive separator",
+            "DefaultArtifacts: output root has a backslash or drive separator"
         ];
         for (uint256 i; i < roots.length; ++i) {
             reader.setOutputRoot(roots[i]);

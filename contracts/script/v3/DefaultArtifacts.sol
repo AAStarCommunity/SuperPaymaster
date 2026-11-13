@@ -184,7 +184,13 @@ contract T4ArtifactReader is Script {
     }
 
     function _artifactOutDir() internal view virtual returns (string memory) {
-        return _validateArtifactOutDir(vm.envOr("DEFAULT_ARTIFACTS_OUT", string("out")));
+        return _envArtifactOutDir("DEFAULT_ARTIFACTS_OUT");
+    }
+
+    /// @dev Variable name is a parameter so a test can drive the env path under its own name
+    ///      without touching the process-wide DEFAULT_ARTIFACTS_OUT that concurrent suites read.
+    function _envArtifactOutDir(string memory name) internal view returns (string memory) {
+        return _validateArtifactOutDir(vm.envOr(name, string("out")));
     }
 
     function _validateArtifactOutDir(string memory outDir) internal pure returns (string memory) {
@@ -194,6 +200,9 @@ contract T4ArtifactReader is Script {
         require(path[path.length - 1] != "/", "DefaultArtifacts: output root has trailing slash");
         uint256 start;
         for (uint256 i; i <= path.length; ++i) {
+            // Only "/" is a separator here; a backslash or drive colon is a separator elsewhere.
+            require(i == path.length || (path[i] != "\\" && path[i] != ":"),
+                "DefaultArtifacts: output root has a backslash or drive separator");
             if (i == path.length || path[i] == "/") {
                 require(i - start != 2 || path[start] != "." || path[start + 1] != ".",
                     "DefaultArtifacts: output root contains parent segment");
