@@ -2410,6 +2410,32 @@
     },
     {
       "type": "event",
+      "name": "StandbyInvalidated",
+      "inputs": [
+        {
+          "name": "sp",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "StandbyProposalCancelled",
+      "inputs": [
+        {
+          "name": "sp",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
       "name": "StandbyProposed",
       "inputs": [
         {
