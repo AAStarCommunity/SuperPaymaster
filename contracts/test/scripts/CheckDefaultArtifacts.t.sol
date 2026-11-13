@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
+import "forge-std/Test.sol";
 import {Clones} from "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {APNTsCapped} from "../../src/tokens/APNTsCapped.sol";
 import {xPNTsToken} from "../../src/tokens/xPNTsToken.sol";
 import {CheckDefaultArtifacts} from "../../script/checks/CheckDefaultArtifacts.s.sol";
-import {CancunArtifactGate} from "./CancunArtifactGate.t.sol";
 
 contract ArtifactFactoryFixture {
     address public implementation;
@@ -46,14 +46,16 @@ contract CheckDefaultArtifactsHarness is CheckDefaultArtifacts {
     }
 }
 
-contract CheckDefaultArtifactsTest is CancunArtifactGate {
+contract CheckDefaultArtifactsTest is Test {
+
+    /// Deploy-script checks against the profile.default (cancun) artifacts in ./out. They run on
+    /// every engine; a run with no profile.default build fails ("run a plain `forge build`").
     address constant SAFE = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
     CheckDefaultArtifactsHarness checker;
     ArtifactFactoryFixture factory;
     TimelockController timelock;
 
     function setUp() public {
-        _skipNonCancunCompilation();
         vm.chainId(31337);
         checker = new CheckDefaultArtifactsHarness();
         factory = new ArtifactFactoryFixture(checker.deployLegacyImplementation());

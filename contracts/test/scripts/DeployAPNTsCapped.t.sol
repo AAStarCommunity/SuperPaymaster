@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import {Vm, VmSafe} from "forge-std/Vm.sol";
+import "forge-std/Test.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {DeployAPNTsCapped} from "../../script/v3/DeployAPNTsCapped.s.sol";
-import {CancunArtifactGate} from "./CancunArtifactGate.t.sol";
 
 contract DeployAPNTsCappedHarness is DeployAPNTsCapped {
     // Supply genuine constructor/grant/revoke logs from the local EVM in place of RPC history.
@@ -76,14 +76,16 @@ contract TimelockHistoryScanHarness is DeployAPNTsCapped {
     }
 }
 
-contract DeployAPNTsCappedTest is CancunArtifactGate {
+contract DeployAPNTsCappedTest is Test {
+
+    /// Deploy-script checks against the profile.default (cancun) artifacts in ./out. They run on
+    /// every engine; a run with no profile.default build fails ("run a plain `forge build`").
     address constant SAFE = 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114;
     address constant DEPLOYER = address(0xD001);
     address constant EXTRA = address(0xBAD);
     DeployAPNTsCappedHarness checker;
 
     function setUp() public {
-        _skipNonCancunCompilation();
         checker = new DeployAPNTsCappedHarness();
     }
 
