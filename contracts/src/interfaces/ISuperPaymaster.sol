@@ -57,8 +57,8 @@ interface ISuperPaymaster is IVersioned {
     event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury);
     // aPNTsCost: raw gas cost before protocol fee; debtAPNTs: actual debt recorded (cost + fee markup)
     event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 debtAPNTs);
-    event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
-    event ReputationUpdated(address indexed operator, uint256 newScore);
+    event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level, address by);
+    event ReputationUpdated(address indexed operator, uint256 newScore, address by);
     // event ValidationRejected removed — ERC-4337 validatePaymasterUserOp cannot emit events
 
     // v5.4 god-split phase 1: x402 events/functions (X402PaymentSettled, settleX402Payment,
