@@ -523,7 +523,7 @@ function updatePrice() external
 
 **Access:** Public (typically called by keeper)
 
-**Events:** `PriceUpdated(price, timestamp)`
+**Events:** `PriceUpdated(price, timestamp, by)`
 
 **Errors:** `OracleError` — if Chainlink call fails, price out of bounds, or data is stale.
 
@@ -549,7 +549,7 @@ function updatePriceDVT(
 - Price must be within `[MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE]`
 - If Chainlink is live and recent, rejects prices deviating >20% from Chainlink
 
-**Events:** `PriceUpdated(price, updatedAt)`
+**Events:** `PriceUpdated(price, updatedAt, by)`
 
 ---
 
@@ -614,7 +614,7 @@ function slashOperator(
 ) external onlyOwner
 ```
 
-**Events:** `OperatorSlashed(operator, amount, level)`, `ReputationUpdated(operator, newScore)`
+**Events:** `OperatorSlashed(operator, amount, level, by)`, `ReputationUpdated(operator, newScore, by)`
 
 ---
 
@@ -815,25 +815,39 @@ function cachedPrice()
 
 ## Events
 
+The event signatures below reflect SuperPaymaster 5.5.2. `by` is `msg.sender` at SP,
+including when the proxy delegates to the admin implementation.
+
+Pause/unpause reason codes are `1 OWNER_PAUSE`, `2 GUARDIAN_PAUSE`,
+`3 OWNER_UNPAUSE`, `4 UNDERSTAKED`, and `5 SLASH`.
+
+`OperatorPaused`, `OperatorUnpaused`, and `SlashCancelled` are emitted on transitions
+only. Repeating a pause/unpause or cancelling with no pending flag or queue record
+emits no corresponding event. Clearing a legacy pending flag or an expired guardian
+queue does emit `SlashCancelled`. `SBTStatusUpdated` is emitted on every successful
+call to `updateSBTStatus`, even when the status is unchanged.
+
 ### Core Events
 
 ```solidity
 event OperatorDeposited(address indexed operator, uint256 amount);
 event OperatorWithdrawn(address indexed operator, uint256 amount);
 event OperatorConfigured(address indexed operator, address xPNTsToken, address treasury, uint256 exchangeRate);
-event OperatorPaused(address indexed operator);
-event OperatorUnpaused(address indexed operator);
+event OperatorPaused(address indexed operator, address indexed by, uint8 reason);
+event OperatorUnpaused(address indexed operator, address indexed by, uint8 reason);
 event OperatorMinTxIntervalUpdated(address indexed operator, uint48 minTxInterval);
 event UserBlockedStatusUpdated(address indexed operator, address indexed user, bool isBlocked);
-event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level);
-event ReputationUpdated(address indexed operator, uint256 newScore);
+event OperatorSlashed(address indexed operator, uint256 amount, SlashLevel level, address by);
+event ReputationUpdated(address indexed operator, uint256 newScore, address by);
+event SBTStatusUpdated(address indexed user, bool status);
 event TransactionSponsored(address indexed operator, address indexed user, uint256 aPNTsCost, uint256 xPNTsCost);
 ```
 
 ### Oracle Events
 
 ```solidity
-event PriceUpdated(int256 indexed price, uint256 indexed timestamp);
+event PriceUpdated(int256 indexed price, uint256 indexed timestamp, address by);
+event PriceModeChanged(uint8 oldMode, uint8 newMode, address by);
 event OracleFallbackTriggered(uint256 timestamp);
 event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
 ```
@@ -841,6 +855,8 @@ event APNTsPriceUpdated(uint256 oldPrice, uint256 newPrice);
 ### Slash Events
 
 ```solidity
+event SlashQueued(address indexed operator, address indexed by);
+event SlashCancelled(address indexed operator, address indexed by);
 event SlashExecutedWithProof(
     address indexed operator,
     ISuperPaymaster.SlashLevel level,
