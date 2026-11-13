@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import "forge-std/Script.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/utils/BLS.sol";
@@ -78,9 +79,11 @@ contract E2EGuardianSetupSepolia is Script {
         // Phase 1 (jason/owner): register 3 BLS keys FIRST (a bad G1 point aborts before
         // any funds move), then fund the 2 throwaway guardians.
         vm.startBroadcast(jasonPk);
-        BLSAggregator(AGG).registerBLSPublicKey(JASON, pk1, 1, pop1);
-        BLSAggregator(AGG).registerBLSPublicKey(s2, pk2, 2, pop2);
-        BLSAggregator(AGG).registerBLSPublicKey(s3, pk3, 3, pop3);
+        DVTValidator gateway = DVTValidator(BLSAggregator(AGG).DVT_VALIDATOR());
+        require(gateway.BLS_AGGREGATOR() == AGG, "DVT/BLS pairing mismatch");
+        gateway.registerBLSPublicKey(JASON, pk1, 1, pop1);
+        gateway.registerBLSPublicKey(s2, pk2, 2, pop2);
+        gateway.registerBLSPublicKey(s3, pk3, 3, pop3);
         IGT(GTOKEN).transfer(s2, TOTAL);
         IGT(GTOKEN).transfer(s3, TOTAL);
         (bool o2,) = s2.call{value: GAS_FUND}("");

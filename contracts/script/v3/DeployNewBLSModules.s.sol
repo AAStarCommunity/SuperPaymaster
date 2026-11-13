@@ -18,21 +18,30 @@ contract DeployNewBLSModules is Script {
         uint256 pk = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(pk);
 
-        DVTValidator dvt = new DVTValidator(REGISTRY);
+        DVTValidator dvt = new DVTValidator(REGISTRY, 1);
         BLSAggregator bls = new BLSAggregator(REGISTRY, SUPERPAYMASTER, address(dvt));
         dvt.setBLSAggregator(address(bls));
 
         // CC-48 round-6 HIGH-1: this script targets a LIVE chain by construction (the
         // Registry/SP addresses above are hard-coded Sepolia). Hand the aggregator's
         // disarm authority to governance before the broadcast ends.
-        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
-        if (gov != address(0)) bls.transferOwnership(gov);
+        _settleGovernance(bls, dvt);
 
         vm.stopBroadcast();
 
         GovernanceOwnerGate.requireGovernanceOwner(address(bls), bls.owner(), "BLSAggregator");
+        require(dvt.owner() == bls.owner(), "DeployNewBLSModules: DVT owner != BLS owner");
 
         console.log("DVTValidator:", address(dvt));
         console.log("BLSAggregator:", address(bls));
+    }
+
+    function _settleGovernance(BLSAggregator bls, DVTValidator dvt) internal {
+        address gov = GovernanceOwnerGate.declaredGovernanceOwner();
+        if (gov == address(0)) return;
+
+        bls.transferOwnership(gov);
+        dvt.transferOwnership(gov);
+        require(dvt.owner() == bls.owner(), "DeployNewBLSModules: DVT owner != BLS owner");
     }
 }
