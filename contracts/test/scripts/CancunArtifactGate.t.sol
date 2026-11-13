@@ -58,8 +58,18 @@ contract ArtifactPredicateHarness is T4ArtifactReader {
 contract NonCancunArtifactControlTest is CancunArtifactGate {
     function test_nonCancunProfileDefault_doesNotResolve() public {
         ArtifactPredicateHarness reader = new ArtifactPredicateHarness();
-        // Known-valid cancun/500 baseline on every engine: the resolved profile.default artifact.
-        string memory base = vm.readFile(reader.t4DefaultArtifact("APNTsCapped"));
+        (bool known, string memory live) = _liveArtifact();
+        string memory evm;
+        // Known-valid cancun/500 baseline on every engine, independent of a prior cancun build:
+        // this run's own artifact with only evmVersion normalized to cancun. When the run is not
+        // identified (artifact outside the project) the resolved profile.default artifact is used.
+        string memory base;
+        if (known) {
+            evm = vm.parseJsonString(live, ".metadata.settings.evmVersion");
+            base = vm.replace(live, string.concat('"evmVersion":"', evm, '"'), '"evmVersion":"cancun"');
+        } else {
+            base = vm.readFile(reader.t4DefaultArtifact("APNTsCapped"));
+        }
         assertEq(vm.parseJsonString(base, ".metadata.settings.evmVersion"), "cancun");
         assertEq(vm.parseJsonUint(base, ".metadata.settings.optimizer.runs"), 500);
         assertTrue(reader.isDefaultArtifact("APNTsCapped", base));
@@ -73,12 +83,10 @@ contract NonCancunArtifactControlTest is CancunArtifactGate {
         assertEq(vm.parseJsonString(badRuns, ".metadata.settings.evmVersion"), "cancun");
         assertFalse(reader.isDefaultArtifact("APNTsCapped", badRuns), "non-default runs must not resolve");
         // This run's own artifact, when identified: a non-cancun compilation never resolves.
-        (bool known, string memory live) = _liveArtifact();
         if (!known) {
             emit log_string("live APNTsCapped artifact outside the project: not identified");
             return;
         }
-        string memory evm = vm.parseJsonString(live, ".metadata.settings.evmVersion");
         emit log_string(string.concat("live APNTsCapped evmVersion=", evm));
         if (keccak256(bytes(evm)) == keccak256("cancun")) {
             assertTrue(reader.isDefaultArtifact("APNTsCapped", live));
