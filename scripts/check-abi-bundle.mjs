@@ -45,10 +45,16 @@ function walkSol(dir) {
   );
 }
 
-function compiledAbi(name) {
+function compiledArtifact(name) {
   const p = join(OUT, `${name}.sol`, `${name}.json`);
-  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")).abi : null;
+  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
 }
+
+// The bundle also carries creation bytecode, and a deploy from it is a deploy of
+// whatever it holds: on the rc.8 event PR the ABIs were regenerated but a later
+// source fix was not, so the exported SuperPaymaster/Admin/Lens bytecode silently
+// predated it while the shape check stayed green. Bytecode is compared exactly.
+const strip = (h) => (typeof h === "string" ? h : h?.object ?? "").replace(/^0x/, "").toLowerCase();
 
 let stale = 0, checked = 0, skipped = [], external = [];
 for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
@@ -56,7 +62,8 @@ for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   if (name === "abi.config") continue;
   const raw = JSON.parse(readFileSync(join(ABIS, file), "utf8"));
   const committed = Array.isArray(raw) ? raw : raw.abi;
-  const compiled = compiledAbi(name);
+  const artifact = compiledArtifact(name);
+  const compiled = artifact ? artifact.abi : null;
   // No artifact means this bundle has no contract to compare against. Say so
   // rather than counting it as agreement: an empty comparison and a passing one
   // are the same reading otherwise.
@@ -68,6 +75,10 @@ for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   if (!compiled) { console.error(`FAIL: abis/${file} — no compiled artifact at out/${name}.sol/${name}.json`); stale++; continue; }
   if (!committed) { console.error(`FAIL: abis/${file} — unreadable or empty ABI`); stale++; continue; }
   checked++;
+  if (!Array.isArray(raw) && raw.bytecode !== undefined && strip(raw.bytecode) !== strip(artifact.bytecode)) {
+    stale++;
+    console.error(`STALE: abis/${file} — bytecode differs from out/${name}.sol/${name}.json`);
+  }
   const c = new Set(committed.map(shape));
   const o = new Set(compiled.map(shape));
   const missing = [...o].filter((x) => !c.has(x));
@@ -84,4 +95,4 @@ if (skipped.length) console.log(`no artifact, NOT compared: ${skipped.join(", ")
 if (external.length) console.log(`external / pinned to a deployment, NOT compared: ${external.join(", ")}`);
 if (checked === 0) { console.error("FAIL: nothing was compared — run `forge build` first"); process.exit(2); }
 if (stale) { console.error(`\n${stale} bundle(s) stale — run scripts/extract_v3_abis.sh and commit.`); process.exit(1); }
-console.log("abis/ matches the compiled contracts (full shape, not just names)");
+console.log("abis/ matches the compiled contracts (full shape and bytecode, not just names)");
