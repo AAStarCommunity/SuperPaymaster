@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GToken} from "src/tokens/GToken.sol";
 import {GTokenStaking} from "src/core/GTokenStaking.sol";
 import {MySBT} from "src/tokens/MySBT.sol";
@@ -123,7 +124,7 @@ contract Legacy43AggregatorStub {
  *      Run:
  *        forge test --evm-version prague --match-contract CC48KeyScanPreflight -vv
  */
-contract CC48KeyScanPreflight is Test {
+contract CC48KeyScanPreflight is BLSRegistrationTestHelper {
     bytes32 internal constant ROLE_DVT = keccak256("DVT");
     uint256 internal constant DVT_STAKE = 30 ether;
 
@@ -226,7 +227,7 @@ contract CC48KeyScanPreflight is Test {
         // The operator re-onboards the SAME (publicly known) key on the new deployment.
         address v = address(uint160(0x3000));
         BLS.G1Point memory pk = _publicKey(1);
-        newAgg.registerBLSPublicKey(v, pk, 1, _pop(newAgg, v, pk, 1));
+        _registerKey(newAgg, address(dvtSink), v, pk, 1, _pop(newAgg, v, pk, 1));
 
         bytes32 keyHash = keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b));
         vm.expectRevert(
@@ -303,7 +304,7 @@ contract CC48KeyScanPreflight is Test {
         BLSAggregator newAgg = _freshAggregator();
         address v = address(uint160(0x3000));
         BLS.G1Point memory pk = _publicKey(1);
-        newAgg.registerBLSPublicKey(v, pk, 1, _pop(newAgg, v, pk, 1));
+        _registerKey(newAgg, address(dvtSink), v, pk, 1, _pop(newAgg, v, pk, 1));
 
         bytes32 keyHash = keccak256(abi.encode(pk.x_a, pk.x_b, pk.y_a, pk.y_b));
         vm.expectRevert(
@@ -388,7 +389,7 @@ contract CC48KeyScanPreflight is Test {
                 vm.stopPrank();
             }
             BLS.G1Point memory pk = _publicKey(scalar);
-            agg.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(agg, validator, pk, scalar));
+            _registerKey(agg, address(dvtSink), validator, pk, uint8(i + 1), _pop(agg, validator, pk, scalar));
         }
     }
 

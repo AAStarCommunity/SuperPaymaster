@@ -1,7 +1,7 @@
-# CC-115 B3 — successor stack deployment manifest
+# HISTORICAL CC-115 B3 — BLSAggregator-4.11.0 successor stack manifest
 
 `cc115-b3-successor-manifest.template.json` is the receipt sheet for deploying a
-successor Registry 5.8.0 + BLSAggregator 4.11.0 stack. It is **not** a config file:
+historical successor Registry 5.8.0 + BLSAggregator 4.11.0 stack. It is **not** a config file:
 nothing reads it, and nothing should copy values out of it into a deployment.
 
 ## The one rule
@@ -38,11 +38,12 @@ jq '.deployedBytecode.immutableReferences | {vars: length, sites: (map(length)|a
 ```
 
 **2. There is no direct verifier setter.** SP 4.11 arms a fraud-proof verifier only
-via `proposeFraudProofVerifier` (owner) → wait `VERIFIER_ROTATION_DELAY` (5 days since BLSAggregator-4.13.0) →
+via `proposeFraudProofVerifier` (owner) → wait `VERIFIER_ROTATION_DELAY` (5 days since BLSAggregator-4.14.0) →
 `applyFraudProofVerifier` (permissionless). A new aggregator starts dormant at
 `address(0)`. A manifest that jumps from deployment to an active verifier is
 describing a contract that does not exist, so every step has its own receipt,
-including the measured delay.
+including the measured delay. This is the historical BLSAggregator-4.11.0 value;
+current release tooling must derive its own delay from the deployed contract.
 
 **3. A clean event scan is not evidence of a clean scan.** Per
 `docs/security/CC48-safe-onboarding-runbook.md` §5b, an endpoint can return a
@@ -61,7 +62,7 @@ On a fresh stack there is no predecessor to disarm, so `predecessorRevoke` stays
 with reason `n/a: fresh stack`.
 
 If it is ever changed to `in-place-migration`, that block becomes **required**, and
-the ordering matters: during the successor's 4-day arming window the successor is
+the ordering matters: during the successor's historical 4-day arming window the successor is
 fail-closed and can open no case, while the deposed predecessor already has its
 verifier wired, holds an `immutable REGISTRY`, and never asks Registry whether it is
 still the registered aggregator — its slash path does not go through Registry at all.
@@ -76,6 +77,11 @@ rotation forgot to. PR #379 made the revoke an atomic step of the batch for exac
 this reason.
 
 ## Provenance of the pre-filled values
+
+The 5.5.0 fresh-stack DVT constructor uses `firstProposalId = 1`. A replacement
+DVT must instead start above every raw id already executed by the retained
+aggregator. Old pending proposals are abandoned and must be re-proposed on the
+replacement.
 
 Built from `main` at the commit recorded in `source.commit`, profile `default`
 (`deploy-core` never sets `FOUNDRY_PROFILE`). At the time of writing:

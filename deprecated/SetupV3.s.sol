@@ -183,7 +183,7 @@ contract SetupV3 is Script {
 
         // 9. Deploy Reputation & Monitoring Contracts
         reputationSystem = new ReputationSystem(address(registry));
-        dvtValidator = new DVTValidator(address(registry));
+        dvtValidator = new DVTValidator(address(registry), 1, address(0));
         blsAggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvtValidator));
         
         // Wire DVT Validator to BLS Aggregator

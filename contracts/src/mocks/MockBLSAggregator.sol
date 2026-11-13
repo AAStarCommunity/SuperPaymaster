@@ -12,6 +12,7 @@ import "src/interfaces/v3/IBLSAggregator.sol";
  *         aggregator.
  */
 contract MockBLSAggregator is IBLSAggregator {
+    address public override DVT_VALIDATOR;
     uint256 public override minThreshold = 3;
     uint256 public override defaultThreshold = 7;
 
@@ -60,5 +61,5 @@ contract MockBLSAggregator is IBLSAggregator {
         address, uint8, uint256, bytes calldata
     ) external pure override {}
 
-    function setDVTValidator(address) external pure override {}
+    function setDVTValidator(address dvt) external override { DVT_VALIDATOR = dvt; }
 }

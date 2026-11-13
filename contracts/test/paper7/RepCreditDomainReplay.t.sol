@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.33;
 
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GToken} from "src/tokens/GToken.sol";
 import {GTokenStaking} from "src/core/GTokenStaking.sol";
 import {MySBT} from "src/tokens/MySBT.sol";
@@ -13,6 +15,8 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 /// @dev Minimal DVT sink: BLSAggregator rejects a zero DVT_VALIDATOR and makes a
 ///      typed call into it after execution, so the address must hold code.
 contract DomainReplayDVTStub {
+    // This sink never allocates proposals; activation can safely carry floor 1.
+    function nextProposalId() external pure returns (uint256) { return 1; }
     function markProposalExecuted(uint256) external {}
 }
 
@@ -37,7 +41,7 @@ contract DomainReplayDVTStub {
  *      knowledge and must never appear in a deployment — see the migration note
  *      in the CC-48 thread on the compromised experiment stack.
  */
-contract RepCreditDomainReplay is Test {
+contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     uint256 internal constant VALIDATOR_COUNT = 5;
     uint256 internal constant DVT_STAKE = 30 ether;
     bytes32 internal constant ROLE_DVT = keccak256("DVT");
@@ -105,8 +109,8 @@ contract RepCreditDomainReplay is Test {
             // each aggregator. That is the migration cost the release notes describe,
             // demonstrated here rather than asserted.
             BLS.G1Point memory pk = _publicKey(scalar);
-            aggA.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggA, validator, pk, scalar));
-            aggB.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggB, validator, pk, scalar));
+            _registerKey(aggA, address(dvtSink), validator, pk, uint8(i + 1), _pop(aggA, validator, pk, scalar));
+            _registerKey(aggB, address(dvtSink), validator, pk, uint8(i + 1), _pop(aggB, validator, pk, scalar));
         }
         aggA.setDefaultThreshold(3);
         aggB.setDefaultThreshold(3);
@@ -314,7 +318,7 @@ contract RepCreditDomainReplay is Test {
 
         // v0 registers its own key — the honest path still works.
         vm.prank(v0);
-        agg.registerBLSPublicKey(v0, pk, 1, popForV0);
+        gateways[address(agg)].registerBLSPublicKey(v0, pk, 1, popForV0);
         (, uint8 slot, bool active) = agg.getBLSPublicKey(v0);
         assertEq(slot, 1);
         assertTrue(active);
@@ -324,7 +328,7 @@ contract RepCreditDomainReplay is Test {
         BLS.G1Point memory pkV1 = _publicKey(secretScalars[1]);
         vm.prank(v1);
         vm.expectRevert(BLSAggregator.InvalidPoP.selector);
-        agg.registerBLSPublicKey(v1, pkV1, 2, popForV0);
+        gateways[address(agg)].registerBLSPublicKey(v1, pkV1, 2, popForV0);
     }
 
     /// Address binding alone is not enough: one operator holding two ROLE_DVT
@@ -341,7 +345,7 @@ contract RepCreditDomainReplay is Test {
         BLS.G1Point memory pk = _publicKey(sk);
 
         vm.prank(v0);
-        agg.registerBLSPublicKey(v0, pk, 1, _pop(agg, v0, pk, sk));
+        gateways[address(agg)].registerBLSPublicKey(v0, pk, 1, _pop(agg, v0, pk, sk));
 
         // A genuinely valid PoP for v1 over the SAME key — the same person owns sk.
         BLS.G2Point memory popForV1 = _pop(agg, v1, pk, sk);
@@ -349,7 +353,7 @@ contract RepCreditDomainReplay is Test {
 
         vm.prank(v1);
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.DuplicatePublicKey.selector, keyHash, v0));
-        agg.registerBLSPublicKey(v1, pk, 2, popForV1);
+        gateways[address(agg)].registerBLSPublicKey(v1, pk, 2, popForV1);
 
         assertEq(agg.validatorAtSlot(2), address(0), "no second slot may be bound to the same key");
     }
@@ -365,25 +369,126 @@ contract RepCreditDomainReplay is Test {
 
         BLS.G2Point memory popForFirst = _pop(first, v0, pk, secretScalars[0]);
         vm.prank(v0);
-        first.registerBLSPublicKey(v0, pk, 1, popForFirst);
+        gateways[address(first)].registerBLSPublicKey(v0, pk, 1, popForFirst);
 
         vm.prank(v0);
         vm.expectRevert(BLSAggregator.InvalidPoP.selector);
-        second.registerBLSPublicKey(v0, pk, 1, popForFirst);
+        gateways[address(second)].registerBLSPublicKey(v0, pk, 1, popForFirst);
 
         // Re-signing under the new contract's domain is the intended migration.
         vm.prank(v0);
-        second.registerBLSPublicKey(v0, pk, 1, _pop(second, v0, pk, secretScalars[0]));
+        gateways[address(second)].registerBLSPublicKey(v0, pk, 1, _pop(second, v0, pk, secretScalars[0]));
         (, , bool active) = second.getBLSPublicKey(v0);
         assertTrue(active);
+    }
+
+    function test_PostRotationDvtReputationUpdateExecutes() public {
+        _skipWithoutPrague();
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        uint256 oldId = oldDvt.createProposal(address(0), 0, "before rotation");
+
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        next.addValidator(validators[0]);
+        aggA.setDVTValidator(address(next));
+        assertEq(aggA.proposalFloor(), oldId + 1);
+        vm.prank(validators[0]);
+        uint256 id = next.createProposal(address(0), 0, "post-rotation reputation");
+        assertEq(id, aggA.proposalFloor(), "the fresh floor itself is executable");
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory proof = _proof(_reputationHash(address(aggA), address(registry), block.chainid, id, users, scores, 1), 3);
+
+        assertEq(registry.globalReputation(users[0]), 0);
+        vm.prank(validators[0]);
+        next.executeWithProof(id, users, scores, 1, proof);
+        assertEq(registry.globalReputation(users[0]), 50);
+        assertTrue(aggA.executedProposals(id));
+        (,,, bool executed,,) = next.proposals(id);
+        assertTrue(executed);
+        assertFalse(aggA.executedProposals(oldId));
+    }
+
+    /// @notice Documented owner-mediated residual: owner-direct verifyAndExecute
+    ///         can execute a caller-chosen id below the floor after rotation.
+    /// @dev Keep an existing proposal on the reactivated DVT to satisfy its callback;
+    ///      the genuine proof and all replay checks still apply to the owner's call.
+    function test_OwnerDirectLowIdStillExecutesAfterRotation() public {
+        _skipWithoutPrague();
+        uint256 callerChosenId = 41;
+        DVTValidator oldDvt = new DVTValidator(address(registry), callerChosenId);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        assertEq(oldDvt.createProposal(address(0), 0, "pending reputation"), callerChosenId);
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory proof = _proof(
+            _reputationHash(address(aggA), address(registry), block.chainid, callerChosenId, users, scores, 1), 3
+        );
+
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        aggA.setDVTValidator(address(next));
+        aggA.setDVTValidator(address(oldDvt));
+        assertEq(aggA.proposalFloor(), callerChosenId + 1);
+        assertLt(callerChosenId, aggA.proposalFloor());
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
+        vm.prank(validators[0]);
+        oldDvt.executeWithProof(callerChosenId, users, scores, 1, proof);
+
+        assertEq(registry.globalReputation(users[0]), 0);
+        aggA.verifyAndExecute(callerChosenId, address(0), 0, users, scores, 1, bytes32(0), proof);
+        assertEq(registry.globalReputation(users[0]), 50, "owner-direct low id executes after rotation");
+        assertTrue(aggA.executedProposals(callerChosenId));
+        (,,, bool executed,,) = oldDvt.proposals(callerChosenId);
+        assertTrue(executed);
+    }
+
+    /// @notice Rotation rejects stale current-DVT execution but preserves unused authorized Registry proofs.
+    /// @dev Regression for the scope of the guarantee (review F7), not a signature-generation change.
+    function test_RotationAllocationFloorPreservesAuthorizedRegistryProof() public {
+        if (!pragueAvailable) { vm.skip(true); return; }
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        uint256 id = oldDvt.createProposal(address(0), 0, "pending reputation");
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory proof = _proof(_reputationHash(address(aggA), address(registry), block.chainid, id, users, scores, 1), 3);
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        aggA.setDVTValidator(address(next));
+        assertEq(next.nextProposalId(), id + 1, "DVT allocation cannot reuse pending ID");
+        aggA.setDVTValidator(address(oldDvt));
+        assertLt(id, aggA.proposalFloor());
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
+        vm.prank(validators[0]);
+        oldDvt.executeWithProof(id, users, scores, 1, proof);
+        assertEq(registry.globalReputation(users[0]), 0, "stale current-DVT execution cannot update reputation");
+        assertFalse(aggA.executedProposals(id));
+        registry.setReputationSource(address(this), true);
+        registry.batchUpdateGlobalReputation(id, users, scores, 1, proof);
+        assertEq(registry.globalReputation(users[0]), 50, "authorized direct Registry proofs survive rotation");
+        assertFalse(aggA.executedProposals(id), "direct Registry route has its own replay state");
+        assertEq(aggA.proposalSignersCommitment(id), bytes32(0));
     }
 
     // =================================================================
     // Helpers
     // =================================================================
 
+    mapping(address => DVTValidator) private gateways;
+
     function _freshAggregatorWithPermissionlessRegistration() internal returns (BLSAggregator agg) {
-        agg = new BLSAggregator(address(registry), address(0xBEEF), address(dvtSink));
+        DVTValidator gateway = new DVTValidator(address(registry), 1);
+        agg = new BLSAggregator(address(registry), address(0xBEEF), address(gateway));
+        gateway.setBLSAggregator(address(agg));
+        gateways[address(agg)] = gateway;
         agg.setPermissionlessBLSRegistration(true);
     }
 

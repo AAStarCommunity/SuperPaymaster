@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
@@ -35,14 +35,19 @@ contract MockPriceFeed {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, 2000 * 1e8, 0, block.timestamp, 1);
     }
-    function decimals() external pure returns (uint8) { return 8; }
+
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
 }
 
 contract MockEntryPoint {
     function depositTo(address) external payable {}
+
     function getUserOpHash(PackedUserOperation calldata) external pure returns (bytes32) {
         return keccak256("mock_hash");
     }
+
     function getDepositInfo(address) external pure returns (IStakeManager.DepositInfo memory) {
         return IStakeManager.DepositInfo(0, false, 0, 0, 0);
     }
@@ -79,17 +84,19 @@ contract DeployStandardV3 is Script {
         entryPointAddr = vm.envOr("ENTRY_POINT", address(0));
 
         // 严格根据 ChainID 设置默认值
-        if (block.chainid == 31337) { // Anvil
+        if (block.chainid == 31337) {
+            // Anvil
             if (deployerPK == 0) deployerPK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
             // Anvil 下这些地址通常没用，会被 run() 里的 Mock 覆盖
-        } else if (block.chainid == 11155111) { // Sepolia
+        } else if (block.chainid == 11155111) {
+            // Sepolia
             if (priceFeedAddr == address(0)) priceFeedAddr = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
-            if (entryPointAddr == address(0)) entryPointAddr = 0x0000000071727De13552189EF0715af1D2095830; // v0.7
+            if (entryPointAddr == address(0)) entryPointAddr = 0x0000000071727DE13552189ef0715af1D2095830; // v0.7
         }
-        
+
         require(deployerPK != 0, "Deployer Private Key not set");
         deployer = vm.addr(deployerPK);
-        
+
         string memory root = vm.projectRoot();
         string memory configFileName = vm.envOr("CONFIG_FILE", string("config.json"));
         configPath = string.concat(root, "/", configFileName);
@@ -98,7 +105,7 @@ contract DeployStandardV3 is Script {
     function run() external {
         // 1. 只有在 Anvil 下才执行 Warp 和 Mock 部署
         if (block.chainid == 31337) {
-            vm.warp(1 days); 
+            vm.warp(1 days);
             vm.startBroadcast(deployerPK);
             priceFeedAddr = address(new MockPriceFeed());
             entryPointAddr = address(new MockEntryPoint());
@@ -137,12 +144,14 @@ contract DeployStandardV3 is Script {
         address gov = GovernanceOwnerGate.declaredGovernanceOwner();
         if (gov != address(0)) {
             aggregator.transferOwnership(gov);
-            console.log("  BLSAggregator ownership transferred to governance:", gov);
+            dvt.transferOwnership(gov);
+            console.log("  BLSAggregator + DVTValidator ownership transferred to governance:", gov);
         }
 
         vm.stopBroadcast();
 
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
+        require(dvt.owner() == aggregator.owner(), "DeployStandardV3: DVT owner != BLS owner");
         _generateConfig();
     }
 
@@ -169,13 +178,15 @@ contract DeployStandardV3 is Script {
         address xPNTsImpl = address(new xPNTsToken());
         apnts = xPNTsToken(xPNTsImpl.clone());
         apnts.initialize("AAStar PNTs", "aPNTs", deployer, "GlobalHub", "local.eth", 1e18);
-        superPaymaster = new SuperPaymaster(IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600);
+        superPaymaster = new SuperPaymaster(
+            IEntryPoint(entryPointAddr), deployer, registry, address(apnts), priceFeedAddr, deployer, 3600
+        );
     }
 
     function _deployModules() internal {
         repSystem = new ReputationSystem(address(registry));
-        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(0));
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
+        aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
         pmV4Impl = new Paymaster(addr_registry);
@@ -187,8 +198,8 @@ contract DeployStandardV3 is Script {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         mysbt.setSuperPaymaster(address(superPaymaster));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
@@ -198,7 +209,11 @@ contract DeployStandardV3 is Script {
     function _orchestrateRoles() internal {
         gtoken.mint(deployer, 1000 ether);
         gtoken.approve(address(staking), 1000 ether);
-        bytes memory opData = abi.encode(Registry.CommunityRoleData("Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether));
+        bytes memory opData = abi.encode(
+            Registry.CommunityRoleData(
+                "Genesis Operator", "genesis.eth", "http://aastar.io", "Genesis Hub", "", 30 ether
+            )
+        );
         registry.registerRole(ROLE_COMMUNITY, deployer, opData);
         registry.registerRole(ROLE_PAYMASTER_SUPER, deployer, "");
         IEntryPoint(entryPointAddr).depositTo{value: 0.1 ether}(address(superPaymaster));
@@ -220,7 +235,7 @@ contract DeployStandardV3 is Script {
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
         vm.serializeAddress(jsonObj, "staking", address(staking));
         vm.serializeAddress(jsonObj, "superPaymaster", address(superPaymaster));
-        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory)); 
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory));
         vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
         vm.serializeAddress(jsonObj, "sbt", address(mysbt));
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));

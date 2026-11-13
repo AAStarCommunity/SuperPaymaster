@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
@@ -54,14 +54,13 @@ import {V55Bootstrap, IxPNTsV2Script} from "./V55Bootstrap.sol";
 contract DeployLive is V54Bootstrap, V55Bootstrap {
     using Clones for address;
 
-
     address deployer;
     address entryPointAddr;
     address priceFeedAddr;
     address simpleAccountFactory;
-    address spImplAddr;          // SuperPaymaster implementation (UUPS)
-    address registryImplAddr;    // Registry implementation (UUPS) — needed by audit-core ERC-1967 check
-    address erc8004Validation;   // ERC-8004 ValidationRegistry (stored for config; SP doesn't wire it yet)
+    address spImplAddr; // SuperPaymaster implementation (UUPS)
+    address registryImplAddr; // Registry implementation (UUPS) — needed by audit-core ERC-1967 check
+    address erc8004Validation; // ERC-8004 ValidationRegistry (stored for config; SP doesn't wire it yet)
     MicroPaymentChannel microPaymentCh; // Deployed in Step 4
 
     GTokenAuthorization gtoken;
@@ -91,7 +90,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         entryPointAddr = vm.envAddress("ENTRY_POINT");
         priceFeedAddr = vm.envAddress("ETH_USD_FEED");
         simpleAccountFactory = vm.envAddress("SIMPLE_ACCOUNT_FACTORY");
-        
+
         // Resolve Deployer Address
         // 1. Try DEPLOYER_ADDRESS (if set by wrapper script)
         // 2. Fallback to msg.sender (only for Anvil/Private Key mode)
@@ -124,17 +123,15 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         xpntsFactory = xPNTsFactory(_deployDefault("xPNTsFactory", abi.encode(address(0), address(registry)))); // SP not deployed yet
 
         // Deploy GTokenAuthorization (replaces plain GToken)
-        gtoken = GTokenAuthorization(_deployDefault(
-            "GTokenAuthorization", abi.encode(uint256(21_000_000 * 1e18), address(xpntsFactory))
-        ));
+        gtoken = GTokenAuthorization(
+            _deployDefault("GTokenAuthorization", abi.encode(uint256(21_000_000 * 1e18), address(xpntsFactory)))
+        );
 
         // Deploy Staking and MySBT with immutable Registry + GToken references
-        staking = GTokenStaking(_deployDefault(
-            "GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))
-        ));
-        mysbt = MySBT(_deployDefault(
-            "MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)
-        ));
+        staking =
+            GTokenStaking(_deployDefault("GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))));
+        mysbt =
+            MySBT(_deployDefault("MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)));
 
         // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
@@ -156,24 +153,22 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 2: Pre-register AAStar COMMUNITY + Deploy aPNTs ===");
         gtoken.mint(deployer, 2000 ether);
         gtoken.approve(address(staking), 2000 ether);
-        Registry.CommunityRoleData memory aaStarData = Registry.CommunityRoleData({
-            name: "AAStar",
-            ensName: "aastar.eth",
-            stakeAmount: 30 ether
-        });
+        Registry.CommunityRoleData memory aaStarData =
+            Registry.CommunityRoleData({name: "AAStar", ensName: "aastar.eth", stakeAmount: 30 ether});
         registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
 
         // xPNTsFactory already deployed in Step 1
-        address apntsAddr = xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
+        address apntsAddr =
+            xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
         apnts = xPNTsToken(apntsAddr);
         console.log("  aPNTs Deployed at:", apntsAddr);
 
         console.log("=== Step 3: Deploy SuperPaymaster (UUPS Proxy) ===");
         // AUD-4: explicit profile.default artifact (this file imports Registry.sol, so a plain
         // `new` would ship the runs=200 registry-size build).
-        SuperPaymaster spImpl = SuperPaymaster(payable(_deployDefault(
-            "SuperPaymaster", abi.encode(entryPointAddr, address(registry), priceFeedAddr)
-        )));
+        SuperPaymaster spImpl = SuperPaymaster(
+            payable(_deployDefault("SuperPaymaster", abi.encode(entryPointAddr, address(registry), priceFeedAddr)))
+        );
         spImplAddr = address(spImpl); // capture for config write
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         superPaymaster = SuperPaymaster(payable(_deployDefault("ERC1967Proxy", abi.encode(address(spImpl), spInit))));
@@ -183,10 +178,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         console.log("=== Step 4: Deploy Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry))));
-        aggregator = BLSAggregator(_deployDefault(
-            "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt))
-        ));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        aggregator = BLSAggregator(
+            _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
+        );
         microPaymentCh = MicroPaymentChannel(_deployDefault("MicroPaymentChannel", abi.encode(deployer)));
 
         pmFactory = PaymasterFactory(_deployDefault("PaymasterFactory", ""));
@@ -219,12 +214,14 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         // matters. `emergencyDisarmFraudProofVerifier()` is immediate and unannounced, so
         // an EOA-owned aggregator means one hot key can censor every future guardian-slash
         // accusation by front-running it out of the mempool -- and no Timelock can cover
-        // that path. Everything above still runs deployer-owned; only this one owner moves.
+        // that path. DVT ownership moves to the same boundary because its validator-removal
+        // route must not remain with the deployer. Everything above still runs deployer-owned.
         _settleAggregatorGovernance();
         _settleTokenGovernance();
 
         vm.stopBroadcast();
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
+        require(dvt.owner() == aggregator.owner(), "DeployLive: DVT owner != BLS owner");
         // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
         // is not either. With the variable unset the gate REFUSES rather than passing,
         // even when the owner is already a Safe -- it proves "this is the Safe the
@@ -262,7 +259,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         _requireDefaultProxy(address(registry), "Registry");
         _requireDefaultProxy(address(superPaymaster), "SuperPaymaster");
         _requireDefaultArtifact(address(xpntsFactory), "xPNTsFactory");
-        require(_requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(), "T-4: aPNTs not a clone of the factory template");
+        require(
+            _requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(),
+            "T-4: aPNTs not a clone of the factory template"
+        );
         _requireDefaultArtifact(address(gtoken), "GTokenAuthorization");
         _requireDefaultArtifact(address(staking), "GTokenStaking");
         _requireDefaultArtifact(address(mysbt), "MySBT");
@@ -274,7 +274,9 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         _requireDefaultArtifact(address(pmV4Impl), "Paymaster");
         address pmProxy = pmFactory.getPaymasterByOperator(deployer);
         if (pmProxy != address(0)) {
-            require(_requireDefaultClone(pmProxy, "Paymaster") == address(pmV4Impl), "T-4: V4 proxy not a clone of pmV4Impl");
+            require(
+                _requireDefaultClone(pmProxy, "Paymaster") == address(pmV4Impl), "T-4: V4 proxy not a clone of pmV4Impl"
+            );
             require(pmFactory.implementations("v4.2") == address(pmV4Impl), "T-4: factory v4.2 != pmV4Impl");
         }
         _requireDefaultArtifact(x402FacilitatorAddr, "X402Facilitator");
@@ -282,7 +284,9 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         _requireDefaultArtifact(timelockControllerAddr, "TimelockController");
         _verifyV55Stack(v55, address(superPaymaster), address(registry)); // the 7 v5.5.0 contracts
         if (pntsAddr != address(0)) {
-            require(_requireDefaultClone(pntsAddr, "xPNTsTokenV2") == v55.impl, "T-4: PNTs not a clone of the v2 template");
+            require(
+                _requireDefaultClone(pntsAddr, "xPNTsTokenV2") == v55.impl, "T-4: PNTs not a clone of the v2 template"
+            );
         }
     }
 
@@ -294,21 +298,23 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         return Ownable(v55.aoaRegistry).owner();
     }
 
-    /// @dev Transfers BLSAggregator ownership to `GOVERNANCE_OWNER` when the operator names
-    ///      one. Unset is the normal local path (the gate is a no-op on anvil) and is
-    ///      refused outright on a production chain by `requireGovernanceOwner`, rather than
-    ///      being silently defaulted to an address baked into this script.
+    /// @dev Transfers BLSAggregator and DVTValidator ownership to the same
+    ///      `GOVERNANCE_OWNER`. DVT rotation remains immediate: it adds no power beyond
+    ///      the owner's direct verifyAndExecute route, and DVT paths still require a BLS
+    ///      quorum. Verifier rotation keeps its contract-enforced delay. Unset is the
+    ///      normal local path and is refused on a production chain by the governance gate.
     function _settleAggregatorGovernance() internal {
         address gov = GovernanceOwnerGate.declaredGovernanceOwner();
         if (gov == address(0)) return;
         aggregator.transferOwnership(gov);
-        console.log("  BLSAggregator ownership transferred to governance:", gov);
+        dvt.transferOwnership(gov);
+        require(dvt.owner() == aggregator.owner(), "DeployLive: DVT owner != BLS owner");
+        console.log("  BLSAggregator + DVTValidator ownership transferred to governance:", gov);
     }
 
     /// @dev Hands aPNTs and the xPNTsFactory to governance, with the same gate the
-    ///      aggregator uses above. That gate has moved exactly one contract since
-    ///      CC-48 round-6, and the two it left behind are the two that decide how much
-    ///      of the community token can exist and what it is worth:
+    ///      aggregator uses above. The token owners decide how much of the community
+    ///      token can exist and what it is worth:
     ///
     ///        aPNTs.communityOwner   mint() is onlyFactoryOrOwner with NO cap check.
     ///                               issuanceCap is a view for DVT, not a mint gate,
@@ -355,8 +361,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
             guardian,
             address(0) // fresh timelock
         );
-        x402FacilitatorAddr    = v54.facilitator;
-        policyRegistryAddr     = v54.policyRegistry;
+        x402FacilitatorAddr = v54.facilitator;
+        policyRegistryAddr = v54.policyRegistry;
         timelockControllerAddr = v54.timelock;
 
         _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
@@ -370,60 +376,45 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
     /// @dev    All reads are view-only; no transactions are broadcast.
     function _assertWiring() internal view {
         // ── Step 1: Registry ↔ GTokenStaking ↔ MySBT ──────────────────────────
-        require(address(registry.GTOKEN_STAKING()) == address(staking),
-            "wire: registry.setStaking");
-        require(address(registry.MYSBT())           == address(mysbt),
-            "wire: registry.setMySBT");
-        require(address(gtoken.mySBT())             == address(mysbt),
-            "wire: gtoken.setMySBT");
+        require(address(registry.GTOKEN_STAKING()) == address(staking), "wire: registry.setStaking");
+        require(address(registry.MYSBT()) == address(mysbt), "wire: registry.setMySBT");
+        require(address(gtoken.mySBT()) == address(mysbt), "wire: gtoken.setMySBT");
 
         // ── Step 5: Registry ↔ core modules ────────────────────────────────────
-        require(registry.SUPER_PAYMASTER()          == address(superPaymaster),
-            "wire: registry.setSuperPaymaster");
-        require(registry.isReputationSource(address(repSystem)),
-            "wire: registry.setReputationSource");
-        require(registry.blsAggregator()            == address(aggregator),
-            "wire: registry.setBLSAggregator");
+        require(registry.SUPER_PAYMASTER() == address(superPaymaster), "wire: registry.setSuperPaymaster");
+        require(registry.isReputationSource(address(repSystem)), "wire: registry.setReputationSource");
+        require(registry.blsAggregator() == address(aggregator), "wire: registry.setBLSAggregator");
 
         // ── Step 5: DVT / BLS cross-wiring ─────────────────────────────────────
-        require(aggregator.DVT_VALIDATOR()          == address(dvt),
-            "wire: aggregator.setDVTValidator");
-        require(dvt.BLS_AGGREGATOR()                == address(aggregator),
-            "wire: dvt.setBLSAggregator");
+        require(aggregator.DVT_VALIDATOR() == address(dvt), "wire: aggregator.setDVTValidator");
+        require(dvt.BLS_AGGREGATOR() == address(aggregator), "wire: dvt.setBLSAggregator");
 
         // ── Step 5: PaymasterFactory implementation registration ────────────────
-        require(pmFactory.implementations("v4.2")  == address(pmV4Impl),
-            "wire: factory.addImplementation v4.2");
+        require(pmFactory.implementations("v4.2") == address(pmV4Impl), "wire: factory.addImplementation v4.2");
 
         // ── Step 5: SuperPaymaster ↔ xPNTsFactoryV2 (5.5.0) / 3.x factory ──────
-        require(superPaymaster.xpntsFactory()      == v55.factory,
-            "wire: sp.setXPNTsFactory(factoryV2)");
-        require(xpntsFactory.SUPERPAYMASTER()       == address(superPaymaster),
-            "wire: factory.setSuperPaymaster");
+        require(superPaymaster.xpntsFactory() == v55.factory, "wire: sp.setXPNTsFactory(factoryV2)");
+        require(xpntsFactory.SUPERPAYMASTER() == address(superPaymaster), "wire: factory.setSuperPaymaster");
 
         // ── Step 5: Slasher authorization ───────────────────────────────────────
-        require(staking.authorizedSlashers(address(aggregator)),
-            "wire: staking.setAuthorizedSlasher");
+        require(staking.authorizedSlashers(address(aggregator)), "wire: staking.setAuthorizedSlasher");
 
         // ── Step 5: SuperPaymaster BLS_AGGREGATOR ───────────────────────────────
-        require(superPaymaster.BLS_AGGREGATOR()     == address(aggregator),
-            "wire: sp.initBLSAggregator");
+        require(superPaymaster.BLS_AGGREGATOR() == address(aggregator), "wire: sp.initBLSAggregator");
 
         // ── Step 5: Price feed immutable (baked into SP implementation) ─────────
-        require(address(superPaymaster.ETH_USD_PRICE_FEED()) == priceFeedAddr,
-            "wire: sp.priceFeed");
+        require(address(superPaymaster.ETH_USD_PRICE_FEED()) == priceFeedAddr, "wire: sp.priceFeed");
 
         // ── Step 6: aPNTs ↔ SuperPaymaster ─────────────────────────────────────
-        require(apnts.SUPERPAYMASTER_ADDRESS()      == address(superPaymaster),
-            "wire: apnts.setSuperPaymaster");
+        require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "wire: apnts.setSuperPaymaster");
     }
 
     function _executeWiring() internal {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         // 5.5.0 (runbook step 6): SP binds operators to tokens issued by xPNTsFactoryV2.
         _wireSPFactory(address(superPaymaster), v55.factory);
@@ -450,19 +441,21 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         address erc8004Identity;
         address erc8004Reputation;
         uint256 cid = block.chainid;
-        bool isMainnet = (cid==1||cid==10||cid==137||cid==8453||cid==42161||cid==43114||cid==56||cid==534352);
-        bool isTestnet = (cid==11155111||cid==11155420||cid==84532||cid==421614||cid==80002);
+        bool isMainnet =
+            (cid == 1 || cid == 10 || cid == 137 || cid == 8453 || cid == 42161 || cid == 43114 || cid == 56
+                || cid == 534352);
+        bool isTestnet = (cid == 11155111 || cid == 11155420 || cid == 84532 || cid == 421614 || cid == 80002);
         if (isMainnet) {
-            erc8004Identity   = 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432;
+            erc8004Identity = 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432;
             erc8004Reputation = 0x8004BAa17C55a88189AE136b182e5fdA19dE9b63;
             erc8004Validation = 0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58;
         } else if (isTestnet) {
-            erc8004Identity   = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
+            erc8004Identity = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
             erc8004Reputation = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
             erc8004Validation = 0x8004Cb1BF31DAf7788923b405b754f57acEB4272;
         }
         // Allow env override
-        erc8004Identity   = vm.envOr("AGENT_IDENTITY_REGISTRY",   erc8004Identity);
+        erc8004Identity = vm.envOr("AGENT_IDENTITY_REGISTRY", erc8004Identity);
         erc8004Reputation = vm.envOr("AGENT_REPUTATION_REGISTRY", erc8004Reputation);
         erc8004Validation = vm.envOr("AGENT_VALIDATION_REGISTRY", erc8004Validation);
         if (erc8004Identity != address(0) && erc8004Reputation != address(0)) {
@@ -476,7 +469,9 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         }
 
         // Oracle Init
-        try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (uint80, int256 price, uint256, uint256, uint80) {
+        try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (
+            uint80, int256 price, uint256, uint256, uint80
+        ) {
             try SuperPaymasterAdmin(address(superPaymaster)).updatePriceDVT(price, block.timestamp, "", 0) { // D5b: extension function
                 console.log("  Cache Price Force-Initialized");
             } catch {
@@ -498,20 +493,26 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         // Step 31-36: AOA Paymaster
         bytes memory init = abi.encodeWithSignature(
             "initialize(address,address,address,address,uint256,uint256,uint256)",
-            entryPointAddr, deployer, deployer, priceFeedAddr, 100, 1 ether, 4200
+            entryPointAddr,
+            deployer,
+            deployer,
+            priceFeedAddr,
+            100,
+            1 ether,
+            4200
         );
         address pmProxy = pmFactory.deployPaymaster("v4.2", init);
         Paymaster(payable(pmProxy)).addStake{value: 0.1 ether}(86400); // Increased to 0.1 ETH as requested
         Paymaster(payable(pmProxy)).updatePrice();
         // Step 34: $0.02
-        Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000); 
+        Paymaster(payable(pmProxy)).setTokenPrice(address(apnts), 2_000_000);
 
         gtoken.approve(address(staking), 33 ether);
         registry.registerRole(ROLE_PAYMASTER_AOA, deployer, abi.encode(uint256(30 ether)));
-        
+
         // Step 37: 0.05 ETH
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxy);
-        
+
         // Step 38: Mint 20,000 aPNTs
         apnts.mint(deployer, 20_000 ether);
     }
@@ -527,9 +528,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         if (!registry.hasRole(ROLE_COMMUNITY, anni)) {
             gtoken.approve(address(staking), 34 ether);
             Registry.CommunityRoleData memory mycData = Registry.CommunityRoleData({
-                name: "Mycelium Community",
-                ensName: "mushroom.box",
-                stakeAmount: 30 ether
+                name: "Mycelium Community", ensName: "mushroom.box", stakeAmount: 30 ether
             });
             registry.safeMintForRole(ROLE_COMMUNITY, anni, abi.encode(mycData));
             console.log("  Mycelium Community Registered");
@@ -560,9 +559,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         // 6d. Deploy PNTs (Mycelium community token — special token name).
         //     5.5.0: an xPNTs v2 token from xPNTsFactoryV2 (SP rejects 3.x tokens).
-        pntsAddr = _issueV2Token(
-            v55.factory, anni, "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18
-        );
+        pntsAddr = _issueV2Token(v55.factory, anni, "Mycelium PNTs", "PNTs", "Mycelium Community", "mushroom.box", 1e18);
 
         // 6e. Configure Anni as SuperPaymaster operator (idempotent; re-binds a stale token)
         _configureOperatorV2(address(superPaymaster), pntsAddr, anni, anni);
@@ -599,7 +596,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
         vm.serializeAddress(jsonObj, "staking", address(staking));
         vm.serializeAddress(jsonObj, "superPaymaster", address(superPaymaster));
-        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory)); 
+        vm.serializeAddress(jsonObj, "paymasterFactory", address(pmFactory));
         vm.serializeAddress(jsonObj, "aPNTs", address(apnts));
         vm.serializeAddress(jsonObj, "sbt", address(mysbt));
         vm.serializeAddress(jsonObj, "reputationSystem", address(repSystem));
@@ -615,8 +612,14 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         vm.serializeAddress(jsonObj, "aPNTsPaymasterV4", pmFactory.getPaymasterByOperator(deployer));
         // ERC-8004 agent registry addresses (official CREATE2 constants per chain).
         // identity + reputation are wired into SuperPaymaster; validation is recorded for future use.
-        vm.serializeAddress(jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry());
-        vm.serializeAddress(jsonObj, "agentReputationRegistry", SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry());
+        vm.serializeAddress(
+            jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry()
+        );
+        vm.serializeAddress(
+            jsonObj,
+            "agentReputationRegistry",
+            SuperPaymaster(payable(address(superPaymaster))).agentReputationRegistry()
+        );
         vm.serializeAddress(jsonObj, "agentValidationRegistry", erc8004Validation);
         // UUPS implementation addresses — required for future upgrades via upgradeToAndCall()
         // and for audit-core's ERC-1967 implementation-slot verification.

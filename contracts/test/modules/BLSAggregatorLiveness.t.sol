@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
@@ -119,7 +120,7 @@ contract MockRegistryToggleableBLS is IRegistry {
  * proof that includes their slot still passes the OLD pkAgg reconstruction.
  * The new check rejects such proofs at the slot level.
  */
-contract BLSAggregatorLivenessTest is Test {
+contract BLSAggregatorLivenessTest is BLSRegistrationTestHelper {
     bytes quorumSignature;
     bytes partialSignature;
     bool realPrecompiles;
@@ -174,7 +175,7 @@ contract BLSAggregatorLivenessTest is Test {
             address v = address(uint160(uint256(slot) + 0x100));
             registry.setHasDvtRole(v, true);
             staking.setLocked(v, 200);
-            bls.registerBLSPublicKey(v, _stubKey(uint256(slot)), slot, _pop(v, slot));
+            _registerKey(bls, dvt, v, _stubKey(uint256(slot)), slot, _pop(v, slot));
         }
         vm.stopPrank();
 
@@ -305,6 +306,18 @@ contract BLSAggregatorLivenessTest is Test {
         bls.revokeBLSPublicKey(slot1v);
     }
 
+    function test_RevokeBLSPublicKey_ConfiguredDVTCanRevoke() public {
+        address slot1v = address(uint160(uint256(1) + 0x100));
+        vm.prank(owner);
+        bls.setDefaultThreshold(6);
+        vm.prank(dvt);
+        bls.revokeBLSPublicKey(slot1v);
+
+        (,, bool active) = bls.getBLSPublicKey(slot1v);
+        assertFalse(active);
+        assertEq(bls.validatorAtSlot(1), address(0));
+    }
+
     function test_RevokeBLSPublicKey_RevertsWhen_KeyNotActive() public {
         address slot1v = address(uint160(uint256(1) + 0x100));
         vm.startPrank(owner);
@@ -350,7 +363,7 @@ contract BLSAggregatorLivenessTest is Test {
         // Newcomer can claim slot 7.
         registry.setHasDvtRole(newcomer, true);
         staking.setLocked(newcomer, 200);
-        bls.registerBLSPublicKey(newcomer, _stubKey(uint256(99)), 7, _pop(newcomer, 99));
+        _registerKey(bls, dvt, newcomer, _stubKey(uint256(99)), 7, _pop(newcomer, 99));
         vm.stopPrank();
 
         assertEq(bls.validatorAtSlot(7), newcomer);
@@ -361,6 +374,6 @@ contract BLSAggregatorLivenessTest is Test {
     // ====================================
 
     function test_Version_Bumped() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.13.0"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.14.0"));
     }
 }

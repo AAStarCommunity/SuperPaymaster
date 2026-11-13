@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
@@ -9,32 +10,17 @@ import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
 import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 import {FraudProofVerifierConformance as Conformance} from "../helpers/FraudProofVerifierConformance.sol";
-import {OverIssueFraudProofVerifier} from "./vendor/OverIssueFraudProofVerifier.sol";
+import {AnchoredOverIssueFraudProofVerifier} from "./AnchoredOverIssueFraudProofVerifier.sol";
 
 /**
  * @title CC115CrossRepoConformance
- * @notice CC-115 B2, second half: run SP's release gate against the REAL, MERGED DVT
- *         verifier — not a stand-in for it.
- *
- * @dev    What makes this cross-repo rather than another mock test:
- *
- *         - the verifier under test is `contracts/test/crossrepo/vendor/
- *           OverIssueFraudProofVerifier.sol`, a vendored copy of DVT master @ 8395c94c
- *           (PR #240) whose only deviation from upstream is an import path, recorded and
- *           mechanically re-checkable from its own header;
- *         - the aggregator is a REAL `BLSAggregator`, and the commitment the verifier
- *           recomputes is written by SP's own `verifyAndExecute` → `_computeSignersCommitment`.
- *           Nothing in this file re-implements SP's inner encoding, so the verifier is not
- *           being compared against a second copy of its own assumptions. That circularity
- *           is exactly what let a stale inner layout survive 131 green tests upstream
- *           (CC-115 comment b5426965) — the fix is that the anchor comes from the real
- *           contract, and the recompute comes from the real verifier;
- *         - `GuardianSlashE2E` already had this harness with a `MockVerifier` and a comment
- *           saying "when the real DVT OverIssueFraudProofVerifier lands, swap it in". This
- *           is that swap.
- *
- *         Cancun uses precompile stubs; Prague/Amsterdam use genuine keys and
- *         signatures to reach the same cross-repository encoding assertions.
+ * @notice CC-115 local adapter tests against the production aggregator.
+ * @dev The historical claim that this runs the unmodified merged DVT verifier is
+ *      superseded. AnchoredOverIssueFraudProofVerifier overrides verification to
+ *      support the parent-block anchor and 64 signers. Its vendored base retains
+ *      the old schema and 13-signer cap. These tests do not establish upstream
+ *      release compatibility. Cancun uses precompile stubs; Prague uses genuine
+ *      keys and signatures for the same local adapter assertions.
  */
 
 // ---- minimal stand-ins for what BLSAggregator's constructor and reads require ----
@@ -89,13 +75,13 @@ contract XToken {
     function isOverIssued() external view returns (bool) { return over; }
 }
 
-contract CC115CrossRepoConformance is Test {
+contract CC115CrossRepoConformance is BLSRegistrationTestHelper {
     BLSAggregator internal aggA;
     BLSAggregator internal aggB;
     XRegistry internal registry;
     XStaking internal staking;
     XToken internal token;
-    OverIssueFraudProofVerifier internal verifier;
+    AnchoredOverIssueFraudProofVerifier internal verifier;
 
     address internal owner = address(0x0BEE);
     uint256 internal constant MIN_STAKE = 30 ether;
@@ -143,7 +129,7 @@ contract CC115CrossRepoConformance is Test {
         aggA = new BLSAggregator(address(registry), address(sp), address(dvt));
         aggB = new BLSAggregator(address(registry), address(sp), address(dvt));
         for (uint8 i = 0; i < 7; i++) {
-            aggA.registerBLSPublicKey(validators[i], _stubKey(i + 1), i + 1,
+            _registerKey(aggA, address(dvt), validators[i], _stubKey(i + 1), i + 1,
                 realPrecompiles ? GenuineBLS.pop(aggA, validators[i], i + 1) : _emptyPoP());
         }
         vm.stopPrank();
@@ -153,7 +139,7 @@ contract CC115CrossRepoConformance is Test {
         }
 
         // The real DVT verifier, bound to aggA and this Registry.
-        verifier = new OverIssueFraudProofVerifier(address(aggA), address(registry));
+        verifier = new AnchoredOverIssueFraudProofVerifier(address(aggA), address(registry));
 
         // Drive SP's OWN consensus path so the aggregator writes a real
         // proposalSignersCommitment. The evidenceHash must be the DVT convention, because
@@ -175,6 +161,7 @@ contract CC115CrossRepoConformance is Test {
 
     /// SP's `assertDomainBound`: accepts its own domain, rejects a sibling aggregator's,
     /// rejects an arbitrary digest.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_RealDvtVerifierPassesAssertDomainBound() public view {
         Conformance.assertDomainBound(
             address(verifier), address(aggA), address(aggB), _fraudProofId(), guardians, _fraudProof()
@@ -184,6 +171,7 @@ contract CC115CrossRepoConformance is Test {
     /// SP's `assertSetBound`: accepts the exact accused set, rejects every (n-1) subset,
     /// the superset, and an unrelated set of the same size. This is the gate the pre-B1
     /// subset-lenient verifier would have failed.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_RealDvtVerifierPassesAssertSetBound() public view {
         Conformance.assertSetBound(
             address(verifier), address(aggA), _fraudProofId(), guardians, _fraudProof()
@@ -196,6 +184,7 @@ contract CC115CrossRepoConformance is Test {
 
     /// The outer layer: the verifier's domain reconstruction must equal the aggregator's,
     /// for the SAME aggregator, and must NOT equal a sibling's.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_DomainSeparatorParityWithRealAggregator() public view {
         assertEq(verifier.domainSeparator(), aggA.domainSeparator(), "verifier rebuilds aggA's domain");
         assertTrue(aggA.domainSeparator() != aggB.domainSeparator(), "siblings must not share a domain");
@@ -204,6 +193,7 @@ contract CC115CrossRepoConformance is Test {
 
     /// The digest SP actually hands to `verify` must be the one the verifier expects,
     /// across several ids and set shapes — not just the happy one above.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_FraudProofDigestParityAcrossIdsAndSets() public view {
         uint256[3] memory ids = [uint256(1), _fraudProofId(), type(uint256).max];
         for (uint256 i = 0; i < ids.length; ++i) {
@@ -229,6 +219,7 @@ contract CC115CrossRepoConformance is Test {
     /// stale inner layout on either side makes this fail — which is precisely what 131
     /// green upstream tests could not see while the anchor came from a mock that shared
     /// the verifier's own encoding.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_InnerCommitmentLayoutParityAgainstRealAggregatorWrite() public view {
         assertTrue(aggA.proposalSignersCommitment(PID) != bytes32(0), "SP wrote a real anchor");
         assertTrue(
@@ -242,6 +233,7 @@ contract CC115CrossRepoConformance is Test {
     /// Step 5 is a live read, so the same proof must flip with the token's state. This
     /// pins that the acceptance above is earned by the evidence and not by a verifier
     /// that says yes to everything.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_OverIssuedTokenFlipsTheSameProofToRejected() public {
         bytes32 digest = aggA.fraudProofDigest(_fraudProofId(), guardians);
         assertTrue(verifier.verify(digest, _fraudProofId(), guardians, _fraudProof()), "accepted while not over-issued");
@@ -250,6 +242,7 @@ contract CC115CrossRepoConformance is Test {
     }
 
     /// The pre-4.11 three-parameter selector must be gone from the vendored build.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_LegacyThreeParamSelectorIsAbsent() public view {
         assertEq(
             bytes4(keccak256("verify(bytes32,uint256,address[],bytes)")),
@@ -268,9 +261,11 @@ contract CC115CrossRepoConformance is Test {
     }
 
     /// DVT's proof ABI: (proposalId, operator, slashLevel, epoch, disputedToken,
-    /// signerMask, claimedSigners).
+    /// signerMask, claimedSigners, anchorBlockHash).
     function _fraudProof() internal view returns (bytes memory) {
-        return abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians);
+        return abi.encode(
+            PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians, blockhash(block.number - 1)
+        );
     }
 
     function _blsProof(uint256 signerMask, bytes32 evidence) internal view returns (bytes memory) {

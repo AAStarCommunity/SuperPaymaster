@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
-import { SuperPaymasterAdminCalls } from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
@@ -96,7 +96,7 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
     // v5.5.0 xPNTs v2 stack + operator tokens (written to config under NEW keys)
     V55Stack v55;
     address aastarXPNTsV2; // deployer (AAStar) operator token, v2
-    address demoXPNTsV2;   // Anni (DemoCommunity) operator token, v2 -> config "pnts"
+    address demoXPNTsV2; // Anni (DemoCommunity) operator token, v2 -> config "pnts"
 
     function setUp() public {
         deployer = vm.addr(deployerPK);
@@ -124,17 +124,15 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         xpntsFactory = xPNTsFactory(_deployDefault("xPNTsFactory", abi.encode(address(0), address(registry)))); // SP not deployed yet
 
         // Deploy GTokenAuthorization (replaces plain GToken)
-        gtoken = GTokenAuthorization(_deployDefault(
-            "GTokenAuthorization", abi.encode(uint256(21_000_000 * 1e18), address(xpntsFactory))
-        ));
+        gtoken = GTokenAuthorization(
+            _deployDefault("GTokenAuthorization", abi.encode(uint256(21_000_000 * 1e18), address(xpntsFactory)))
+        );
 
         // Deploy Staking and MySBT with immutable Registry + GToken references
-        staking = GTokenStaking(_deployDefault(
-            "GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))
-        ));
-        mysbt = MySBT(_deployDefault(
-            "MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)
-        ));
+        staking =
+            GTokenStaking(_deployDefault("GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))));
+        mysbt =
+            MySBT(_deployDefault("MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)));
 
         // Wire staking and MySBT into Registry
         registry.setStaking(address(staking));
@@ -179,9 +177,9 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 5: Deploy Core (UUPS Proxy) ===");
         // AUD-4: explicit profile.default artifact (this file imports Registry.sol, so a plain
         // `new` would ship the runs=200 registry-size build).
-        SuperPaymaster spImpl = SuperPaymaster(payable(_deployDefault(
-            "SuperPaymaster", abi.encode(entryPointAddr, address(registry), priceFeedAddr)
-        )));
+        SuperPaymaster spImpl = SuperPaymaster(
+            payable(_deployDefault("SuperPaymaster", abi.encode(entryPointAddr, address(registry), priceFeedAddr)))
+        );
         spImplAddr = address(spImpl);
         bytes memory spInit = abi.encodeCall(SuperPaymaster.initialize, (deployer, address(apnts), deployer, 4200));
         superPaymaster = SuperPaymaster(payable(_deployDefault("ERC1967Proxy", abi.encode(address(spImpl), spInit))));
@@ -192,10 +190,10 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
         // DVTValidator must be deployed before BLSAggregator (constructor rejects address(0))
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry))));
-        aggregator = BLSAggregator(_deployDefault(
-            "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt))
-        ));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        aggregator = BLSAggregator(
+            _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
+        );
         pmFactory = PaymasterFactory(_deployDefault("PaymasterFactory", ""));
         pmV4Impl = Paymaster(payable(_deployDefault("Paymaster", abi.encode(address(registry)))));
         microPaymentCh = MicroPaymentChannel(_deployDefault("MicroPaymentChannel", abi.encode(deployer)));
@@ -288,10 +286,11 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         address gov = GovernanceOwnerGate.declaredGovernanceOwner();
         if (gov != address(0)) {
             aggregator.transferOwnership(gov);
-            console.log("  BLSAggregator ownership transferred to governance:", gov);
-            // The gate moved exactly one contract, and the two it left behind are the
-            // two that decide how much of the community token can exist and what it is
-            // worth. aPNTs.mint is onlyFactoryOrOwner with NO cap check (issuanceCap is
+            dvt.transferOwnership(gov);
+            require(dvt.owner() == aggregator.owner(), "DeployAnvil: DVT owner != BLS owner");
+            console.log("  BLSAggregator + DVTValidator ownership transferred to governance:", gov);
+            // The token owners decide how much of the community token can exist and what
+            // it is worth. aPNTs.mint is onlyFactoryOrOwner with NO cap check (issuanceCap is
             // a view for DVT, not a mint gate, and is unset until someone sets it), so
             // the owner mints without bound. xPNTsFactory.owner sets aPNTsPriceUSD,
             // industryScaleUSD, capRatioBps and setTokenCategory - every input
@@ -326,6 +325,7 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         _requireDefaultArtifact(spImplAddr, "SuperPaymaster");
 
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
+        require(dvt.owner() == aggregator.owner(), "DeployAnvil: DVT owner != BLS owner");
         // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
         // is not either. With the variable unset the gate REFUSES rather than passing,
         // even when the owner is already a Safe -- it proves "this is the Safe the
@@ -348,7 +348,10 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         _requireDefaultProxy(address(registry), "Registry");
         _requireDefaultProxy(address(superPaymaster), "SuperPaymaster");
         _requireDefaultArtifact(address(xpntsFactory), "xPNTsFactory");
-        require(_requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(), "T-4: aPNTs not a clone of the factory template");
+        require(
+            _requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(),
+            "T-4: aPNTs not a clone of the factory template"
+        );
         _requireDefaultArtifact(address(gtoken), "GTokenAuthorization");
         _requireDefaultArtifact(address(staking), "GTokenStaking");
         _requireDefaultArtifact(address(mysbt), "MySBT");
@@ -366,8 +369,13 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         _requireDefaultArtifact(policyRegistryAddr, "PolicyRegistry");
         _requireDefaultArtifact(timelockControllerAddr, "TimelockController");
         _verifyV55Stack(v55, address(superPaymaster), address(registry)); // the 7 v5.5.0 contracts
-        require(_requireDefaultClone(aastarXPNTsV2, "xPNTsTokenV2") == v55.impl, "T-4: aXPNTs not a clone of the v2 template");
-        require(_requireDefaultClone(demoXPNTsV2, "xPNTsTokenV2") == v55.impl, "T-4: dPNTs not a clone of the v2 template");
+        require(
+            _requireDefaultClone(aastarXPNTsV2, "xPNTsTokenV2") == v55.impl,
+            "T-4: aXPNTs not a clone of the v2 template"
+        );
+        require(
+            _requireDefaultClone(demoXPNTsV2, "xPNTsTokenV2") == v55.impl, "T-4: dPNTs not a clone of the v2 template"
+        );
     }
 
     function _executeWiring() internal {
@@ -378,8 +386,8 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         // same proof, so the aggregator itself must be an authorized source.
         registry.setReputationSource(address(aggregator), true);
         registry.setBLSAggregator(address(aggregator));
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
 
         // CRITICAL: Update factory's SuperPaymaster address
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));

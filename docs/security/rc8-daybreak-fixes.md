@@ -4,14 +4,14 @@ Branch `cc125/rc8-daybreak-fixes`.
 Input: `C4-report.md`, `C2-report.md`, `C1-report.md` in
 the Daybreak review archive (2026-11-09, held by the maintainer and DSR).
 The initial `git diff 8de39026 -- contracts/src` was empty. No network, chain,
-key access, ABI regeneration, commits, or Git metadata writes were performed.
+key access, commits, or Git metadata writes were performed.
 The pre-existing OpenZeppelin v5.1.0 `package-lock.json` edit was preserved.
 
 ## Implementation
 
 ### C4-H-01: separate signing cutoff and withdrawal readiness
 
-`BLSAggregator-4.13.0` retains the two-day public notice. For request time `t`:
+`BLSAggregator-4.14.0` retains the two-day public notice. For request time `t`:
 
 - `readyAt = t + 2 days`: signing stops, exactly as before.
 - `withdrawAt = readyAt + GUARDIAN_FRAUD_CHALLENGE = t + 3 days`.
@@ -53,16 +53,34 @@ exact maturity, withdrawal at exact new expiry, and rejection one second later.
 Existing cutoff, cancellation, cooldown, expired-key exclusion and committee-floor
 tests remain in place; existing withdrawal/expiry timings were updated.
 
-### C4-L-01 deferred, C4-L-02 included
+### C4-L-01 and C4-L-02 fixed in rc.8 (BLSAggregator-4.14.0)
 
-C4-L-02 is included: generic `executeProposal` stores `proposalSignersCommitment` after signature
-verification and before calling the arbitrary target (test_GenericCommitmentIsStoredBeforeTargetCall,
+C4-L-02: generic `executeProposal` stores the signer commitment after signature verification and before
+calling the arbitrary target (test_GenericCommitmentIsStoredBeforeTargetCall,
 test_Prague_GenericProposalRecordsSigners).
 
-C4-L-01 is NOT fixed in rc.8. A first attempt removed the generic-path `markProposalExecuted` callback; the
-Daybreak re-review showed that generic and slash proposals still share `executedProposals`, so a fresh generic
-id could then pre-consume a slash proposal id that DVTValidator allocates later (a new reachable path). The
-callback is restored exactly as before rc.8 and C4-L-01 is deferred to 5.5.1 (disjoint id namespaces).
+C4-L-01: generic and slash proposals no longer share one id space. This supersedes the 11-09 note that
+deferred C4-L-01 to 5.5.1; DSR then ruled it into rc.8, together with the typed keys and
+MAX_VALIDATORS = 64 (commit "typed replay/commitment keys, anchored signer commitments, MAX_VALIDATORS 64").
+- The generic path keys replay protection and its commitment by
+  `uint256(keccak256(abi.encode(TAG_PROPOSAL, proposalId)))`. The `markProposalExecuted` callback to
+  DVTValidator is removed, so a generic id can no longer pre-consume a slash id that DVTValidator allocates
+  later.
+- Raw slash and reputation ids must be below 2^128 (`InvalidProposalId`), which separates them from the
+  keccak-derived generic and queue keys by 128 bits.
+- Each path stores its commitment under its own key, and the commitment also binds
+  `blockhash(block.number - 1)`. Every write emits `SignersCommitted(key, signerMask)`.
+- MAX_VALIDATORS is 64, and slot 65 reverts with `SlotOutOfRange`.
+
+Tests that run on Prague with genuine keys:
+- both paths keep both commitments: test_QueueSlashGeneric_OverlappingInputsKeepAllCommitments;
+- the crafted collision: test_SlashRawIdEqualToGenericKeyCannotOverwriteGenericCommitment;
+- slot 65: test_RegisterBLSPublicKey_SlotAboveMax_Reverts, test_Verify_RejectsBitsBeyondMaxValidators;
+- the typed key per path in the recompute: test_QueueSlashGeneric_OverlappingInputsKeepAllCommitments,
+  test_GenericCommitmentIsStoredBeforeTargetCall.
+
+Version: `BLSAggregator-4.14.0`. Main had already carried `4.13.0` for the build with C4-L-01 deferred.
+That build was never deployed, but two bytecodes must not share a version.
 
 ### C2-01: invalidate stale standby roles
 
@@ -142,7 +160,7 @@ Any future validation-time consumer of `PolicyRegistry` must pass the ERC-7562
 tracer gate before release. This is a documented release requirement even when
 the consumer's direct unit and integration tests pass.
 
-### Version propagation
+### Version propagation (historical; superseded by the reviewed redesign below)
 
 - BLSAggregator: 4.12.0 → 4.13.0.
 - SuperPaymaster: stays `SuperPaymaster-5.5.0`. Its ABI is unchanged; 5.5.0 has never been deployed on a live chain, and build identity is the commit plus runtime codehash (03-final-spec §6), not the version string.
@@ -157,6 +175,93 @@ with the new versions. Current-version assertions and the experimental
 ProfilePaymaster test helper were updated; historical deployment fixtures remain
 historical. Downstream DVT/SDK consumers need the new withdrawal timing and ABI
 constant/events before release. No downstream notifications were sent.
+
+## BLS round 4
+
+### DVT proposal-id rotation
+
+`DVTValidator-0.8.0` takes `(registry, firstProposalId)`; there is no predecessor
+argument or state. `firstProposalId` is nonzero and below `2^128`. The retained
+BLSAggregator-4.14.0 owns a monotonic `proposalFloor`. Activation atomically
+captures the outgoing DVT's next allocation, including pending IDs, and validates
+the successor's aggregator and Registry pointers. Every allocation reads that
+floor once. Empty intermediates and A→B→A rollback cannot reuse allocated IDs.
+The ordinary setter fails closed if the outgoing counter cannot be read. The
+explicit-floor recovery operation requires governance to supply an audited upper
+bound on all allocated IDs; it must never lower the stored floor. This recovery
+is an immediate owner authority, not automatic discovery of missing history.
+
+Pending slash and aggregator-routed reputation proposals executed through the
+current DVT need fresh IDs and proofs after rotation, including after reactivation.
+The floor does not revoke owner-direct `verifyAndExecute` with caller-chosen IDs,
+generic proofs, authorized direct Registry reputation proofs or unused consensus
+queue pre-flags; see the disclosed M1 residuals below. Full-width hashed
+ReputationSystem IDs remain valid on the direct Registry route.
+
+### Validator-removal quorum floor
+
+The survival check protects each currently reachable configured threshold:
+`minThreshold`, `defaultThreshold`, and every severity threshold. With one
+eligible signer leaving, crossing a threshold is exactly equality with the
+pre-exit committee count. Higher unreachable thresholds do not hide lower working
+ones; caller-selected generic thresholds above `minThreshold` are not standing
+configured quorums. At an exactly reachable N-of-N quorum, seat a replacement or
+change policy before voluntary exit or DVT removal. Direct owner revocation and
+suspension are explicit emergency overrides.
+
+Suspension is authoritative on the retained aggregator and is checked both during
+registration and while reconstructing every aggregate key. It survives rotation
+and rollback and can be set even without local admission or an active key. Use
+owner `revokeAndSuspend` for atomic emergency eviction. Reinstatement requires
+explicit owner clearance on the aggregator; DVT admission alone cannot clear it.
+
+The DVT and aggregator owners must remain the same Safe-compatible M-of-N owner.
+Rotation delegates key-registration authority as well as proposal forwarding;
+it is therefore more than the owner's existing direct execution permission.
+Verifier rotation separately retains its contract-enforced five-day delay.
+
+### Reputation rule disablement
+
+`Reputation-0.6.0` records rule existence and active state separately. A configured
+zero-base rule contributes no score and does not receive the default. Only an
+unconfigured first rule receives the default. Re-enabling does not duplicate an
+active rule. The additional mappings belong to a directly deployed contract;
+there is no proxy migration or automatic backfill claim.
+
+### NFT boost semantics
+
+NFT boost eligibility means **registration age plus current ownership**. The
+seven-day timestamp is not proof of uninterrupted ownership: a third-party NFT
+can be transferred away and reacquired before a permissionless watcher calls
+`resetNFTHoldStart`. Strict continuity is impossible here without collection
+transfer hooks, checkpoints, escrow, or authenticated acquisition history.
+
+### Raw-id separation wording
+
+Raw proposal ids remain below `2^128`. Their separation from unrestricted
+Keccak-derived generic and queue keys is a 128-bit cryptographic guarantee, not
+an absolute structural impossibility.
+
+## BLS round 7 — Daybreak re-review #4
+
+R4-01, R4-03, and R4-04 move to the dedicated manifest/executor PR. All scoped
+executor, schema, adapter, test, and release-design changes were restored to
+`origin/main`. The retained contract, deployment, test, historical-template,
+and security-report changes no longer reference that split implementation.
+
+R4-02 is fixed in every deployment path that previously transferred only the
+BLSAggregator owner: `DeployNewBLSModules`, `07b_DeployBLSModules`, and
+`DeployStandardV3` now transfer the paired DVTValidator to the same declared
+governance owner and assert `dvt.owner() == bls.owner()`. The other scripts that
+instantiate DVTValidator were checked: DeployLive, DeployAnvil, and
+DeployRepCreditSepolia already transfer both owners. Archive scripts contain no
+one-sided governance transfer; a fresh paired deployment leaves both contracts
+with the same broadcaster owner. A script-level regression covers
+DeployNewBLSModules. Removing its DVT transfer makes the test fail with
+`DeployNewBLSModules: DVT owner != BLS owner`.
+
+R4-05 provenance below was regenerated from final Cancun artifacts after the
+round-7 edits. No BLSAggregator contract code was changed in this round.
 
 ## Verification
 
@@ -173,7 +278,7 @@ The baseline artifact's source keccak was checked against `git show 8de39026`.
 Baseline BLSAggregator runtime: **24,345 B**, EIP-170 headroom **231 B**.
 FIX 1 only, same default compiler settings: **24,367 B**, headroom **209 B**.
 
-The final command results are recorded below; complete raw logs are in `/tmp/rc8-daybreak/`.
+Historical round-7 results (superseded by `.rv-redesign.md`) are recorded below; round-7 raw logs are in `/tmp/rc8-bls-r7-*.log`.
 
 The first full Cancun run exposed two stale expectations: the central release
 version table still named the old SP/Lens versions, and the invariant handler's
@@ -183,15 +288,18 @@ updated. The invariant model now clears a promoted standby and independently
 asserts that standby is never current SP. No production behavior was weakened to
 satisfy the old model. Subsequent final results are recorded below.
 
-Final BLSAggregator runtime: **24,387 B**, headroom **189 B** (the C4-L-01 change was reverted after re-review; C4-L-02 adds one SSTORE)
-than rc.7 despite the challenge-period addition. All measurements use Cancun,
-optimizer 500 runs, via-IR and Solidity 0.8.33. Prague outputs/cache are isolated
-under `out/prague` and `cache/prague`; the size gate reads only default/Cancun
-artifacts and verifies source hashes and compiler settings.
+Historical round-7 BLSAggregator runtime (superseded): **24,551 B**, headroom **25 B**. The final release
+artifacts for BLSAggregator, DVTValidator, and ReputationSystem all record
+Solidity **0.8.33+commit.64118f21**, optimizer enabled with **500 runs**, **via-IR
+enabled**, and EVM version **Cancun** in artifact metadata. Prague outputs/cache
+are isolated under `out/prague` and `cache/prague`; the size gate reads only
+default/Cancun artifacts and verifies source hashes and compiler settings.
 
 | Deployable | Runtime bytes | EIP-170 headroom |
 |---|---:|---:|
-| BLSAggregator | 24,387 | 189 |
+| BLSAggregator | 24,551 | 25 |
+| DVTValidator | 6,448 | 18,128 |
+| ReputationSystem | 7,675 | 16,901 |
 | SuperPaymaster | 13,744 | 10,832 |
 | SuperPaymasterAdmin | 17,975 | 6,601 |
 | SuperPaymasterLens | 5,413 | 19,163 |
@@ -199,9 +307,13 @@ artifacts and verifies source hashes and compiler settings.
 | xPNTsTokenV2 | 20,008 | 4,568 |
 | xPNTsTokenV2Ext | 22,543 | 2,033 |
 
-## ABIs for the release owner to regenerate
+The historical source files used for those three superseded artifacts are bound by SHA-256:
 
-No file in `abis/` was modified.
+| Artifact | Source file SHA-256 |
+|---|---|
+| BLSAggregator | `011cdd40a146ee0edcae99173598bafc8c144607d5c6449e1b4b6e85f86f26b5` |
+| DVTValidator | `6ed802f84b3a49fe8488f3ed20f1d93493d867c0e0f3aa3bc76fdf1a07b936ab` |
+| ReputationSystem | `597060791537136711ed0e413884f4ccc6dba4456378ecbbdd9e88fa9d75e714` |
 
 - `abis/BLSAggregator.json`: new `GUARDIAN_FRAUD_CHALLENGE()` getter and bytecode.
 - `abis/xPNTsTokenV2.json`, `abis/xPNTsTokenV2Ext.json`,
@@ -212,6 +324,19 @@ No file in `abis/` was modified.
   signatures, changed embedded bytecode/version behavior.
 - `abis/SuperPaymaster.full.json`: combined ABI signatures remain unchanged,
   its note names 5.5.0, which stays correct.
+
+## Release ABIs (historical round-7 evidence; superseded)
+
+Current redesigned release evidence, sizes, source identity and ABI checks are in
+`.rv-redesign.md`. The following records the earlier run, not the current bundle.
+
+
+The release ABIs and manifest were regenerated from the final Cancun artifacts.
+F-07 changes only view implementation behavior, so ReputationSystem's ABI and
+`Reputation-0.5.0` version are unchanged; its embedded bytecode was refreshed.
+The BLSAggregator and DVTValidator bundles include the earlier round changes.
+`pnpm gen:abi-docs` regenerated the reference and selector documents, and both
+`pnpm gen:abi-docs:check` and `node scripts/check-abi-bundle.mjs` pass.
 
 `abis/BLSAggregator-4.11.0.deployed.json` is historical deployed evidence and must
 remain unchanged. This task does not regenerate deployment manifests or historical
@@ -252,7 +377,7 @@ versions and are not an rc.8 deployment plan.
 
 The dependency lockfile already modified when the task started is excluded from this list.
 
-## Final verification results (verbatim)
+## Historical round-7 verification results (verbatim; superseded)
 
 All commands below exited 0. The ordinary build uses `FOUNDRY_PROFILE=default`;
 all Forge commands use `FOUNDRY_OFFLINE=true`. Test runs set `SEPOLIA_FORK_RPC`
@@ -271,28 +396,28 @@ python3 scripts/check-sp-size.py
 OK: SuperPaymaster core headroom 10832 B >= 1024; all 7 deployables <= EIP-170
 ```
 
-forge test --match-path <17 affected test files> (Cancun)
+forge test --match-path contracts/test/scripts/DeployLiveGovernance.t.sol (Cancun)
 
 ```text
-Ran 22 test suites in 4.18s (4.91s CPU time): 265 tests passed, 0 failed, 31 skipped (296 total tests)
+Ran 1 test suite in 7.37ms (3.59ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)
 ```
 
 forge test (full tree, Cancun)
 
 ```text
-Ran 165 test suites in 49.45s (240.03s CPU time): 1851 tests passed, 0 failed, 71 skipped (1922 total tests)
+Ran 167 test suites in 92.09s (530.18s CPU time): 1892 tests passed, 0 failed, 72 skipped (1964 total tests)
 ```
 
-forge test --evm-version prague --match-path <17 affected test files>
+forge test --evm-version prague --match-path contracts/test/scripts/DeployLiveGovernance.t.sol
 
 ```text
-Ran 22 test suites in 3.98s (8.02s CPU time): 211 tests passed, 0 failed, 20 skipped (231 total tests)
+Ran 1 test suite in 9.25ms (2.87ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)
 ```
 
 forge test --evm-version prague (full tree)
 
 ```text
-Ran 165 test suites in 54.95s (257.84s CPU time): 1731 tests passed, 0 failed, 43 skipped (1774 total tests)
+Ran 167 test suites in 87.12s (431.25s CPU time): 1758 tests passed, 0 failed, 49 skipped (1807 total tests)
 ```
 
 python3 scripts/check-sp-layout.py
@@ -314,9 +439,12 @@ OK  SuperPaymaster storage layout = snapshot + 2 allowed appended entries (42 en
 OK  Registry storage layout = deployed 5.9.0 snapshot + 2 allowed appended mappings (34 entries)
 ```
 
-The default build that compiled the production fixes reported `Compiler run successful with warnings:`; the final cached build confirms the final tree.
+The forced default build that compiled the production fixes reported
+`Compiler run successful with warnings:`; the final cached build confirms the
+final tree. ABI verification ended with `abis/ matches the compiled contracts
+(full shape, not just names)`.
 
-Skips come from existing EVM-specific precompile/artifact guards and opt-in fork suites; no new test skips were added. Whole-suite setup skips account for the different total test counts across EVMs. The two allowed appended SP storage entries predate that verification round; its results are superseded where the re-review #3 addendum below differs. `git diff --check --ignore-submodules` passed.
+Historical round-7 skip accounting (superseded): EVM-specific precompile/artifact guards and opt-in fork suites. The later M1 and reviewed replay regressions also intentionally skip on Cancun; they must execute on Prague. Whole-suite setup skips account for the different total test counts across EVMs. The two allowed appended SP storage entries predate that verification round; its results are superseded where the re-review #3 addendum below differs. `git diff --check --ignore-submodules` passed.
 
 The requested fixes, both conditional C4 lows, version propagation and all specified local verification are complete. The only execution adjustment was omitting `nice` after the sandbox refused it. No chain or deployment validation was attempted, as requested.
 
@@ -640,3 +768,64 @@ Tests: `test_B1_deposit_cap_counts_withdrawal_escrow`,
 `test_B1_deposit_cap_counts_inflight_reservation_then_stale_release_and_slash`, and
 `test_B1_expireWithdraw_at_exactly_expiry_reverts_and_one_second_later_succeeds`; each is red
 against its mutant (escrow ignored, reservation ignored, `<=` relaxed to `<`).
+
+## Reviewed redesign evidence (2026-11-13)
+
+The earlier sizes, source hashes, generated-bundle statements and whole-tree test
+counts above are historical and superseded by `.rv-redesign.md`. Current versions
+are BLSAggregator-4.14.0, DVTValidator-0.8.0 and Reputation-0.6.0. Genuine crypto
+tests, including the M1 replay regression, intentionally skip on Cancun; Prague
+evidence must execute the mandatory real-precompile sentinel successfully. CC115
+tests using AnchoredOverIssueFraudProofVerifier are **local adapter** evidence,
+not evidence of compatibility with the unadapted pinned upstream verifier.
+The historical Python executor remains byte-identical to origin/main; rc.8
+routing belongs in another PR.
+
+### M1 execution floor and disclosed residuals (2026-11-13)
+
+`BLSAggregator.verifyAndExecute` rejects `proposalId < proposalFloor` with
+`InvalidProposalId` only when `msg.sender == DVT_VALIDATOR`. M1 covers slash and
+aggregator-routed reputation proposals executed through the current DVT, where
+IDs are DVT-allocated. An allocated id with a ready proof becomes stale on that
+path when a later rotation raises the floor; reactivating its original DVT does
+not restore it. A newly allocated id at or above the fresh floor remains
+executable with its own valid proof. Every caller, including the owner, still
+receives `InvalidProposalId` for zero or an id at or above `2^128`. The monotonic
+floor preserves the exhausted value `2^128` across rotations.
+
+The accepted, disclosed residuals are:
+
+- Owner-direct `verifyAndExecute` accepts caller-chosen ids below the floor.
+  This is the documented owner-mediated residual: rotation does not revoke that
+  route's unused signed authorizations. Signature, replay and DVT callback checks
+  still apply; the floor must not treat an owner-chosen id as a DVT allocation.
+- Unused pre-rotation generic proposals remain owner/DVT-executable through
+  `executeProposal`; their typed replay keys are separate from the raw-id floor.
+- Pre-rotation reputation proofs can still reach Registry through an authorized
+  reputation source. That route remains source-gated, enforces per-user epoch
+  progression and bounds score changes to ±100. It does not inherit the
+  aggregator's execution floor.
+- An unused pre-rotation consensus queue proof can still set a reversible
+  pre-flag. A BLS-queued freeze has **no time expiry**:
+  `SuperPaymasterStorage._isSlashPending` expires only a guardian queue after
+  `GUARDIAN_SLASH_FREEZE`. The owner can always cancel the flag with
+  `SuperPaymasterAdmin.cancelSlash`. `usedSlashQueueHashes` makes the proof
+  one-shot per `(operator, level, epoch)`, even after cancellation. The pre-flag
+  moves no funds: execution through the current DVT requires a separate fresh
+  slash proof with an id at or above the current floor. Relabelling an old proof
+  with a fresh id also fails signature verification. Owner-direct execution with
+  caller-chosen ids remains the residual described above. The independent owner
+  slash authority is unchanged.
+
+`RotationFloorExecution.t.sol` covers stale current-DVT execution after reactivation,
+fresh execution, later rotation invalidation, stale queue versus DVT fund-moving execution,
+exact namespace exhaustion, suspended key ownership and the disclosed queue
+residual. Signature-dependent tests execute with genuine Prague precompiles and
+skip on Cancun. `test_RotationAllocationFloorPreservesAuthorizedRegistryProof`
+also checks that the same stale reputation proof fails through the reactivated DVT
+before succeeding through the authorized Registry source. The same real-Registry
+suite adds `test_PostRotationDvtReputationUpdateExecutes` and
+`test_OwnerDirectLowIdStillExecutesAfterRotation`, proving successful reputation
+updates with genuine signatures on both authorized routes. Final suite counts,
+runtime size and changed files are recorded in `.rv-narrow.md`; ABI/docs
+regeneration is left to the calling session.

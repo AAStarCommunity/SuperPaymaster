@@ -28,7 +28,7 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
  * Foundry gasleft values are not used as manuscript evidence.
  */
 contract RepCreditPragueE2E is Test {
-    uint256 internal constant VALIDATOR_COUNT = 13;
+    uint256 internal constant VALIDATOR_COUNT = 64;
     uint256 internal constant DVT_STAKE = 30 ether;
     bytes32 internal constant ROLE_DVT = keccak256("DVT");
 
@@ -55,7 +55,7 @@ contract RepCreditPragueE2E is Test {
         registry.setStaking(address(staking));
         registry.setMySBT(address(sbt));
 
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
         aggregator = new BLSAggregator(address(registry), address(0xBEEF), address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         registry.setBLSAggregator(address(aggregator));
@@ -66,7 +66,9 @@ contract RepCreditPragueE2E is Test {
         aggregator.setDefaultThreshold(3);
 
         for (uint256 i = 0; i < VALIDATOR_COUNT; ++i) {
-            address validator = address(uint160(0x1000 + i));
+            // Descending addresses by ascending slot force the commitment helper's
+            // insertion sort through its worst-case path at k=64.
+            address validator = address(uint160(0x1000 + (VALIDATOR_COUNT - 1 - i)));
             uint256 scalar = i + 1;
             validators[i] = validator;
             secretScalars[i] = scalar;
@@ -82,7 +84,7 @@ contract RepCreditPragueE2E is Test {
             // owner-side onboarding used here signs a genuine one with the validator's
             // own secret scalar under this aggregator's domain.
             BLS.G1Point memory pk = _publicKey(scalar);
-            aggregator.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggregator, validator, pk, scalar));
+            dvt.registerBLSPublicKey(validator, pk, uint8(i + 1), _pop(aggregator, validator, pk, scalar));
         }
     }
 
@@ -115,6 +117,18 @@ contract RepCreditPragueE2E is Test {
         (,,, bool executed,,) = dvt.proposals(dvtProposalId);
         assertTrue(executed);
         assertTrue(aggregator.executedProposals(dvtProposalId));
+    }
+
+    function test_Prague_VerifyAndExecuteGas_DefaultAnd64Signers() public {
+        _skipWithoutPrague();
+
+        uint256 gasDefault = _measureVerifyAndExecuteGas(3, address(0xA003), 3);
+        uint256 gas64 = _measureVerifyAndExecuteGas(64, address(0xA064), 64);
+
+        emit log_named_uint("verifyAndExecute gas (k=defaultThreshold=3)", gasDefault);
+        emit log_named_uint("verifyAndExecute gas (k=64)", gas64);
+        assertLt(gasDefault, 30_000_000, "default quorum must fit OP block gas limit");
+        assertLt(gas64, 30_000_000, "64-signer quorum must fit OP block gas limit");
     }
 
     function test_Prague_RejectsBelowThreshold() public {
@@ -210,6 +224,21 @@ contract RepCreditPragueE2E is Test {
     function _createDVTProposalFrom(address proposer) internal returns (uint256 proposalId) {
         vm.prank(proposer);
         proposalId = dvt.createProposal(address(0), 0, "repcredit-contribution");
+    }
+
+    function _measureVerifyAndExecuteGas(uint256 signerCount, address user, uint256 epoch)
+        internal
+        returns (uint256 gasUsed)
+    {
+        (address[] memory users, uint256[] memory scores) = _batch(user, 100, 1);
+        uint256 proposalId = _createDVTProposal();
+        bytes32 messageHash = _reputationHash(proposalId, users, scores, epoch, block.chainid);
+        bytes memory proof = _proof(messageHash, signerCount);
+        uint256 gasBefore = gasleft();
+        aggregator.verifyAndExecute(
+            proposalId, address(0), 0, users, scores, epoch, bytes32(0), proof
+        );
+        gasUsed = gasBefore - gasleft();
     }
 
     function _batch(address firstUser, uint256 firstScore, uint256 size)

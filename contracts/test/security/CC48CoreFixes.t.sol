@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {GenuineBLS} from "../helpers/GenuineBLS.sol";
 import "src/core/Registry.sol";
 import "src/core/GTokenStaking.sol";
@@ -136,7 +137,7 @@ contract CC48UpgradeableVerifierProxy {
 // HIGH-1 — protocol-wide outstanding credit-exposure budget
 // =====================================================================
 
-contract CC48TotalCreditExposureTest is Test {
+contract CC48TotalCreditExposureTest is BLSRegistrationTestHelper {
     Registry registry;
     CC48MockBLS bls;
     address source = address(0x5150);
@@ -311,7 +312,7 @@ contract CC48TotalCreditExposureTest is Test {
 // BLOCKER-1 — exit notice cannot be used as an instant, reversible halt
 // =====================================================================
 
-contract CC48ExitNoticeTest is Test {
+contract CC48ExitNoticeTest is BLSRegistrationTestHelper {
     BLSAggregator bls;
     bool realPrecompiles;
     bytes msgSignature;
@@ -375,7 +376,7 @@ contract CC48ExitNoticeTest is Test {
         for (uint8 slot = 1; slot <= N; slot++) {
             registry.setHasDvtRole(_v(slot), true);
             staking.setLocked(_v(slot), 200);
-            bls.registerBLSPublicKey(_v(slot), _stubKey(uint256(slot)), slot,
+            _registerKey(bls, address(0xC1), _v(slot), _stubKey(uint256(slot)), slot,
                 realPrecompiles ? GenuineBLS.pop(bls, _v(slot), slot) : _emptyPoP());
         }
         // 3-of-5: leaves room for two exits before the floor bites.
@@ -659,7 +660,7 @@ contract CC48ExitNoticeTest is Test {
 // HIGH-2 — partial, retryable guardian slash + case/exit timing
 // =====================================================================
 
-contract CC48GuardianSlashRetryTest is Test {
+contract CC48GuardianSlashRetryTest is BLSRegistrationTestHelper {
     /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
     ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
     ///      guardian below minStake and out of the very quorum the slash path protects.
@@ -1132,7 +1133,7 @@ contract CC48GuardianSlashRetryTest is Test {
 /// The round-4 rule is that `queueGuardianSlash` freezes keccak256(fraudProof) together
 /// with the guardian set, and execute/retry only re-check those two — no verifier call at
 /// all. Every test below asserts a property of that rule, not of a mock's flag.
-contract CC48MutableProxyVerifierTest is Test {
+contract CC48MutableProxyVerifierTest is BLSRegistrationTestHelper {
     /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
     ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
     ///      guardian below minStake and out of the very quorum the slash path protects.
@@ -1452,7 +1453,7 @@ contract CC48MutableProxyVerifierTest is Test {
 ///         costs the full delay; and an already-queued case is decided by its frozen
 ///         verdict, so the owner cannot use "emergency" as a way to rescue an accused
 ///         colluder.
-contract CC48VerifierDisarmTest is Test {
+contract CC48VerifierDisarmTest is BLSRegistrationTestHelper {
     /// @dev What a guardian's DVT lock reads after ONE guardian slash. It used to be
     ///      zero: executeGuardianSlash took the whole lock, so a single finding put the
     ///      guardian below minStake and out of the very quorum the slash path protects.
