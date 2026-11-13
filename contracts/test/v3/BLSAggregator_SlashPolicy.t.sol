@@ -67,13 +67,13 @@ contract BLSAggregator_SlashPolicyTest is Test {
 
     function test_CannotSetThresholdAboveMax() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashThresholdOutOfRange.selector, uint8(14)));
-        bls.setSlashThreshold(2, 14); // above MAX_VALIDATORS (13)
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashThresholdOutOfRange.selector, uint8(65)));
+        bls.setSlashThreshold(2, 65); // one past MAX_VALIDATORS (64)
     }
 
     function test_CannotSetThresholdForInvalidLevel() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "slashLevel"));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, bytes32("slashLevel")));
         bls.setSlashThreshold(3, 3); // no such SlashLevel
     }
 
@@ -107,7 +107,7 @@ contract BLSAggregator_SlashPolicyTest is Test {
 
     function test_QueueSlashWithConsensus_RejectsInvalidLevel() public {
         vm.prank(dvt);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "slashLevel"));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, bytes32("slashLevel")));
         bls.queueSlashWithConsensus(attacker, 3, 1, hex"00");
     }
 
@@ -144,7 +144,7 @@ contract BLSAggregator_SlashPolicyTest is Test {
             attacker, new address[](0), new bool[](0), hex"");
         vm.prank(dvt);
         // Reverts on the GENERIC floor (2 < minThreshold 3), NOT on the selector guard.
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold below minimum"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.executeProposal(1, address(registry), cd, 2, hex"00");
     }
 }

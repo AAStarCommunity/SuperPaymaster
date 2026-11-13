@@ -75,7 +75,9 @@ sequenceDiagram
     DVT-->>Owner: isValidator[v] = true
 
     Note over Owner,Agg: ── 阶段三：BLS 公钥登记 ──
-    Owner->>Agg: registerBLSPublicKey(v, pkG1, slot)
+    Owner->>DVT: registerBLSPublicKey(v, pkG1, slot, pop)
+    DVT->>Agg: registerBLSPublicKey(v, pkG1, slot, pop)
+    Agg->>Agg: suspension + address-bound PoP checks
     Agg->>Agg: _validateG1Point(pkG1) (on-curve + 子群)
     Agg->>Agg: 检查 slot ∈ [1, MAX_VALIDATORS], 未被占用
     Agg-->>Owner: _blsKeys[v] + validatorAtSlot[slot] 写入
@@ -85,30 +87,37 @@ sequenceDiagram
 |---|--------|--------|------|---------|
 | 1 | Validator (EOA) | Registry | `registerRole(ROLE_DVT, v, roleData)`（`Registry.sol:192`） | 锁定 stake；写 `hasRole[ROLE_DVT][v] = true`；mint role-SBT |
 | 2 | Owner / 治理 | DVTValidator | `addValidator(v)`（`DVTValidator.sol:97`） | 校验 `Registry.hasRole(ROLE_DVT, v)` + `roleLocks(v, ROLE_DVT).amount >= minStake`；写 `isValidator[v] = true` |
-| 3 | Owner / 治理 | BLSAggregator | `registerBLSPublicKey(v, pkG1, slot)`（`BLSAggregator.sol:182`） | 校验 G1 点在 BLS12-381 曲线上 + 在素阶子群内 + slot 未占用；写 `_blsKeys[v]` 和 `validatorAtSlot[slot]` |
+| 3 | Owner / 治理（或已启用的自助路径） | DVTValidator → BLSAggregator | `registerBLSPublicKey(v, pkG1, slot, pop)`（`BLSAggregator.sol:182`） | 校验 G1 点在 BLS12-381 曲线上 + 在素阶子群内 + slot 未占用；写 `_blsKeys[v]` 和 `validatorAtSlot[slot]` |
 
 **步骤说明**：
 
 - **Step 1 — `Registry.registerRole`**：调用方必须就是 validator 自己（`msg.sender != user → revert Unauthorized`，`Registry.sol:194`）。`roleData` 长度 ≤ 2048 bytes。Stake 由 Registry 内部转交 `GTokenStaking.lockStake`。
 - **Step 2 — `DVTValidator.addValidator`**：P0-2 修复（`DVTValidator.sol:97-112`）— 现在**强制**检查 `Registry.hasRole(ROLE_DVT, v)` 与 `roleLocks(v, ROLE_DVT).amount >= cfg.minStake`，杜绝 owner 把无质押的地址塞进 quorum。`minStake` 从 `Registry.getRoleConfig(ROLE_DVT)` 动态读取，治理可通过 `configureRole` 调整无需重部。
-- **Step 3 — `BLSAggregator.registerBLSPublicKey`**：P0-1 修复（`BLSAggregator.sol:182-209`）— 公钥以 **uncompressed EIP-2537 G1**（4×32 bytes）存储，便于 G1ADD precompile 直接消费。`slot ∈ [1, 13]`（`MAX_VALIDATORS = 13`），且必须未被占用；同一 validator 重复注册必须复用旧 slot。`_validateG1Point`（`BLSAggregator.sol:395-453`）通过 EIP-2537 G1ADD（`0x0b`）验 on-curve、G1MUL（`0x0c`）验素阶子群、并显式拒绝 identity 点（防 key-cancellation 攻击）。
+- **Step 3 — `BLSAggregator.registerBLSPublicKey`**：P0-1 修复（`BLSAggregator.sol:182-209`）— 公钥以 **uncompressed EIP-2537 G1**（4×32 bytes）存储，便于 G1ADD precompile 直接消费。`slot ∈ [1, 64]`（`MAX_VALIDATORS = 64`），且必须未被占用；同一 validator 重复注册必须复用旧 slot。`_validateG1Point`（`BLSAggregator.sol:395-453`）通过 EIP-2537 G1ADD（`0x0b`）验 on-curve、G1MUL（`0x0c`）验素阶子群、并显式拒绝 identity 点（防 key-cancellation 攻击）。
 
 **注意：步骤 2 的 stake 检查只在 `addValidator` 调用瞬间发生**。后续运行期间，validator 如果偷偷 `exitRole`，`isValidator` 不会自动变 `false`。但是——见 §5，下游执行路径会**实时回查** `hasRole` + `roleLocks`，所以退押 validator 即便仍在 `isValidator` 名单里，也无法继续投票。
 
 ### Step 3 的两条注册路径与 PoP（Proof-of-Possession）信任假设
 
-`registerBLSPublicKey` 有**两条**路径，只有其中一条做 PoP 校验：
+`registerBLSPublicKey` 的 owner 与 permissionless 两条路径都经过当前 DVT，
+并由 aggregator 强制验证 PoP、地址/key 绑定、key 唯一性及 slot 一致性。
+owner 不能直接向 aggregator 注册，也没有 PoP 豁免。
 
-| 路径 | 触发条件 | PoP 校验 | slot | 信任前提 |
-|---|---|---|---|---|
-| **Owner 路径** | `msg.sender == owner()` | **不校验**（故意跳过） | 调用方指定 | owner 是受信引导方（部署者 → 治理多签 / timelock），上链前已**链下**核验每把 key 的 PoP |
-| **Permissionless 路径** | `permissionlessBLSRegistration == true`（默认关） | **强制校验** `_verifyPoP` | 合约自动分配最低空槽 | 调用方是不受信的自助质押 validator，因此必须链上证明持有私钥 |
+| 路径 | 入口条件 | PoP | slot |
+|---|---|---|---|
+| Owner | 当前 DVT 的 owner | 每次强制校验 | 指定 1–64；活动 key 须复用旧 slot |
+| Permissionless | 开关开启，调用者即 validator，实时 role/stake 达标 | 每次强制校验 | 新 key 分配最低空槽；活动 key 保留旧 slot |
 
-**为什么 owner 路径跳过 PoP 是安全的（trusted-by-design）**：rogue-key 攻击（`Pm = xG − Σ pk_honest`）要求攻击者把一把构造好的 rogue key 注册进 validator 集合。但 owner 路径有 `msg.sender == owner()` 门禁，不受信方根本无法触发；而能触发的 owner 一旦被攻陷，本就能注册/撤销任意 key、改 `setSuperPaymaster` / `setDVTValidator` / 阈值——已经完全掌控共识，跳过 PoP 不给它任何额外能力。真正需要 PoP 防御的是不受信的 permissionless 自注册路径，而那条路径**已经**强制 PoP。
+`addValidator` 是提案发起者的本地准入；permissionless BLS 投票成员不需要此准入。
+每次聚合独立检查活动 key、aggregator 的 suspension、实时 ROLE_DVT/stake 和成熟退出通知。
+`setSuspended` 在 aggregator 上由 owner 设置/清除，可用于没有 key 的地址；
+`revokeAndSuspend` 原子撤销并暂停。轮换 DVT 不会清除暂停，`addValidator` 也不会恢复它。
+恢复须由 aggregator owner 显式清除暂停，再通过当前 DVT 携有效 PoP 注册。
 
-**纵深防御**：即便一把 key 经 owner 路径注册进来，它也只有在其 validator 地址**仍持有 ROLE_DVT 且锁仓 ≥ minStake**（`_reconstructPkAgg` 验证时实时回查）的前提下才能参与聚合——为缺角色/缺质押地址注册的 key 永远进不了 slash/reputation proof。
-
-**部署 runbook**：上线后将 owner 转移给治理多签 / timelock，validator 走 owner 侧 onboarding（链下核验 PoP）；或翻开 `setPermissionlessBLSRegistration(true)` 改用链上 PoP 自助注册。对应代码 NatSpec：`BLSAggregator.registerBLSPublicKey` 的 "SECURITY / TRUST ASSUMPTION" 段。
+恢复误绑 key：先撤销使用该 key 的活动注册，确认该 key 没有活动持有者，
+再由 aggregator owner 调用 `releaseKeyBinding(keyHash)`；重新注册仍须提供
+绑定到新地址和当前 aggregator domain 的 PoP。绑定平时保留，仅此恢复入口可释放。
+治理使用相同 Safe-compatible owner 管理 DVT 与 aggregator。
 
 ---
 
@@ -332,7 +341,7 @@ function verify(
 - `expectedMessageHash`：调用方在链下 hash 出的、与签名时一致的 message 摘要
 - `signerMask`：bit i（0-indexed）= validator at slot i+1 是否签名
 - `requiredThreshold`：调用方业务层的最小签名数要求；必须 `>= minThreshold`
-- `sigBytes`：`abi.encode(BLS.G2Point)`，即 4×32 字节聚合 G2 签名
+- `sigBytes`：`abi.encode(BLS.G2Point)`，即 8×32 字节聚合 G2 签名
 
 ### 6.3 `BLSAggregator.registerBLSPublicKey` 函数签名变更
 
@@ -344,8 +353,9 @@ function verify(
 function registerBLSPublicKey(
     address validator,
     BLS.G1Point calldata publicKey,   // uncompressed: 4 × bytes32 = 128 bytes
-    uint8 slot                         // 1-indexed in [1, MAX_VALIDATORS]
-) external onlyOwner;
+    uint8 slot,                        // 1-indexed in [1, 64]
+    BLS.G2Point calldata popSignature // mandatory address-bound PoP
+) external; // call the current DVT gateway; aggregator accepts only that gateway
 ```
 
 ### 6.4 链下责任清单
@@ -355,13 +365,16 @@ function registerBLSPublicKey(
 1. **validator → slot 映射**：通过监听 `BLSPublicKeyRegistered(address indexed validator, uint8 indexed slot)`（`BLSAggregator.sol:100`）与 `BLSPublicKeyRevoked`（L101）事件维护本地索引。这是构造 `signerMask` 的必需依据。
 2. **签名时的 message 必须包含 `block.chainid`**：与链上重建逻辑严格一致。`verifyAndExecute` 路径的 message：
    ```
-   keccak256(abi.encode(proposalId, operator, slashLevel, repUsers, newScores, epoch, block.chainid))
+   slash: keccak256(abi.encode(domainSeparator, TAG_EXECUTE_SLASH, proposalId, operator, slashLevel, epoch, evidenceHash))
+   reputation: keccak256(abi.encode(domainSeparator, TAG_REPUTATION, proposalId, repUsers, newScores, epoch))
+   // combined slash + reputation is forbidden
    ```
    `executeProposal` 路径的 message：
    ```
-   keccak256(abi.encode(proposalId, target, keccak256(callData), requiredThreshold, block.chainid))
+   keccak256(abi.encode(domainSeparator, TAG_PROPOSAL, proposalId, target, keccak256(callData), requiredThreshold))
+   // domainSeparator binds domain name, chain ID, aggregator and Registry
    ```
-3. **注册时序**严格按 §2 三步走：先 `Registry.registerRole` → 再 `DVTValidator.addValidator` → 最后 `BLSAggregator.registerBLSPublicKey`。第二步会回查第一步，第三步独立但缺了前两步该 validator 实际无法参与共识。
+3. **注册时序**严格按 §2 三步走：先 `Registry.registerRole` → 再 `DVTValidator.addValidator` → 最后 `DVTValidator.registerBLSPublicKey(..., pop)`。第二步会回查第一步，第三步总是检查 PoP；permissionless 投票成员可省略第二步，但发起提案仍需本地准入。
 4. **公钥格式**：必须用 EIP-2537 uncompressed G1（128 bytes 拆成 4 × `bytes32`）。compressed 48-byte 格式已废弃。
 5. **slot 选择策略**：建议 SDK 维护一个全局可用 slot 池；同一 validator 重复注册必须复用旧 slot（`BLSAggregator.sol:196`），否则 revert `SlotAlreadyTaken`。
 
@@ -424,7 +437,9 @@ function registerBLSPublicKey(
 
 ---
 
-## 附录 B：版本与 PR 引用
+## 附录 B：历史版本与 PR 引用（已被 rc.8 取代）
+
+当前：BLSAggregator-4.14.0、DVTValidator-0.8.0、Reputation-0.6.0。以下保留历史证据，不作为当前部署版本。
 
 - **BLSAggregator**：`"BLSAggregator-4.0.0"`（PR #112）
 - **DVTValidator**：`"DVTValidator-0.6.0"`（P0-2 + P0-4 + P0-17 + M-4/M-5/M-7 input validation）
@@ -460,7 +475,7 @@ function registerBLSPublicKey(
 2. **职责边界清晰**：
    - **DVTValidator**：提案生命周期（create / markExecuted）+ DVT 节点业务白名单（isValidator）
    - **BLSAggregator**：密码学 + 经济信任验证（BLS pairing + Registry/Staking 实时读）
-   - 两者调用关系是**有向无环图（DAG）**，BLSAggregator 对 DVTValidator 只有一个反向写（markProposalExecuted），不涉及查询。
+   - 两者调用关系是**有向无环图（DAG）**，聚合验签不读取 DVT；轮换时 aggregator 会读取旧 DVT 的 nextProposalId 及新 DVT 的配对指针。DVT 分配只读取 aggregator.proposalFloor，不递归读取历史 DVT。
 
 3. **治理灵活性**：`REGISTRY` 是 BLSAggregator 的 immutable 字段，但 `minStake` 和 Staking 合约地址每次 `_reconstructPkAgg` 都从 Registry 动态读取（`Registry.getRoleConfig(roleDvt).minStake`）。治理可以调整质押门槛或轮换 Staking 实现，**无需重新部署 BLSAggregator**。
 
@@ -478,14 +493,14 @@ function registerBLSPublicKey(
 
 - 部署脚本（`DeployLive.s.sol`）只完成合约部署 + 基础 wiring（setBLSAggregator、setDVTValidator 等）。
 - **不预注册任何 DVT 验证节点**——那是节点运营方的职责，需要实际运行 DVT P2P 节点软件。
-- 注册流程必须严格按照 §2 三步顺序（`Registry.registerRole` → `DVTValidator.addValidator` → `BLSAggregator.registerBLSPublicKey`），且要求 validator 自己发起第一步，owner/治理发起后两步。
+- 注册流程必须严格按照 §2 三步顺序（`Registry.registerRole` → `DVTValidator.addValidator`（提案者需要）→ `DVTValidator.registerBLSPublicKey(..., pop)`），第一步由 validator 发起；permissionless BLS 注册可由本人完成，提案者的本地准入仍由 DVT owner 管理。
 - 在 DVT 节点注册之前，`executeWithProof` 路径不可用，但所有其他 SuperPaymaster 功能（gasless 赞助、operator 管理、价格更新等）完全正常。
 
 **预期启动顺序**（部署后运营阶段）：
 ```
 1. DVT 节点运营方各自 → Registry.registerRole(ROLE_DVT, self, roleData)
 2. Governance → DVTValidator.addValidator(v)          （逐个验证节点）
-3. Governance → BLSAggregator.registerBLSPublicKey(v, pkG1, slot)
+3. Governance / enabled self-registration → DVTValidator.registerBLSPublicKey(v, pkG1, slot, pop)
 4. Governance → GTokenStaking.setAuthorizedSlasher(blsAggregator, true)  ← Tier 2 slash 必需
 5. Governance → BLSAggregator.setMinThreshold(N)                          ← 设生产门槛
 ```
@@ -518,3 +533,16 @@ if (uint256(amount) < minStake) {
 1. `_reconstructPkAgg` 实时 `hasRole` + `roleLocks` 检查（在线防御，修复后新增）
 2. `_blsKeys[v].isActive` 检查（需 owner 调 `revokeBLSPublicKey`）
 3. BLS pairing 验证 + chainid 绑定（密码学防御，永远有效）
+
+## rc.8 轮换与退出补充（2026-11-13）
+
+DVT 构造函数为 `(registry, firstProposalId)`，不存在 previousDVT。aggregator
+在 setDVTValidator 时保存旧 DVT 的 nextProposalId 与原 floor 的最大值，校验新
+DVT 的 aggregator/Registry 指针。暂停与 floor 都随 aggregator 保留，A→B→A
+不会复用 B 已分配的 pending ID。计数器故障时普通轮换回滚，owner 必须核对
+全部历史分配并显式提供恢复 floor。轮换不撤销尚未使用的 generic 或通过已授权
+Registry source 提交的 reputation 签名。
+
+退出保护逐一覆盖 minThreshold、defaultThreshold 和各 slash threshold；
+恰好 N-of-N 时应先增加替补或调整政策。计算退出后的成员数会提前排除其他已公告
+退出者；验签只在退出通知成熟时排除该成员。owner 的紧急撤销/暂停可越过生存检查。

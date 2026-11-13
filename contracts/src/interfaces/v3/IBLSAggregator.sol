@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 interface IBLSAggregator {
+    function DVT_VALIDATOR() external view returns (address);
     function minThreshold() external view returns (uint256);
     function defaultThreshold() external view returns (uint256);
 

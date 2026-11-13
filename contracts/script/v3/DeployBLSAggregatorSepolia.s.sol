@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 
 /// @notice Narrow views on the existing Sepolia Registry (sanity checks only).
@@ -17,9 +18,8 @@ interface IStakingSlasher {
 }
 
 /// @title  DeployBLSAggregatorSepolia — CC-89 Phase-2 testnet E2E
-/// @notice Deploys BLSAggregator 4.11.0 (A' commitment + bounded guardian exit + CC-48
-///         round-3 verifier pinning) to Sepolia,
-///         pointing at the EXISTING registry / superPaymaster / dvtValidator, and
+/// @notice Deploys a fresh BLSAggregator 4.14.0 / DVTValidator 0.8.0 pair to Sepolia,
+///         pointing at the existing registry / superPaymaster, and
 ///         authorizes it as a GTokenStaking slasher (so executeGuardianSlash →
 ///         slashByDVT works). Does NOT rewire registry/dvt/sp — this is a dedicated
 ///         E2E aggregator, not a production replacement.
@@ -31,7 +31,7 @@ interface IStakingSlasher {
 ///              and proves it domain-bound with contracts/test/helpers/
 ///              FraudProofVerifierConformance.sol (CC-48 round-3 MEDIUM-2). Until that
 ///              conformance run exists, leave the verifier UNSET (dormant).
-///           2. registerBLSPublicKey(guardian, pubkey, slot, PoP) × 3   (DVT provides keys).
+///           2. DVTValidator.registerBLSPublicKey(guardian, pubkey, slot, PoP) × 3   (DVT provides keys).
 ///              PoP is MANDATORY on this path too as of 4.7.0 — the owner can no longer
 ///              register a key it cannot prove the guardian holds.
 ///           3. proposeFraudProofVerifier(verifier), wait VERIFIER_ROTATION_DELAY,
@@ -43,7 +43,6 @@ interface IStakingSlasher {
 contract DeployBLSAggregatorSepolia is Script {
     address constant REGISTRY        = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71;
     address constant SUPER_PAYMASTER = 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9;
-    address constant DVT_VALIDATOR   = 0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e;
     address constant STAKING         = 0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e;
 
     function run() external {
@@ -59,9 +58,11 @@ contract DeployBLSAggregatorSepolia is Script {
 
         vm.startBroadcast(pk);
 
-        BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, DVT_VALIDATOR);
+        DVTValidator dvt = new DVTValidator(REGISTRY, 1);
+        BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, address(dvt));
+        dvt.setBLSAggregator(address(agg));
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.11.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.14.0"),
             "unexpected version - build the A-prime branch"
         );
 
@@ -74,12 +75,17 @@ contract DeployBLSAggregatorSepolia is Script {
         // a case. On a real chain that must be a Safe; this E2E stack may keep a hot owner
         // ONLY with the explicit, testnet-bound TESTNET_EOA_OWNER_ACK acknowledgement.
         address gov = GovernanceOwnerGate.declaredGovernanceOwner();
-        if (gov != address(0)) agg.transferOwnership(gov);
+        if (gov != address(0)) {
+            agg.transferOwnership(gov);
+            dvt.transferOwnership(gov);
+        }
 
         vm.stopBroadcast();
 
         GovernanceOwnerGate.requireGovernanceOwner(address(agg), agg.owner(), "BLSAggregator");
         require(IStakingSlasher(STAKING).authorizedSlashers(address(agg)), "slasher not set");
+        require(dvt.owner() == agg.owner(), "DVT/BLS owner mismatch");
+        console.log("DVTValidator:", address(dvt));
 
         // CC-48 round-8 LOW-3: the transcript must print the version that was actually
         // deployed. This line said 4.9.0 while the build was 4.10.0, so the deployment
@@ -90,7 +96,7 @@ contract DeployBLSAggregatorSepolia is Script {
         );
         console.log("fraudProofVerifier:", agg.fraudProofVerifier(), "(unset -> dormant, fail-closed)");
         console.log("NEXT: give this address to DVT for OverIssueFraudProofVerifier deploy,");
-        console.log("      then registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");
+        console.log("      then DVTValidator.registerBLSPublicKey x3 (DVT keys) + proposeFraudProofVerifier(verifier)");
         console.log("      followed by applyFraudProofVerifier() after VERIFIER_ROTATION_DELAY.");
         console.log("CC-48 round-2: IFraudProofVerifier.verify takes a leading bytes32");
         console.log("      domainDigest = aggregator.fraudProofDigest(id, guiltyGuardians);");
