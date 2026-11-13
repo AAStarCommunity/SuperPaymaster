@@ -44,7 +44,7 @@ forge test
 # Use its own --out: the deploy-script suites (contracts/test/scripts) check against the
 # cancun profile.default build in ./out (run a plain `forge build` first), and a Prague
 # compile into ./out would replace it.
-forge test --evm-version prague --out out-prague --cache-path cache-prague
+forge test --evm-version prague --out prague/out --cache-path prague/cache
 
 # Run a specific test file
 forge test --match-path contracts/test/v3/Registry.t.sol

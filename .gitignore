@@ -137,9 +137,6 @@ dist
 # Foundry
 cache/
 out/
-# Prague real-precompile run (own output root, see CLAUDE.md)
-out-prague
-cache-prague
 broadcast/
 
 # Backup directories

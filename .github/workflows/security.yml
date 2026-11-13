@@ -141,7 +141,7 @@ jobs:
         # Own --out/--cache-path: ./out keeps the cancun profile.default build from the step
         # above, which the deploy-script suites (contracts/test/scripts) check against; a Prague
         # compile into ./out would replace it and those suites would fail, not skip.
-        run: forge test --evm-version prague --out out-prague --cache-path cache-prague
+        run: forge test --evm-version prague --out prague/out --cache-path prague/cache
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'
         run: |
