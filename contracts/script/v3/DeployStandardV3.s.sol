@@ -185,7 +185,7 @@ contract DeployStandardV3 is Script {
 
     function _deployModules() internal {
         repSystem = new ReputationSystem(address(registry));
-        dvt = new DVTValidator(address(registry), 1, address(0));
+        dvt = new DVTValidator(address(registry), 1);
         aggregator = new BLSAggregator(address(registry), address(superPaymaster), address(dvt));
         xpntsFactory = new xPNTsFactory(address(superPaymaster), address(registry));
         pmFactory = new PaymasterFactory();
@@ -198,8 +198,8 @@ contract DeployStandardV3 is Script {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         mysbt.setSuperPaymaster(address(superPaymaster));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));

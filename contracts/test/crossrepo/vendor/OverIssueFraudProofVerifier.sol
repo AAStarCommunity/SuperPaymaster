@@ -7,8 +7,8 @@
 //   from: import {IFraudProofVerifier} from "../interfaces/IFraudProofVerifier.sol";
 //   to:   import {IFraudProofVerifier} from "./IFraudProofVerifier.sol";
 // because both files live side by side; `verify` is also virtual for the anchored test adapter.
-// Nothing else changed — not the pragma (^0.8.19 is satisfied by SP's 0.8.33), not a
-// comment, not a byte of logic.
+// Historical MAX_SIGNERS=13 equality comment below is superseded: rc.8 aggregator has 64.
+// The pinned body is unchanged apart from the two declared deviations above.
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.19;
 

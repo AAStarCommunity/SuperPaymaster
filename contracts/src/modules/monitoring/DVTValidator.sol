@@ -16,8 +16,8 @@ interface IRegistryStakingAware {
     function GTOKEN_STAKING() external view returns (IGTokenStaking);
 }
 
-interface IDVTProposalCounter {
-    function nextProposalId() external view returns (uint256);
+interface IBLSProposalFloor {
+    function proposalFloor() external view returns (uint256);
 }
 
 interface IBLSKeyRevoker {
@@ -25,6 +25,8 @@ interface IBLSKeyRevoker {
 }
 
 interface IBLSKeyRegistration {
+    function owner() external view returns (address);
+    function suspended(address validator) external view returns (bool);
     function permissionlessBLSRegistration() external view returns (bool);
     function MAX_VALIDATORS() external view returns (uint256);
     function validatorAtSlot(uint8 slot) external view returns (address);
@@ -40,8 +42,9 @@ interface IBLSKeyRegistration {
  *      DVT rotation is an immediate owner operation; verifier rotation retains
  *      BLSAggregator's contract-enforced delay.
  *      Only the aggregator's current DVT can allocate proposal IDs. Each allocation
- *      respects the predecessor's live nextProposalId, including pending proposals.
- *      Pending proposals on the replaced DVT must be proposed again with fresh IDs.
+ *      reads the aggregator's monotonic proposalFloor, captured at activation.
+ *      Pending slash proposals need fresh IDs on a replacement. This allocation rule
+ *      does not revoke outstanding generic or direct Registry reputation authorizations.
  */
 contract DVTValidator is Ownable, IVersioned {
     struct ValidatorInfo {
@@ -76,13 +79,11 @@ contract DVTValidator is Ownable, IVersioned {
     mapping(address => bool) public isValidator;
     mapping(uint256 => SlashProposal) public proposals;
     uint256 private _nextProposalId;
-    address public immutable previousDVT;
-    mapping(address => bool) public isSuspended;
 
     event ProposalCreated(uint256 indexed id, address indexed operator, uint8 level);
     event ProposalSigned(uint256 indexed id, address indexed validator);
     event ProposalExecuted(uint256 indexed id);
-    /// @notice Emitted when a validator is permissionlessly pruned because they
+    /// @notice Emitted when local proposer admission is permissionlessly pruned because they
     ///         no longer satisfy the role+stake requirements. `hadRole` and
     ///         `stakeAmount` capture the on-chain reason at prune time so off-
     ///         chain monitors can attribute the eviction.
@@ -112,7 +113,8 @@ contract DVTValidator is Ownable, IVersioned {
     /// @notice Reverted when the Registry has no staking pointer wired up yet.
     error StakingNotConfigured();
     /// @notice Reverted when an operation references an address that is not
-    ///         currently flagged as a validator (`isValidator[v] == false`).
+    ///         locally admitted proposer (`isValidator[v] == false`); this flag
+    ///         is not required for permissionless BLS voting.
     error NotActiveValidator(address v);
     /// @notice Reverted when an active validator's ROLE_DVT has been revoked
     ///         in Registry but the local `isValidator` flag is still set —
@@ -131,26 +133,24 @@ contract DVTValidator is Ownable, IVersioned {
     error SlotOutOfRange(uint8 slot);
 
     /// @param firstProposalId Non-zero lower bound for this deployment's IDs, below 2^128.
-    /// @param _previousDVT Replaced DVT, or zero for the first deployment on an aggregator.
-    constructor(address _registry, uint256 firstProposalId, address _previousDVT) Ownable(msg.sender) {
+    constructor(address _registry, uint256 firstProposalId) Ownable(msg.sender) {
         if (firstProposalId == 0 || firstProposalId >> 128 != 0) {
             revert InvalidFirstProposalId(firstProposalId);
         }
         REGISTRY = IRegistry(_registry);
         _nextProposalId = firstProposalId;
-        previousDVT = _previousDVT;
     }
 
     function version() external pure override returns (string memory) {
         return "DVTValidator-0.8.0";
     }
 
-    /// @notice Next allocatable ID, including the predecessor's live allocation floor.
+    /// @notice Next allocatable ID, including one read of the retained aggregator's floor.
     /// @dev Carry the floor through rotations even when this DVT never creates a proposal.
     function nextProposalId() public view returns (uint256 id) {
         id = _nextProposalId;
-        if (previousDVT != address(0)) {
-            uint256 floor = IDVTProposalCounter(previousDVT).nextProposalId();
+        if (BLS_AGGREGATOR != address(0)) {
+            uint256 floor = IBLSProposalFloor(BLS_AGGREGATOR).proposalFloor();
             if (id < floor) id = floor;
         }
     }
@@ -174,13 +174,10 @@ contract DVTValidator is Ownable, IVersioned {
     ///         `Registry.getRoleConfig(ROLE_DVT)` so governance can tune the
     ///         floor via `Registry.configureRole` without redeploying. Initial
     ///         deploy-time floor is 200 ether GToken (10x previous default).
-    /// @dev KNOWN LIMITATION: Stake is validated at registration time only.
-    ///      A validator can exit their GTokenStaking stake after registration
-    ///      without isValidator[v] being cleared. Mitigation:
-    ///      1. Off-chain: operators should periodically call removeValidator()
-    ///         for addresses whose stake has dropped below minStake.
-    ///      2. On-chain enforcement would require a callback from GTokenStaking
-    ///         (out of scope for this fix; tracked as future enhancement).
+    /// @dev Local admission authorizes proposers; permissionless BLS voters need
+    ///      no local admission. Consensus calls re-check role, stake and suspension
+    ///      live. Pruning clears only this local flag. Admission never clears the
+    ///      aggregator's suspension; reinstatement is a separate owner operation.
     function addValidator(address _v) external onlyOwner {
         bytes32 roleDvt = keccak256("DVT");
 
@@ -195,17 +192,16 @@ contract DVTValidator is Ownable, IVersioned {
             revert ValidatorStakeBelowMinimum(uint256(amount), cfg.minStake);
         }
 
-        isSuspended[_v] = false;
         isValidator[_v] = true;
     }
 
     /// @notice Register a BLS key through the owner-curated or permissionless path.
-    /// @dev Only addValidator (owner-only) can reinstate a suspended validator.
+    /// @dev Only the aggregator owner can clear its authoritative suspension.
+    ///      Every registration, including owner forwarding, requires an address-bound PoP.
     ///      Permissionless registration needs live role/stake, but no owner admission.
     function registerBLSPublicKey(
         address validator, BLS.G1Point calldata key, uint8 slot, BLS.G2Point calldata pop
     ) external {
-        if (isSuspended[validator]) revert ValidatorSuspended(validator);
         IBLSKeyRegistration aggregator = IBLSKeyRegistration(BLS_AGGREGATOR);
         if (msg.sender != owner()) {
             if (!aggregator.permissionlessBLSRegistration()) revert PermissionlessRegistrationDisabled();
@@ -233,7 +229,7 @@ contract DVTValidator is Ownable, IVersioned {
     ///         quorums even though their economic backing was gone.
     ///
     ///         This helper re-validates against Registry + Staking on every
-    ///         consensus-affecting call. Three independent checks must all hold:
+    ///         consensus-affecting call. The local admission gate plus live suspension, role and stake checks must hold:
     ///           1. Local `isValidator[v]` flag still set.
     ///           2. Registry still grants ROLE_DVT to `v` (covers explicit
     ///              role revocation outside an exitRole flow).
@@ -245,6 +241,7 @@ contract DVTValidator is Ownable, IVersioned {
     }
 
     function _requireEligibleValidator(address v) internal view {
+        if (IBLSKeyRegistration(BLS_AGGREGATOR).suspended(v)) revert ValidatorSuspended(v);
         bytes32 roleDvt = keccak256("DVT");
         if (!REGISTRY.hasRole(roleDvt, v)) revert ValidatorRoleRevoked(v);
         IGTokenStaking staking = IRegistryStakingAware(address(REGISTRY)).GTOKEN_STAKING();
@@ -400,7 +397,7 @@ contract DVTValidator is Ownable, IVersioned {
         emit ValidatorPruned(v, hasRole_, uint256(amount));
     }
 
-    /// @notice Owner-only forced removal that also revokes configured BLS voting power.
+    /// @notice Shared-owner removal: clear local admission and suspend/revoke BLS voting power.
     /// @dev Reverts atomically if a configured aggregator cannot revoke the key.
     function removeValidator(address v) external onlyOwner {
         if (!isValidator[v]) {
@@ -411,10 +408,11 @@ contract DVTValidator is Ownable, IVersioned {
             if (!active) revert NotActiveValidator(v);
         }
         if (BLS_AGGREGATOR != address(0)) {
+            // Only the shared owner may request suspension through this gateway.
+            if (IBLSKeyRegistration(BLS_AGGREGATOR).owner() != msg.sender) revert UnauthorizedCaller(msg.sender);
             IBLSKeyRevoker(BLS_AGGREGATOR).revokeBLSPublicKey(v);
         }
         isValidator[v] = false;
-        isSuspended[v] = true;
         emit ValidatorRemoved(v);
     }
 }

@@ -139,7 +139,7 @@ contract GuardianSlashTest is Test {
     function test_RevertWhen_TooManyGuardians() public {
         _wireVerifier();
         address[] memory many = new address[](65); // one past MAX_VALIDATORS (64)
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "guiltyGuardians"));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, bytes32("guiltyGuardians")));
         bls.queueGuardianSlash(1, many, "");
     }
 
@@ -156,7 +156,7 @@ contract GuardianSlashTest is Test {
         dup[0] = guardian1;
         dup[1] = guardian1;
         staking.setLock(guardian1, 60 ether);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "dup guardian"));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, bytes32("dup guardian")));
         bls.queueGuardianSlash(1, dup, "");
     }
 

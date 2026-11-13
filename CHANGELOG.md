@@ -16,7 +16,10 @@ Fixes from the Daybreak Blue review of `8de39026` (`docs/security/rc8-daybreak-f
   behaviour, so both the template and the factory are redeployed.
 - **SuperPaymaster-5.5.0** (C1-L-01): `SlashExecutedWithProof` reports the penalty actually taken. ABI unchanged; the bytecode differs
   from rc.7 (identity = commit + runtime codehash).
-Downstream (DVT, SDK): new `GUARDIAN_FRAUD_CHALLENGE()` getter, exit withdrawal at `readyAt + 1 day`, new standby events.
+- **DVTValidator-0.8.0**: constructor `(registry, firstProposalId)`; the aggregator captures a monotonic allocation floor at rotation, including pending IDs and rollback. Broken-counter recovery needs an explicit audited owner floor.
+- **BLSAggregator-4.14.0 compatibility**: 64 slots; DVT-only four-argument key registration with mandatory PoP; aggregator-owned suspension and atomic emergency revoke-and-suspend. Parameter errors now use `InvalidParameter(bytes32)` and threshold guards use `InvalidThreshold()` to stay within EIP-170. Generic/queue replay keys are typed hashes; raw DVT IDs are below `2^128`. Signer commitments include the parent-block anchor and use typed keys in `SignersCommitted`. Upstream consumers must implement that schema; CC115 local adapter tests do not establish upstream compatibility.
+- **Reputation-0.6.0**: explicit disabled-rule state, active-rule tracking and consistent score/breakdown views.
+Downstream (DVT, SDK): regenerate ABIs/bytecode and update constructor, rotation, registration, suspension, commitment/event decoding, exit withdrawal at `readyAt + 1 day`, and standby events. Rotation does not revoke outstanding generic or direct Registry reputation authorizations.
 
 ## [v5.5.0] — Unreleased (release candidate `v5.5.0-rc.4`, 2026-10-21)
 

@@ -15,6 +15,8 @@ import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 /// @dev Minimal DVT sink: BLSAggregator rejects a zero DVT_VALIDATOR and makes a
 ///      typed call into it after execution, so the address must hold code.
 contract DomainReplayDVTStub {
+    // This sink never allocates proposals; activation can safely carry floor 1.
+    function nextProposalId() external pure returns (uint256) { return 1; }
     function markProposalExecuted(uint256) external {}
 }
 
@@ -384,10 +386,33 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     // Helpers
     // =================================================================
 
+    /// @notice Rotation allocates fresh DVT IDs; it does not revoke unused Registry authorizations.
+    /// @dev Regression for the scope of the guarantee (review F7), not a signature-generation change.
+    function test_RotationAllocationFloorPreservesAuthorizedRegistryProof() public {
+        if (!pragueAvailable) { vm.skip(true); return; }
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        uint256 id = oldDvt.createProposal(address(0), 0, "pending reputation");
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory proof = _proof(_reputationHash(address(aggA), address(registry), block.chainid, id, users, scores, 1), 3);
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        aggA.setDVTValidator(address(next));
+        assertEq(next.nextProposalId(), id + 1, "DVT allocation cannot reuse pending ID");
+        registry.setReputationSource(address(this), true);
+        registry.batchUpdateGlobalReputation(id, users, scores, 1, proof);
+        assertEq(registry.globalReputation(users[0]), 50, "authorized direct Registry proofs survive rotation");
+        assertFalse(aggA.executedProposals(id), "direct Registry route has its own replay state");
+        assertEq(aggA.proposalSignersCommitment(id), bytes32(0));
+    }
+
     mapping(address => DVTValidator) private gateways;
 
     function _freshAggregatorWithPermissionlessRegistration() internal returns (BLSAggregator agg) {
-        DVTValidator gateway = new DVTValidator(address(registry), 1, address(0));
+        DVTValidator gateway = new DVTValidator(address(registry), 1);
         agg = new BLSAggregator(address(registry), address(0xBEEF), address(gateway));
         gateway.setBLSAggregator(address(agg));
         gateways[address(agg)] = gateway;

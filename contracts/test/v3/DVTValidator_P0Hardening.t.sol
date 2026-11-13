@@ -88,8 +88,10 @@ contract DVTValidator_P0HardeningTest is Test {
     function setUp() public {
         staking = new MockStakingDVT();
         registry = new MockRegistryDVT(address(staking), MIN_STAKE);
-        dvt = new DVTValidator(address(registry), 1, address(0));
+        dvt = new DVTValidator(address(registry), 1);
         dvt.setBLSAggregator(blsAggregator);
+        vm.mockCall(blsAggregator, abi.encodeWithSignature("proposalFloor()"), abi.encode(uint256(0)));
+        vm.mockCall(blsAggregator, abi.encodeWithSignature("suspended(address)"), abi.encode(false));
         vm.mockCall(blsAggregator, abi.encodeWithSignature("DVT_VALIDATOR()"), abi.encode(address(dvt)));
         vm.mockCallRevert(blsAggregator, abi.encodeWithSelector(IBLSAggregator.verifyAndExecute.selector), abi.encodeWithSelector(DownstreamReached.selector));
 
@@ -102,7 +104,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
     function test_Constructor_RevertsWhenFirstProposalIdIsZero() public {
         vm.expectRevert(abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, 0));
-        new DVTValidator(address(registry), 0, address(0));
+        new DVTValidator(address(registry), 0);
     }
 
     function test_Constructor_RevertsWhenFirstProposalIdIsAtUint128Boundary() public {
@@ -110,7 +112,7 @@ contract DVTValidator_P0HardeningTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, firstProposalId)
         );
-        new DVTValidator(address(registry), firstProposalId, address(0));
+        new DVTValidator(address(registry), firstProposalId);
     }
 
     // -----------------------------------------------------------------------
@@ -162,7 +164,7 @@ contract DVTValidator_P0HardeningTest is Test {
         // Build a registry whose GTOKEN_STAKING returns address(0).
         MockRegistryDVT brokenReg = new MockRegistryDVT(address(0), MIN_STAKE);
         brokenReg.setIsDvt(validator1, true);
-        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1, address(0));
+        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1);
         vm.expectRevert(DVTValidator.StakingNotConfigured.selector);
         dvt2.addValidator(validator1);
     }

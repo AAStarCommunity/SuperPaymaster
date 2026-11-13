@@ -6,13 +6,16 @@ import {BLSRegistrationTestHelper} from "../helpers/BLSRegistration.sol";
 import {BLSAggregator} from "src/modules/monitoring/BLSAggregator.sol";
 import {BLS} from "src/utils/BLS.sol";
 import {FraudProofVerifierConformance as Conformance} from "../helpers/FraudProofVerifierConformance.sol";
+import {OverIssueFraudProofVerifier} from "./vendor/OverIssueFraudProofVerifier.sol";
 import {AnchoredOverIssueFraudProofVerifier} from "./AnchoredOverIssueFraudProofVerifier.sol";
 import {XRegistry, XStaking, XDVT, XSP, XToken} from "./CC115CrossRepoConformance.t.sol";
 
+interface ReviewEvmVersion { function getEvmVersion() external view returns (string memory); }
+
 /**
  * @title CC115GenuinePragueCrossRepo
- * @notice CC-115 B0: ONE execution path that is simultaneously cross-repo and genuinely
- *         cryptographic. Not two half-proofs stapled together.
+ * @notice CC-115 local adapter with genuine Prague cryptography.
+ *         Historical cross-repository claims below are superseded by this label.
  *
  * @dev    WHY THIS FILE EXISTS. CC-115 comment 28 (repo:dsr, 2026-08-29T17:05Z) refused to
  *         tick B0 because the repository held two disjoint halves:
@@ -30,11 +33,11 @@ import {XRegistry, XStaking, XDVT, XSP, XToken} from "./CC115CrossRepoConformanc
  *         pairing, the second never touches DVT's contract. This suite is the
  *         intersection, and it is the intersection that B0 asks for.
  *
- *         WHAT IS REAL HERE, all in one `setUp`:
+ *         CURRENT FIXTURE, all in one `setUp`:
  *           - `BLSAggregator` is the production contract, deployed, not stubbed;
- *           - the verifier is `vendor/OverIssueFraudProofVerifier.sol`, the vendored copy
- *             of DVT master @ 8395c94c (PR #240, released as v1.15.0), byte-checked
- *             against upstream by `VendoredProvenanceSelfCheck` in this same directory;
+ *           - the verifier is AnchoredOverIssueFraudProofVerifier, a local adapter;
+ *             its pinned base is checked by VendoredProvenanceSelfCheck, but the
+ *             overridden verification path is not upstream release evidence;
  *           - public keys are `sk * G1` computed by the real G1 MSM precompile;
  *           - proofs-of-possession are `sk * H_pop(popDigest)` on the real G2 precompiles;
  *           - the slash proof is a real aggregate signature `(Σ sk_i) * H(m)` over the
@@ -139,7 +142,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
             guardians.push(validators[i]);
         }
 
-        // The real DVT verifier, bound to aggA and this Registry.
+        // Local adapter, bound to aggA and this Registry.
         verifier = new AnchoredOverIssueFraudProofVerifier(address(aggA), address(registry));
 
         // Drive SP's OWN consensus path with a REAL aggregate signature, so the anchor
@@ -157,7 +160,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     // ==========================================================
 
     /// The whole point of this file is that the curve arithmetic is real. If the suite
-    /// ever runs somewhere it is not, that must be a skip, never a silent pass.
+    /// runs on Prague without these precompiles, it must fail. Only Cancun may skip.
     ///
     /// @dev THIS TEST USED TO BE VACUOUS, and the way it was vacuous is worth keeping on
     ///      the record. It asserted `address(0x0b).code.length == 0` and so on for each
@@ -178,6 +181,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     ///      `vm.mockCall(0x0F, "", abi.encode(uint256(1)))` — answers true and this goes red.
     ///      The other direction is covered by `setUp` itself: `verifyAndExecute` only got
     ///      through because the same precompile answered TRUE for a valid signature.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_PrecompilesAreRealNotInjected() public {
         _skipWithoutPrague();
         assertTrue(_hasPraguePrecompiles(), "EIP-2537 G1ADD must answer with 128 bytes");
@@ -204,6 +208,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     //    on an anchor written behind a real pairing
     // ==========================================================
 
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_RealDvtVerifierPassesAssertDomainBound() public {
         _skipWithoutPrague();
         Conformance.assertDomainBound(
@@ -211,6 +216,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
         );
     }
 
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_RealDvtVerifierPassesAssertSetBound() public {
         _skipWithoutPrague();
         Conformance.assertSetBound(address(verifier), address(aggA), _fraudProofId(), guardians, _fraudProof());
@@ -220,6 +226,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     // 2. Encoding parity across the two repositories
     // ==========================================================
 
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_DomainSeparatorParityWithRealAggregator() public {
         _skipWithoutPrague();
         assertEq(verifier.domainSeparator(), aggA.domainSeparator(), "verifier rebuilds aggA's domain");
@@ -227,6 +234,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
         assertTrue(verifier.domainSeparator() != aggB.domainSeparator(), "and the verifier is bound to aggA");
     }
 
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_FraudProofDigestParityAcrossIdsAndSets() public {
         _skipWithoutPrague();
         uint256[3] memory ids = [uint256(1), _fraudProofId(), type(uint256).max];
@@ -251,6 +259,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     /// by SP's own `_computeSignersCommitment` inside a `verifyAndExecute` that had to
     /// clear a genuine pairing first, and the verifier reaches it only by reconstructing
     /// slash message + commitment from the proof's raw fields.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_InnerCommitmentLayoutParityAgainstRealAggregatorWrite() public {
         _skipWithoutPrague();
         assertTrue(aggA.proposalSignersCommitment(PID) != bytes32(0), "SP wrote a real anchor");
@@ -262,6 +271,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
         );
     }
 
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_OverIssuedTokenFlipsTheSameProofToRejected() public {
         _skipWithoutPrague();
         bytes32 digest = aggA.fraudProofDigest(_fraudProofId(), guardians);
@@ -270,6 +280,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
         assertFalse(verifier.verify(digest, _fraudProofId(), guardians, _fraudProof()), "rejected once over-issued");
     }
 
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_LegacyThreeParamSelectorIsAbsent() public {
         _skipWithoutPrague();
         assertEq(
@@ -294,6 +305,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     /// DIFFERENT message must not clear `verifyAndExecute`. Under the mocked suite's
     /// `vm.mockCall(0x0F, "", 1)` this test is unwritable: every signature verifies, so
     /// the mocked 7/7 carries no information about signature validity at all.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_WrongAggregateSignatureIsRejected() public {
         _skipWithoutPrague();
         uint256 otherPid = PID + 1;
@@ -310,6 +322,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
 
     /// The severity table is load-bearing only if a genuine signature by too few
     /// validators is still refused. MINOR requires 3; two real signers must not pass.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_BelowThresholdIsRejected() public {
         _skipWithoutPrague();
         uint256 pid = PID + 10;
@@ -329,6 +342,7 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     /// Each field of the fraud proof feeds the commitment recompute. Perturbing any one
     /// of them must break the match — otherwise the "parity" above would be satisfied by
     /// a verifier that reads fewer fields than it claims to.
+    /// @notice Local adapter evidence; does not establish upstream verifier compatibility.
     function test_GenuinePrague_ObsoleteOrPerturbedInnerLayoutIsRejected() public {
         _skipWithoutPrague();
         bytes32 digest = aggA.fraudProofDigest(_fraudProofId(), guardians);
@@ -393,6 +407,36 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
         );
     }
 
+    /// @notice Local adapter: pinned upstream cannot attest the new anchored commitment.
+    function test_LocalAdapter_UnadaptedVerifierRejectsAnchoredExecution() public {
+        _skipWithoutPrague();
+        OverIssueFraudProofVerifier unadapted = new OverIssueFraudProofVerifier(address(aggA), address(registry));
+        bytes32 digest = aggA.fraudProofDigest(_fraudProofId(), guardians);
+        assertTrue(verifier.verify(digest, _fraudProofId(), guardians, _fraudProof()), "local adapter accepts anchored evidence");
+        assertFalse(unadapted.verify(digest, _fraudProofId(), guardians,
+            abi.encode(PID, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians)),
+            "unadapted upstream must not be presented as release compatibility evidence");
+    }
+
+    /// @notice Local adapter: a stored nonzero anchor remains usable after the BLOCKHASH window.
+    function test_LocalAdapter_StoredAnchorSurvives256Blocks() public {
+        _skipWithoutPrague();
+        vm.roll(100);
+        bytes32 anchor = keccak256("nonzero parent header");
+        vm.setBlockhash(99, anchor);
+        uint256 id = PID + 1;
+        bytes32 evidence = verifier.evidenceHash(address(token), OPERATOR, EPOCH);
+        bytes memory signed = _proofOverDigest(_slashMessageHash(id, OPERATOR, SLASH_LEVEL, EPOCH, evidence), MASK);
+        vm.prank(owner);
+        aggA.verifyAndExecute(id, OPERATOR, SLASH_LEVEL, new address[](0), new uint256[](0), EPOCH, evidence, signed);
+        uint256 fraudId = verifier.deriveFraudProofId(id);
+        bytes memory proof = abi.encode(id, OPERATOR, SLASH_LEVEL, EPOCH, address(token), MASK, guardians, anchor);
+        bytes32 digest = aggA.fraudProofDigest(fraudId, guardians);
+        vm.roll(block.number + 257);
+        assertEq(blockhash(99), bytes32(0), "original anchor outside BLOCKHASH window");
+        assertTrue(verifier.verify(digest, fraudId, guardians, proof), "stored anchor has no 256-block expiry");
+    }
+
     // ---- helpers ----
     function _hasPraguePrecompiles() internal view returns (bool) {
         bytes memory twoIdentities = new bytes(256);
@@ -401,7 +445,11 @@ contract CC115GenuinePragueCrossRepo is BLSRegistrationTestHelper {
     }
 
     function _skipWithoutPrague() internal {
-        if (!pragueAvailable) vm.skip(true);
+        if (!pragueAvailable) {
+            string memory evm = ReviewEvmVersion(address(vm)).getEvmVersion();
+            assertEq(evm, "cancun", "missing EIP-2537 on Prague or later must fail, never skip");
+            vm.skip(true);
+        }
     }
 
     function _fraudProofId() internal view returns (uint256) {

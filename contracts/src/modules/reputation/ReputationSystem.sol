@@ -101,7 +101,8 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         address community = msg.sender;
         // Verify msg.sender has the COMMUNITY role (multi-tenant: each community manages its own rules)
         if (!REGISTRY.hasRole(keccak256("COMMUNITY"), msg.sender) && owner() != msg.sender) revert NotAuthorized();
-        // Upper bounds prevent unbounded score inflation and arithmetic overflow in computeScore.
+        // Bounds constrain rule parameters, not arbitrary activity inputs or entropy factors;
+        // multiplication of those inputs may still overflow and revert in computeScore.
         // base/bonus capped at 10_000 points per rule; max capped at 100_000 (max cumulative bonus).
         if (base > 10_000 || bonus > 10_000 || max > 100_000) revert InvalidInput();
 
@@ -160,7 +161,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
                 if (_ruleListed[community][rId] && !_ruleActive[community][rId]) continue;
 
                 // If rule was never configured, use the default for the first rule.
-                // P1-26 resolved: fallback uses defaultRule (configurable), not a hardcoded score
+                // P1-26 resolved: fallback uses constructor-initialized defaultRule; no setter changes it
                 if (!_ruleListed[community][rId] && j == 0) {
                     r = defaultRule;
                 }
@@ -203,12 +204,9 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         uint256[] memory scores = new uint256[](1);
         scores[0] = score;
 
-        // Derive a non-zero proposalId from (user, epoch) — unique per sync call since
-        // epoch is monotonically increasing per user in Registry.
-        // P1-27 resolved: security delegated to REGISTRY.batchUpdateGlobalReputation BLS proof verification
-        // P1-23: "RS" domain prefix prevents namespace collision with BLSAggregator proposalIds.
-        // BLSAggregator uses externally-provided uint256 IDs (sequential or off-chain hashed without
-        // this prefix), so ReputationSystem IDs are guaranteed distinguishable in Registry storage.
+        // Hash-derived ID for (user, epoch). Separation from arbitrary external IDs
+        // and nonzero output are probabilistic, not structurally guaranteed.
+        // Registry independently verifies the full-width ID and enforces user epochs.
         uint256 proposalId = uint256(keccak256(abi.encode("RS", user, epoch)));
         REGISTRY.batchUpdateGlobalReputation(proposalId, users, scores, epoch, proof);
         emit ReputationComputed(user, score);
@@ -233,7 +231,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
         ruleIds[0] = rules;
 
         uint256[][] memory activities = new uint256[][](1);
-        activities[0] = new uint256[](rules.length); // Assuming 1 activity for each rule if we don't know
+        activities[0] = new uint256[](rules.length); // No activity data: every allocated entry is zero
 
         address[] memory communities = new address[](1);
         communities[0] = community;

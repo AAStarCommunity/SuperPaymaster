@@ -55,7 +55,7 @@ contract RepCreditPragueE2E is Test {
         registry.setStaking(address(staking));
         registry.setMySBT(address(sbt));
 
-        dvt = new DVTValidator(address(registry), 1, address(0));
+        dvt = new DVTValidator(address(registry), 1);
         aggregator = new BLSAggregator(address(registry), address(0xBEEF), address(dvt));
         dvt.setBLSAggregator(address(aggregator));
         registry.setBLSAggregator(address(aggregator));

@@ -129,7 +129,7 @@ contract BLSPermissionlessRegistrationTest is Test {
         registry = new MockRegistryPermissionlessRegistration();
         staking = new MockStakingPermissionlessRegistration();
         registry.setStakingAddr(address(staking));
-        gateway = new DVTValidator(address(registry), 1, address(0));
+        gateway = new DVTValidator(address(registry), 1);
         dvt = address(gateway);
         bls = new BLSAggregator(address(registry), sp, dvt);
         gateway.setBLSAggregator(address(bls));
@@ -292,7 +292,7 @@ contract BLSPermissionlessRegistrationTest is Test {
         // One key is below all configured quorums, so removing it destroys none.
         vm.prank(owner);
         gateway.removeValidator(validator);
-        assertTrue(gateway.isSuspended(validator));
+        assertTrue(bls.suspended(validator));
         (,, bool active) = bls.getBLSPublicKey(validator);
         assertFalse(active);
         vm.prank(validator);
@@ -300,6 +300,8 @@ contract BLSPermissionlessRegistrationTest is Test {
         gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
         vm.prank(owner);
         gateway.addValidator(validator);
+        vm.prank(owner);
+        bls.setSuspended(validator, false);
         vm.prank(validator);
         gateway.registerBLSPublicKey(validator, _key(1), 1, validPoP);
         (,, active) = bls.getBLSPublicKey(validator);

@@ -152,7 +152,7 @@ contract DVTValidatorLivenessTest is Test {
         registry.setStakingAddr(address(staking));
         sp = new MockSP();
 
-        dvt = new DVTValidator(address(registry), 1, address(0));
+        dvt = new DVTValidator(address(registry), 1);
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         dvt.setBLSAggregator(address(bls));
 
@@ -252,32 +252,12 @@ contract DVTValidatorLivenessTest is Test {
         vm.prank(validator1);
         uint256 id = dvt.createProposal(operator, 1, "via aggregator");
 
-        // BLS_AGGREGATOR has never been registered as a validator; without the
-        // exemption this would revert NotActiveValidator. We expect a different
-        // failure later in the pipeline (the BLS pairing precompile is unmocked).
-        // We only need to confirm the early gate doesn't fire.
+        // No BLS slots are registered in this fixture. Reaching this exact error
+        // proves forwarding crossed the caller-liveness gate into key reconstruction.
         bytes memory dummyProof = abi.encode(uint256(0x7F), abi.encode(BLS.G2Point(0,0,0,0,0,0,0,0)));
         vm.prank(address(bls));
-        // Will revert later (pairing precompile) — but NOT with NotActiveValidator.
-        try dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof) {
-            // Either path is acceptable for this test — we only assert the
-            // liveness gate didn't fire.
-        } catch (bytes memory reason) {
-            bytes4 sel;
-            assembly { sel := mload(add(reason, 0x20)) }
-            assertTrue(
-                sel != DVTValidator.NotActiveValidator.selector,
-                "BLS aggregator must bypass NotActiveValidator gate"
-            );
-            assertTrue(
-                sel != DVTValidator.ValidatorRoleRevoked.selector,
-                "BLS aggregator must bypass ValidatorRoleRevoked gate"
-            );
-            assertTrue(
-                sel != DVTValidator.ValidatorStakeBelowMinimum.selector,
-                "BLS aggregator must bypass ValidatorStakeBelowMinimum gate"
-            );
-        }
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof);
     }
 
     // ====================================

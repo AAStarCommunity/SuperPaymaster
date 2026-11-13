@@ -199,7 +199,7 @@ contract DeployV3FullSepolia is Script {
         Registry(addr_registry).setBLSAggregator(addr_blsAgg);
 
         if (addr_dvt == address(0)) {
-            DVTValidator d = new DVTValidator(addr_registry, 1, address(0));
+            DVTValidator d = new DVTValidator(addr_registry, 1);
             d.setBLSAggregator(addr_blsAgg);
             addr_dvt = address(d);
             console.log("Deployed DVTValidator:", addr_dvt);

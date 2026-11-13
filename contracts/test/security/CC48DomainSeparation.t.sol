@@ -585,9 +585,8 @@ contract CC48PoPBindingTest is BLSRegistrationTestHelper {
         assertEq(aggA.blsKeyOwner(_keyHash(pk)), v1);
     }
 
-    /// The scan looks at the ACTIVE table, not at the address the binding names: after
-    /// a rotation the key can be live under a different address, and releasing it there
-    /// would be the same hole.
+    /// After release and reassignment the binding names the new holder. Its active
+    /// key must still prevent another release.
     function test_ReleaseIsRefusedWhenTheKeyIsLiveUnderAnotherAddress() public {
         BLS.G1Point memory pk = _key(9);
         vm.startPrank(owner);
@@ -616,7 +615,7 @@ contract CC48PoPBindingTest is BLSRegistrationTestHelper {
         aggA.releaseKeyBinding(_keyHash(pk));
 
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "keyHash"));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, bytes32("keyHash")));
         aggA.releaseKeyBinding(keccak256("never registered"));
     }
 }

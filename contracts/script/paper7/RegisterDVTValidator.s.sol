@@ -9,7 +9,7 @@ pragma solidity ^0.8.26;
  *   1. GToken.approve(staking, 33 GT)
  *   2. Registry.safeMintForRole(ROLE_DVT, validator, ...) -- 30 GT stake
  *   3. DVTValidator.addValidator(validator)
- *   4. BLSAggregator.setMinThreshold(1) + setDefaultThreshold(1)
+ *   4. BLSAggregator.setDefaultThreshold(bls.minThreshold()) (minimum >= 2)
  *   5. DVTValidator.registerBLSPublicKey(validator, <env-supplied key>, slot=1, <env PoP>)
  *
  * CC-48 round-3 — TWO breaking changes to this script, both deliberate:

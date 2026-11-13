@@ -178,7 +178,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         console.log("=== Step 4: Deploy Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1), address(0))));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );
@@ -413,8 +413,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
         registry.setBLSAggregator(address(aggregator));
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
         // 5.5.0 (runbook step 6): SP binds operators to tokens issued by xPNTsFactoryV2.
         _wireSPFactory(address(superPaymaster), v55.factory);

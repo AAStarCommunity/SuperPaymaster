@@ -345,7 +345,7 @@ contract GenericDVTProposalTest is BLSRegistrationTestHelper {
         bytes memory proof = _createMockProof(requiredThreshold, proposalId, callData);
 
         vm.prank(address(dvtValidator));
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold below minimum"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.executeProposal(proposalId, address(target), callData, requiredThreshold, proof);
     }
 
@@ -356,7 +356,7 @@ contract GenericDVTProposalTest is BLSRegistrationTestHelper {
         bytes memory proof = _createMockProof(requiredThreshold, proposalId, callData);
 
         vm.prank(address(dvtValidator));
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold exceeds max"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.executeProposal(proposalId, address(target), callData, requiredThreshold, proof);
     }
 
@@ -465,7 +465,7 @@ contract GenericDVTProposalTest is BLSRegistrationTestHelper {
 
     function test_SetMinThreshold_TooLow_Reverts() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Min threshold too low"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.setMinThreshold(1);
     }
 
@@ -477,7 +477,7 @@ contract GenericDVTProposalTest is BLSRegistrationTestHelper {
 
     function test_SetDefaultThreshold_BelowMin_Reverts() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Below minThreshold"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.setDefaultThreshold(2); // Below minThreshold (3)
     }
 }

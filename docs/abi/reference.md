@@ -47,7 +47,9 @@ Authoritative, auto-generated reference for every external/public function, even
 - [IRegistryStakingAwareBLS](#iregistrystakingawarebls) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [ISuperPaymasterSlash](#isuperpaymasterslash) — `contracts/src/modules/monitoring/BLSAggregator.sol`
 - [DVTValidator](#dvtvalidator) — `contracts/src/modules/monitoring/DVTValidator.sol`
+- [IBLSKeyRegistration](#iblskeyregistration) — `contracts/src/modules/monitoring/DVTValidator.sol`
 - [IBLSKeyRevoker](#iblskeyrevoker) — `contracts/src/modules/monitoring/DVTValidator.sol`
+- [IBLSProposalFloor](#iblsproposalfloor) — `contracts/src/modules/monitoring/DVTValidator.sol`
 - [IRegistryStakingAware](#iregistrystakingaware) — `contracts/src/modules/monitoring/DVTValidator.sol`
 - [ReputationSystem](#reputationsystem) — `contracts/src/modules/reputation/ReputationSystem.sol`
 - [BasePaymasterUpgradeable](#basepaymasterupgradeable) — `contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol`
@@ -2884,13 +2886,14 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IBLSAggregator
 
 - **Source:** `contracts/src/interfaces/v3/IBLSAggregator.sol`
-- **Functions:** 7 · **Events:** 0 · **Errors:** 0
+- **Functions:** 8 · **Events:** 0 · **Errors:** 0
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
 | `0x53f10a4b` | `defaultThreshold()` | view | — |  |
+| `0xbc8efe75` | `DVT_VALIDATOR()` | view | — |  |
 | `0xc85501bb` | `minThreshold()` | view | — |  |
 | `0x47730efa` | `queueSlashWithConsensus(address,uint8,uint256,bytes)` | nonpayable | — | Step 1 of the two-step slash: quorum pre-flags an operator (SP.queueSlash). |
 | `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | — |  |
@@ -2907,6 +2910,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint256` |  |
+
+#### `DVT_VALIDATOR()`
+
+`0xbc8efe75` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
 
 #### `minThreshold()`
 
@@ -4255,10 +4266,10 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `baseScore` | `uint256` | Base score from membership |
+| `baseScore` | `uint256` | Rule base total after the community multiplier has already been applied |
 | `nftBonus` | `uint256` | Bonus from bound NFTs |
 | `activityBonus` | `uint256` | Bonus from recent activity |
-| `multiplier` | `uint256` | Community-specific multiplier (100 = 1x) |
+| `multiplier` | `uint256` | Community factor in 1e18 units (1e18 = 1x); do not multiply baseScore again |
 
 #### `version()`
 
@@ -4572,7 +4583,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## MockBLSAggregator
 
 - **Source:** `contracts/src/mocks/MockBLSAggregator.sol`
-- **Functions:** 11 · **Events:** 0 · **Errors:** 0
+- **Functions:** 12 · **Events:** 0 · **Errors:** 0
 - **Title:** MockBLSAggregator
 - Mock aggregator for unit tests — bypasses real BLS pairing.
 
@@ -4581,9 +4592,10 @@ Authoritative, auto-generated reference for every external/public function, even
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
 | `0x53f10a4b` | `defaultThreshold()` | view | — |  |
+| `0xbc8efe75` | `DVT_VALIDATOR()` | view | — |  |
 | `0xc85501bb` | `minThreshold()` | view | — |  |
 | `0x47730efa` | `queueSlashWithConsensus(address,uint8,uint256,bytes)` | pure | — |  |
-| `0x6578b0cc` | `setDVTValidator(address)` | pure | — |  |
+| `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | — |  |
 | `0x9eb49527` | `setSlashThreshold(uint8,uint8)` | nonpayable | — |  |
 | `0xe3064a77` | `setThresholds(uint256,uint256)` | nonpayable | — |  |
 | `0xc7b6b080` | `setVerifyResult(bool)` | nonpayable | — |  |
@@ -4601,6 +4613,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `uint256` |  |
+
+#### `DVT_VALIDATOR()`
+
+`0xbc8efe75` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
 
 #### `minThreshold()`
 
@@ -4621,13 +4641,13 @@ Authoritative, auto-generated reference for every external/public function, even
 | `arg2` | `uint256` |  |
 | `arg3` | `bytes` |  |
 
-#### `setDVTValidator(address arg0)`
+#### `setDVTValidator(address dvt)`
 
-`0x6578b0cc` · pure · access: —
+`0x6578b0cc` · nonpayable · access: —
 
 | param | type | description |
 |---|---|---|
-| `arg0` | `address` |  |
+| `dvt` | `address` |  |
 
 #### `setSlashThreshold(uint8 level, uint8 threshold)`
 
@@ -5417,7 +5437,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## BLSAggregator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 77 · **Events:** 33 · **Errors:** 56
+- **Functions:** 82 · **Events:** 34 · **Errors:** 60
 - **Title:** BLSAggregator
 - BLS signature aggregation and verification for DVT slash consensus (V3)
 
@@ -5427,7 +5447,7 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|---|---|
 | `0x300b0b35` | `aggregatedSignatures(uint256)` | view | — |  |
 | `0x585d5bc0` | `applyFraudProofVerifier()` | nonpayable | — | Finalise a matured verifier rotation. |
-| `0xc9e4b4e3` | `blsKeyOwner(bytes32)` | view | — | CC-48 round-2: permanent binding of a G1 public key to the FIRST         validator address it was registered under. |
+| `0xc9e4b4e3` | `blsKeyOwner(bytes32)` | view | — | CC-48 round-2: persistent binding of a G1 public key to the FIRST         validator address it was registered under. |
 | `0x58222d5d` | `cancelFraudProofVerifierRotation()` | nonpayable | onlyOwner | Abandon an in-flight verifier rotation. |
 | `0x38b91788` | `cancelGuardianExit()` | nonpayable | — | Withdraw an exit notice and re-enter the signer set. |
 | `0xadc63987` | `consumeGuardianExit(address)` | nonpayable | — | Registry-only atomic gate called by Registry.exitRole(ROLE_DVT). |
@@ -5464,6 +5484,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xed8f4299` | `pendingGuardianSlashCount(address)` | view | — |  |
 | `0x0d8b9eab` | `permissionlessBLSRegistration()` | view | — | H-02: when true, a staked ROLE_DVT validator may self-register their OWN         BLS key (with proof-of-possession) instead of requiring an owner call.         Default false — onboarding stays owner-gated (off-chain trust established         first) until governance flips it on. Closes the otherwise-inconsistent         path where Registry ROLE_DVT is permissionless (self-service stake) but         BLS-key registration here was owner-only. |
 | `0xbaeb0e66` | `popDigest(address,(bytes32,bytes32,bytes32,bytes32))` | view | — | Canonical proof-of-possession digest for (validator, publicKey). |
+| `0x276a58ef` | `proposalFloor()` | view | — | Monotonic lower bound on allocation, retained across DVT rotations. |
 | `0xa74c1ca8` | `proposalNonces(uint256)` | view | — |  |
 | `0xfa3608ff` | `proposalSignersCommitment(uint256)` | view | — | A' attribution (CC-89 stage-2): commitment to the exact signer         ADDRESS set of each executed proposal, snapshotted at execution time         before any revokeBLSPublicKey can reassign a slot. A fraud-proof         verifier matches proof-supplied claimedSigners against this to         attribute a fraudulent slash to real addresses. It is a 1-slot         fingerprint and is NOT reversible — the address list's data         availability is the DVT detection layer's (redundant watchers) job. |
 | `0xb3b8b48f` | `proposeFraudProofVerifier(address)` | nonpayable | onlyOwner | Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`. |
@@ -5475,19 +5496,23 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x79cada55` | `reputationMessageHash(uint256,address[],uint256[],uint256)` | view | — | Canonical reputation-batch pre-image. MUST stay byte-identical to         `Registry._reputationMessageHash` — Registry independently re-verifies         the same signature, and any divergence turns every reputation proposal         into an unexplained `BLSFailed`. |
 | `0xf7664c8d` | `requestGuardianExit()` | nonpayable | — | Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens. |
-| `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | — | Revoke a previously registered BLS validator key. |
-| `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set default threshold for legacy calls (verifyAndExecute) |
-| `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner |  |
+| `0x7399bad0` | `revokeAndSuspend(address)` | nonpayable | onlyOwner | Atomic emergency eviction; bypasses quorum survival and works without a key. |
+| `0xb33a3a62` | `revokeBLSPublicKey(address)` | nonpayable | — | Revoke a registered key. Direct owner revocation rejects inactive keys. |
+| `0xc5246bf5` | `setDefaultThreshold(uint256)` | nonpayable | onlyOwner | Set the reputation-branch threshold in verifyAndExecute |
+| `0x6578b0cc` | `setDVTValidator(address)` | nonpayable | onlyOwner | Atomically capture all outgoing allocations before activating a DVT. |
+| `0x242a77f5` | `setDVTValidatorWithFloor(address,uint256)` | nonpayable | onlyOwner | Emergency rotation when the outgoing counter cannot be read. |
 | `0x8f857b3e` | `setGuardianSlashBps(uint16)` | nonpayable | — | Set the fraction of a colluding guardian's lock burned per slash. |
-| `0x7f39a939` | `setMinThreshold(uint256)` | nonpayable | onlyOwner | Set minimum consensus threshold (global floor) |
+| `0x7f39a939` | `setMinThreshold(uint256)` | nonpayable | onlyOwner | Set the generic/verify minimum; slash consensus has its own severity floors |
 | `0xa9ea1992` | `setPermissionlessBLSRegistration(bool)` | nonpayable | onlyOwner | H-02: toggle permissionless (stake + proof-of-possession) self-registration         of BLS validator keys. Default off — flip on once governance is ready to let         staked ROLE_DVT validators onboard their own keys without an owner call. |
 | `0x28e4e0a3` | `setSlashPolicyAdmin(address)` | nonpayable | onlyOwner | Rotate the slash-policy admin (owner only). |
 | `0x9eb49527` | `setSlashThreshold(uint8,uint8)` | nonpayable | — | Update the per-severity slash consensus threshold. |
 | `0xe79e9739` | `setSuperPaymaster(address)` | nonpayable | onlyOwner |  |
+| `0x5f72155f` | `setSuspended(address,bool)` | nonpayable | onlyOwner | Set or clear suspension regardless of key or admission state. |
 | `0x777ff608` | `SLASH_THRESHOLD_FLOOR()` | view | — | Absolute signature floor enforced inside `_checkSignatures` for         EVERY verification path (a hard safety net; no path may verify         below this). The generic executeProposal path layers the stricter         `minThreshold` on top, so lowering the slash floor to 2 (for a         2-of-3 WARNING) does NOT widen the generic path — that stays at         minThreshold. Also the min a slash-table entry may be set to. |
 | `0xbf5790a6` | `slashPolicyAdmin()` | view | — | Address permitted to update `slashThresholds`. Set this to a         multisig for plain governance, or to a TimelockController(multisig)         to get timelocked policy changes WITHOUT building timelock logic         (and its bytecode) into this contract. Owner rotates it. |
 | `0xc312b093` | `slashThresholds(uint8)` | view | — | Per-severity slash consensus threshold, keyed by SlashLevel         (0=WARNING, 1=MINOR, 2=MAJOR). Bootstrap (N=3): 2/3/3. This         replaces the flat defaultThreshold for the slash-only path so the         bar scales with severity and with the validator set over time,         by governance table update rather than a code change. |
 | `0x5ae48ba4` | `SUPERPAYMASTER()` | view | — |  |
+| `0x082e4b9f` | `suspended(address)` | view | — | Authoritative suspension, independent of key activity or DVT admission. |
 | `0xc168f542` | `TAG_EXECUTE_SLASH()` | view | — |  |
 | `0x2a931a74` | `TAG_FRAUD_PROOF()` | view | — |  |
 | `0x9a8c69db` | `TAG_POP()` | view | — |  |
@@ -5532,7 +5557,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xc9e4b4e3` · view · access: —
 
-> CC-48 round-2: permanent binding of a G1 public key to the FIRST         validator address it was registered under.
+> CC-48 round-2: persistent binding of a G1 public key to the FIRST         validator address it was registered under.
 
 | param | type | description |
 |---|---|---|
@@ -5610,7 +5635,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > EMERGENCY: disarm the fraud-proof verifier immediately — no delay.         Clears the active verifier AND any in-flight rotation, so no new         guardian-slash case can be opened from this block onwards.
 
-*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (5 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have it executed for 100% of         every accused guardian's lock within a SINGLE block, so a five-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 5 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             100% of every accused guardian's lock inside ONE block, so a five-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 5-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 5 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
+*@dev* CC-48 round-5 MEDIUM-2. Before this existed, the only way to take a         misbehaving verifier off-line was `proposeFraudProofVerifier(0)` +         `VERIFIER_ROTATION_DELAY` (5 days) + `applyFraudProofVerifier`. A         compromised verifier can open a case and have its configured penalty         executed against every accused guardian within a SINGLE block, so a five-day         remedy was not a remedy. This call is the answer to "the verifier is         lying, stop it now".         WHAT IT DOES NOT TOUCH, by construction rather than by promise: since         round-4, `executeGuardianSlash` / `retry` / `expire` read ONLY the verdict         frozen in `guardianSlashCases[id]` and never read `fraudProofVerifier`         (line ~1730 below is its single non-governance read, inside         `queueGuardianSlash`). Disarming cannot cancel, stall, or re-judge an         already-queued case. Cases opened BEFORE the disarm run to their frozen         verdict; use `expireGuardianSlashCase` after the deadline to drop one.         RESIDUAL RISK — THIS IS A NEW OWNER POWER (CC-48 round-6 HIGH-1). Earlier         revisions of this comment claimed a stolen `owner` "gains nothing new"         because `proposeFraudProofVerifier(0)` + 5 days reached the same terminal         state. That is FALSE in the only dimension that matters here — TIME — and         it is retracted:           • Before 4.9.0 NO owner entry point could block `queueGuardianSlash` in             the same block. Its preconditions (`verifier != 0`,             `verifier.code.length != 0`, `fraudProofId != 0`, `status == 0`,             `_validateGuardianSet`, `verify()`) are untouched by every other             onlyOwner function; `_validateGuardianSet` is `pure`, so even             `revokeBLSPublicKey` / `releaseKeyBinding` cannot stop a case opening.           • From 4.9.0 the owner CAN, immediately and with no public notice,             censor ALL FUTURE accusations. Concretely: an honest watcher's             `queueGuardianSlash(id, {A,B,C}, proof)` sits in the mempool; a             colluding or compromised owner front-runs it with this call for the             price of one transaction, and the watcher reverts with             `FraudProofVerifierNotSet`. Repeating it costs the owner one more             transaction each time. On 4.8.0 the same owner had to take             `propose(0)` + 4 PUBLICLY VISIBLE days, during which watchers could             still open cases that round-4's frozen verdict then protected.           • This power is accepted deliberately: a compromised verifier can slash             the configured fraction of each accused guardian's lock inside ONE block, so a five-day             remedy is not a remedy, and censoring future accusations is strictly             less damaging than that. It is a trade, not a free win.           • WHAT CARRIES THE RESIDUAL RISK: the owner's M-of-N configuration, and             nothing else. A TimelockController cannot cover this path — a             timelocked emergency stop is not an emergency stop — so for the DISARM             path the Safe-compatible M-of-N owner is the ONLY governance defence,             not defence in depth.             The in-contract 5-day delay still governs RE-ARMING: there is no             counterpart that sets a non-zero verifier, so coming back on-line             remains propose -> 5 days -> apply, and disarm is not a fast path to a             verifier of the owner's choosing.           • WHAT THE GATE ACTUALLY ENFORCES, STATED EXACTLY (CC-48 round-8             MEDIUM-2). `contracts/script/checks/GovernanceOwnerGate.sol` turns             "owner should be M-of-N" into a deploy/migration gate that fails closed             on an INTERFACE-AND-THRESHOLD basis: the owner holds code, is not an             EIP-7702 delegation designator, and answers `getThreshold() >= 2` plus             `getOwners()` as a canonical array of distinct non-zero owners of at             least that length. It does NOT prove the owner is a canonical Gnosis             Safe: a contract can implement both methods and return whatever it             likes while one key still controls execution. Downstream threat models             must consume the Safe-COMPATIBLE M-of-N property, never canonicity.             Earlier revisions of this comment asserted canonicity outright and             claimed the gate enforced it; both are RETRACTED as overstatements of             what any on-chain check in this repo can show.
 
 #### `executedProposals(uint256 arg0)`
 
@@ -5630,7 +5655,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Slash the FULL ROLE_DVT stake of guardians proven (by the external         fraud-proof verifier) to have co-signed a fraudulent proposal. This         is the thin SP execution entry for the paper's ρ·S_op collusion         deterrent (Protocol B stage 1). It complements _executeSlash, which         targets the operator's aPNTs — a DIFFERENT asset (guardian ROLE_DVT         stake ≠ operator aPNTs, even if the addresses coincide).
 
-*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice, is excluded from BLS signer           masks from readyAt and can withdraw only after GUARDIAN_FRAUD_CHALLENGE;           any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - FULL-lock slash → lock hits 0 < minStake → _reconstructPkAgg           auto-ejects the guardian on the next verify. No 30% cap: proven           collusion must lose eligibility, not merely pay a fee — but this           holds for a guardian whose case is queued inside the configured           exit-notice window. The operator-path cap protects honest operators           from one bad epoch — a different threat model.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
+*@dev* - Guardians are addressed DIRECTLY, not via slot: validatorAtSlot is           reassignable (revokeBLSPublicKey frees a slot for reuse), so a slot           captured at fraud time could later resolve to an innocent validator           — slashing by slot would hit the wrong address. The verifier binds           the proof to stable addresses; the slash reads the accused's own           ROLE_DVT lock. This blocks the revoke-KEY/slot variant (a slashed           address's lock is independent of whether it still holds a slot).           Registry.exitRole(ROLE_DVT) calls consumeGuardianExit. A guardian           must first publish a bounded exit notice, is excluded from BLS signer           masks from readyAt and can withdraw only after GUARDIAN_FRAUD_CHALLENGE;           any queued slash case freezes consumption.           GuardianSlashSkipped remains for legacy/direct staking drift, but           the coordinated Registry path cannot release a queued guardian.         - Permissionless CALL, gated by the verdict frozen at queue time: fraud           validity — not caller identity — authorizes the slash. This deliberately           bypasses the accused DVT quorum, which is the collusion set and would           never slash itself (the circular-dependency escape).         - Penalty uses the queue-time slashBps snapshot (default 30%) applied           to the lock at execution. Losing eligibility is not guaranteed:           over-staked guardians may still meet minStake after the penalty.         - fail-closed: no case can exist until a verifier is wired, because           `queueGuardianSlash` — the only way to open one — reverts without it.
 
 | param | type | description |
 |---|---|---|
@@ -5937,6 +5962,16 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `bytes32` |  |
 
+#### `proposalFloor()`
+
+`0x276a58ef` · view · access: —
+
+> Monotonic lower bound on allocation, retained across DVT rotations.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 #### `proposalNonces(uint256 arg0)`
 
 `0xa74c1ca8` · view · access: —
@@ -5969,7 +6004,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Propose wiring/rotating the guardian-collusion fraud-proof verifier         (Protocol B stage 2 detection layer, supplied by the DVT repo).         Owner-gated, and matured by `applyFraudProofVerifier` only after         `VERIFIER_ROTATION_DELAY`.
 
-*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         100%-of-lock slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a 100%-of-lock slash is publicly visible for five days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The guardian leaves valid signer masks at readyAt and can         withdraw only after a further GUARDIAN_FRAUD_CHALLENGE; a verifier-approved         queued case increments the pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
+*@dev* This is the SOLE authorization surface for an unbounded, permissionless,         configurable-fraction slash path, so CC-48 MEDIUM-1 moved it to a two-step,         delay-guarded rotation: propose -> wait VERIFIER_ROTATION_DELAY -> apply.         `owner` MUST be a Safe-COMPATIBLE M-of-N owner. For THIS function a         TimelockController in front of it is genuine defence in depth (arming is         delayed anyway, so an extra delay costs nothing); for         `emergencyDisarmFraudProofVerifier` it is not, because a timelocked         emergency stop is not an emergency stop — see the residual-risk paragraph         there. The deployment/migration gate in         `contracts/script/checks/GovernanceOwnerGate.sol` enforces the M-of-N         INTERFACE AND THRESHOLD (`getThreshold() >= 2`, `getOwners()` a canonical         array of distinct non-zero owners of at least that length, owner not an         EIP-7702 delegation designator). It does NOT prove the owner is a canonical         Gnosis Safe — that needs a per-chain runtime-codehash or factory allowlist,         which does not exist yet.WHAT THE DELAY IS FOR, POST-ROUND-4. It originally existed to stop an         owner from swapping in an always-false verifier mid-case so colluders         could time out; round-4's frozen verdict provides that property         structurally instead (execution never calls a verifier at all, see         `test_RotationAfterQueueingStillCannotTouchAnOpenCase`). What the delay         still buys is the direction that matters: ARMING or REPLACING the         authority behind a queue-time-fraction slash is publicly visible for five days         before it can act. It is deliberately NOT applied to disarming — see         `emergencyDisarmFraudProofVerifier`, which is immediate because it only         ever removes power (CC-48 round-5 MEDIUM-2).ROLE_DVT exit is now gated by requestGuardianExit + a bounded         unbonding delay. The guardian leaves valid signer masks at readyAt and can         withdraw only after a further GUARDIAN_FRAUD_CHALLENGE; a verifier-approved         queued case increments the pending counter and Registry cannot consume the exit until all cases         resolve. Governance must wire this aggregator into Registry before         arming the verifier.
 
 | param | type | description |
 |---|---|---|
@@ -6010,7 +6045,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Register a BLS validator's public key into a deterministic slot.
 
-*@dev* P0-1: keys are stored uncompressed so `_reconstructPkAgg` can         feed them straight into the G1ADD precompile. The slot encodes         the validator's bit position in `signerMask` and is fixed at         registration to make the bitmap → key mapping unambiguous.         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is         called before storing to guarantee (a) the point is on the         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.         Without (b) an attacker can register a small-subgroup point that         contaminates the reconstructed pkAgg used in later pairing checks.         The identity point (point at infinity) is also rejected to prevent         key-cancellation attacks during aggregation.SECURITY — PoP is enforced on both registration paths.         There are exactly two registration paths and NEITHER of them skips the         proof-of-possession check:           • Owner path (`msg.sender == owner()`): the owner still decides WHO is             onboarded and at WHICH slot, but no longer decides whether the key is             really the registrant's. Before round-3 this path skipped PoP on the             argument that a compromised owner is game-over anyway. That argument             covers authorization, not this property: `blsKeyOwner` is a permanent,             deliberately irreversible binding, so one mistyped address bound a             third party's public key forever, and an owner could pre-empt a             validator's own self-registration by binding its key first. Both are             gone: producing `popSignature` requires the corresponding secret key.           • Permissionless path (`permissionlessBLSRegistration == true`, off by             default): an untrusted staked ROLE_DVT validator self-registers its OWN             key. Unchanged — PoP was always enforced here.         Recovery: `releaseKeyBinding` (owner-only, and only while NO active slot         holds the key) is the escape hatch for a binding created in error. It         cannot touch a live signer's binding, so the anti-duplicate property is         preserved; see the runbook in docs/architecture/dvt-validator-workflow.md.         Defense-in-depth: a registered key can only contribute to an aggregate if         its validator address still holds ROLE_DVT with locked stake >= minStake at         verification time (re-checked live in `_reconstructPkAgg`); a key registered         for an address lacking the role/stake can never enter a slash/reputation proof.
+*@dev* P0-1: keys are stored uncompressed so `_reconstructPkAgg` can         feed them straight into the G1ADD precompile. The slot encodes         the validator's bit position in `signerMask` and is fixed at         registration to make the bitmap → key mapping unambiguous.         P0-1 sub-fix (on-curve + subgroup check): `_validateG1Point` is         called before storing to guarantee (a) the point is on the         BLS12-381 G1 curve and (b) it is in the prime-order subgroup r.         Without (b) an attacker can register a small-subgroup point that         contaminates the reconstructed pkAgg used in later pairing checks.         The identity point (point at infinity) is also rejected to prevent         key-cancellation attacks during aggregation.SECURITY: Only the current DVT may forward registration. Both owner      onboarding and permissionless onboarding require PoP on every call,      bound to this aggregator, chain, validator address and public key.      Suspension, key validity, uniqueness and slot consistency are enforced      here. Key bindings survive revoke/exit unless the owner explicitly      releases an unused binding (see releaseKeyBinding recovery runbook).      Aggregation re-checks live role, stake, suspension and matured exits;      a stored key alone never establishes current voting eligibility.
 
 | param | type | description |
 |---|---|---|
@@ -6070,13 +6105,23 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Start a bounded ROLE_DVT unbonding notice. A guardian with a         notice remains eligible until readyAt, then stops signing for a         full fraud-challenge period before withdrawal opens.
 
+#### `revokeAndSuspend(address validator)`
+
+`0x7399bad0` · nonpayable · access: onlyOwner
+
+> Atomic emergency eviction; bypasses quorum survival and works without a key.
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+
 #### `revokeBLSPublicKey(address validator)`
 
 `0xb33a3a62` · nonpayable · access: —
 
-> Revoke a previously registered BLS validator key.
+> Revoke a registered key. Direct owner revocation rejects inactive keys.
 
-*@dev* P0 follow-up: stricter semantics than the prior idempotent stub.         Reverts with `KeyNotActive` if the key is not currently active so         off-chain operators get a clear failure signal instead of a         silent no-op. The full key bytes are intentionally preserved         (only `isActive` is cleared and `validatorAtSlot[slot]` is reset         to address(0)) so historical proofs that reference the slot can         still be audited via `getBLSPublicKey`. Re-registration of the         same validator must use `registerBLSPublicKey` again, which will         pass `_validateG1Point` and either reuse or claim a new slot.         The configured DVTValidator may also revoke a key so its         owner-only removal clears voting power atomically, subject to         the same committee-survival check as a voluntary exit. The         timelocked owner remains the emergency eviction override.
+*@dev* Current DVT removal is an owner-forwarded suspension plus revocation,      preserves each reachable configured quorum, and is idempotent for an      inactive key. The DVT checks that its caller is also this contract's owner.      Direct owner calls are immediate emergency overrides; no timelock is      enforced here. Use revokeAndSuspend to prevent permissionless restoration.      Old key bytes remain inspectable only until a subsequent registration      overwrites them; getBLSPublicKey is not a historical key archive.
 
 | param | type | description |
 |---|---|---|
@@ -6086,7 +6131,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xc5246bf5` · nonpayable · access: onlyOwner
 
-> Set default threshold for legacy calls (verifyAndExecute)
+> Set the reputation-branch threshold in verifyAndExecute
 
 | param | type | description |
 |---|---|---|
@@ -6096,9 +6141,26 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x6578b0cc` · nonpayable · access: onlyOwner
 
+> Atomically capture all outgoing allocations before activating a DVT.
+
+*@dev* Reverts on an unreadable outgoing counter; never guesses a replacement floor.
+
 | param | type | description |
 |---|---|---|
 | `_dv` | `address` |  |
+
+#### `setDVTValidatorWithFloor(address _dv, uint256 floor)`
+
+`0x242a77f5` · nonpayable · access: onlyOwner
+
+> Emergency rotation when the outgoing counter cannot be read.
+
+*@dev* Owner must audit all outgoing allocations and supply their exclusive upper      bound. No on-chain read can recover unavailable history. A bad owner floor      can re-admit unused authorizations; this is explicit governance authority.      The stored floor can never decrease. 2^128 preserves exhausted namespaces.
+
+| param | type | description |
+|---|---|---|
+| `_dv` | `address` |  |
+| `floor` | `uint256` |  |
 
 #### `setGuardianSlashBps(uint16 newBps)`
 
@@ -6116,7 +6178,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x7f39a939` · nonpayable · access: onlyOwner
 
-> Set minimum consensus threshold (global floor)
+> Set the generic/verify minimum; slash consensus has its own severity floors
 
 | param | type | description |
 |---|---|---|
@@ -6163,6 +6225,17 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_sp` | `address` |  |
 
+#### `setSuspended(address validator, bool value)`
+
+`0x5f72155f` · nonpayable · access: onlyOwner
+
+> Set or clear suspension regardless of key or admission state.
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+| `value` | `bool` |  |
+
 #### `SLASH_THRESHOLD_FLOOR()`
 
 `0x777ff608` · view · access: —
@@ -6204,6 +6277,20 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `_0` | `address` |  |
+
+#### `suspended(address arg0)`
+
+`0x082e4b9f` · view · access: —
+
+> Authoritative suspension, independent of key activity or DVT admission.
+
+| param | type | description |
+|---|---|---|
+| `arg0` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
 
 #### `TAG_EXECUTE_SLASH()`
 
@@ -6391,6 +6478,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x789ba69f40da5a5ba9dbb7eb67a11215eee411e82aea73cf0422afa36ccf23d2` | `SlashPreQueued(address,uint8,uint256,uint256)` |
 | `0x7458f8bb17b37f9bc565693adca9caf317743c40ecf2afcde261bdc8b04c943d` | `SlashThresholdUpdated(uint8,uint8,uint8)` |
 | `0x1f7cd67c986d0cce4aa6f69075b5278a05438ef2a5d1abf6eeded51ba8123245` | `SuperPaymasterUpdated(address,address)` |
+| `0xf2748587fe797dd52c7d4051e1fef6849ca03ffb34d86794da2b6ef2d53c9160` | `SuspensionUpdated(address,bool)` |
 | `0xb06a54caabe58475c86c2bf9df3f2f06dd1213e9e10659c293117fe4893b274b` | `ThresholdUpdated(uint256,uint256)` |
 
 ### Errors
@@ -6421,12 +6509,15 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x88a808ec` | `InvalidBLSKey()` |
 | `0xc5150ef8` | `InvalidBLSKeyNotInSubgroup()` |
 | `0x74f54c6c` | `InvalidBLSKeyNotOnCurve()` |
+| `0xdbb2f31f` | `InvalidDVTPairing()` |
 | `0xe2545af4` | `InvalidFraudProof(uint256)` |
-| `0xaa33ade0` | `InvalidParameter(string)` |
+| `0x48bae5b8` | `InvalidParameter(bytes32)` |
 | `0x7392754a` | `InvalidPoP()` |
+| `0xb2d5105b` | `InvalidProposalFloor()` |
 | `0x0992f7ad` | `InvalidProposalId()` |
 | `0xd6022e8e` | `InvalidSignatureCount(uint256,uint256)` |
 | `0xd08525e9` | `InvalidTarget(address)` |
+| `0xaabd5a09` | `InvalidThreshold()` |
 | `0x49238207` | `KeyBindingStillActive(bytes32,address)` |
 | `0xb2153d3a` | `KeyNotActive(address)` |
 | `0x17e6c91f` | `NoPendingVerifierRotation()` |
@@ -6449,6 +6540,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x204cba09` | `StakingNotConfigured()` |
 | `0xd86ad9cf` | `UnauthorizedCaller(address)` |
 | `0xb9f63b78` | `UnknownValidatorSlot(uint8)` |
+| `0xb102f791` | `ValidatorSuspended(address)` |
 | `0x38d2ef4f` | `VerifierAlreadyDisarmed()` |
 | `0x08a5d5c0` | `VerifierIsDelegatedEoa(address)` |
 | `0x18cc3e32` | `VerifierNotContract(address)` |
@@ -6457,15 +6549,26 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IDVTValidator
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
-- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- **Functions:** 4 · **Events:** 0 · **Errors:** 0
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0xc06f58e8` | `BLS_AGGREGATOR()` | view | — |  |
 | `0x424a3d77` | `markProposalExecuted(uint256)` | nonpayable | — |  |
+| `0x2ab09d14` | `nextProposalId()` | view | — |  |
+| `0x06433b1b` | `REGISTRY()` | view | — |  |
 
 ### Functions
+
+#### `BLS_AGGREGATOR()`
+
+`0xc06f58e8` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
 
 #### `markProposalExecuted(uint256 proposalId)`
 
@@ -6474,6 +6577,22 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `proposalId` | `uint256` |  |
+
+#### `nextProposalId()`
+
+`0x2ab09d14` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `REGISTRY()`
+
+`0x06433b1b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
 
 ## IFraudProofVerifier
 
@@ -6586,7 +6705,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## DVTValidator
 
 - **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
-- **Functions:** 18 · **Events:** 7 · **Errors:** 16
+- **Functions:** 19 · **Events:** 7 · **Errors:** 21
 - **Title:** DVTValidator
 - Distributed Validator Technology for operator monitoring (V3)
 
@@ -6601,13 +6720,14 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x08f41334` | `executeWithProof(uint256,address[],uint256[],uint256,bytes)` | nonpayable | onlyAuthorizedExecutor | Direct execution with an aggregated proof |
 | `0xfacd743b` | `isValidator(address)` | view | — |  |
 | `0x424a3d77` | `markProposalExecuted(uint256)` | nonpayable | — | Mark proposal as executed (called by BLSAggregator after successful execution) |
-| `0x2ab09d14` | `nextProposalId()` | view | — |  |
+| `0x2ab09d14` | `nextProposalId()` | view | — | Next allocatable ID, including one read of the retained aggregator's floor. |
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x013cf08b` | `proposals(uint256)` | view | — |  |
 | `0x349a2c26` | `pruneValidator(address)` | nonpayable | — | Permissionless eviction when a validator no longer meets the         role + stake requirements (P0 follow-up). |
 | `0x60153d92` | `queueSlashWithProof(address,uint8,uint256,bytes)` | nonpayable | — | Step 1 of the two-step slash: forward an aggregated queue proof to the         aggregator, which pre-flags the operator (SP.queueSlash) at the         per-severity threshold. Kept separate from execution so the flag lands         in an earlier tx (front-run protection). Not tied to a proposalId —         queue by (operator, level) so it can precede createProposal. |
+| `0xaded17c5` | `registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))` | nonpayable | — | Register a BLS key through the owner-curated or permissionless path. |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
-| `0x40a141ff` | `removeValidator(address)` | nonpayable | onlyOwner | Owner-only forced removal that also revokes configured BLS voting power. |
+| `0x40a141ff` | `removeValidator(address)` | nonpayable | onlyOwner | Shared-owner removal: clear local admission and suspend/revoke BLS voting power. |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0xbc959101` | `setBLSAggregator(address)` | nonpayable | onlyOwner |  |
 | `0xf2fde38b` | `transferOwnership(address)` | nonpayable | — |  |
@@ -6621,7 +6741,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Register a new DVT validator after verifying both role and stake.
 
-*@dev* P0-2: Pre-V5.4 this was an unconditional `onlyOwner` write,         meaning the owner could grow the quorum with stake-less keys         and the entire DVT economic guarantee evaporated. Combined with         the BLS forgery (P0-1) it left the consensus layer with no real         skin-in-the-game backing.         The check reads minStake dynamically from         `Registry.getRoleConfig(ROLE_DVT)` so governance can tune the         floor via `Registry.configureRole` without redeploying. Initial         deploy-time floor is 200 ether GToken (10x previous default).KNOWN LIMITATION: Stake is validated at registration time only.      A validator can exit their GTokenStaking stake after registration      without isValidator[v] being cleared. Mitigation:      1. Off-chain: operators should periodically call removeValidator()         for addresses whose stake has dropped below minStake.      2. On-chain enforcement would require a callback from GTokenStaking         (out of scope for this fix; tracked as future enhancement).
+*@dev* P0-2: Pre-V5.4 this was an unconditional `onlyOwner` write,         meaning the owner could grow the quorum with stake-less keys         and the entire DVT economic guarantee evaporated. Combined with         the BLS forgery (P0-1) it left the consensus layer with no real         skin-in-the-game backing.         The check reads minStake dynamically from         `Registry.getRoleConfig(ROLE_DVT)` so governance can tune the         floor via `Registry.configureRole` without redeploying. Initial         deploy-time floor is 200 ether GToken (10x previous default).Local admission authorizes proposers; permissionless BLS voters need      no local admission. Consensus calls re-check role, stake and suspension      live. Pruning clears only this local flag. Admission never clears the      aggregator's suspension; reinstatement is a separate owner operation.
 
 | param | type | description |
 |---|---|---|
@@ -6710,9 +6830,13 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x2ab09d14` · view · access: —
 
+> Next allocatable ID, including one read of the retained aggregator's floor.
+
+*@dev* Carry the floor through rotations even when this DVT never creates a proposal.
+
 | returns | type | description |
 |---|---|---|
-| `_0` | `uint256` |  |
+| `id` | `uint256` |  |
 
 #### `owner()`
 
@@ -6766,6 +6890,21 @@ Authoritative, auto-generated reference for every external/public function, even
 | `epoch` | `uint256` |  |
 | `proof` | `bytes` |  |
 
+#### `registerBLSPublicKey(address validator, (bytes32,bytes32,bytes32,bytes32) key, uint8 slot, (bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32) pop)`
+
+`0xaded17c5` · nonpayable · access: —
+
+> Register a BLS key through the owner-curated or permissionless path.
+
+*@dev* Only the aggregator owner can clear its authoritative suspension.      Every registration, including owner forwarding, requires an address-bound PoP.      Permissionless registration needs live role/stake, but no owner admission.
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+| `key` | `(bytes32,bytes32,bytes32,bytes32)` |  |
+| `slot` | `uint8` |  |
+| `pop` | `(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32)` |  |
+
 #### `REGISTRY()`
 
 `0x06433b1b` · view · access: —
@@ -6778,7 +6917,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0x40a141ff` · nonpayable · access: onlyOwner
 
-> Owner-only forced removal that also revokes configured BLS voting power.
+> Shared-owner removal: clear local admission and suspend/revoke BLS voting power.
 
 *@dev* Reverts atomically if a configured aggregator cannot revoke the key.
 
@@ -6840,18 +6979,115 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb59f56e8` | `InvalidFirstProposalId(uint256)` |
 | `0x37603bef` | `NotActiveValidator(address)` |
 | `0x69d6514c` | `NotAuthorizedExecutor()` |
+| `0x33c6b6bb` | `NotCurrentDVT()` |
 | `0x2ec5b449` | `NotValidator()` |
 | `0xb3186f36` | `OnlyBLSAggregator()` |
 | `0x1e4fbdf7` | `OwnableInvalidOwner(address)` |
 | `0x118cdaa7` | `OwnableUnauthorizedAccount(address)` |
+| `0x9591c9c4` | `PermissionlessRegistrationDisabled()` |
 | `0xd9c78e02` | `ProposalDoesNotExist()` |
 | `0x997a3f56` | `ProposalExecutedAlready()` |
 | `0x70a4109b` | `ProposalIdSpaceExhausted()` |
+| `0x839797cd` | `SlotOutOfRange(uint8)` |
 | `0x204cba09` | `StakingNotConfigured()` |
+| `0xd86ad9cf` | `UnauthorizedCaller(address)` |
 | `0x84536595` | `ValidatorMissingRole()` |
 | `0x6264d57f` | `ValidatorRoleRevoked(address)` |
 | `0x0208a005` | `ValidatorStakeBelowMinimum(uint256,uint256)` |
 | `0xc23285bd` | `ValidatorStillEligible(address)` |
+| `0xb102f791` | `ValidatorSuspended(address)` |
+
+## IBLSKeyRegistration
+
+- **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
+- **Functions:** 7 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0xc2e7cbdd` | `getBLSPublicKey(address)` | view | — |  |
+| `0x714897df` | `MAX_VALIDATORS()` | view | — |  |
+| `0x8da5cb5b` | `owner()` | view | — |  |
+| `0x0d8b9eab` | `permissionlessBLSRegistration()` | view | — |  |
+| `0xaded17c5` | `registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))` | nonpayable | — |  |
+| `0x082e4b9f` | `suspended(address)` | view | — |  |
+| `0xa3c57093` | `validatorAtSlot(uint8)` | view | — |  |
+
+### Functions
+
+#### `getBLSPublicKey(address validator)`
+
+`0xc2e7cbdd` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `(bytes32,bytes32,bytes32,bytes32)` |  |
+| `_1` | `uint8` |  |
+| `_2` | `bool` |  |
+
+#### `MAX_VALIDATORS()`
+
+`0x714897df` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
+#### `owner()`
+
+`0x8da5cb5b` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
+
+#### `permissionlessBLSRegistration()`
+
+`0x0d8b9eab` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `registerBLSPublicKey(address validator, (bytes32,bytes32,bytes32,bytes32) key, uint8 slot, (bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32) pop)`
+
+`0xaded17c5` · nonpayable · access: —
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+| `key` | `(bytes32,bytes32,bytes32,bytes32)` |  |
+| `slot` | `uint8` |  |
+| `pop` | `(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32)` |  |
+
+#### `suspended(address validator)`
+
+`0x082e4b9f` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `validator` | `address` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `bool` |  |
+
+#### `validatorAtSlot(uint8 slot)`
+
+`0xa3c57093` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `slot` | `uint8` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `address` |  |
 
 ## IBLSKeyRevoker
 
@@ -6873,6 +7109,27 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `validator` | `address` |  |
+
+## IBLSProposalFloor
+
+- **Source:** `contracts/src/modules/monitoring/DVTValidator.sol`
+- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+
+### Function selector index
+
+| selector | function | mutability | access | notice |
+|---|---|---|---|---|
+| `0x276a58ef` | `proposalFloor()` | view | — |  |
+
+### Functions
+
+#### `proposalFloor()`
+
+`0x276a58ef` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 ## IRegistryStakingAware
 
@@ -7060,7 +7317,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | returns | type | description |
 |---|---|---|
-| `ruleIds` | `bytes32[]` | Array of active rule identifiers |
+| `ruleIds` | `bytes32[]` | Array of active rule identifiers; order may change on removal |
 
 #### `getReputationBreakdown(address user, address community, uint256 arg2)`
 

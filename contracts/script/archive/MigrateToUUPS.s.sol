@@ -134,7 +134,7 @@ contract MigrateToUUPS is Script {
         );
         console.log("  BLSAggregator:", address(aggregator));
 
-        dvt = new DVTValidator(address(registry), 1, address(0));
+        dvt = new DVTValidator(address(registry), 1);
         console.log("  DVTValidator:", address(dvt));
 
         pmFactory = new PaymasterFactory();
@@ -202,8 +202,8 @@ contract MigrateToUUPS is Script {
         console.log("  Registry configured (SP, Rep, BLS Agg, BLS Val)");
 
         // Cross-link monitoring modules
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
         superPaymaster.setBLSAggregator(address(aggregator));
         console.log("  Aggregator <-> DVT <-> SP linked");
 

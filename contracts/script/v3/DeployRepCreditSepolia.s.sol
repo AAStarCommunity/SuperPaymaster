@@ -127,7 +127,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
 
         reputationSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvtValidator = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1), address(0))));
+        dvtValidator = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
         blsAggregator = BLSAggregator(
             _deployDefault(
                 "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvtValidator))
@@ -140,8 +140,8 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         registry.setReputationSource(address(reputationSystem), true);
         registry.setReputationSource(address(blsAggregator), true);
         registry.setBLSAggregator(address(blsAggregator));
-        blsAggregator.setDVTValidator(address(dvtValidator));
         dvtValidator.setBLSAggregator(address(blsAggregator));
+        blsAggregator.setDVTValidator(address(dvtValidator));
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         _wireSPFactory(address(superPaymaster), v55.factory); // 5.5.0 runbook step 6
@@ -181,7 +181,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         // agree produces a stack that looks wired and verifies nothing.
         require(
             keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.14.0"),
-            "BLSAggregator is not 4.13.0"
+            "BLSAggregator is not 4.14.0"
         );
         require(_strEq(superPaymaster.version(), SP_V55_VERSION), "SuperPaymaster is not 5.5.0");
         require(address(blsAggregator.REGISTRY()) == address(registry), "aggregator bound to another Registry");

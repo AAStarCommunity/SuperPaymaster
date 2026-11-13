@@ -190,7 +190,7 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
         // DVTValidator must be deployed before BLSAggregator (constructor rejects address(0))
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1), address(0))));
+        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );
@@ -386,8 +386,8 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         // same proof, so the aggregator itself must be an authorized source.
         registry.setReputationSource(address(aggregator), true);
         registry.setBLSAggregator(address(aggregator));
-        aggregator.setDVTValidator(address(dvt));
         dvt.setBLSAggregator(address(aggregator));
+        aggregator.setDVTValidator(address(dvt));
 
         // CRITICAL: Update factory's SuperPaymaster address
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));

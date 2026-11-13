@@ -302,8 +302,12 @@ contract BLSAggregatorUnitTest is BLSRegistrationTestHelper {
 
     function test_SetDVTValidator_Success() public {
         address newDVT = address(0xDD);
+        vm.mockCall(dvt, abi.encodeWithSignature("nextProposalId()"), abi.encode(uint256(12)));
+        vm.mockCall(newDVT, abi.encodeWithSignature("BLS_AGGREGATOR()"), abi.encode(address(bls)));
+        vm.mockCall(newDVT, abi.encodeWithSignature("REGISTRY()"), abi.encode(address(registry)));
         vm.prank(owner);
         bls.setDVTValidator(newDVT);
+        assertEq(bls.proposalFloor(), 12);
         assertEq(bls.DVT_VALIDATOR(), newDVT);
     }
 
@@ -319,7 +323,7 @@ contract BLSAggregatorUnitTest is BLSRegistrationTestHelper {
 
     function test_SetMinThreshold_ExceedsMax_Reverts() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold > Max"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.setMinThreshold(65);
     }
 
@@ -339,7 +343,7 @@ contract BLSAggregatorUnitTest is BLSRegistrationTestHelper {
 
     function test_SetDefaultThreshold_ExceedsMax_Reverts() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidParameter.selector, "Threshold > Max"));
+        vm.expectRevert(BLSAggregator.InvalidThreshold.selector);
         bls.setDefaultThreshold(65);
     }
 
