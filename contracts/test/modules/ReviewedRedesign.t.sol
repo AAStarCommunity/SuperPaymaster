@@ -5,6 +5,83 @@ import "./DVT_BLS.t.sol";
 
 /// @notice Fixed assertions for the adverse rotation, suspension and exit review probes.
 contract ReviewedRedesign is DVTBLSTest {
+    function _noticeThenPermissionlessRegistration() internal returns (uint64 readyAt) {
+        vm.startPrank(owner);
+        for (uint256 i = 107; i <= 110; ++i) bls.revokeBLSPublicKey(address(uint160(i)));
+        bls.setPermissionlessBLSRegistration(true);
+        vm.stopPrank();
+        assertEq(bls.minThreshold(), 3);
+        assertEq(bls.defaultThreshold(), 7);
+        assertEq(bls.slashThresholds(0), 2);
+        assertEq(bls.slashThresholds(1), 3);
+        assertEq(bls.slashThresholds(2), 3);
+
+        vm.prank(address(101));
+        bls.requestGuardianExit(); // Six live signers, five projected; no threshold crossed.
+        (readyAt,) = bls.guardianExitRequests(address(101));
+        BLS.G1Point memory key = _stubKey(11);
+        BLS.G2Point memory pop = _pop(address(111), 11);
+        vm.prank(address(111));
+        dvt.registerBLSPublicKey(address(111), key, 7, pop);
+        assertEq(bls.validatorAtSlot(7), address(111));
+        assertFalse(dvt.isValidator(address(111)), "new signer uses permissionless admission");
+    }
+
+    function _registeredCommitteeSignature(uint256 mask, bytes32 digest) internal view returns (bytes memory sig) {
+        uint256[] memory scalars = new uint256[](7);
+        for (uint256 i; i < 6; ++i) scalars[i] = i + 1;
+        scalars[6] = 11;
+        (, sig) = abi.decode(GenuineBLS.proof(digest, scalars, mask), (uint256, bytes));
+    }
+
+    function test_Prague_NoticeThenRegistrationRemovalPreservesLiveDefaultQuorum() public {
+        if (!realPrecompiles) { vm.skip(true); return; }
+        _noticeThenPermissionlessRegistration();
+        bytes32 digest = keccak256("seven live, six projected");
+        bytes memory sig = _registeredCommitteeSignature(0x7F, digest);
+        assertTrue(bls.verify(digest, 0x7F, 7, sig));
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(6), uint256(7)));
+        dvt.removeValidator(address(102));
+        assertTrue(dvt.isValidator(address(102)));
+        assertFalse(bls.suspended(address(102)));
+        assertTrue(bls.verify(digest, 0x7F, 7, sig), "ordinary removal preserves all seven live signers");
+
+        vm.prank(owner);
+        bls.revokeAndSuspend(address(102));
+        assertTrue(bls.suspended(address(102)), "emergency override remains available");
+        (,, bool active) = bls.getBLSPublicKey(address(102));
+        assertFalse(active);
+    }
+
+    function test_Prague_NoticeThenRegistrationExitPreservesLiveDefaultQuorum() public {
+        if (!realPrecompiles) { vm.skip(true); return; }
+        _noticeThenPermissionlessRegistration();
+        vm.prank(address(102));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(6), uint256(7)));
+        bls.requestGuardianExit();
+        (uint64 readyAt,) = bls.guardianExitRequests(address(102));
+        assertEq(readyAt, 0, "refused exit leaves no notice");
+    }
+
+    function test_Prague_NoticeMaturityRemainsAcceptedAfterRegistration() public {
+        if (!realPrecompiles) { vm.skip(true); return; }
+        uint64 readyAt = _noticeThenPermissionlessRegistration();
+        bytes32 digest = keccak256("accepted maturity after registration");
+        bytes memory sig = _registeredCommitteeSignature(0x7F, digest);
+        vm.warp(uint256(readyAt) - 1);
+        assertTrue(bls.verify(digest, 0x7F, 7, sig));
+        vm.warp(readyAt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlotValidatorExitPending.selector, uint8(1), address(101)));
+        bls.verify(digest, 0x7F, 7, sig);
+        bytes memory remainingSig = _registeredCommitteeSignature(0x7E, digest);
+        assertTrue(bls.verify(digest, 0x7E, 6, remainingSig), "six signers remain after the accepted maturity");
+        vm.prank(owner);
+        dvt.removeValidator(address(101));
+        assertTrue(bls.verify(digest, 0x7E, 6, remainingSig), "removing a matured exit loses no live signer");
+    }
+
     function test_Review_NoPredecessorInputCanReusePendingSignature() public {
         if (!realPrecompiles) { vm.skip(true); return; }
         vm.prank(address(101));

@@ -312,9 +312,20 @@ contract BLSAggregatorUnitTest is BLSRegistrationTestHelper {
     }
 
     function test_SetDVTValidator_OnlyOwner_Reverts() public {
+        address newDVT = address(0xDD);
+        vm.mockCall(dvt, abi.encodeWithSignature("nextProposalId()"), abi.encode(uint256(12)));
+        vm.mockCall(newDVT, abi.encodeWithSignature("BLS_AGGREGATOR()"), abi.encode(address(bls)));
+        vm.mockCall(newDVT, abi.encodeWithSignature("REGISTRY()"), abi.encode(address(registry)));
         vm.prank(attacker);
-        vm.expectRevert();
-        bls.setDVTValidator(address(0xDD));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
+        bls.setDVTValidator(newDVT);
+        assertEq(bls.DVT_VALIDATOR(), dvt);
+        assertEq(bls.proposalFloor(), 0);
+
+        vm.prank(owner);
+        bls.setDVTValidator(newDVT);
+        assertEq(bls.DVT_VALIDATOR(), newDVT);
+        assertEq(bls.proposalFloor(), 12);
     }
 
     // ========================================

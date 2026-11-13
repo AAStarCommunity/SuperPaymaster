@@ -150,6 +150,7 @@ contract ReputationSystem is Ownable, IReputationCalculator {
     ) public view returns (uint256 totalScore) {
         if (ruleIds.length != communities.length || activities.length != communities.length) revert InvalidInput();
         for (uint256 i = 0; i < communities.length; i++) {
+            if (ruleIds[i].length != activities[i].length) revert InvalidInput();
             address community = communities[i];
             uint256 communityScore = 0;
 

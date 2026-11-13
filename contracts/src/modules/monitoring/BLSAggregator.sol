@@ -1787,7 +1787,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     }
 
     /// @notice Preserve every currently reachable quorum when one guardian leaves.
-    /// @dev Count live role/stake-backed keys, excluding other announced exits.
+    /// @dev Check both live role/stake-backed keys and the projected set without notices.
     ///      With one signer departing, before >= threshold && after < threshold
     ///      is exactly before == threshold. An unreachable higher threshold must
     ///      not hide a working lower one. The owner retains the explicit emergency
@@ -1800,13 +1800,15 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // departure cannot move the committee below quorum — nothing to check.
         if (!_blsKeys[leaving].isActive) return;
         bytes32 roleDvt = keccak256("DVT");
-        // Unlike verification, survival counting excludes all other announced exits,
-        // including notices that have not yet matured, to preserve the end-state quorum.
+        // Maturity is the transition accepted when the notice was filed. A later
+        // registration can make a higher quorum temporarily reachable until readyAt;
+        // it does not revoke the notice or postpone its announced maturity.
         IGTokenStaking staking = IRegistryStakingAwareBLS(address(REGISTRY)).GTOKEN_STAKING();
         // Without staking, verification fails. The conservative role-only fallback
         // can still refuse an exit at an exact configured threshold.
         uint256 minStake = address(staking) == address(0) ? 0 : REGISTRY.getRoleConfig(roleDvt).minStake;
         uint256 remaining;
+        uint256 remainingLive;
         bool leavingEligible;
         for (uint8 slot = 1; slot <= MAX_VALIDATORS;) {
             address v = validatorAtSlot[slot];
@@ -1815,9 +1817,8 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
             }
             if (v == address(0)) continue;
             if (!_blsKeys[v].isActive || suspended[v]) continue;
-            // Guardians that merely ANNOUNCED an exit are excluded even before
-            // readyAt: the floor has to hold at the end state, not just today.
-            if (v != leaving && guardianExitRequests[v].readyAt != 0) continue;
+            uint64 readyAt = guardianExitRequests[v].readyAt;
+            if (readyAt != 0 && block.timestamp >= uint256(readyAt)) continue;
             if (!REGISTRY.hasRole(roleDvt, v)) continue;
             if (minStake != 0) {
                 (uint128 lockedAmount,,,,) = staking.roleLocks(v, roleDvt);
@@ -1828,11 +1829,16 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
                 continue;
             }
             unchecked {
-                ++remaining;
+                ++remainingLive;
+                if (readyAt == 0) ++remaining;
             }
         }
         if (!leavingEligible) return;
-        uint256 before = remaining + 1;
+        uint256 before = remainingLive + 1;
+        if (_isRequiredThreshold(before)) revert GuardianExitWouldBreakQuorum(remainingLive, before);
+        // Removing an already-announced signer does not shrink the projected set.
+        if (guardianExitRequests[leaving].readyAt != 0) return;
+        before = remaining + 1;
         if (_isRequiredThreshold(before)) revert GuardianExitWouldBreakQuorum(remaining, before);
     }
 

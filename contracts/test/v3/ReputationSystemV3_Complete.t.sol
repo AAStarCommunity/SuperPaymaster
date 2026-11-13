@@ -749,6 +749,50 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.computeScore(user1, communities, ruleIds, activities);
     }
 
+    function test_ComputeScore_InvalidInput_InnerActivitiesLengthMismatch() public {
+        address[] memory communities = new address[](2);
+        communities[0] = community1;
+        communities[1] = community2;
+        bytes32[][] memory ruleIds = new bytes32[][](2);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[1] = new bytes32[](1);
+        uint256[][] memory activities = new uint256[][](2);
+        activities[0] = new uint256[](1);
+        activities[1] = new uint256[](0); // A later row is short despite valid outer lengths.
+
+        vm.expectRevert(ReputationSystem.InvalidInput.selector);
+        repSystem.computeScore(user1, communities, ruleIds, activities);
+        activities[1] = new uint256[](2); // Extra activity entries are invalid too.
+        vm.expectRevert(ReputationSystem.InvalidInput.selector);
+        repSystem.computeScore(user1, communities, ruleIds, activities);
+
+        activities[1] = new uint256[](1);
+        assertEq(repSystem.computeScore(user1, communities, ruleIds, activities), 20);
+    }
+
+    function test_ComputeScore_InvalidInput_DisabledRuleStillRequiresActivityEntry() public {
+        bytes32 rule = keccak256("disabled");
+        vm.prank(community1);
+        repSystem.setRule(rule, 0, 0, 0, "disabled");
+        address[] memory communities = new address[](1);
+        communities[0] = community1;
+        bytes32[][] memory ruleIds = new bytes32[][](1);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[0][0] = rule;
+        uint256[][] memory activities = new uint256[][](1);
+        activities[0] = new uint256[](0);
+        vm.expectRevert(ReputationSystem.InvalidInput.selector);
+        repSystem.computeScore(user1, communities, ruleIds, activities);
+
+        activities[0] = new uint256[](1);
+        uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community1, 0);
+        (uint256 base, uint256 nft, uint256 activity,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(score, 0);
+        assertEq(calculated, score);
+        assertEq(base + nft + activity, score);
+    }
+
     /// @notice NFT boost ignored if user has not called updateNFTHoldStart
     function test_ComputeScore_NFTBoostIgnored_NoHoldStart() public {
         vm.prank(admin);
