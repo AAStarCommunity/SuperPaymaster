@@ -127,7 +127,7 @@ contract SuperPaymasterV55GasParamsTest is Test {
         assertEq(c.cPostop, 450_000);
         assertEq(_pend().eta, 0, "nothing pending");
         assertEq(vm.load(address(sp), bytes32(GAS_PARAMS_SLOT)), bytes32(0), "slot 38 zero = defaults (upgrade-safe)");
-        assertEq(sp.version(), "SuperPaymaster-5.5.1");
+        assertEq(sp.version(), "SuperPaymaster-5.5.2");
     }
 
     function test_unset_defaults_drive_validation_and_match_explicit_release_tuple_in_lens() public {

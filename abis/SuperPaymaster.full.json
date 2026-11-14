@@ -1538,6 +1538,18 @@
           "type": "address",
           "indexed": true,
           "internalType": "address"
+        },
+        {
+          "name": "by",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "reason",
+          "type": "uint8",
+          "indexed": false,
+          "internalType": "uint8"
         }
       ],
       "anonymous": false
@@ -1551,6 +1563,18 @@
           "type": "address",
           "indexed": true,
           "internalType": "address"
+        },
+        {
+          "name": "by",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "reason",
+          "type": "uint8",
+          "indexed": false,
+          "internalType": "uint8"
         }
       ],
       "anonymous": false
@@ -1759,6 +1783,12 @@
           "type": "uint8",
           "indexed": false,
           "internalType": "uint8"
+        },
+        {
+          "name": "by",
+          "type": "address",
+          "indexed": false,
+          "internalType": "address"
         }
       ],
       "anonymous": false
@@ -1778,6 +1808,12 @@
           "type": "uint256",
           "indexed": true,
           "internalType": "uint256"
+        },
+        {
+          "name": "by",
+          "type": "address",
+          "indexed": false,
+          "internalType": "address"
         }
       ],
       "anonymous": false
@@ -1847,10 +1883,35 @@
     },
     {
       "type": "event",
+      "name": "SBTStatusUpdated",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "status",
+          "type": "bool",
+          "indexed": false,
+          "internalType": "bool"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
       "name": "SlashCancelled",
       "inputs": [
         {
           "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "by",
           "type": "address",
           "indexed": true,
           "internalType": "address"
@@ -1901,6 +1962,12 @@
       "inputs": [
         {
           "name": "operator",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "by",
           "type": "address",
           "indexed": true,
           "internalType": "address"
@@ -3243,6 +3310,12 @@
           "type": "uint8",
           "indexed": false,
           "internalType": "enum ISuperPaymaster.SlashLevel"
+        },
+        {
+          "name": "by",
+          "type": "address",
+          "indexed": false,
+          "internalType": "address"
         }
       ],
       "anonymous": false
@@ -3262,6 +3335,12 @@
           "type": "uint256",
           "indexed": false,
           "internalType": "uint256"
+        },
+        {
+          "name": "by",
+          "type": "address",
+          "indexed": false,
+          "internalType": "address"
         }
       ],
       "anonymous": false

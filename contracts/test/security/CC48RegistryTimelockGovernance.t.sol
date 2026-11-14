@@ -245,7 +245,7 @@ contract CC48RegistryTimelockGovernance is Test {
         timelock.executeBatch(targets, values, payloads, NO_PREDECESSOR, BATCH_SALT);
 
         // Nothing has moved: this is the window, and it is not executable.
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.1"));
         assertEq(registry.maxTotalCreditExposure(), 0, "caps still unset while pending");
         assertEq(registry.blsAggregator(), address(0), "aggregator still unwired while pending");
 
@@ -278,7 +278,7 @@ contract CC48RegistryTimelockGovernance is Test {
         assertTrue(timelock.isOperationDone(opId), "executed");
         address implAfter = address(uint160(uint256(vm.load(address(registry), implSlot))));
         assertTrue(implAfter != implBefore, "step (1) actually re-pointed the proxy");
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"), "and to the current 5.10.0 impl");
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.1"), "and to the current 5.10.1 impl");
         assertEq(registry.blsAggregator(), newAggregator, "aggregator wired");
         assertEq(registry.maxTotalCreditExposure(), TOTAL_CAP, "protocol ceiling seeded");
         // Round-9: the stock is DERIVED, so what the batch has to prove is that the
@@ -320,7 +320,7 @@ contract CC48RegistryTimelockGovernance is Test {
         timelock.executeBatch(t, v, p, NO_PREDECESSOR, BATCH_SALT);
 
         // The upgrade landed...
-        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.0"));
+        assertEq(keccak256(bytes(registry.version())), keccak256("Registry-5.10.1"));
         // ...into a Registry whose protocol-wide ceiling is 0 and whose aggregator is
         // unwired. Fail-closed in the right direction, but it is a governance halt on the
         // reputation path that lasts another full timelock cycle -- which is precisely why

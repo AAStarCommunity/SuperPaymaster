@@ -316,8 +316,8 @@ contract SuperPaymasterD5bGov2Test is Test {
     function test_gov2_guardian_pauses_operator() public {
         vm.prank(owner);
         sp.setGuardian(guardian);
-        vm.expectEmit(true, false, false, false, address(sp));
-        emit SuperPaymasterStorage.OperatorPaused(operator);
+        vm.expectEmit(true, true, true, true, address(sp));
+        emit SuperPaymasterStorage.OperatorPaused(operator, guardian, 2);
         vm.prank(guardian);
         sp.setOperatorPaused(operator, true);
         (,, bool isPaused,,,,,,) = sp.operators(operator);
@@ -654,7 +654,7 @@ contract SuperPaymasterD5bGov2Test is Test {
         Registry(proxy).initialize(owner, address(0x5701), address(0x5B7));
         assertEq(Registry(proxy).pendingOwner(), address(0), "Registry initialize cleared a stale nomination");
         assertEq(Registry(proxy).owner(), owner);
-        assertEq(Registry(proxy).version(), "Registry-5.10.0");
+        assertEq(Registry(proxy).version(), "Registry-5.10.1");
     }
 
     // =====================================================================
@@ -731,7 +731,7 @@ contract SuperPaymasterD5bGov2Test is Test {
         vm.prank(owner);
         r.upgradeToAndCall(newImpl, "");
         assertEq(address(uint160(uint256(vm.load(address(r), IMPL_SLOT)))), newImpl);
-        assertEq(r.version(), "Registry-5.10.0");
+        assertEq(r.version(), "Registry-5.10.1");
         bytes32[] memory after_ = _rawSlots(address(r), REGISTRY_LAYOUT_END);
         for (uint256 i; i < REGISTRY_LAYOUT_END; i++) {
             assertEq(after_[i], before[i], "Registry raw slot unchanged by the upgrade");

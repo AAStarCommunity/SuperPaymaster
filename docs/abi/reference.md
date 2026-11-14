@@ -1138,7 +1138,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## Registry
 
 - **Source:** `contracts/src/core/Registry.sol`
-- **Functions:** 56 · **Events:** 27 · **Errors:** 40
+- **Functions:** 56 · **Events:** 28 · **Errors:** 40
 
 ### Function selector index
 
@@ -1846,6 +1846,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x2f8788117e7eff1d82e926ec794901d17c78024a50270940304540a733656f0d` | `RoleGranted(bytes32,address,address)` |
 | `0x2c48d754bbf59f20e71c13710fac35aa1ea020da58dcbb366de0ef7f75c9377d` | `RoleRegistered(bytes32,address,uint256,uint256)` |
 | `0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b` | `RoleRevoked(bytes32,address,address)` |
+| `0xcc8bba7b48b2a59b9ac8b598646b250e5a45b48d1ad4e5aed3606da7061c64d2` | `RoleStakeSynced(address,bytes32,uint256)` |
 | `0xf6da96ea84a034d6f30b7b377637742735f36f14cfda9144397e4f1e69116f4a` | `SBTBurnFailed(address,bytes32)` |
 | `0x7d7723bde2fdf2e4f1526e8af4d7888b8c98f69c0a4dfc3a51a4e6e1fe75fe65` | `SBTBurnReconciled(address)` |
 | `0x78b2b518370694dbabbd3a63a8babdbff376dff74a1b2b09c8c23f0f265cd161` | `SBTStatusSyncFailed(address,bytes32)` |
@@ -2323,12 +2324,12 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|
 | `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
 | `0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4` | `OperatorDeposited(address,uint256)` |
-| `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
+| `0xb7ddf01aafa3deaf09b733f3c3c437a8fc2be010050092495346e3a9af10c2c1` | `OperatorSlashed(address,uint256,uint8,address)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
 | `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
 | `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
 | `0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa` | `OperatorWithdrawn(address,uint256)` |
-| `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
+| `0xa2b5936e23a977bccfd8c359042accece1e54c92e07c4825a1556683073ce564` | `ReputationUpdated(address,uint256,address)` |
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
 
 ## ISuperPaymasterRegistry
@@ -7731,7 +7732,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymaster
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol`
-- **Functions:** 64 · **Events:** 48 · **Errors:** 48
+- **Functions:** 64 · **Events:** 49 · **Errors:** 48
 - **Title:** SuperPaymaster (CORE)
 - SuperPaymaster - Unified Registry based Multi-Operator Paymaster
 
@@ -8482,8 +8483,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4` | `OperatorDeposited(address,uint256)` |
 | `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
-| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
-| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
+| `0xa79f36b38ab8f3063cc9e31083829c04faad8af8f5535f42fdf8e1b814a59b11` | `OperatorPaused(address,address,uint8)` |
+| `0xe2f1ad8c699f6aba60c742224ca3aaa279a8ac0d3ab8a01eabb98b0998c34c8e` | `OperatorUnpaused(address,address,uint8)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
 | `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
 | `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
@@ -8493,14 +8494,15 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
 | `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
 | `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
-| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
-| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
+| `0xef6a42f0192a91c5acad57b965a8a6138a6baabadd8bb91e11a334f59fc8d810` | `PriceModeChanged(uint8,uint8,address)` |
+| `0xf00f1293b5bd619688f1831614d3dbd27bd82bff1b698cc5a4dd2f62ffff9894` | `PriceUpdated(int256,uint256,address)` |
 | `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
 | `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
 | `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
-| `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
+| `0x35d0d47e1c3974f0ca4336c0e560ffd5601544fb6a2cab4d1c8284540a3149e0` | `SBTStatusUpdated(address,bool)` |
+| `0xfe4bb9ecbc0b5b66cfe2be792e740922047aff69740dd1169feb8622c839cf5a` | `SlashCancelled(address,address)` |
 | `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
-| `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
+| `0xf486d14ed722b6703afa50c920c696c15e3bf3a8240295287414d9ef5708ffc2` | `SlashQueued(address,address)` |
 | `0xf706070ffd178e4517ea48c69540804a239fd4b0fb2f1273a167a1ac62d501af` | `SponsorshipReleased(bytes32,address,uint256)` |
 | `0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0` | `TransactionSponsored(address,address,uint256,uint256)` |
 | `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
@@ -8566,7 +8568,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterAdmin
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
-- **Functions:** 97 · **Events:** 48 · **Errors:** 47
+- **Functions:** 97 · **Events:** 49 · **Errors:** 47
 - **Title:** SuperPaymasterAdmin (EXTENSION)
 - Governance, administration and non-hot-path views of SuperPaymaster 5.5.1 (D5b).
 
@@ -8587,7 +8589,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x1d2282c9` | `cancelAPNTsTokenChange()` | nonpayable | onlyOwner | Abort a queued APNTS_TOKEN swap before it executes. |
 | `0x0c883112` | `cancelEmergencyPrice()` | nonpayable | onlyOwner | Cancel a queued emergency price. |
 | `0xec11fa81` | `cancelGasParams()` | nonpayable | onlyOwner |  |
-| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). Idempotent. |
+| `0xfcc6bd8a` | `cancelSlash(address)` | nonpayable | onlyOwner | Cancel a previously queued slash (owner only). Idempotent; emits only when a flag or         a queue record (including an expired guardian queue) was actually cleared. |
 | `0x5c7c4b5f` | `configureOperator(address,address)` | nonpayable | — | Registers msg.sender as an operator with the given xPNTs token (must be the token the         wired factory issued for msg.sender, and a balance-mode v2 token). |
 | `0xd0e30db0` | `deposit()` | payable | — |  |
 | `0x60d7442b` | `EMERGENCY_TIMELOCK()` | view | — |  |
@@ -8773,7 +8775,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 `0xfcc6bd8a` · nonpayable · access: onlyOwner
 
-> Cancel a previously queued slash (owner only). Idempotent.
+> Cancel a previously queued slash (owner only). Idempotent; emits only when a flag or         a queue record (including an expired guardian queue) was actually cleared.
 
 | param | type | description |
 |---|---|---|
@@ -9657,9 +9659,9 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1` | `OperatorConfigured(address,address,address)` |
 | `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
-| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
-| `0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040` | `OperatorSlashed(address,uint256,uint8)` |
-| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
+| `0xa79f36b38ab8f3063cc9e31083829c04faad8af8f5535f42fdf8e1b814a59b11` | `OperatorPaused(address,address,uint8)` |
+| `0xb7ddf01aafa3deaf09b733f3c3c437a8fc2be010050092495346e3a9af10c2c1` | `OperatorSlashed(address,uint256,uint8,address)` |
+| `0xe2f1ad8c699f6aba60c742224ca3aaa279a8ac0d3ab8a01eabb98b0998c34c8e` | `OperatorUnpaused(address,address,uint8)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
 | `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
 | `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
@@ -9668,15 +9670,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
 | `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
 | `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
-| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
-| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
+| `0xef6a42f0192a91c5acad57b965a8a6138a6baabadd8bb91e11a334f59fc8d810` | `PriceModeChanged(uint8,uint8,address)` |
+| `0xf00f1293b5bd619688f1831614d3dbd27bd82bff1b698cc5a4dd2f62ffff9894` | `PriceUpdated(int256,uint256,address)` |
 | `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
 | `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
 | `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
-| `0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821` | `ReputationUpdated(address,uint256)` |
-| `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
+| `0xa2b5936e23a977bccfd8c359042accece1e54c92e07c4825a1556683073ce564` | `ReputationUpdated(address,uint256,address)` |
+| `0x35d0d47e1c3974f0ca4336c0e560ffd5601544fb6a2cab4d1c8284540a3149e0` | `SBTStatusUpdated(address,bool)` |
+| `0xfe4bb9ecbc0b5b66cfe2be792e740922047aff69740dd1169feb8622c839cf5a` | `SlashCancelled(address,address)` |
 | `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
-| `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
+| `0xf486d14ed722b6703afa50c920c696c15e3bf3a8240295287414d9ef5708ffc2` | `SlashQueued(address,address)` |
 | `0xf706070ffd178e4517ea48c69540804a239fd4b0fb2f1273a167a1ac62d501af` | `SponsorshipReleased(bytes32,address,uint256)` |
 | `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |
@@ -10077,7 +10080,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterStorage
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol`
-- **Functions:** 51 · **Events:** 45 · **Errors:** 45
+- **Functions:** 51 · **Events:** 46 · **Errors:** 45
 - **Title:** SuperPaymasterStorage
 - D5b: the ONE storage/inheritance chain shared by the SuperPaymaster core and its         SuperPaymasterAdmin extension (reached from the core's fallback via DELEGATECALL).
 
@@ -10664,8 +10667,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc3ce29e3ab42e524b6f6f1b4d3674898d503ee3577a64ac87b555904ebc14138` | `GuardianSet(address,address)` |
 | `0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2` | `Initialized(uint64)` |
 | `0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed` | `OperatorMinTxIntervalUpdated(address,uint48)` |
-| `0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da` | `OperatorPaused(address)` |
-| `0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885` | `OperatorUnpaused(address)` |
+| `0xa79f36b38ab8f3063cc9e31083829c04faad8af8f5535f42fdf8e1b814a59b11` | `OperatorPaused(address,address,uint8)` |
+| `0xe2f1ad8c699f6aba60c742224ca3aaa279a8ac0d3ab8a01eabb98b0998c34c8e` | `OperatorUnpaused(address,address,uint8)` |
 | `0x84ef7829b4a3747e85238efd0f23cbb7850b76134685a7cb211ce77b545e736a` | `OperatorWithdrawalCancelled(address,uint256)` |
 | `0x0f0090bc0468d6a0fb2aaab9e3008147ac9dc37374e894588ac8e56945fe965b` | `OperatorWithdrawalExpired(address,uint256)` |
 | `0xc177084ef107b3a6f664ee81be44e98e43624d04948b6a3873efe105ae373e83` | `OperatorWithdrawalRequested(address,uint256,uint48,uint48)` |
@@ -10674,14 +10677,15 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x38d16b8cac22d99fc7c124b9cd0de2d3fa1faef420bfe791d8c362d765e22700` | `OwnershipTransferStarted(address,address)` |
 | `0xe4ddb9696b79889a2b0002aa61f703666d072c319c0694d71624728605bdd287` | `PendingDebtCleared(address,address,uint256)` |
 | `0x84b561bfeda3b329970b08af25d20086abe657da83a1dbd00fdfaad913e8cfed` | `PendingDebtRetried(address,address,uint256)` |
-| `0x5e5763e2a601dbb21ceae7f64e18f3d572378b373daa8d75a325f22f377f0ecb` | `PriceModeChanged(uint8,uint8)` |
-| `0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd` | `PriceUpdated(int256,uint256)` |
+| `0xef6a42f0192a91c5acad57b965a8a6138a6baabadd8bb91e11a334f59fc8d810` | `PriceModeChanged(uint8,uint8,address)` |
+| `0xf00f1293b5bd619688f1831614d3dbd27bd82bff1b698cc5a4dd2f62ffff9894` | `PriceUpdated(int256,uint256,address)` |
 | `0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3` | `ProtocolFeeUpdated(uint256,uint256)` |
 | `0x418c06850785ce4239177091a96c1757ba1d5ba22df98a4cf818e1510fa028cd` | `ProtocolRevenueUnderflow(address,uint256,uint256)` |
 | `0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e` | `ProtocolRevenueWithdrawn(address,uint256)` |
-| `0xd3ca4980136f13cbba649b8d8d400d91e1fb63eb0d304a5074fa99165d3d978e` | `SlashCancelled(address)` |
+| `0x35d0d47e1c3974f0ca4336c0e560ffd5601544fb6a2cab4d1c8284540a3149e0` | `SBTStatusUpdated(address,bool)` |
+| `0xfe4bb9ecbc0b5b66cfe2be792e740922047aff69740dd1169feb8622c839cf5a` | `SlashCancelled(address,address)` |
 | `0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88` | `SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)` |
-| `0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960` | `SlashQueued(address)` |
+| `0xf486d14ed722b6703afa50c920c696c15e3bf3a8240295287414d9ef5708ffc2` | `SlashQueued(address,address)` |
 | `0xf706070ffd178e4517ea48c69540804a239fd4b0fb2f1273a167a1ac62d501af` | `SponsorshipReleased(bytes32,address,uint256)` |
 | `0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a` | `TreasuryUpdated(address,address)` |
 | `0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b` | `Upgraded(address)` |

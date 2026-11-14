@@ -27,7 +27,7 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
     struct EndUserRoleData { address community; uint256 stakeAmount; }
 
     function version() external pure virtual override returns (string memory) {
-        return "Registry-5.10.0";
+        return "Registry-5.10.1";
     }
 
     IGTokenStaking public GTOKEN_STAKING;
@@ -257,6 +257,8 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
         emit StakingContractUpdated(old, _staking);
     }
 
+    event RoleStakeSynced(address indexed user, bytes32 indexed roleId, uint256 newAmount);
+
     /// @notice Push a fresh stake snapshot from Staking into Registry's per-role cache.
     /// @dev    Only callable by GTOKEN_STAKING (P0-14).
     function syncStakeFromStaking(
@@ -266,6 +268,7 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
     ) external {
         if (msg.sender != address(GTOKEN_STAKING)) revert Unauthorized();
         roleStakes[roleId][user] = newAmount;
+        emit RoleStakeSynced(user, roleId, newAmount);
     }
 
     /// @notice Effective per-role stake from Staking source of truth (P0-14).
