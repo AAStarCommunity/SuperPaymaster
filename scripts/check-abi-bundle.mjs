@@ -45,9 +45,15 @@ const shape = (f) => JSON.stringify({
 // `out/` happens to hold reports drift that is intentional — the first version
 // of this script did exactly that and flagged all three. A gate that cries wolf
 // on pinned externals gets ignored, and then it is not a gate.
-const FIRST_PARTY = new Set(
-  walkSol(join(ROOT, "contracts", "src")).map((f) => f.replace(/\.sol$/, ""))
-);
+// TimelockController is an OpenZeppelin source, but this repository DEPLOYS it
+// (DeployAPNTsCapped: owner of SP / APNTsCapped / Registry), so its exported bytecode
+// must be the one the deploy scripts ship. A stale runs=200 copy sat in abis/ on the
+// rc.8 BLS branch because it was filed under "external" here.
+const DEPLOYED_EXTERNAL = ["TimelockController"];
+const FIRST_PARTY = new Set([
+  ...walkSol(join(ROOT, "contracts", "src")).map((f) => f.replace(/\.sol$/, "")),
+  ...DEPLOYED_EXTERNAL,
+]);
 function walkSol(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -55,9 +61,25 @@ function walkSol(dir) {
   );
 }
 
+// The artifact is the profile.default build resolved by its OWN metadata, the same
+// file the deploy scripts ship (scripts/resolve_default_artifact.py mirrors
+// contracts/script/v3/DefaultArtifacts.sol). `out/<C>.sol/<C>.json` is only the
+// last compile of that name -- a Prague test build, or a stale runs=200 copy.
+const bundleNames = readdirSync(ABIS)
+  .filter((f) => f.endsWith(".json") && f !== "abi.config.json" && !f.endsWith(".full.json"))
+  .map((f) => f.replace(/\.json$/, ""))
+  .filter((n) => FIRST_PARTY.has(n));
+const resolved = spawnSync("python3", ["scripts/resolve_default_artifact.py", "--out", OUT, "--json", ...bundleNames], { encoding: "utf8" });
+let artifactPath = {}, unresolved = {};
+try {
+  ({ found: artifactPath, failed: unresolved } = JSON.parse(resolved.stdout));
+} catch {
+  // An unreadable resolver result is a failure of every bundle, never an empty pass.
+  for (const n of bundleNames) unresolved[n] = `resolver did not run: ${(resolved.stderr || resolved.error || "").toString().trim()}`;
+}
 function compiledArtifact(name) {
-  const p = join(OUT, `${name}.sol`, `${name}.json`);
-  return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
+  const p = artifactPath[name];
+  return p && existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
 }
 
 // The bundle also carries creation bytecode, and a deploy from it is a deploy of
@@ -83,12 +105,12 @@ for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   // version pushed it to `skipped` and exited 0, so a partial or stale `out/`
   // turned every uncompared bundle into a silent agreement — the same
   // fail-open this script exists to close, reproduced inside it.
-  if (!compiled) { console.error(`FAIL: abis/${file} — no compiled artifact at out/${name}.sol/${name}.json`); stale++; continue; }
+  if (!compiled) { console.error(`FAIL: abis/${file} — ${unresolved[name] ?? "no unique profile.default build artifact"}`); stale++; continue; }
   if (!committed) { console.error(`FAIL: abis/${file} — unreadable or empty ABI`); stale++; continue; }
   checked++;
   if (!Array.isArray(raw) && raw.bytecode !== undefined && strip(raw.bytecode) !== strip(artifact.bytecode)) {
     stale++;
-    console.error(`STALE: abis/${file} — bytecode differs from out/${name}.sol/${name}.json`);
+    console.error(`STALE: abis/${file} — bytecode differs from ${artifactPath[name]}`);
   }
   const c = new Set(committed.map(shape));
   const o = new Set(compiled.map(shape));
