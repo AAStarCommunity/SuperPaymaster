@@ -69,7 +69,7 @@ proposal each:
 
 - `registerBLSPublicKey` on the owner path (validators re-filing PoPs after a migration)
 - `setPermissionlessBLSRegistration`
-- `proposeFraudProofVerifier` / `applyFraudProofVerifier` (4-day in-contract rotation delay)
+- `proposeFraudProofVerifier` / `applyFraudProofVerifier` (5-day / 432000-second in-contract rotation delay)
 - `emergencyDisarmFraudProofVerifier` (the reason the Safe exists)
 
 ---

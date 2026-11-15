@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import "forge-std/Script.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
+import {DVTValidator} from "src/modules/monitoring/DVTValidator.sol";
 import {BLSKeyScanLib} from "../checks/BLSKeyScanLib.sol";
 import "src/utils/BLS.sol";
 
@@ -35,8 +36,11 @@ contract RegisterProdGuardians is Script {
         require(block.chainid == 11155111, "not Sepolia (11155111)");
         uint256 pk = vm.envUint("PRIVATE_KEY_JASON");
         BLSAggregator agg = BLSAggregator(PRODAGG);
-        require(keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.3.0"), "unexpected version");
+        require(keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.14.0"), "unexpected version");
 
+        DVTValidator dvt = DVTValidator(agg.DVT_VALIDATOR());
+        require(dvt.BLS_AGGREGATOR() == address(agg), "DVT/BLS pairing mismatch");
+        require(dvt.owner() == agg.owner(), "DVT/BLS owner mismatch");
         vm.startBroadcast(pk);
         for (uint8 i = 1; i <= 3; i++) {
             address eoa = vm.envAddress(string.concat("PROD_G", vm.toString(i), "_EOA"));
@@ -50,7 +54,7 @@ contract RegisterProdGuardians is Script {
                 !BLSKeyScanLib.isWeakScalarKey(pub),
                 "CC-48: guardian key derives from a publicly-known scalar"
             );
-            agg.registerBLSPublicKey(eoa, pub, i, pop);
+            dvt.registerBLSPublicKey(eoa, pub, i, pop);
         }
         vm.stopBroadcast();
 

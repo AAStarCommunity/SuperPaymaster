@@ -7,6 +7,8 @@ import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/utils/BLS.sol";
+import {GenuineBLS} from "../helpers/GenuineBLS.sol";
+import {MockedPrecompiles} from "../helpers/MockedPrecompiles.sol";
 
 /// @notice Stake stub whose per-validator amount can be toggled — lets us
 ///         simulate post-registration exits / partial unlocks / slashes
@@ -100,6 +102,7 @@ contract MockSP {
  * three tests below cover the three independent failure modes.
  */
 contract DVTValidatorLivenessTest is Test {
+    bool realPrecompiles;
     DVTValidator dvt;
     BLSAggregator bls;
     MockRegistryToggleable registry;
@@ -112,14 +115,60 @@ contract DVTValidatorLivenessTest is Test {
     address operator = address(0xC1);
     address randomUser = address(0xD1);
 
+    function _stubKey(uint256 seed) internal view returns (BLS.G1Point memory pk) {
+        if (realPrecompiles) return GenuineBLS.publicKey(seed);
+        pk.x_a = bytes32(seed);
+        pk.x_b = bytes32(seed + 1);
+        pk.y_a = bytes32(seed + 2);
+        pk.y_b = bytes32(seed + 3);
+    }
+
+    function _pop(BLSAggregator aggregator, address validator, uint256 scalar)
+        internal view returns (BLS.G2Point memory pop)
+    {
+        if (realPrecompiles) return GenuineBLS.pop(aggregator, validator, scalar);
+    }
+
+    function _sigBytes(bytes32 digest, uint256 signerMask) internal view returns (bytes memory) {
+        if (realPrecompiles) {
+            uint256[] memory scalars = new uint256[](4);
+            for (uint256 i; i < scalars.length; ++i) scalars[i] = i + 1;
+            (, bytes memory signature) = abi.decode(GenuineBLS.proof(digest, scalars, signerMask), (uint256, bytes));
+            return signature;
+        }
+        BLS.G2Point memory sig;
+        return abi.encode(sig);
+    }
+
+    function _seatCommittee(uint8 count) internal {
+        vm.startPrank(owner);
+        for (uint8 slot = 1; slot <= count; ++slot) {
+            address validator = address(uint160(uint256(0xB0) + slot));
+            registry.setHasDvtRole(validator, true);
+            staking.setLocked(validator, 200);
+            if (!dvt.isValidator(validator)) dvt.addValidator(validator);
+            dvt.registerBLSPublicKey(validator, _stubKey(slot), slot, _pop(bls, validator, slot));
+        }
+        vm.stopPrank();
+    }
+
     function setUp() public {
+        realPrecompiles = MockedPrecompiles.praguePrecompilesAvailable();
+        if (!realPrecompiles) {
+            vm.etch(address(0x0b), hex"60806000f3");
+            vm.etch(address(0x0c), hex"60806000f3");
+            vm.etch(address(0x0d), hex"6101006000f3");
+            vm.etch(address(0x10), hex"60806000f3");
+            vm.etch(address(0x11), hex"6101006000f3");
+            vm.mockCall(address(0x0F), "", abi.encode(uint256(1)));
+        }
         vm.startPrank(owner);
         registry = new MockRegistryToggleable();
         staking = new MockStakingToggleable();
         registry.setStakingAddr(address(staking));
         sp = new MockSP();
 
-        dvt = new DVTValidator(address(registry));
+        dvt = new DVTValidator(address(registry), 1);
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         dvt.setBLSAggregator(address(bls));
 
@@ -219,32 +268,12 @@ contract DVTValidatorLivenessTest is Test {
         vm.prank(validator1);
         uint256 id = dvt.createProposal(operator, 1, "via aggregator");
 
-        // BLS_AGGREGATOR has never been registered as a validator; without the
-        // exemption this would revert NotActiveValidator. We expect a different
-        // failure later in the pipeline (the BLS pairing precompile is unmocked).
-        // We only need to confirm the early gate doesn't fire.
+        // No BLS slots are registered in this fixture. Reaching this exact error
+        // proves forwarding crossed the caller-liveness gate into key reconstruction.
         bytes memory dummyProof = abi.encode(uint256(0x7F), abi.encode(BLS.G2Point(0,0,0,0,0,0,0,0)));
         vm.prank(address(bls));
-        // Will revert later (pairing precompile) — but NOT with NotActiveValidator.
-        try dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof) {
-            // Either path is acceptable for this test — we only assert the
-            // liveness gate didn't fire.
-        } catch (bytes memory reason) {
-            bytes4 sel;
-            assembly { sel := mload(add(reason, 0x20)) }
-            assertTrue(
-                sel != DVTValidator.NotActiveValidator.selector,
-                "BLS aggregator must bypass NotActiveValidator gate"
-            );
-            assertTrue(
-                sel != DVTValidator.ValidatorRoleRevoked.selector,
-                "BLS aggregator must bypass ValidatorRoleRevoked gate"
-            );
-            assertTrue(
-                sel != DVTValidator.ValidatorStakeBelowMinimum.selector,
-                "BLS aggregator must bypass ValidatorStakeBelowMinimum gate"
-            );
-        }
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof);
     }
 
     // ====================================
@@ -321,5 +350,109 @@ contract DVTValidatorLivenessTest is Test {
             randomUser
         ));
         dvt.removeValidator(randomUser);
+    }
+
+    function test_RemoveValidator_WithoutAggregator_RemovesValidator() public {
+        vm.startPrank(owner);
+        dvt.setBLSAggregator(address(0));
+        dvt.removeValidator(validator1);
+        vm.stopPrank();
+
+        assertFalse(dvt.isValidator(validator1));
+    }
+
+    function test_RemoveValidator_AtomicallyRevokesBLSVotingPower() public {
+        vm.startPrank(owner);
+        dvt.registerBLSPublicKey(validator1, _stubKey(1), 1, _pop(bls, validator1, 1));
+        dvt.registerBLSPublicKey(validator2, _stubKey(2), 2, _pop(bls, validator2, 2));
+        registry.setHasDvtRole(operator, true);
+        staking.setLocked(operator, 200);
+        dvt.registerBLSPublicKey(operator, _stubKey(3), 3, _pop(bls, operator, 3));
+        // Four eligible keys leave the reachable 3-signature slash quorums intact.
+        registry.setHasDvtRole(randomUser, true);
+        staking.setLocked(randomUser, 200);
+        dvt.registerBLSPublicKey(randomUser, _stubKey(4), 4, _pop(bls, randomUser, 4));
+        bytes32 digest = keccak256("removed");
+        bytes memory signature = _sigBytes(digest, 7);
+        assertTrue(bls.verify(digest, 7, 3, signature), "the original quorum verifies before removal");
+        dvt.removeValidator(validator1);
+        vm.stopPrank();
+
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertFalse(active);
+        assertEq(bls.validatorAtSlot(1), address(0));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
+        bls.verify(digest, 7, 3, signature);
+    }
+
+    function test_RemoveValidator_RevertsWhenDefaultThresholdWouldBreak() public {
+        _seatCommittee(7);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(6), uint256(7))
+        );
+        dvt.removeValidator(validator1);
+
+        assertTrue(dvt.isValidator(validator1));
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertTrue(active);
+    }
+
+    function test_RemoveValidator_RevertsWhenSlashThresholdWouldBreak() public {
+        vm.startPrank(owner);
+        bls.setDefaultThreshold(3);
+        bls.setSlashThreshold(2, 5);
+        vm.stopPrank();
+        _seatCommittee(5);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.GuardianExitWouldBreakQuorum.selector, uint256(4), uint256(5))
+        );
+        dvt.removeValidator(validator1);
+    }
+
+    function test_RemoveValidator_WorksAboveAllThresholds() public {
+        _seatCommittee(8);
+
+        vm.prank(owner);
+        dvt.removeValidator(validator1);
+
+        assertFalse(dvt.isValidator(validator1));
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertFalse(active);
+    }
+
+    function test_RevokeBLSPublicKey_OwnerEmergencyOverrideBypassesSurvivalCheck() public {
+        _seatCommittee(7);
+
+        vm.prank(owner);
+        bls.revokeBLSPublicKey(validator1);
+
+        (,, bool active) = bls.getBLSPublicKey(validator1);
+        assertFalse(active);
+        assertTrue(dvt.isValidator(validator1), "direct owner override does not mutate DVT membership");
+    }
+
+    function test_RemoveValidator_MismatchedAggregatorPairingRevertsAtomically() public {
+        vm.startPrank(owner);
+        BLSAggregator mismatched = new BLSAggregator(address(registry), address(sp), randomUser);
+        vm.stopPrank();
+        BLS.G1Point memory key = _stubKey(11);
+        BLS.G2Point memory pop = _pop(mismatched, validator1, 11);
+        vm.prank(randomUser); // Exercise the configured DVT boundary of the other aggregator.
+        mismatched.registerBLSPublicKey(validator1, key, 1, pop);
+        vm.startPrank(owner);
+        dvt.setBLSAggregator(address(mismatched));
+
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, address(dvt)));
+        dvt.removeValidator(validator1);
+        vm.stopPrank();
+
+        assertTrue(dvt.isValidator(validator1));
+        (,, bool active) = mismatched.getBLSPublicKey(validator1);
+        assertTrue(active);
+        assertEq(mismatched.validatorAtSlot(1), validator1);
     }
 }
