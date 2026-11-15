@@ -829,3 +829,45 @@ suite adds `test_PostRotationDvtReputationUpdateExecutes` and
 updates with genuine signatures on both authorized routes. Final suite counts,
 runtime size and changed files are recorded in `.rv-narrow.md`; ABI/docs
 regeneration is left to the calling session.
+
+## Generic-path selector gaps and the staking slasher role (2026-11-15)
+
+BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executeProposal` path
+(caller-chosen threshold >= `minThreshold`, no `proposalFloor`). Both are closed here.
+
+1. **`Registry.batchUpdateGlobalReputation` was not blocked.** Registry re-verifies the proof
+   itself, but under `blsDomainSeparator() = keccak(DOMAIN_NAME, chainid, blsAggregator, Registry)`.
+   That domain does not change on a DVT rotation, and Registry has no floor. A reputation proof
+   signed before a rotation and never executed could therefore still execute through a generic call,
+   bypassing the M1 floor guarantee.
+   - The #630 review recorded this path only as "consumes a raw id". The floor bypass was found
+     afterwards.
+   - Test: `test_PreRotationReputationProofCannotExecuteThroughGenericPath` (Prague, genuine keys).
+     Removing the block turns it red.
+2. **`GTokenStaking.slash` and `slashByDVT` were not blocked.** `DeployLive` made the aggregator an
+   authorized slasher, so a `minThreshold` quorum could slash any stake by any amount. This bypassed
+   severity bps, cooldown and the floor.
+   - The live Sepolia 4.11.0 aggregator has the same gap, with `minThreshold` 2. Only its owner (the
+     deployer EOA) can call `executeProposal` there.
+
+**Fixes**
+- The H-1 denylist now also blocks `batchUpdateGlobalReputation`, `slash` and `slashByDVT`.
+  BLSAggregator is 24,529 B.
+- `scripts/check_generic_selector_coverage.py` (CI, every PR) enumerates every non-view function in
+  the SuperPaymaster, Registry, GTokenStaking and DVTValidator ABIs. Each function whose code
+  references an aggregator identity must be classified as blocked or allowed-with-reason.
+- **No slasher role in 5.5.0.** The aggregator's only stake slash is `executeGuardianSlash`, which
+  cannot be reached while `fraudProofVerifier == 0`. `DeployLive` / `DeployAnvil` no longer grant the
+  role and assert it is absent.
+  - Enabling guardian slash later grants the role in the same timelock batch as
+    `proposeFraudProofVerifier`.
+  - Before enabling, see YetAnotherAA-Validator#441: the verifier must recompute the 4.14.0 signers
+    commitment, which includes `blockhash(block.number-1)`.
+- **Review L1.** Owner-forwarded `DVTValidator.registerBLSPublicKey` now requires
+  `aggregator.owner() == msg.sender`, as `removeValidator` already did.
+  - Test: `test_RegisterBLSPublicKey_OwnerDivergenceClosesOwnerPath`.
+
+**Disclosed residuals**
+- `Registry.updateOperatorBlacklist` stays generic-callable. A pre-rotation proof for the next unused
+  `blacklistNonce` remains valid. Its effect is limited to blocking or unblocking users; it moves no
+  funds.

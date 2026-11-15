@@ -397,7 +397,11 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         require(xpntsFactory.SUPERPAYMASTER() == address(superPaymaster), "wire: factory.setSuperPaymaster");
 
         // ── Step 5: Slasher authorization ───────────────────────────────────────
-        require(staking.authorizedSlashers(address(aggregator)), "wire: staking.setAuthorizedSlasher");
+        // 5.5.0 is disclosure-only: the aggregator's only GToken-stake slash (guardian slash,
+        // BLSAggregator.executeGuardianSlash) is unreachable while fraudProofVerifier == 0, so
+        // the aggregator holds NO slasher role. Granting it is a 5.5.x enablement step that
+        // must ship in the same timelock batch as proposeFraudProofVerifier.
+        require(!staking.authorizedSlashers(address(aggregator)), "wire: aggregator must not be a staking slasher");
 
         // ── Step 5: SuperPaymaster BLS_AGGREGATOR ───────────────────────────────
         require(superPaymaster.BLS_AGGREGATOR() == address(aggregator), "wire: sp.initBLSAggregator");
@@ -427,9 +431,6 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         // Uses initBLSAggregator() — a one-time setter that bypasses the 24h timelock
         // because BLS_AGGREGATOR is address(0) on a fresh deployment (no governance asset to protect).
         superPaymaster.initBLSAggregator(address(aggregator));
-
-        // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
-        staking.setAuthorizedSlasher(address(aggregator), true);
 
         // Integrity assertions moved to _assertWiring(), called at end of run()
         // before vm.stopBroadcast() — see D-H4 fix.

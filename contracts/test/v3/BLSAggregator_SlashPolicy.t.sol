@@ -133,6 +133,39 @@ contract BLSAggregator_SlashPolicyTest is Test {
         bls.executeProposal(1, address(registry), cd, 2, hex"00");
     }
 
+    /// @notice Generic reputation is refused before any proof is looked at, so a reputation
+    ///         proof signed before a DVT rotation (Registry's domain does not change on rotation
+    ///         and Registry has no floor) cannot reach Registry this way; the floor-checked
+    ///         route is verifyAndExecute (test_RotatedBackDVTCannotExecutePreRotationSlash,
+    ///         contracts/test/modules/RotationFloorExecution.t.sol, and
+    ///         test_PostRotationDvtReputationUpdateExecutes, contracts/test/paper7/RepCreditDomainReplay.t.sol).
+    function test_ExecuteProposal_ForbidsBatchUpdateGlobalReputationSelector() public {
+        string memory sig = "batchUpdateGlobalReputation(uint256,address[],uint256[],uint256,bytes)";
+        bytes memory cd = abi.encodeWithSignature(sig, uint256(5), new address[](0), new uint256[](0), uint256(1), hex"01");
+        vm.prank(dvt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256(bytes(sig)))));
+        bls.executeProposal(1, address(registry), cd, 7, hex"00");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256(bytes(sig)))));
+        bls.executeProposal(1, address(registry), cd, 7, hex"00");
+    }
+
+    function test_ExecuteProposal_ForbidsStakingSlashSelector() public {
+        string memory sig = "slash(address,uint256,string)";
+        bytes memory cd = abi.encodeWithSignature(sig, attacker, uint256(1 ether), "x");
+        vm.prank(dvt);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256(bytes(sig)))));
+        bls.executeProposal(1, address(0x57A4E), cd, 3, hex"00");
+    }
+
+    function test_ExecuteProposal_ForbidsStakingSlashByDVTSelector() public {
+        string memory sig = "slashByDVT(address,bytes32,uint256,string)";
+        bytes memory cd = abi.encodeWithSignature(sig, attacker, bytes32("DVT"), uint256(1 ether), "x");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256(bytes(sig)))));
+        bls.executeProposal(1, address(0x57A4E), cd, 3, hex"00");
+    }
+
     /// @notice Non-blocked selectors on a privileged target (e.g. Registry's
     ///         legitimate DVT-consensus blacklist action) are NOT rejected by the
     ///         selector guard — they proceed to threshold verification. Here the

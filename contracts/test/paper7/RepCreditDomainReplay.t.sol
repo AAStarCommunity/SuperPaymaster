@@ -412,6 +412,53 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         assertFalse(aggA.executedProposals(oldId));
     }
 
+    /// @notice rc.8 tag blocker (DSR 2026-11-15): Registry re-verifies a reputation proof
+    ///         under a domain that does not change on DVT rotation and has no proposalFloor,
+    ///         so a GENERIC call to batchUpdateGlobalReputation used to execute a reputation
+    ///         proof signed before the rotation. The generic path now refuses the selector;
+    ///         the floor-checked DVT route still refuses the low id
+    ///         (test_OwnerDirectLowIdStillExecutesAfterRotation, first expectRevert) and a
+    ///         post-rotation proof still executes (test_PostRotationDvtReputationUpdateExecutes).
+    function test_PreRotationReputationProofCannotExecuteThroughGenericPath() public {
+        _skipWithoutPrague();
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        oldDvt.setBLSAggregator(address(aggA));
+        oldDvt.addValidator(validators[0]);
+        aggA.setDVTValidator(address(oldDvt));
+        vm.prank(validators[0]);
+        uint256 oldId = oldDvt.createProposal(address(0), 0, "signed before rotation, never executed");
+        (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
+        bytes memory repProof =
+            _proof(_reputationHash(address(aggA), address(registry), block.chainid, oldId, users, scores, 1), 3);
+
+        DVTValidator next = new DVTValidator(address(registry), 1);
+        next.setBLSAggregator(address(aggA));
+        aggA.setDVTValidator(address(next));
+        assertGt(aggA.proposalFloor(), oldId, "the old id is below the floor");
+
+        string memory sig = "batchUpdateGlobalReputation(uint256,address[],uint256[],uint256,bytes)";
+        bytes memory callData = abi.encodeWithSignature(sig, oldId, users, scores, uint256(1), repProof);
+        uint256 genericId = 9001;
+        bytes memory genericProof = _proof(
+            keccak256(
+                abi.encode(
+                    _domain(address(aggA), address(registry), block.chainid),
+                    TAG_PROPOSAL,
+                    genericId,
+                    address(registry),
+                    keccak256(callData),
+                    uint256(3)
+                )
+            ),
+            3
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(BLSAggregator.ForbiddenGenericSelector.selector, bytes4(keccak256(bytes(sig))))
+        );
+        aggA.executeProposal(genericId, address(registry), callData, 3, genericProof);
+        assertEq(registry.globalReputation(users[0]), 0, "pre-rotation reputation never landed");
+    }
+
     /// @notice Documented owner-mediated residual: owner-direct verifyAndExecute
     ///         can execute a caller-chosen id below the floor after rotation.
     /// @dev Keep an existing proposal on the reactivated DVT to satisfy its callback;
