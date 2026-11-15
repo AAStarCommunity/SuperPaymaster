@@ -5670,7 +5670,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Execute any proposal via BLS consensus (Generic DVT)
 
-*@dev* Allows executing arbitrary calls to authorized target contracts after BLS signature verification.      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).      Accepted residual: unused pre-rotation generic proofs remain owner/DVT-executable;      proposalFloor applies only to slash and aggregator-routed reputation executed through the current DVT.
+*@dev* Allows executing arbitrary calls to authorized target contracts after BLS signature verification.      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).      Accepted residual: unused pre-rotation generic proofs remain owner-executable;      proposalFloor applies only to slash and aggregator-routed reputation executed through the current DVT.
 
 | param | type | description |
 |---|---|---|
@@ -6878,7 +6878,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Permissionless eviction when a validator no longer meets the         role + stake requirements (P0 follow-up).
 
-*@dev* Anyone can call this. The function reverts (`ValidatorStillEligible`)         if the validator still has ROLE_DVT AND stake >= minStake — so it         only succeeds when there's a genuine drift between the local         flag and on-chain reality. This gives off-chain monitors / public-         goods bots a way to prune stale validators without waiting for         the owner. The BLS slot is NOT freed here; use owner-only         `removeValidator` when BLS voting power must also be revoked.
+*@dev* Anyone can call this. The function reverts (`ValidatorStillEligible`)         if the validator still has ROLE_DVT AND stake >= minStake — so it         only succeeds when there's a genuine drift between the local         flag and on-chain reality. This gives off-chain monitors / public-         goods bots a way to prune stale validators without waiting for         the owner. The BLS slot is NOT freed here; use owner-only         `removeValidator` when BLS voting power must also be revoked (it can revert         at an exactly-reachable quorum; BLSAggregator.revokeAndSuspend evicts         unconditionally).
 
 | param | type | description |
 |---|---|---|

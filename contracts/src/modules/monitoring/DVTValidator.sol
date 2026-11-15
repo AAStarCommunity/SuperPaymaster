@@ -38,7 +38,9 @@ interface IBLSKeyRegistration {
  * @title DVTValidator
  * @notice Distributed Validator Technology for operator monitoring (V3)
  * @dev Manages slash proposals and coordinates with BLSAggregator.
- *      Its owner must be the same Safe-compatible owner as BLSAggregator.
+ *      Its owner must be the same owner as BLSAggregator: checked only by DeployLive and
+ *      by removeValidator; a later divergence (transferOwnership on one side) disables
+ *      removeValidator, fail-closed.
  *      DVT rotation is an immediate owner operation; verifier rotation retains
  *      BLSAggregator's contract-enforced delay.
  *      Only the aggregator's current DVT can allocate proposal IDs. Each allocation
@@ -233,8 +235,10 @@ contract DVTValidator is Ownable, IVersioned {
     ///         and the BLS slot stayed live — the operator could keep voting in
     ///         quorums even though their economic backing was gone.
     ///
-    ///         This helper re-validates against Registry + Staking on every
-    ///         consensus-affecting call. The local admission gate plus live suspension, role and stake checks must hold:
+    ///         This helper re-validates the CALLER against Registry + Staking on proposal
+    ///         creation, queue forwarding and non-aggregator execution (signer eligibility is
+    ///         re-checked separately in BLSAggregator._reconstructPkAgg). It requires the local
+    ///         admission gate plus live suspension, role and stake checks:
     ///           1. Local `isValidator[v]` flag still set.
     ///           2. Registry still grants ROLE_DVT to `v` (covers explicit
     ///              role revocation outside an exitRole flow).
@@ -390,7 +394,9 @@ contract DVTValidator is Ownable, IVersioned {
     ///         flag and on-chain reality. This gives off-chain monitors / public-
     ///         goods bots a way to prune stale validators without waiting for
     ///         the owner. The BLS slot is NOT freed here; use owner-only
-    ///         `removeValidator` when BLS voting power must also be revoked.
+    ///         `removeValidator` when BLS voting power must also be revoked (it can revert
+    ///         at an exactly-reachable quorum; BLSAggregator.revokeAndSuspend evicts
+    ///         unconditionally).
     function pruneValidator(address v) external {
         if (!isValidator[v]) revert NotActiveValidator(v);
         bytes32 roleDvt = keccak256("DVT");

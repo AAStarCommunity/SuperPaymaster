@@ -1096,7 +1096,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
      * @notice Execute any proposal via BLS consensus (Generic DVT)
      * @dev Allows executing arbitrary calls to authorized target contracts after BLS signature verification.
      *      The target contract is responsible for its own access control (checking msg.sender == BLSAggregator).
-     *      Accepted residual: unused pre-rotation generic proofs remain owner/DVT-executable;
+     *      Accepted residual: unused pre-rotation generic proofs remain owner-executable;
      *      proposalFloor applies only to slash and aggregator-routed reputation executed through the current DVT.
      * @param proposalId Unique proposal ID
      * @param target Target contract to call
@@ -1121,9 +1121,11 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // SuperPaymaster.queueSlash/executeSlashWithBLS or markProposalExecuted. The
         // fund-moving slash goes through the per-severity threshold in
         // verifyAndExecute; the reversible pre-flag has its own dedicated quorum-gated
-        // entry (queueSlashWithConsensus). Generic execution uses a typed replay key
-        // and never marks a raw DVT proposal. Selector-scoped (not target-scoped) so
-        // Registry.updateOperatorBlacklist still works.
+        // entry (queueSlashWithConsensus). Generic execution uses a typed replay key and
+        // never writes a raw id in this contract or in DVTValidator. Residual: a generic
+        // call to Registry.batchUpdateGlobalReputation (selector not blocked; it carries
+        // its own quorum proof) can still consume a raw Registry id, outside proposalFloor.
+        // Selector-scoped (not target-scoped) so Registry.updateOperatorBlacklist still works.
         if (callData.length >= 4) {
             bytes4 sel = bytes4(callData[0:4]);
             if (sel == SEL_QUEUE_SLASH || sel == SEL_EXECUTE_SLASH_BLS || sel == SEL_MARK_PROPOSAL_EXECUTED) {
