@@ -16,6 +16,9 @@ on:
       - 'scripts/resolve_default_artifact.py'
       - 'scripts/test_resolve_default_artifact.py'
       - 'scripts/extract_v3_abis.sh'
+      - 'foundry.toml'
+      - 'contracts/script/**'
+      - 'singleton-paymaster'
       - 'docs/abi/**'
       - 'abis/**'
       - 'scripts/check-abi-bundle.mjs'
@@ -33,6 +36,9 @@ on:
       - 'scripts/resolve_default_artifact.py'
       - 'scripts/test_resolve_default_artifact.py'
       - 'scripts/extract_v3_abis.sh'
+      - 'foundry.toml'
+      - 'contracts/script/**'
+      - 'singleton-paymaster'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/abi-docs.yml'
@@ -47,6 +53,7 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.7.1 }   # same pin as security.yml; the resolver compares bytecode
 
       # A plain build, as deploy-core runs it: `--skip test` never compiles the deploy
       # scripts' closure, so TimelockController (deployed by DeployAPNTsCapped) had no
