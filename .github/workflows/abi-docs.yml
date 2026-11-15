@@ -13,6 +13,9 @@ on:
       - 'abis/**'
       - 'scripts/check-abi-bundle.mjs'
       - 'scripts/gen-sp-full-abi.py'
+      - 'scripts/resolve_default_artifact.py'
+      - 'scripts/test_resolve_default_artifact.py'
+      - 'scripts/extract_v3_abis.sh'
       - 'docs/abi/**'
       - 'abis/**'
       - 'scripts/check-abi-bundle.mjs'
@@ -27,6 +30,9 @@ on:
       - 'abis/**'
       - 'scripts/check-abi-bundle.mjs'
       - 'scripts/gen-sp-full-abi.py'
+      - 'scripts/resolve_default_artifact.py'
+      - 'scripts/test_resolve_default_artifact.py'
+      - 'scripts/extract_v3_abis.sh'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/abi-docs.yml'
@@ -42,8 +48,11 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      # A plain build, as deploy-core runs it: `--skip test` never compiles the deploy
+      # scripts' closure, so TimelockController (deployed by DeployAPNTsCapped) had no
+      # profile.default artifact at all and its exported bytecode went unchecked.
       - name: forge build (produces out/ artifacts)
-        run: forge build --skip test
+        run: forge build
 
       - uses: pnpm/action-setup@v6
         with:
@@ -65,5 +74,10 @@ jobs:
       # abis/*.json -- the bundle sync_to_sdk.sh copies into aastar-sdk. That is
       # how abis/BLSAggregator.json drifted four functions behind the contract
       # for six days with this job green (#410, #411).
+      # check-abi-bundle and extract_v3_abis.sh pick artifacts through this resolver
+      # (the same profile.default rule the deploy scripts use); its own cases first.
+      - name: Artifact resolver self-test
+        run: python3 -B scripts/test_resolve_default_artifact.py
+
       - name: ABI bundles match the compiled contracts
         run: node scripts/check-abi-bundle.mjs

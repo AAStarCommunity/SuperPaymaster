@@ -103,40 +103,21 @@ echo "🔍 Starting ABI extraction for V3/V4..."
 MISSING_ARTIFACTS=()
 
 for CONTRACT in "${CONTRACTS[@]}"; do
-    # 5.5.0: prefer the CANONICAL default-profile artifact path first. `find ... | head -1`
-    # returned out/v2/<C>.sol/<C>.json for the v2 contracts -- an artifact compiled with
-    # optimizer runs=200, not the default profile's 500 that deploy-core ships -- so the
-    # bytecode written to abis/ would not have matched the deployed code. Named, not guessed.
-    FILE=""
-    if [ -f "out/${CONTRACT}.sol/${CONTRACT}.json" ]; then
-        FILE="out/${CONTRACT}.sol/${CONTRACT}.json"
-    fi
-    # Foundry 的路径通常是 out/ContractName.sol/ContractName.json
-    # 如果存在多个匹配（例如 wrapper），优先选择非 core 目录下的，或者更完整的
-    if [ -z "$FILE" ]; then
-        FILE=$(find out -name "${CONTRACT}.json" -not -path "*/core/*" | head -n 1)
-    fi
-    if [ -z "$FILE" ]; then
-        FILE=$(find out -name "${CONTRACT}.json" | head -n 1)
-    fi
-    # CC-48 round-9: a contract compiled under MORE THAN ONE compiler profile is not
-    # emitted as `<C>.json` at all -- foundry writes `<C>.default.json` alongside
-    # `<C>.<other-profile>.json`. Since round-3 added the `registry-size` profile, that is
-    # exactly what happens to `TimelockController`, so this generator could not run to
-    # completion on this branch. Fall back to the DEFAULT-profile artifact by name: it is
-    # the profile `deploy-core` ships under, and it is named, never guessed -- picking
-    # whatever `find` happened to return first would silently publish an ABI compiled with
-    # settings the deployment does not use.
-    if [ -z "$FILE" ]; then
-        FILE=$(find out -name "${CONTRACT}.default.json" | head -n 1)
-    fi
-    
+    # The artifact is resolved by its OWN metadata, exactly as the deploy scripts do it
+    # (scripts/resolve_default_artifact.py mirrors contracts/script/v3/DefaultArtifacts.sol).
+    # Picking by file name -- `<C>.json` first, `<C>.default.json` as a fallback -- exported a
+    # stale runs=200 out/TimelockController.sol/TimelockController.json into abis/ on the rc.8
+    # BLS branch, while deploy-core ships TimelockController.default.json (runs=500): forge
+    # leaves the unsuffixed file from whichever compile ran last. No match, or two matching
+    # builds with different bytecode, is a failure, never a guess.
+    FILE=$(python3 scripts/resolve_default_artifact.py "$CONTRACT") || FILE=""
+
     if [ -f "$FILE" ]; then
         echo "✅ Extracting ABI & Bytecode for $CONTRACT from $FILE..."
         # 提取 abi 和 bytecode.object 并合并为 JSON
         jq '{abi: .abi, bytecode: .bytecode.object}' "$FILE" > "$OUTPUT_DIR/${CONTRACT}.json"
     else
-        echo "❌ Could not find build artifact for $CONTRACT. Did you run 'forge build'?"
+        echo "❌ No unique profile.default build artifact for $CONTRACT (reason above). Did you run 'forge build'?"
         MISSING_ARTIFACTS+=("$CONTRACT")
     fi
 done
