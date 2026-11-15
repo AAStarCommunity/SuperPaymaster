@@ -89,6 +89,10 @@ function compiledArtifact(name) {
 const strip = (h) => (typeof h === "string" ? h : h?.object ?? "").replace(/^0x/, "").toLowerCase();
 
 let stale = 0, checked = 0, skipped = [], external = [];
+// A deployed bundle that was deleted is not "nothing to compare".
+for (const n of DEPLOYED_EXTERNAL) {
+  if (!existsSync(join(ABIS, `${n}.json`))) { console.error(`FAIL: abis/${n}.json is missing (deployed by this repo)`); stale++; }
+}
 for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   const name = file.replace(/\.json$/, "");
   if (name === "abi.config") continue;

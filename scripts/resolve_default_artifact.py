@@ -36,7 +36,8 @@ AA = "singleton-paymaster/lib/account-abstraction-v7/contracts/"
 V3 = "contracts/src/paymasters/superpaymaster/v3/"
 
 # Same mapping as DefaultArtifacts._sourceOf, plus GToken (exported to abis/, deployed
-# only as GTokenAuthorization by DeployLive).
+# only as GTokenAuthorization by DeployLive). Keep the two in step: a name missing here
+# fails closed ("no source mapping"), it is never resolved some other way.
 SOURCES = {
     "Registry": "contracts/src/core/Registry.sol",
     "GTokenStaking": "contracts/src/core/GTokenStaking.sol",
@@ -63,6 +64,9 @@ SOURCES = {
     "X402Facilitator": V3 + "X402Facilitator.sol",
     "PaymasterFactory": "contracts/src/paymasters/v4/core/PaymasterFactory.sol",
     "Paymaster": "contracts/src/paymasters/v4/Paymaster.sol",
+    "MockAgentIdentityRegistry": "contracts/src/mocks/MockAgentIdentityRegistry.sol",
+    "MockAgentReputationRegistry": "contracts/src/mocks/MockAgentReputationRegistry.sol",
+    "AnvilMockPriceFeed": "contracts/test/helpers/AnvilMockPriceFeed.sol",
     "ERC1967Proxy": OZ + "proxy/ERC1967/ERC1967Proxy.sol",
     "TimelockController": OZ + "governance/TimelockController.sol",
     "EntryPoint": AA + "core/EntryPoint.sol",
@@ -104,7 +108,10 @@ def keccak256(data):
         from Crypto.Hash import keccak as _k
         return _k.new(digest_bits=256, data=data).hexdigest()
     except ImportError:
-        pass
+        return keccak256_pure(data)
+
+
+def keccak256_pure(data):
     rate = 136
     msg = bytearray(data) + b"\x01"
     msg += b"\x00" * (-len(msg) % rate)
@@ -181,7 +188,11 @@ def resolve(name, out_dir="out"):
             artifact = json.load(fh)
         if not is_default_build(artifact, src, runs):
             continue
-        code = artifact.get("deployedBytecode", {}).get("object", "")
+        # Compared as bytes, like the keccak of parseJsonBytes in DefaultArtifacts; an
+        # artifact without runtime bytecode is not a build (Solidity reverts on it).
+        code = str((artifact.get("deployedBytecode") or {}).get("object") or "").lower().removeprefix("0x")
+        if not code:
+            return None, f"{path} has no deployedBytecode.object"
         if pick is None:
             pick, pick_code = path, code
         elif code != pick_code:

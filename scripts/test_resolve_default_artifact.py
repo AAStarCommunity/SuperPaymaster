@@ -107,10 +107,34 @@ class ResolverTest(unittest.TestCase):
         self.assertEqual(R.main(["Widget"]), 0)
         self.assertEqual(R.main(["Widget", "NoSuchContract"]), 1)
 
-    def test_pure_keccak_vectors(self):
-        self.assertEqual(R.keccak256(b""), "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-        self.assertEqual(R.keccak256(b"abc"), "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45")
+    def test_bytecode_compared_as_bytes(self):
+        want = self.artifact("Widget.sol/Widget.json", code="0xabcd")
+        self.artifact("Widget.sol/Widget.default.json", code="0xABCD")
+        self.assertEqual(R.resolve("Widget"), (want, None))
 
+    def test_missing_runtime_fails(self):
+        self.artifact("Widget.sol/Widget.json", code="")
+        path, why = R.resolve("Widget")
+        self.assertIsNone(path)
+        self.assertIn("no deployedBytecode", why)
+
+    def test_pure_keccak_vectors(self):
+        # The stdlib sponge is what runs where pycryptodome is absent (CI); test it directly.
+        # Expected values for the long inputs come from pycryptodome, an independent
+        # implementation: 136 bytes is exactly one rate block (padding spills into a second).
+        vectors = {
+            b"": "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+            b"abc": "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45",
+            b"a" * 135: None,
+            b"a" * 136: "a6c4d403279fe3e0af03729caada8374b5ca54d8065329a3ebcaeb4b60aa386e",
+            b"a" * 200: "96ea54061def936c4be90b518992fdc6f12f535068a256229aca54267b4d084d",
+        }
+        for data, want in vectors.items():
+            with self.subTest(n=len(data)):
+                got = R.keccak256_pure(data)
+                self.assertEqual(got, R.keccak256(data))
+                if want:
+                    self.assertEqual(got, want)
 
 if __name__ == "__main__":
     unittest.main()
