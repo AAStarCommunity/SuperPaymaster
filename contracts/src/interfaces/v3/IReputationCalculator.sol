@@ -42,10 +42,10 @@ interface IReputationCalculator is IVersioned {
      * @param user User address
      * @param community Community address
      * @param sbtTokenId User's SBT token ID
-     * @return baseScore Base score from membership
+     * @return baseScore Rule base total after the community multiplier has already been applied
      * @return nftBonus Bonus from bound NFTs
      * @return activityBonus Bonus from recent activity
-     * @return multiplier Community-specific multiplier (100 = 1x)
+     * @return multiplier Community factor in 1e18 units (1e18 = 1x); do not multiply baseScore again
      *
      * @dev Optional - for UI display and debugging
      */

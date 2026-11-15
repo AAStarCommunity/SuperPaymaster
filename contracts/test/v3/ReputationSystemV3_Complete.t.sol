@@ -11,7 +11,10 @@ import "src/interfaces/v3/IRegistry.sol";
 
 contract MockNFT is ERC721 {
     constructor() ERC721("MockNFT", "MNFT") {}
-    function mint(address to, uint256 tokenId) external { _mint(to, tokenId); }
+
+    function mint(address to, uint256 tokenId) external {
+        _mint(to, tokenId);
+    }
 }
 
 /// @dev Mock that reverts on balanceOf — used to exercise the try/catch
@@ -31,29 +34,29 @@ contract ReputationSystem_Complete_Test is Test {
     Registry public registry;
     MockNFT public nft1;
     MockNFT public nft2;
-    
+
     address public admin = address(0x1);
     address public community1 = address(0x2);
     address public community2 = address(0x3);
     address public user1 = address(0x4);
     address public user2 = address(0x5);
-    
+
     function setUp() public {
         vm.startPrank(admin);
-        
+
         // Deploy Registry
         address mockGToken = address(0x888);
         address mockStaking = address(0x999);
         address mockSBT = address(0x777);
         registry = UUPSDeployHelper.deployRegistryProxy(admin, mockStaking, mockSBT);
-        
+
         // Deploy ReputationSystem
         repSystem = new ReputationSystem(address(registry));
-        
+
         // Deploy NFTs for boost testing
         nft1 = new MockNFT();
         nft2 = new MockNFT();
-        
+
         // Authorize repSystem as reputation source
         registry.setReputationSource(address(repSystem), true);
 
@@ -64,7 +67,7 @@ contract ReputationSystem_Complete_Test is Test {
         IRegistry.RoleConfig memory commCfg = registry.getRoleConfig(keccak256("COMMUNITY"));
         commCfg.owner = community1;
         registry.configureRole(keccak256("COMMUNITY"), commCfg);
-        
+
         // Mock hasRole to return true for community1 (avoids complex storage manipulation)
         // Mock hasRole to return true for community1 (avoids complex storage manipulation)
         vm.mockCall(
@@ -78,7 +81,6 @@ contract ReputationSystem_Complete_Test is Test {
         registry.setBLSAggregator(address(aggregator));
 
         vm.stopPrank();
-
     }
 
     // ====================================
@@ -88,7 +90,7 @@ contract ReputationSystem_Complete_Test is Test {
     function test_SetEntropyFactor_Success() public {
         vm.prank(admin);
         repSystem.setEntropyFactor(community1, 0.5e18); // 0.5x multiplier
-        
+
         assertEq(repSystem.entropyFactors(community1), 0.5e18);
     }
 
@@ -103,7 +105,7 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setEntropyFactor(community1, 0.8e18);
         repSystem.setEntropyFactor(community2, 1.2e18);
         vm.stopPrank();
-        
+
         assertEq(repSystem.entropyFactors(community1), 0.8e18);
         assertEq(repSystem.entropyFactors(community2), 1.2e18);
     }
@@ -115,10 +117,10 @@ contract ReputationSystem_Complete_Test is Test {
     function test_SetRule_ByCommunityOwner() public {
         vm.prank(community1);
         repSystem.setRule(keccak256("ACTIVE_MEMBER"), 20, 2, 200, "Active Member");
-        
-        (uint256 base, uint256 bonus, uint256 max, string memory desc) = 
+
+        (uint256 base, uint256 bonus, uint256 max, string memory desc) =
             repSystem.communityRules(community1, keccak256("ACTIVE_MEMBER"));
-        
+
         assertEq(base, 20);
         assertEq(bonus, 2);
         assertEq(max, 200);
@@ -128,7 +130,7 @@ contract ReputationSystem_Complete_Test is Test {
     function test_SetRule_ByAdmin() public {
         vm.prank(admin);
         repSystem.setRule(keccak256("CONTRIBUTOR"), 15, 3, 150, "Contributor");
-        
+
         (uint256 base,,,) = repSystem.communityRules(admin, keccak256("CONTRIBUTOR"));
         assertEq(base, 15);
     }
@@ -145,12 +147,12 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setRule(keccak256("RULE2"), 20, 2, 200, "Rule 2");
         repSystem.setRule(keccak256("RULE3"), 30, 3, 300, "Rule 3");
         vm.stopPrank();
-        
+
         // Verify rules are set correctly
         (uint256 base1,,,) = repSystem.communityRules(community1, keccak256("RULE1"));
         (uint256 base2,,,) = repSystem.communityRules(community1, keccak256("RULE2"));
         (uint256 base3,,,) = repSystem.communityRules(community1, keccak256("RULE3"));
-        
+
         assertEq(base1, 10);
         assertEq(base2, 20);
         assertEq(base3, 30);
@@ -163,7 +165,7 @@ contract ReputationSystem_Complete_Test is Test {
     function test_SetNFTBoost_Success() public {
         vm.prank(admin);
         repSystem.setNFTBoost(address(nft1), 50);
-        
+
         assertEq(repSystem.nftCollectionBoost(address(nft1)), 50);
         assertEq(repSystem.boostedCollections(0), address(nft1));
     }
@@ -179,7 +181,7 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setNFTBoost(address(nft1), 50);
         repSystem.setNFTBoost(address(nft2), 100);
         vm.stopPrank();
-        
+
         assertEq(repSystem.boostedCollections(0), address(nft1));
         assertEq(repSystem.boostedCollections(1), address(nft2));
     }
@@ -189,10 +191,22 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setNFTBoost(address(nft1), 50);
         repSystem.setNFTBoost(address(nft1), 100); // Update
         vm.stopPrank();
-        
+
         assertEq(repSystem.nftCollectionBoost(address(nft1)), 100);
         // Should not add duplicate to boostedCollections
         assertEq(repSystem.boostedCollections(0), address(nft1));
+    }
+
+    function test_SetNFTBoost_ZeroDisableReenableDoesNotDuplicate() public {
+        vm.startPrank(admin);
+        repSystem.setNFTBoost(address(nft1), 50);
+        repSystem.setNFTBoost(address(nft1), 0);
+        repSystem.setNFTBoost(address(nft1), 50);
+        vm.stopPrank();
+
+        assertEq(repSystem.boostedCollections(0), address(nft1));
+        vm.expectRevert();
+        repSystem.boostedCollections(1);
     }
 
     // ====================================
@@ -202,17 +216,17 @@ contract ReputationSystem_Complete_Test is Test {
     function test_ComputeScore_DefaultRule() public {
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("DEFAULT");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 5; // 5 activities
-        
+
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Default rule: base=10, bonus=1 per activity, max=100
         // Score = 10 + min(5*1, 100) = 15
         assertEq(score, 15);
@@ -222,20 +236,20 @@ contract ReputationSystem_Complete_Test is Test {
         // Set custom rule
         vm.prank(community1);
         repSystem.setRule(keccak256("CUSTOM"), 20, 3, 150, "Custom");
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("CUSTOM");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 10; // 10 activities
-        
+
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Custom rule: base=20, bonus=3 per activity, max=150
         // Score = 20 + min(10*3, 150) = 20 + 30 = 50
         assertEq(score, 50);
@@ -245,20 +259,20 @@ contract ReputationSystem_Complete_Test is Test {
         // Set entropy factor to 0.5 (halves the score)
         vm.prank(admin);
         repSystem.setEntropyFactor(community1, 0.5e18);
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("DEFAULT");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 10;
-        
+
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Default: 10 + 10 = 20, with 0.5x factor = 10
         assertEq(score, 10);
     }
@@ -268,22 +282,22 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setRule(keccak256("RULE1"), 10, 1, 50, "Rule 1");
         repSystem.setRule(keccak256("RULE2"), 20, 2, 100, "Rule 2");
         vm.stopPrank();
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](2);
         ruleIds[0][0] = keccak256("RULE1");
         ruleIds[0][1] = keccak256("RULE2");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](2);
         activities[0][0] = 5;
         activities[0][1] = 10;
-        
+
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // RULE1: 10 + 5*1 = 15
         // RULE2: 20 + 10*2 = 40
         // Total: 55
@@ -293,28 +307,28 @@ contract ReputationSystem_Complete_Test is Test {
     function test_ComputeScore_MultipleCommunities() public {
         vm.prank(community1);
         repSystem.setRule(keccak256("RULE1"), 10, 1, 50, "Rule 1");
-        
+
         vm.prank(admin);
         repSystem.setRule(keccak256("RULE2"), 20, 2, 100, "Rule 2");
-        
+
         address[] memory communities = new address[](2);
         communities[0] = community1;
         communities[1] = admin;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](2);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("RULE1");
         ruleIds[1] = new bytes32[](1);
         ruleIds[1][0] = keccak256("RULE2");
-        
+
         uint256[][] memory activities = new uint256[][](2);
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
         activities[1] = new uint256[](1);
         activities[1][0] = 10;
-        
+
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Community1: 10 + 5 = 15
         // Admin: 20 + 20 = 40
         // Total: 55
@@ -325,26 +339,26 @@ contract ReputationSystem_Complete_Test is Test {
         // Set NFT boost
         vm.prank(admin);
         repSystem.setNFTBoost(address(nft1), 50);
-        
+
         // Mint NFT to user
         nft1.mint(user1, 1);
         vm.prank(user1);
         repSystem.updateNFTHoldStart(address(nft1));
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("DEFAULT");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
-        
+
         vm.warp(block.timestamp + 8 days);
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Base score: 15 (base 10 + 5 bonus), NFT boost: 50, Total: 65
         assertEq(score, 65);
     }
@@ -354,7 +368,7 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setNFTBoost(address(nft1), 50);
         repSystem.setNFTBoost(address(nft2), 100);
         vm.stopPrank();
-        
+
         // Mint both NFTs to user
         nft1.mint(user1, 1);
         nft2.mint(user1, 1);
@@ -362,21 +376,21 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.updateNFTHoldStart(address(nft1));
         repSystem.updateNFTHoldStart(address(nft2));
         vm.stopPrank();
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("DEFAULT");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
-        
+
         vm.warp(block.timestamp + 8 days);
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Base: 15 (base 10 + 5 bonus), NFT1: 50, NFT2: 100, Total: 165
         assertEq(score, 165);
     }
@@ -384,20 +398,20 @@ contract ReputationSystem_Complete_Test is Test {
     function test_ComputeScore_MaxBonusCap() public {
         vm.prank(community1);
         repSystem.setRule(keccak256("CAPPED"), 10, 5, 20, "Capped Rule");
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("CAPPED");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 100; // Very high activity
-        
+
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
-        
+
         // Base: 10, Bonus: min(100*5, 20) = 20, Total: 30
         assertEq(score, 30);
     }
@@ -409,18 +423,18 @@ contract ReputationSystem_Complete_Test is Test {
     function test_SyncToRegistry_Success() public {
         vm.prank(admin);
         repSystem.setEntropyFactor(community1, 1e18);
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("DEFAULT");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 5;
-        
+
         // Mock BLS precompile
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
         // P0-1: Registry routes through aggregator → proof now is (signerMask, sigG2).
@@ -428,7 +442,7 @@ contract ReputationSystem_Complete_Test is Test {
 
         vm.prank(address(repSystem));
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 1, proof);
-        
+
         assertEq(registry.globalReputation(user1), 15);
     }
 
@@ -437,23 +451,23 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setEntropyFactor(community1, 1.5e18); // 1.5x multiplier
         repSystem.setNFTBoost(address(nft1), 25);
         vm.stopPrank();
-        
+
         nft1.mint(user1, 1);
-        
+
         vm.prank(community1);
         repSystem.setRule(keccak256("PREMIUM"), 30, 4, 200, "Premium");
-        
+
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("PREMIUM");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 10;
-        
+
         // Mock BLS
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
         // P0-1: Registry routes through aggregator → proof now is (signerMask, sigG2).
@@ -461,7 +475,7 @@ contract ReputationSystem_Complete_Test is Test {
 
         vm.prank(address(repSystem));
         repSystem.syncToRegistry(user1, communities, ruleIds, activities, 2, proof);
-        
+
         // Computed: Base: 30 + 10*4 = 70, with 1.5x = 105, NFT: 25, Total: 130
         // But maxChange=100 limits the update to 100
         assertEq(registry.globalReputation(user1), 100);
@@ -477,28 +491,28 @@ contract ReputationSystem_Complete_Test is Test {
         repSystem.setEntropyFactor(community1, 1.2e18);
         repSystem.setNFTBoost(address(nft1), 30);
         vm.stopPrank();
-        
+
         // 2. Community sets rules
         vm.prank(community1);
         repSystem.setRule(keccak256("ACTIVE"), 15, 2, 100, "Active Member");
-        
+
         // 3. User earns NFT
         nft1.mint(user1, 1);
         vm.prank(user1);
         repSystem.updateNFTHoldStart(address(nft1));
-        
+
         // 4. Compute and sync reputation
         address[] memory communities = new address[](1);
         communities[0] = community1;
-        
+
         bytes32[][] memory ruleIds = new bytes32[][](1);
         ruleIds[0] = new bytes32[](1);
         ruleIds[0][0] = keccak256("ACTIVE");
-        
+
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
         activities[0][0] = 20;
-        
+
         // Mock BLS
         vm.mockCall(address(0x11), "", abi.encode(uint256(1)));
         // P0-1: Registry routes through aggregator → proof now is (signerMask, sigG2).
@@ -574,6 +588,68 @@ contract ReputationSystem_Complete_Test is Test {
     }
 
     /// @notice Updating an existing rule does NOT push a duplicate into communityActiveRules
+    function test_L1_DisabledRuleHistoryDoesNotGrowReadGas() public {
+        vm.prank(community1);
+        repSystem.setRule(bytes32(0), 10, 0, 0, "active");
+        _ruleReadGas(); // Warm the same view state before both measurements.
+        uint256 beforeGas = _ruleReadGas();
+        vm.startPrank(community1);
+        for (uint256 i = 1; i <= 200; ++i) {
+            repSystem.setRule(bytes32(i), 10, 0, 0, "on");
+            repSystem.setRule(bytes32(i), 0, 0, 0, "off");
+        }
+        vm.stopPrank();
+        uint256 afterGas = _ruleReadGas();
+        emit log_named_uint("L1 read gas before history", beforeGas);
+        emit log_named_uint("L1 read gas after 200 disabled rules", afterGas);
+        assertLt(afterGas, beforeGas + 2_000, "L1: disabled rule history grows read gas");
+    }
+
+    function _ruleReadGas() internal returns (uint256 used) {
+        uint256 start = gasleft();
+        bytes32[] memory rules = repSystem.getActiveRules(community1);
+        (uint256 score,) = repSystem.calculateReputation(user1, community1, 0);
+        (uint256 base, uint256 nft, uint256 activity,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        used = start - gasleft();
+        assertEq(rules.length, 1, "only the live rule is listed");
+        assertEq(score, 10);
+        assertEq(base + nft + activity, score, "breakdown equals score after rule churn");
+    }
+
+    function test_Version() public view {
+        assertEq(repSystem.version(), "Reputation-0.6.0");
+    }
+
+    function test_ActiveRules_SwapRemovalReenableAndCommunityIsolation() public {
+        vm.startPrank(community1);
+        repSystem.setRule(bytes32(0), 10, 0, 0, "first");
+        repSystem.setRule(bytes32(uint256(1)), 20, 0, 0, "middle");
+        repSystem.setRule(bytes32(uint256(2)), 30, 0, 0, "last");
+        repSystem.setRule(bytes32(uint256(1)), 0, 0, 0, "remove middle");
+        repSystem.setRule(bytes32(uint256(2)), 0, 0, 0, "remove moved last");
+        repSystem.setRule(bytes32(uint256(1)), 20, 0, 0, "reenable");
+        repSystem.setRule(bytes32(uint256(1)), 20, 0, 0, "update");
+        repSystem.setRule(bytes32(uint256(9)), 0, 0, 0, "disabled on first write");
+        vm.stopPrank();
+        bytes32[] memory active = repSystem.getActiveRules(community1);
+        assertEq(active.length, 2, "active rules listed exactly once");
+        assertEq(active[0], bytes32(0));
+        assertEq(active[1], bytes32(uint256(1)));
+        (uint256 score,) = repSystem.calculateReputation(user1, community1, 0);
+        (uint256 base, uint256 nft, uint256 activity,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(score, 30);
+        assertEq(base + nft + activity, score);
+        assertEq(repSystem.getActiveRules(community2).length, 0, "community sets are independent");
+        vm.startPrank(community1);
+        repSystem.setRule(bytes32(0), 0, 0, 0, "remove first");
+        repSystem.setRule(bytes32(uint256(1)), 0, 0, 0, "remove only");
+        repSystem.setRule(bytes32(uint256(1)), 0, 0, 0, "remove again");
+        vm.stopPrank();
+        assertEq(repSystem.getActiveRules(community1).length, 0);
+        (score,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(score, 0);
+    }
+
     function test_SetRule_UpdateExistingDoesNotDuplicate() public {
         bytes32 rid = keccak256("STABLE");
         vm.startPrank(community1);
@@ -587,6 +663,28 @@ contract ReputationSystem_Complete_Test is Test {
         assertEq(active[0], rid);
     }
 
+    function test_SetRule_ZeroDisableReenableDoesNotDuplicate() public {
+        bytes32 rid = keccak256("TOGGLE");
+        vm.prank(community1);
+        repSystem.setRule(rid, 10, 0, 0, "on");
+
+        (uint256 communityScore,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(communityScore, 10, "enabled rule scores");
+
+        vm.prank(community1);
+        repSystem.setRule(rid, 0, 0, 0, "off");
+        (communityScore,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(communityScore, 0, "disabled rule must not fall back to default");
+
+        vm.prank(community1);
+        repSystem.setRule(rid, 10, 0, 0, "on again");
+
+        bytes32[] memory active = repSystem.getActiveRules(community1);
+        assertEq(active.length, 1);
+        (communityScore,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(communityScore, 10, "re-enabled rule scores again");
+    }
+
     // ---- setNFTBoost bound checks ----
 
     function test_SetNFTBoost_ZeroAddress_Reverts() public {
@@ -598,8 +696,8 @@ contract ReputationSystem_Complete_Test is Test {
     function test_SetNFTBoost_UpdateExistingDoesNotPush() public {
         vm.startPrank(admin);
         repSystem.setNFTBoost(address(nft1), 10);
-        repSystem.setNFTBoost(address(nft1), 50);  // update
-        repSystem.setNFTBoost(address(nft1), 99);  // update again
+        repSystem.setNFTBoost(address(nft1), 50); // update
+        repSystem.setNFTBoost(address(nft1), 99); // update again
         vm.stopPrank();
 
         // boostedCollections should have exactly 1 entry for nft1
@@ -625,7 +723,8 @@ contract ReputationSystem_Complete_Test is Test {
 
     function test_ComputeScore_InvalidInput_RuleIdsLengthMismatch() public {
         address[] memory communities = new address[](2);
-        communities[0] = community1; communities[1] = community2;
+        communities[0] = community1;
+        communities[1] = community2;
         bytes32[][] memory ruleIds = new bytes32[][](1); // wrong length
         ruleIds[0] = new bytes32[](0);
         uint256[][] memory activities = new uint256[][](2);
@@ -638,15 +737,60 @@ contract ReputationSystem_Complete_Test is Test {
 
     function test_ComputeScore_InvalidInput_ActivitiesLengthMismatch() public {
         address[] memory communities = new address[](2);
-        communities[0] = community1; communities[1] = community2;
+        communities[0] = community1;
+        communities[1] = community2;
         bytes32[][] memory ruleIds = new bytes32[][](2);
         ruleIds[0] = new bytes32[](0);
         ruleIds[1] = new bytes32[](0);
-        uint256[][] memory activities = new uint256[][](1);  // wrong length
+        uint256[][] memory activities = new uint256[][](1); // wrong length
         activities[0] = new uint256[](0);
 
         vm.expectRevert(ReputationSystem.InvalidInput.selector);
         repSystem.computeScore(user1, communities, ruleIds, activities);
+    }
+
+    function test_ComputeScore_InvalidInput_InnerActivitiesLengthMismatch() public {
+        address[] memory communities = new address[](2);
+        communities[0] = community1;
+        communities[1] = community2;
+        bytes32[][] memory ruleIds = new bytes32[][](2);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[1] = new bytes32[](1);
+        uint256[][] memory activities = new uint256[][](2);
+        activities[0] = new uint256[](1);
+        activities[1] = new uint256[](0); // A later row is short despite valid outer lengths.
+
+        vm.expectRevert(ReputationSystem.InvalidInput.selector);
+        repSystem.computeScore(user1, communities, ruleIds, activities);
+        activities[1] = new uint256[](2); // Extra activity entries are invalid too.
+        vm.expectRevert(ReputationSystem.InvalidInput.selector);
+        repSystem.computeScore(user1, communities, ruleIds, activities);
+
+        activities[1] = new uint256[](1);
+        assertEq(repSystem.computeScore(user1, communities, ruleIds, activities), 20);
+    }
+
+    function test_ComputeScore_InvalidInput_DisabledRuleStillRequiresActivityEntry() public {
+        bytes32 rule = keccak256("disabled");
+        vm.prank(community1);
+        repSystem.setRule(rule, 0, 0, 0, "disabled");
+        address[] memory communities = new address[](1);
+        communities[0] = community1;
+        bytes32[][] memory ruleIds = new bytes32[][](1);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[0][0] = rule;
+        uint256[][] memory activities = new uint256[][](1);
+        activities[0] = new uint256[](0);
+        vm.expectRevert(ReputationSystem.InvalidInput.selector);
+        repSystem.computeScore(user1, communities, ruleIds, activities);
+
+        activities[0] = new uint256[](1);
+        uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community1, 0);
+        (uint256 base, uint256 nft, uint256 activity,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(score, 0);
+        assertEq(calculated, score);
+        assertEq(base + nft + activity, score);
     }
 
     /// @notice NFT boost ignored if user has not called updateNFTHoldStart
@@ -732,7 +876,7 @@ contract ReputationSystem_Complete_Test is Test {
         ruleIds[0][0] = keccak256("CAP");
         uint256[][] memory activities = new uint256[][](1);
         activities[0] = new uint256[](1);
-        activities[0][0] = 100;  // 100 * 5 = 500, capped to 30
+        activities[0][0] = 100; // 100 * 5 = 500, capped to 30
 
         uint256 score = repSystem.computeScore(user1, communities, ruleIds, activities);
         // base 10 + capped bonus 30 = 40
@@ -757,20 +901,20 @@ contract ReputationSystem_Complete_Test is Test {
 
         (uint256 communityScore, uint256 globalScore) = repSystem.calculateReputation(user1, community1, 0);
         assertEq(communityScore, 30);
-        assertEq(globalScore, 30);  // simplification: global == community
+        assertEq(globalScore, 30); // simplification: global == community
     }
 
     // ---- getReputationBreakdown ----
 
-    function test_GetReputationBreakdown_NoRules_UsesDefault() public {
-        (uint256 defBase, uint256 defActivity, , ) = repSystem.defaultRule();
-
+    function test_GetReputationBreakdown_NoRules_MatchesCalculatedScore() public {
         (uint256 baseScore, uint256 nftBonus, uint256 activityBonus, uint256 multiplier) =
             repSystem.getReputationBreakdown(user1, community2, 0);
-        assertEq(baseScore, defBase, "default base");
-        assertEq(activityBonus, defActivity, "default activity");
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community2, 0);
+        assertEq(baseScore, 0, "no active-rule base");
+        assertEq(activityBonus, 0, "calculateReputation supplies zero activities");
         assertEq(multiplier, 1e18, "default multiplier 1.0");
         assertEq(nftBonus, 0, "no NFT held");
+        assertEq(baseScore + activityBonus + nftBonus, calculated);
     }
 
     function test_GetReputationBreakdown_WithRulesAndEntropy() public {
@@ -779,11 +923,72 @@ contract ReputationSystem_Complete_Test is Test {
         vm.prank(admin);
         repSystem.setEntropyFactor(community1, 1.5e18);
 
-        (uint256 baseScore, , uint256 activityBonus, uint256 multiplier) =
+        (uint256 baseScore,, uint256 activityBonus, uint256 multiplier) =
             repSystem.getReputationBreakdown(user1, community1, 0);
-        assertEq(baseScore, 50);
-        assertEq(activityBonus, 5);
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(baseScore, 75);
+        assertEq(activityBonus, 0);
         assertEq(multiplier, 1.5e18);
+        assertEq(baseScore + activityBonus, calculated);
+    }
+
+    function test_GetReputationBreakdown_TwoActiveRulesMatchesCalculatedScore() public {
+        vm.startPrank(community1);
+        repSystem.setRule(keccak256("R50"), 50, 5, 1000, "fifty");
+        repSystem.setRule(keccak256("R70"), 70, 7, 1000, "seventy");
+        vm.stopPrank();
+
+        (uint256 baseScore, uint256 nftBonus, uint256 activityBonus,) =
+            repSystem.getReputationBreakdown(user1, community1, 0);
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(baseScore, 120);
+        assertEq(calculated, 120);
+        assertEq(baseScore + activityBonus + nftBonus, calculated);
+    }
+
+    function test_GetReputationBreakdown_SkipsDisabledRule() public {
+        bytes32 ruleA = keccak256("A");
+        bytes32 ruleB = keccak256("B");
+        vm.startPrank(community1);
+        repSystem.setRule(ruleA, 50, 5, 1000, "a");
+        repSystem.setRule(ruleA, 0, 0, 0, "a disabled");
+        repSystem.setRule(ruleB, 70, 7, 1000, "b");
+        vm.stopPrank();
+
+        bytes32[] memory activeRules = repSystem.getActiveRules(community1);
+        assertEq(activeRules.length, 1);
+        assertEq(activeRules[0], ruleB);
+
+        (uint256 baseScore,, uint256 activityBonus,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community1, 0);
+        assertEq(baseScore, 70);
+        assertEq(activityBonus, 0);
+        assertEq(baseScore + activityBonus, calculated);
+    }
+
+    function test_GetReputationBreakdown_AllRulesDisabledMatchesScore() public {
+        bytes32 ruleA = keccak256("A");
+        vm.startPrank(community1);
+        repSystem.setRule(ruleA, 50, 5, 1000, "a");
+        repSystem.setRule(ruleA, 0, 0, 0, "a disabled");
+        vm.stopPrank();
+
+        bytes32[] memory activeRules = repSystem.getActiveRules(community1);
+        assertEq(activeRules.length, 0);
+
+        (uint256 baseScore,, uint256 activityBonus,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(baseScore, 0);
+        assertEq(activityBonus, 0);
+
+        address[] memory communities = new address[](1);
+        communities[0] = community1;
+        bytes32[][] memory ruleIds = new bytes32[][](1);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[0][0] = ruleA;
+        uint256[][] memory activities = new uint256[][](1);
+        activities[0] = new uint256[](1);
+        activities[0][0] = 10;
+        assertEq(repSystem.computeScore(user1, communities, ruleIds, activities), baseScore + activityBonus);
     }
 
     function test_GetReputationBreakdown_NFTBonusAccumulates() public {
@@ -794,9 +999,35 @@ contract ReputationSystem_Complete_Test is Test {
         nft1.mint(user1, 1);
         nft2.mint(user1, 2);
 
-        (, uint256 nftBonus, , ) = repSystem.getReputationBreakdown(user1, community1, 0);
+        vm.startPrank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
+        repSystem.updateNFTHoldStart(address(nft2));
+        vm.stopPrank();
+        vm.warp(block.timestamp + 7 days);
+
+        (uint256 baseScore, uint256 nftBonus, uint256 activityBonus,) =
+            repSystem.getReputationBreakdown(user1, community1, 0);
+        (uint256 calculated,) = repSystem.calculateReputation(user1, community1, 0);
         // 30 + 70 = 100
         assertEq(nftBonus, 100);
+        assertEq(baseScore + activityBonus + nftBonus, calculated);
+    }
+
+    function test_NFTBoostEligibility_BoundaryMatchesBreakdown() public {
+        vm.prank(admin);
+        repSystem.setNFTBoost(address(nft1), 30);
+        nft1.mint(user1, 1);
+        vm.prank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
+        uint256 registeredAt = block.timestamp;
+
+        vm.warp(registeredAt + 7 days - 1);
+        (, uint256 beforeBonus,,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(beforeBonus, 0);
+
+        vm.warp(registeredAt + 7 days);
+        (, uint256 atBoundary,,) = repSystem.getReputationBreakdown(user1, community1, 0);
+        assertEq(atBoundary, 30);
     }
 
     function test_GetReputationBreakdown_BuggyNFT_IsCaught() public {
@@ -806,7 +1037,7 @@ contract ReputationSystem_Complete_Test is Test {
         vm.prank(admin);
         repSystem.setNFTBoost(address(buggy), 50);
 
-        (, uint256 nftBonus, , ) = repSystem.getReputationBreakdown(user1, community1, 0);
+        (, uint256 nftBonus,,) = repSystem.getReputationBreakdown(user1, community1, 0);
         // Buggy NFT contributed 0 (catch branch hit)
         assertEq(nftBonus, 0);
     }
@@ -828,6 +1059,15 @@ contract ReputationSystem_Complete_Test is Test {
         assertEq(rules.length, 2);
         assertEq(rules[0], keccak256("A"));
         assertEq(rules[1], keccak256("B"));
+    }
+
+    function test_GetActiveRules_NewZeroBaseRuleIsInactive() public {
+        bytes32 ruleId = keccak256("ZERO");
+        vm.prank(community1);
+        repSystem.setRule(ruleId, 0, 9, 100, "disabled at creation");
+
+        bytes32[] memory rules = repSystem.getActiveRules(community1);
+        assertEq(rules.length, 0);
     }
 
     // ---- updateNFTHoldStart ----
@@ -865,6 +1105,66 @@ contract ReputationSystem_Complete_Test is Test {
             firstWrite,
             "anti-reset: subsequent call must not overwrite earlier holdStart"
         );
+    }
+
+    function test_ResetNFTHoldStart_SellResetRebuyRestartsWait() public {
+        vm.prank(admin);
+        repSystem.setNFTBoost(address(nft1), 50);
+        nft1.mint(user1, 1);
+
+        vm.prank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
+        uint256 firstStart = block.timestamp;
+        vm.warp(firstStart + 8 days);
+
+        vm.prank(user1);
+        nft1.transferFrom(user1, user2, 1);
+        vm.expectEmit(true, true, false, false, address(repSystem));
+        emit ReputationSystem.NFTHoldStartReset(user1, address(nft1));
+        vm.prank(user2);
+        repSystem.resetNFTHoldStart(user1, address(nft1));
+        assertEq(repSystem.nftHoldStart(user1, address(nft1)), 0);
+
+        vm.prank(user2);
+        nft1.transferFrom(user2, user1, 1);
+        vm.prank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
+        uint256 secondStart = block.timestamp;
+        assertEq(repSystem.nftHoldStart(user1, address(nft1)), secondStart);
+
+        address[] memory communities = new address[](1);
+        communities[0] = community1;
+        bytes32[][] memory ruleIds = new bytes32[][](1);
+        ruleIds[0] = new bytes32[](1);
+        ruleIds[0][0] = keccak256("ANY");
+        uint256[][] memory activities = new uint256[][](1);
+        activities[0] = new uint256[](1);
+
+        assertEq(repSystem.computeScore(user1, communities, ruleIds, activities), 10);
+        vm.warp(secondStart + 7 days - 1);
+        assertEq(repSystem.computeScore(user1, communities, ruleIds, activities), 10);
+        vm.warp(secondStart + 7 days);
+        assertEq(repSystem.computeScore(user1, communities, ruleIds, activities), 60);
+    }
+
+    function test_ResetNFTHoldStart_WhileHoldingReverts() public {
+        nft1.mint(user1, 1);
+        vm.prank(user1);
+        repSystem.updateNFTHoldStart(address(nft1));
+        uint256 holdStart = repSystem.nftHoldStart(user1, address(nft1));
+
+        vm.expectRevert(ReputationSystem.StillHoldsNFT.selector);
+        repSystem.resetNFTHoldStart(user1, address(nft1));
+        assertEq(repSystem.nftHoldStart(user1, address(nft1)), holdStart);
+    }
+
+    function test_ResetNFTHoldStart_AlreadyZeroIsSilentNoOp() public {
+        assertEq(repSystem.nftHoldStart(user1, address(nft1)), 0);
+        vm.recordLogs();
+        repSystem.resetNFTHoldStart(user1, address(nft1));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 0);
+        assertEq(repSystem.nftHoldStart(user1, address(nft1)), 0);
     }
 
     function test_UpdateNFTHoldStart_InvalidCollection_Reverts() public {
