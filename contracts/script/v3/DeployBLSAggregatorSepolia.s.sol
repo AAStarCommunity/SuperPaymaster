@@ -46,6 +46,9 @@ contract DeployBLSAggregatorSepolia is Script {
     address constant STAKING         = 0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e;
 
     function run() external {
+        // Retired for rc.8 (DSR 2026-11-15): it authorizes the aggregator as a GToken staking slasher,
+        // which 5.5.0 does not grant; rc.8 deploys BLS/DVT through the manifest (A7.dvt/A7).
+        revert("DeployBLSAggregatorSepolia: retired for rc.8; rc.8 deploys BLS/DVT through the manifest (A7.dvt/A7)");
         // Hardcoded Sepolia addresses — fail closed on any other chain.
         require(block.chainid == 11155111, "not Sepolia (11155111)");
         uint256 pk = vm.envUint("PRIVATE_KEY_JASON");
@@ -62,7 +65,7 @@ contract DeployBLSAggregatorSepolia is Script {
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, address(dvt));
         dvt.setBLSAggregator(address(agg));
         require(
-            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.14.0"),
+            keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.14.1"),
             "unexpected version - build the A-prime branch"
         );
 

@@ -207,6 +207,9 @@ interface ITimelockBatch {
  */
 contract UpgradeRegistryTo580 is Script {
     function run() external {
+        // Retired for rc.8 (DSR 2026-11-15): it authorizes the aggregator as a GToken staking slasher,
+        // which 5.5.0 does not grant; rc.8 upgrades Registry through the manifest (A6/A9).
+        revert("UpgradeRegistryTo580: retired for rc.8; rc.8 upgrades Registry through the manifest (A6/A9)");
         address proxy = vm.envAddress("REGISTRY_PROXY");
         address newAggregator = vm.envAddress("NEW_BLS_AGGREGATOR");
         uint256 perProposalCap = vm.envUint("CREDIT_PER_PROPOSAL_CAP");

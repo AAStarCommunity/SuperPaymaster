@@ -12,7 +12,7 @@ contract ReviewedBundle is Test {
         assembly { deployed := create(0, add(code, 32), mload(code)) }
         assertTrue(deployed != address(0), "published bytecode must deploy");
         BLSAggregator packaged = BLSAggregator(deployed);
-        assertEq(packaged.version(), "BLSAggregator-4.14.0");
+        assertEq(packaged.version(), "BLSAggregator-4.14.1");
         BLS.G1Point memory key;
         BLS.G2Point memory pop;
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnauthorizedCaller.selector, address(this)));

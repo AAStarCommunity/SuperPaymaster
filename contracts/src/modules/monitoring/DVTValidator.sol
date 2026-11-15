@@ -149,7 +149,7 @@ contract DVTValidator is Ownable, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.8.0";
+        return "DVTValidator-0.8.1";
     }
 
     /// @notice Next allocatable ID, including one read of the retained aggregator's floor.

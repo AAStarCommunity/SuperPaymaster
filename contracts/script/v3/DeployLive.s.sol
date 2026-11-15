@@ -382,7 +382,17 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         // ── Step 5: Registry ↔ core modules ────────────────────────────────────
         require(registry.SUPER_PAYMASTER() == address(superPaymaster), "wire: registry.setSuperPaymaster");
-        require(registry.isReputationSource(address(repSystem)), "wire: registry.setReputationSource");
+        // Complete reputation-source set, same expectation as the Sepolia manifest (step 13):
+        // exactly ReputationSystem and the aggregator; every other deployed address is not one.
+        require(registry.isReputationSource(address(repSystem)), "wire: registry.setReputationSource(repSystem)");
+        require(registry.isReputationSource(address(aggregator)), "wire: registry.setReputationSource(aggregator)");
+        address[8] memory notSources = [
+            deployer, address(superPaymaster), address(dvt), address(staking),
+            address(mysbt), address(gtoken), address(xpntsFactory), address(registry)
+        ];
+        for (uint256 i; i < notSources.length; ++i) {
+            require(!registry.isReputationSource(notSources[i]), "wire: unexpected reputation source");
+        }
         require(registry.blsAggregator() == address(aggregator), "wire: registry.setBLSAggregator");
 
         // ── Step 5: DVT / BLS cross-wiring ─────────────────────────────────────
@@ -416,6 +426,9 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
     function _executeWiring() internal {
         registry.setSuperPaymaster(address(superPaymaster));
         registry.setReputationSource(address(repSystem), true);
+        // The aggregator's verifyAndExecute reputation branch (floor-checked) needs it; the
+        // generic path can no longer reach batchUpdateGlobalReputation (H-1 denylist).
+        registry.setReputationSource(address(aggregator), true);
         registry.setBLSAggregator(address(aggregator));
         dvt.setBLSAggregator(address(aggregator));
         aggregator.setDVTValidator(address(dvt));

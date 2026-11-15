@@ -45,6 +45,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
     Registry private registry;
     GTokenAuthorization private gtoken;
     GTokenStaking private staking;
+    address private stakingDeployedHere; // set only where this run deploys GTokenStaking
     MySBT private mysbt;
     xPNTsFactory private xpntsFactory;
     xPNTsToken private apnts;
@@ -84,6 +85,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         );
         staking =
             GTokenStaking(_deployDefault("GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))));
+        stakingDeployedHere = address(staking);
         mysbt =
             MySBT(_deployDefault("MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)));
 
@@ -146,6 +148,12 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         apnts.setSuperPaymasterAddress(address(superPaymaster));
         _wireSPFactory(address(superPaymaster), v55.factory); // 5.5.0 runbook step 6
         superPaymaster.initBLSAggregator(address(blsAggregator));
+        // Slasher-policy exception (coverage script SLASHER_EXCEPTIONS, DSR 2026-11-15): this isolated
+        // evidence stack's aggregator holds the staking slasher role for guardian-slash experiments, so on
+        // this stack the #631 H-1 denylist is the only defence on the generic path. The role may only ever
+        // be granted on the staking contract THIS run deployed, never on an existing (5.5.0 production) one.
+        require(stakingDeployedHere != address(0) && address(staking) == stakingDeployedHere,
+            "RepCredit: slasher grant only on the staking deployed by this run");
         staking.setAuthorizedSlasher(address(blsAggregator), true);
         superPaymaster.setAgentRegistries(address(agentIdentityRegistry), address(agentReputationRegistry));
 
@@ -180,7 +188,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         // the wiring. A wrong build or a Registry/aggregator pair whose separators cannot
         // agree produces a stack that looks wired and verifies nothing.
         require(
-            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.14.0"),
+            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.14.1"),
             "BLSAggregator is not 4.14.0"
         );
         require(_strEq(superPaymaster.version(), SP_V55_VERSION), "SuperPaymaster is not 5.5.0");

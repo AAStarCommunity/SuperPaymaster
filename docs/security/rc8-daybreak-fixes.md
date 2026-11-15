@@ -852,7 +852,10 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 
 **Fixes**
 - The H-1 denylist now also blocks `batchUpdateGlobalReputation`, `slash` and `slashByDVT`.
-  BLSAggregator is 24,529 B.
+  BLSAggregator is 24,529 B (47 B headroom). Per-selector blocking is close to full: 5.5.x should
+  move to a per-target allowlist, or move the gates into the callees.
+- Versions are BLSAggregator-4.14.1 and DVTValidator-0.8.1. The 4.14.0 / 0.8.0 merged in #630
+  carries the gaps above.
 - `scripts/check_generic_selector_coverage.py` (CI, every PR) enumerates every non-view function in
   the SuperPaymaster, Registry, GTokenStaking and DVTValidator ABIs. Each function whose code
   references an aggregator identity must be classified as blocked or allowed-with-reason.
@@ -871,3 +874,17 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 - `Registry.updateOperatorBlacklist` stays generic-callable. A pre-rotation proof for the next unused
   `blacklistNonce` remains valid. Its effect is limited to blocking or unblocking users; it moves no
   funds.
+- `SP.updatePriceDVT` stays generic-callable. Each update is limited to +-20% against the SP cache.
+  The +-20% Chainlink band applies only while Chainlink is fresh (< 2 h). With a stale feed, cumulative
+  drift is bounded only by `[MIN, MAX]_ETH_USD_PRICE`, freshness and increasing `updatedAt`.
+- `ReputationSystem.setCommunityReputation` stays generic-callable (#631 review L1). It is open to
+  any Registry reputation source, and the aggregator is one on both chains. The current quorum can
+  therefore write any community score at `minThreshold`, with no proof.
+  - `communityReputations` has no reader in `contracts/src`. The coverage script fails if one is
+    added; that is the reopen condition.
+  - The SDK exposes the value only as a raw getter, documented as unused by the protocol.
+- The generic path can call `transfer` / `approve` on any token the aggregator holds. The aggregator
+  must hold no assets; step 13 reads its GToken, aPNTs, xPNTs and ETH balances back as 0.
+- Every "onlyOwner; the aggregator is not the owner" allowance holds only while the aggregator owns
+  nothing and holds no role. This is enforced by the coverage script's deploy-path ownership check
+  and by the step-13 readbacks OWNER-NOT-AGGREGATOR and AGG-NOT-DVT-VALIDATOR.
