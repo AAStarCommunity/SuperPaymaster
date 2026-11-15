@@ -1,4 +1,4 @@
-// Runbook step 0 (D5.3): inventory of the live SP before the 5.5.0 upgrade. READ-ONLY.
+// Runbook step 0 (D5.3): inventory of SP logs across upgrades. READ-ONLY.
 // Scans SP logs on TWO independent endpoints and cross-checks (completeness cannot be inferred
 // from returned data — a missing range looks exactly like an empty one). Every hit is then
 // read back against live state (positive control for the event selectors).
@@ -23,8 +23,15 @@ const EVENTS = {
     APNTsTokenChangeQueued: parseAbiItem("event APNTsTokenChangeQueued(address indexed pendingToken, uint256 eta)"),
     APNTsTokenChangeCancelled: parseAbiItem("event APNTsTokenChangeCancelled(address indexed pendingToken)"),
     APNTsTokenChangeExecuted: parseAbiItem("event APNTsTokenChangeExecuted(address indexed oldToken, address indexed newToken, uint256 executedAt)"),
-    OperatorPaused: parseAbiItem("event OperatorPaused(address indexed operator)"),
-    OperatorUnpaused: parseAbiItem("event OperatorUnpaused(address indexed operator)"),
+    // The same proxy emits 5.4.2 and 5.5.2 logs; merge both generations under the existing keys.
+    OperatorPaused: [
+        parseAbiItem("event OperatorPaused(address indexed operator)"),
+        parseAbiItem("event OperatorPaused(address indexed operator, address indexed by, uint8 reason)"),
+    ],
+    OperatorUnpaused: [
+        parseAbiItem("event OperatorUnpaused(address indexed operator)"),
+        parseAbiItem("event OperatorUnpaused(address indexed operator, address indexed by, uint8 reason)"),
+    ],
 };
 const SP_ABI = [
     { type: "function", name: "operators", stateMutability: "view", inputs: [{ type: "address" }], outputs: [
@@ -61,7 +68,7 @@ async function scan(c, from, to) {
     for (let start = from; start <= to;) {
         const end = start + step - 1n > to ? to : start + step - 1n;
         try {
-            const logs = await c.getLogs({ address: SP, events: Object.values(EVENTS), fromBlock: start, toBlock: end });
+            const logs = await c.getLogs({ address: SP, events: Object.values(EVENTS).flat(), fromBlock: start, toBlock: end });
             for (const l of logs) out[l.eventName].push({ block: Number(l.blockNumber), tx: l.transactionHash, logIndex: l.logIndex, args: l.args });
             start = end + 1n;
             if (step < 50_000n) step *= 2n;

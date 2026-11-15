@@ -177,6 +177,28 @@ contract EventAttributionTest is Test {
         vm.stopPrank();
     }
 
+    function _nonMajorSlashDoesNotPause(ISuperPaymaster.SlashLevel level, uint256 amount, uint256 score) internal {
+        (,, bool paused,,,,,,) = sp.operators(operator);
+        assertFalse(paused, "precondition: unpaused");
+        vm.startPrank(owner);
+        sp.queueSlash(operator);
+        _expectSlash(owner, level, amount, score, false);
+        vm.recordLogs();
+        sp.slashOperator(operator, level, amount, "non-major");
+        vm.stopPrank();
+        _assertNoPauseEvent();
+        (,, paused,,,,,,) = sp.operators(operator);
+        assertFalse(paused, "non-major slash must leave operator unpaused");
+    }
+
+    function test_OwnerWarningSlash_ActiveOperator_NoPause() public {
+        _nonMajorSlashDoesNotPause(ISuperPaymaster.SlashLevel.WARNING, 0, 90);
+    }
+
+    function test_OwnerMinorSlash_ActiveOperator_NoPause() public {
+        _nonMajorSlashDoesNotPause(ISuperPaymaster.SlashLevel.MINOR, 100 ether, 80);
+    }
+
     function test_OwnerMinorSlash_AlreadyPaused_NoPauseReattribution() public {
         vm.startPrank(owner);
         sp.setOperatorPaused(operator, true);
@@ -203,7 +225,7 @@ contract EventAttributionTest is Test {
 
     /// @dev Absence check with a live instrument: the selector must match the declared event.
     function _assertNoPauseEvent() internal {
-        _assertNoEvent(keccak256("OperatorPaused(address,address,uint8)"), "slash must not re-attribute an existing pause");
+        _assertNoEvent(keccak256("OperatorPaused(address,address,uint8)"), "slash must not emit OperatorPaused");
     }
 
     function _assertNoEvent(bytes32 topic, string memory why) internal {
@@ -248,6 +270,24 @@ contract EventAttributionTest is Test {
         _assertNoEvent(keccak256("OperatorUnpaused(address,address,uint8)"), "unpausing an unpaused operator must not emit");
     }
 
+    function test_RandomRepeatPause_RevertsUnauthorized() public {
+        vm.prank(owner);
+        sp.setOperatorPaused(operator, true);
+        (,, bool paused,,,,,,) = sp.operators(operator);
+        assertTrue(paused, "precondition: already paused");
+        vm.prank(random);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
+        sp.setOperatorPaused(operator, true);
+    }
+
+    function test_GuardianRepeatUnpause_RevertsUnauthorized() public {
+        (,, bool paused,,,,,,) = sp.operators(operator);
+        assertFalse(paused, "precondition: already unpaused");
+        vm.prank(guardian);
+        vm.expectRevert(SuperPaymasterStorage.Unauthorized.selector);
+        sp.setOperatorPaused(operator, false);
+    }
+
     function test_BLSMajorSlash_PreservesExternalCaller() public {
         vm.startPrank(bls);
         sp.queueSlash(operator);
@@ -284,10 +324,50 @@ contract EventAttributionTest is Test {
     }
 
     function test_CancelSlash_NoQueue_NoEvent() public {
+        // The queuedAt == 0 guard arm is a documented no-op: current paths set and clear the flag and queue together.
         vm.recordLogs();
         vm.prank(owner);
         sp.cancelSlash(operator);
         _assertNoEvent(keccak256("SlashCancelled(address,address)"), "nothing queued: no SlashCancelled");
+    }
+
+    function test_CancelSlash_LegacyFlagWithoutQueue_ClearsAndUnblocksWithdrawal() public {
+        // forge inspect SuperPaymaster storageLayout: _pendingSlash is mapping(address => bool) at slot 34.
+        bytes32 pendingSlot = keccak256(abi.encode(operator, uint256(34)));
+        assertEq(vm.load(address(sp), pendingSlot), bytes32(0), "precondition: flag clear");
+        vm.startPrank(owner);
+        sp.queueSlash(operator);
+        assertEq(vm.load(address(sp), pendingSlot), bytes32(uint256(1)), "slot must track a real queue");
+        sp.cancelSlash(operator);
+        vm.stopPrank();
+        assertEq(vm.load(address(sp), pendingSlot), bytes32(0), "slot must track a real cancellation");
+
+        vm.store(address(sp), pendingSlot, bytes32(uint256(1)));
+        (address queuedBy, uint48 queuedAt, bool guardianQueued) = sp.slashQueues(operator);
+        assertEq(queuedBy, address(0), "legacy flag has no queue actor");
+        assertEq(queuedAt, 0, "legacy flag has no queue timestamp");
+        assertFalse(guardianQueued, "legacy flag has no guardian queue");
+        assertTrue(sp.isSlashPending(operator), "legacy flag is effective");
+        vm.prank(operator);
+        vm.expectRevert(SuperPaymasterStorage.SlashPending.selector);
+        sp.requestWithdraw(100 ether);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true, address(sp));
+        emit SlashCancelled(operator, owner);
+        sp.cancelSlash(operator);
+        assertEq(vm.load(address(sp), pendingSlot), bytes32(0), "legacy flag cleared");
+        assertFalse(sp.isSlashPending(operator), "withdrawal no longer blocked");
+
+        uint256 balanceBefore = gtoken.balanceOf(operator);
+        vm.prank(operator);
+        sp.requestWithdraw(100 ether);
+        (uint128 amount, uint48 readyAt) = sp.pendingWithdrawals(operator);
+        assertEq(amount, 100 ether, "withdrawal request accepted");
+        vm.warp(readyAt);
+        vm.prank(operator);
+        sp.withdraw(100 ether);
+        assertEq(gtoken.balanceOf(operator), balanceBefore + 100 ether, "withdrawal paid");
     }
 
     function test_CancelSlash_Twice_SecondIsSilent() public {
