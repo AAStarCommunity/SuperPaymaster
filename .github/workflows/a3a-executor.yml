@@ -91,7 +91,7 @@ jobs:
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/evidence/test_a4_mutations.py
       - name: Preserve A4 control records
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: a4-checker-control-records
           path: |
