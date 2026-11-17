@@ -361,6 +361,22 @@ contract DVTValidatorLivenessTest is Test {
         assertFalse(dvt.isValidator(validator1));
     }
 
+    /// @notice rc.8 review L1: owner-forwarded registration requires the SHARED owner, like
+    ///         removeValidator. After the aggregator's ownership moves away, the DVT owner can no
+    ///         longer curate the key set through this gateway.
+    function test_RegisterBLSPublicKey_OwnerDivergenceClosesOwnerPath() public {
+        address newAggOwner = address(0xA2);
+        vm.prank(owner);
+        bls.transferOwnership(newAggOwner); // single-step Ownable
+        assertEq(bls.owner(), newAggOwner, "aggregator owner moved");
+        assertEq(dvt.owner(), owner, "DVT owner unchanged");
+        BLS.G1Point memory key = _stubKey(1);
+        BLS.G2Point memory pop = _pop(bls, validator1, 1); // computed before expectRevert (precompile calls)
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DVTValidator.UnauthorizedCaller.selector, owner));
+        dvt.registerBLSPublicKey(validator1, key, 1, pop);
+    }
+
     function test_RemoveValidator_AtomicallyRevokesBLSVotingPower() public {
         vm.startPrank(owner);
         dvt.registerBLSPublicKey(validator1, _stubKey(1), 1, _pop(bls, validator1, 1));

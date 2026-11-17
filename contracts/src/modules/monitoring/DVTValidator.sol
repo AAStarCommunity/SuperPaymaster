@@ -38,9 +38,9 @@ interface IBLSKeyRegistration {
  * @title DVTValidator
  * @notice Distributed Validator Technology for operator monitoring (V3)
  * @dev Manages slash proposals and coordinates with BLSAggregator.
- *      Its owner must be the same owner as BLSAggregator: checked only by DeployLive and
- *      by removeValidator; a later divergence (transferOwnership on one side) disables
- *      removeValidator, fail-closed.
+ *      Its owner must be the same owner as BLSAggregator: checked by DeployLive, by
+ *      owner-forwarded registerBLSPublicKey and by removeValidator; a later divergence
+ *      (transferOwnership on one side) disables both owner paths, fail-closed.
  *      DVT rotation is an immediate owner operation; verifier rotation retains
  *      BLSAggregator's contract-enforced delay.
  *      Only the aggregator's current DVT can allocate proposal IDs. Each allocation
@@ -224,6 +224,10 @@ contract DVTValidator is Ownable, IVersioned {
                 while (slot <= maxValidators && aggregator.validatorAtSlot(slot) != address(0)) ++slot;
                 if (slot > maxValidators) revert SlotOutOfRange(slot);
             }
+        } else if (aggregator.owner() != msg.sender) {
+            // Owner forwarding needs the SHARED owner, as removeValidator does: if the DVT and
+            // aggregator owners diverge, the DVT owner must not keep curating the key set.
+            revert UnauthorizedCaller(msg.sender);
         }
         aggregator.registerBLSPublicKey(validator, key, slot, pop);
     }

@@ -40,7 +40,9 @@ interface IDVTValidator {
 ///         `roleLocks`) does not surface `slashByDVT`, so we cast the same
 ///         staking pointer to this local interface rather than widening the
 ///         shared interface (which every mock/implementer would then have to
-///         satisfy). The aggregator is already in `authorizedSlashers`.
+///         satisfy). 5.5.0 does NOT put the aggregator in `authorizedSlashers`
+///         (guardian slash is off while fraudProofVerifier == 0); enabling it grants
+///         the role in the same timelock batch as proposeFraudProofVerifier.
 interface IGTokenStakingSlash {
     function slashByDVT(address operator, bytes32 roleId, uint256 penaltyAmount, string calldata reason) external;
 }
@@ -295,19 +297,27 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         );
     }
 
-    /// @notice H-1: slash / consensus-marking selectors the GENERIC executeProposal
-    ///         path may never invoke on any target. The aPNTs burn
-    ///         (executeSlashWithBLS) and proposalId marking (markProposalExecuted)
-    ///         must go through the threshold-checked slash path (verifyAndExecute),
-    ///         and the reversible pre-flag (queueSlash) has its own dedicated
-    ///         quorum-gated entry (queueSlashWithConsensus) — none belong on a
-    ///         caller-chosen-threshold generic `.call`. We do NOT blocklist whole
-    ///         targets: Registry.updateOperatorBlacklist is a legitimate DVT-consensus
-    ///         generic action, and batchUpdateGlobalReputation self-protects via
-    ///         Registry's independent proof re-verification.
+    /// @notice H-1: privileged selectors the GENERIC executeProposal path may never invoke
+    ///         on any target (caller-chosen threshold >= minThreshold, no proposalFloor):
+    ///         - SP queueSlash / executeSlashWithBLS and Registry/DVT markProposalExecuted:
+    ///           slash and id-marking go through verifyAndExecute / queueSlashWithConsensus.
+    ///         - Registry.batchUpdateGlobalReputation: Registry re-verifies the proof but its
+    ///           domain does not change on DVT rotation and it has no floor, so a generic call
+    ///           could execute a pre-rotation reputation proof. Reputation goes through the
+    ///           verifyAndExecute reputation branch, which enforces proposalFloor.
+    ///         - GTokenStaking slash / slashByDVT: an authorized slasher could otherwise burn
+    ///           any stake by any amount, bypassing severity bps, cooldown and floor.
+    ///         Whole targets are NOT blocked: Registry.updateOperatorBlacklist (own proof,
+    ///         defaultThreshold, blacklistNonce) and SP.updatePriceDVT (freshness, ±20% bands)
+    ///         are legitimate generic actions. contracts/test/modules/GenericSelectorCoverage.t.sol
+    ///         classifies every privileged selector reachable from this path.
     bytes4 private constant SEL_QUEUE_SLASH = bytes4(keccak256("queueSlash(address)"));
     bytes4 private constant SEL_EXECUTE_SLASH_BLS = bytes4(keccak256("executeSlashWithBLS(address,uint8,bytes)"));
     bytes4 private constant SEL_MARK_PROPOSAL_EXECUTED = bytes4(keccak256("markProposalExecuted(uint256)"));
+    bytes4 private constant SEL_BATCH_REPUTATION =
+        bytes4(keccak256("batchUpdateGlobalReputation(uint256,address[],uint256[],uint256,bytes)"));
+    bytes4 private constant SEL_STAKING_SLASH = bytes4(keccak256("slash(address,uint256,string)"));
+    bytes4 private constant SEL_STAKING_SLASH_BY_DVT = bytes4(keccak256("slashByDVT(address,bytes32,uint256,string)"));
 
     /// @notice Per-severity slash consensus threshold, keyed by SlashLevel
     ///         (0=WARNING, 1=MINOR, 2=MAJOR). Bootstrap (N=3): 2/3/3. This
@@ -1121,14 +1131,17 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         // SuperPaymaster.queueSlash/executeSlashWithBLS or markProposalExecuted. The
         // fund-moving slash goes through the per-severity threshold in
         // verifyAndExecute; the reversible pre-flag has its own dedicated quorum-gated
-        // entry (queueSlashWithConsensus). Generic execution uses a typed replay key and
-        // never writes a raw id in this contract or in DVTValidator. Residual: a generic
-        // call to Registry.batchUpdateGlobalReputation (selector not blocked; it carries
-        // its own quorum proof) can still consume a raw Registry id, outside proposalFloor.
-        // Selector-scoped (not target-scoped) so Registry.updateOperatorBlacklist still works.
+        // entry (queueSlashWithConsensus). Reputation (floor-checked branch) and the
+        // GTokenStaking slashes are blocked too; see the H-1 constants. Generic execution
+        // uses a typed replay key and never writes a raw id in this contract or in
+        // DVTValidator. Selector-scoped (not target-scoped) so
+        // Registry.updateOperatorBlacklist still works.
         if (callData.length >= 4) {
             bytes4 sel = bytes4(callData[0:4]);
-            if (sel == SEL_QUEUE_SLASH || sel == SEL_EXECUTE_SLASH_BLS || sel == SEL_MARK_PROPOSAL_EXECUTED) {
+            if (
+                sel == SEL_QUEUE_SLASH || sel == SEL_EXECUTE_SLASH_BLS || sel == SEL_MARK_PROPOSAL_EXECUTED
+                    || sel == SEL_BATCH_REPUTATION || sel == SEL_STAKING_SLASH || sel == SEL_STAKING_SLASH_BY_DVT
+            ) {
                 revert ForbiddenGenericSelector(sel);
             }
         }

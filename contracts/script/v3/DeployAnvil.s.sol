@@ -395,8 +395,8 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         // Wire BLSAggregator into SuperPaymaster (Tier 1 slash authorization — one-time, no timelock).
         superPaymaster.initBLSAggregator(address(aggregator));
 
-        // Authorize BLSAggregator as slasher for Tier 2 (GToken governance slash)
-        staking.setAuthorizedSlasher(address(aggregator), true);
+        // 5.5.0 is disclosure-only: mirror DeployLive, the aggregator holds no staking slasher role.
+        require(!staking.authorizedSlashers(address(aggregator)), "DeployAnvil: aggregator must not be a staking slasher");
 
         // Configure auto-approval for aPNTs (already deployed via factory)
         apnts.setSuperPaymasterAddress(address(superPaymaster));
