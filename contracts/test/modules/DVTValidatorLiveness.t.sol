@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Test.sol";
+import {MockEvidenceCategory} from "src/mocks/MockEvidenceCategory.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/interfaces/v3/IRegistry.sol";
@@ -168,7 +169,11 @@ contract DVTValidatorLivenessTest is Test {
         registry.setStakingAddr(address(staking));
         sp = new MockSP();
 
-        dvt = new DVTValidator(address(registry), 1);
+        bytes32[] memory categories = new bytes32[](1);
+        categories[0] = keccak256("test");
+        address[] memory checkers = new address[](1);
+        checkers[0] = address(new MockEvidenceCategory());
+        dvt = new DVTValidator(address(registry), 1, categories, checkers);
         bls = new BLSAggregator(address(registry), address(sp), address(dvt));
         dvt.setBLSAggregator(address(bls));
 
@@ -202,7 +207,7 @@ contract DVTValidatorLivenessTest is Test {
             uint256(0),
             uint256(100)
         ));
-        dvt.createProposal(operator, 1, "post-exit attempt");
+        dvt.createProposal(operator, 1, "post-exit attempt", _evidenceHash());
     }
 
     function test_CreateProposal_RevertsWhen_RoleRevoked() public {
@@ -215,7 +220,7 @@ contract DVTValidatorLivenessTest is Test {
             DVTValidator.ValidatorRoleRevoked.selector,
             validator1
         ));
-        dvt.createProposal(operator, 1, "no role");
+        dvt.createProposal(operator, 1, "no role", _evidenceHash());
     }
 
     function test_CreateProposal_RevertsWhen_NotInLocalSet() public {
@@ -225,13 +230,13 @@ contract DVTValidatorLivenessTest is Test {
             DVTValidator.NotActiveValidator.selector,
             randomUser
         ));
-        dvt.createProposal(operator, 1, "outsider");
+        dvt.createProposal(operator, 1, "outsider", _evidenceHash());
     }
 
     function test_CreateProposal_Succeeds_WhenStillEligible() public {
         // Sanity: the gate does not break the happy path.
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "still eligible");
+        uint256 id = dvt.createProposal(operator, 1, "still eligible", _evidenceHash());
         assertEq(id, 1);
     }
 
@@ -242,7 +247,7 @@ contract DVTValidatorLivenessTest is Test {
     function test_ExecuteWithProof_RevertsWhen_RoleRevoked() public {
         // Validator1 creates a proposal while still eligible.
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "to be executed");
+        uint256 id = dvt.createProposal(operator, 1, "to be executed", _evidenceHash());
 
         // Then loses ROLE_DVT.
         vm.prank(owner);
@@ -256,7 +261,7 @@ contract DVTValidatorLivenessTest is Test {
             DVTValidator.ValidatorRoleRevoked.selector,
             validator1
         ));
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof);
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, _evidence(), dummyProof);
     }
 
     function test_ExecuteWithProof_BLSAggregatorBypassesLivenessGate() public {
@@ -266,14 +271,14 @@ contract DVTValidatorLivenessTest is Test {
         // does NOT revert with NotActiveValidator even when the BLS aggregator
         // is not itself a validator.
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "via aggregator");
+        uint256 id = dvt.createProposal(operator, 1, "via aggregator", _evidenceHash());
 
         // No BLS slots are registered in this fixture. Reaching this exact error
         // proves forwarding crossed the caller-liveness gate into key reconstruction.
         bytes memory dummyProof = abi.encode(uint256(0x7F), abi.encode(BLS.G2Point(0,0,0,0,0,0,0,0)));
         vm.prank(address(bls));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, dummyProof);
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, _evidence(), dummyProof);
     }
 
     // ====================================
@@ -401,6 +406,41 @@ contract DVTValidatorLivenessTest is Test {
         bls.verify(digest, 7, 3, signature);
     }
 
+    function test_AddValidator_EmitsOnFirstAdmissionOnly() public {
+        registry.setHasDvtRole(randomUser, true);
+        staking.setLocked(randomUser, 200);
+        vm.expectEmit(true, false, false, false, address(dvt));
+        emit DVTValidator.ValidatorAdded(randomUser);
+        vm.prank(owner);
+        dvt.addValidator(randomUser);
+        assertTrue(dvt.isValidator(randomUser));
+
+        vm.recordLogs();
+        vm.prank(owner);
+        dvt.addValidator(randomUser);
+        assertEq(vm.getRecordedLogs().length, 0, "re-admission is a no-op and emits nothing");
+    }
+
+    /// @dev A key bound without addValidator must still be revocable through removeValidator.
+    function test_RemoveValidator_RevokesKeyOfNeverAdmittedAddress() public {
+        vm.startPrank(owner);
+        dvt.registerBLSPublicKey(validator1, _stubKey(1), 1, _pop(bls, validator1, 1));
+        dvt.registerBLSPublicKey(validator2, _stubKey(2), 2, _pop(bls, validator2, 2));
+        registry.setHasDvtRole(operator, true);
+        staking.setLocked(operator, 200);
+        dvt.registerBLSPublicKey(operator, _stubKey(3), 3, _pop(bls, operator, 3));
+        registry.setHasDvtRole(randomUser, true);
+        staking.setLocked(randomUser, 200);
+        dvt.registerBLSPublicKey(randomUser, _stubKey(4), 4, _pop(bls, randomUser, 4));
+        assertFalse(dvt.isValidator(randomUser), "precondition: key bound without admission");
+        dvt.removeValidator(randomUser);
+        vm.stopPrank();
+
+        (,, bool active) = bls.getBLSPublicKey(randomUser);
+        assertFalse(active, "key revoked");
+        assertFalse(dvt.isValidator(randomUser));
+    }
+
     function test_RemoveValidator_RevertsWhenDefaultThresholdWouldBreak() public {
         _seatCommittee(7);
 
@@ -470,5 +510,12 @@ contract DVTValidatorLivenessTest is Test {
         (,, bool active) = mismatched.getBLSPublicKey(validator1);
         assertTrue(active);
         assertEq(mismatched.validatorAtSlot(1), validator1);
+    }
+    function _evidence() internal pure returns (bytes memory) {
+        return abi.encode(keccak256("test"), bytes(""));
+    }
+
+    function _evidenceHash() internal pure returns (bytes32) {
+        return keccak256(abi.encode(keccak256("SuperPaymaster.DVT.Evidence.v2"), keccak256("test"), keccak256("")));
     }
 }

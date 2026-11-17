@@ -127,7 +127,12 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         v55 = _ensureV55Stack(v55, address(superPaymaster), address(registry), deployer);
 
         reputationSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvtValidator = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        dvtValidator = DVTValidator(
+            _deployDefault(
+                "DVTValidator",
+                abi.encode(address(registry), uint256(1), new bytes32[](0), new address[](0))
+            )
+        );
         blsAggregator = BLSAggregator(
             _deployDefault(
                 "BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvtValidator))

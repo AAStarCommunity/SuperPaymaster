@@ -7,6 +7,7 @@ import "src/interfaces/v3/IBLSAggregator.sol";
 import "src/interfaces/v3/IGTokenStaking.sol";
 import "src/interfaces/IVersioned.sol";
 import {BLS} from "src/utils/BLS.sol";
+import "src/interfaces/IEvidenceCategory.sol";
 
 /// @notice Local sub-view of Registry exposing the staking pointer. Kept here
 ///         (rather than on IRegistry) so existing mocks across the test suite
@@ -54,6 +55,9 @@ interface IBLSKeyRegistration {
  *      SuperPaymasterAdmin.cancelSlash and are one-shot per (operator, level, epoch).
  */
 contract DVTValidator is Ownable, IVersioned {
+    bytes32 public constant TAG_EVIDENCE = keccak256("SuperPaymaster.DVT.Evidence.v2");
+    uint256 private constant EVIDENCE_CHECK_GAS = 100_000;
+
     struct ValidatorInfo {
         address validatorAddress;
         bool isActive;
@@ -86,6 +90,8 @@ contract DVTValidator is Ownable, IVersioned {
     mapping(address => bool) public isValidator;
     mapping(uint256 => SlashProposal) public proposals;
     uint256 private _nextProposalId;
+    mapping(bytes32 => address) public checkerOf;
+    bytes32[] private _categories;
 
     event ProposalCreated(uint256 indexed id, address indexed operator, uint8 level);
     event ProposalSigned(uint256 indexed id, address indexed validator);
@@ -98,6 +104,8 @@ contract DVTValidator is Ownable, IVersioned {
     /// @notice Emitted when the owner force-removes a validator regardless of
     ///         their current role/stake state.
     event ValidatorRemoved(address indexed v);
+    /// @notice Emitted when the owner admits a proposer that was not admitted before.
+    event ValidatorAdded(address indexed v);
     /// @notice Emitted when the BLS aggregator address is updated by the owner.
     event BLSAggregatorUpdated(address indexed oldAddr, address indexed newAddr);
 
@@ -139,17 +147,43 @@ contract DVTValidator is Ownable, IVersioned {
     error UnauthorizedCaller(address caller);
     error SlotOutOfRange(uint8 slot);
 
+    error EvidenceConfigLengthMismatch();
+    error ZeroEvidenceCategory();
+    error ZeroEvidenceChecker();
+    error DuplicateEvidenceCategory(bytes32 category);
+    error UnknownEvidenceCategory(bytes32 category);
+    error EvidenceRejected(bytes32 category);
+    error EvidenceHashMismatch();
+    error ReputationEvidenceHashNotZero();
+    error ReputationEvidenceNotEmpty();
+    error MissingEvidenceHash();
+    error ProposalShapeMismatch();
+
     /// @param firstProposalId Non-zero lower bound for this deployment's IDs, below 2^128.
-    constructor(address _registry, uint256 firstProposalId) Ownable(msg.sender) {
+    ///        Allocation uses max(this, aggregator.proposalFloor()) (nextProposalId), so a
+    ///        value below the floor is lifted, not rejected.
+    constructor(address _registry, uint256 firstProposalId, bytes32[] memory categories, address[] memory checkers)
+        Ownable(msg.sender)
+    {
         if (firstProposalId == 0 || firstProposalId >> 128 != 0) {
             revert InvalidFirstProposalId(firstProposalId);
+        }
+        if (categories.length != checkers.length) revert EvidenceConfigLengthMismatch();
+        for (uint256 i; i < categories.length; ++i) {
+            bytes32 category = categories[i];
+            address checker = checkers[i];
+            if (category == bytes32(0)) revert ZeroEvidenceCategory();
+            if (checker == address(0)) revert ZeroEvidenceChecker();
+            if (checkerOf[category] != address(0)) revert DuplicateEvidenceCategory(category);
+            checkerOf[category] = checker;
+            _categories.push(category);
         }
         REGISTRY = IRegistry(_registry);
         _nextProposalId = firstProposalId;
     }
 
     function version() external pure override returns (string memory) {
-        return "DVTValidator-0.8.1";
+        return "DVTValidator-0.9.0";
     }
 
     /// @notice Next allocatable ID, including one read of the retained aggregator's floor.
@@ -160,6 +194,14 @@ contract DVTValidator is Ownable, IVersioned {
             uint256 floor = IBLSProposalFloor(BLS_AGGREGATOR).proposalFloor();
             if (id < floor) id = floor;
         }
+    }
+
+    function categoryCount() external view returns (uint256) {
+        return _categories.length;
+    }
+
+    function categoryAt(uint256 index) external view returns (bytes32) {
+        return _categories[index];
     }
 
     /// @notice Restrict to BLS aggregator or registered DVT validators (P0-4)
@@ -199,7 +241,10 @@ contract DVTValidator is Ownable, IVersioned {
             revert ValidatorStakeBelowMinimum(uint256(amount), cfg.minStake);
         }
 
-        isValidator[_v] = true;
+        if (!isValidator[_v]) {
+            isValidator[_v] = true;
+            emit ValidatorAdded(_v);
+        }
     }
 
     /// @notice Register a BLS key through the owner-curated or permissionless path.
@@ -266,14 +311,16 @@ contract DVTValidator is Ownable, IVersioned {
         }
     }
 
-    /// @notice Backward-compatible overload: creates a proposal with no committed
-    ///         evidence hash (evidenceHash = 0). Prefer the 4-arg form for slashes
-    ///         so the on-chain consensus binds the justifying evidence.
+    /// @notice Create a pure-reputation proposal without an evidence commitment.
     function createProposal(address operator, uint8 level, string calldata reason) external returns (uint256 id) {
         return _createProposal(operator, level, reason, bytes32(0));
     }
 
-    /// @notice Create a slash proposal that commits to an off-chain evidence hash.
+    /// @notice Create a proposal whose shape is fixed by operator and level.
+    /// @dev Only (operator == 0, level == 0) is reputation. Slash shapes require
+    ///      a configured category and nonzero commitment; the hash-only API cannot
+    ///      identify a category or run its checker until raw evidence is supplied.
+    ///      An empty allowlist reports UnknownEvidenceCategory(0) at creation.
     /// @param  evidenceHash content-addressed hash of the audit record justifying
     ///         the slash; bound into the BLS-signed message at execution time.
     function createProposal(address operator, uint8 level, string calldata reason, bytes32 evidenceHash)
@@ -291,6 +338,12 @@ contract DVTValidator is Ownable, IVersioned {
         // ex-validator to mint new proposals.
         _requireActiveValidator(msg.sender);
         if (IBLSAggregator(BLS_AGGREGATOR).DVT_VALIDATOR() != address(this)) revert NotCurrentDVT();
+        if (operator == address(0) && level == 0) {
+            if (evidenceHash != bytes32(0)) revert ReputationEvidenceHashNotZero();
+        } else {
+            if (_categories.length == 0) revert UnknownEvidenceCategory(bytes32(0));
+            if (evidenceHash == bytes32(0)) revert MissingEvidenceHash();
+        }
         id = nextProposalId();
         if (id >> 128 != 0) revert ProposalIdSpaceExhausted();
         _nextProposalId = id + 1;
@@ -341,16 +394,28 @@ contract DVTValidator is Ownable, IVersioned {
      *         in an earlier tx (front-run protection). Not tied to a proposalId —
      *         queue by (operator, level) so it can precede createProposal.
      */
-    function queueSlashWithProof(address operator, uint8 slashLevel, uint256 epoch, bytes calldata proof) external {
+    function queueSlashWithProof(
+        address operator,
+        uint8 slashLevel,
+        uint256 epoch,
+        bytes calldata evidence,
+        bytes calldata proof
+    ) external {
         // Only an active DVT validator may drive a pre-flag. No BLS_AGGREGATOR
         // exemption here (unlike executeWithProof): the aggregator never calls back
         // into this forwarder, so that branch would be dead code.
         _requireActiveValidator(msg.sender);
+        _checkEvidence(operator, slashLevel, epoch, evidence);
         IBLSAggregator(BLS_AGGREGATOR).queueSlashWithConsensus(operator, slashLevel, epoch, proof);
     }
 
     /**
      * @notice Direct execution with an aggregated proof
+     * @dev Shape comes only from stored proposal fields. In BLSAggregator.sol,
+     *      lines 1028-1030 reject combined shapes, 1051-1071 select reputation
+     *      for non-empty repUsers, 1084-1092 select its Registry update, and
+     *      1095-1097 require a nonzero operator to reach the slash branch.
+     *      Thus a pure-reputation proposal can never execute a slash.
      * @dev BLSAggregator rejects ids below proposalFloor on this current-DVT path
      *      for slash and aggregator-routed reputation, even when this DVT allocated
      *      the id before rotation and has since been reactivated. Owner-direct
@@ -361,6 +426,7 @@ contract DVTValidator is Ownable, IVersioned {
         address[] calldata repUsers,
         uint256[] calldata newScores,
         uint256 epoch,
+        bytes calldata evidence,
         bytes calldata proof
     ) external onlyAuthorizedExecutor {
         // P0 follow-up: a registered validator that has since exited their
@@ -381,8 +447,43 @@ contract DVTValidator is Ownable, IVersioned {
         if (!p.exists) revert ProposalDoesNotExist();
         if (p.executed) revert ProposalExecutedAlready();
 
+        bytes32 evidenceHash = p.evidenceHash;
+        if (p.operator == address(0) && p.slashLevel == 0) {
+            if (repUsers.length == 0) revert ProposalShapeMismatch();
+            if (evidence.length != 0) revert ReputationEvidenceNotEmpty();
+        } else {
+            if (repUsers.length != 0 || newScores.length != 0) revert ProposalShapeMismatch();
+            evidenceHash = _checkEvidence(p.operator, p.slashLevel, epoch, evidence);
+            if (evidenceHash != p.evidenceHash) revert EvidenceHashMismatch();
+        }
+
         IBLSAggregator(BLS_AGGREGATOR)
-            .verifyAndExecute(id, p.operator, p.slashLevel, repUsers, newScores, epoch, p.evidenceHash, proof);
+            .verifyAndExecute(id, p.operator, p.slashLevel, repUsers, newScores, epoch, evidenceHash, proof);
+    }
+
+    function _checkEvidence(address operator, uint8 level, uint256 epoch, bytes calldata evidence)
+        internal
+        view
+        returns (bytes32 evidenceHash)
+    {
+        (bytes32 category, bytes memory body) = abi.decode(evidence, (bytes32, bytes));
+        address checker = checkerOf[category];
+        if (checker == address(0)) revert UnknownEvidenceCategory(category);
+
+        bytes memory callData = abi.encodeCall(IEvidenceCategory.check, (operator, level, epoch, body));
+        bool ok;
+        uint256 resultSize;
+        uint256 accepted;
+        assembly ("memory-safe") {
+            ok := staticcall(EVIDENCE_CHECK_GAS, checker, add(callData, 0x20), mload(callData), 0, 0)
+            resultSize := returndatasize()
+            if and(ok, eq(resultSize, 0x20)) {
+                returndatacopy(0, 0, 0x20)
+                accepted := mload(0)
+            }
+        }
+        if (!ok || resultSize != 32 || accepted != 1) revert EvidenceRejected(category);
+        return keccak256(abi.encode(TAG_EVIDENCE, category, keccak256(body)));
     }
 
     function setBLSAggregator(address _bls) external onlyOwner {

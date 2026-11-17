@@ -7,30 +7,30 @@ import "./DVT_BLS.t.sol";
 contract RotationFloorExecution is DVTBLSTest {
     function _slashProof(uint256 id, uint256 epoch) internal view returns (bytes memory) {
         return _proofForMask(0x7F, keccak256(abi.encode(
-            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), epoch, bytes32(0)
+            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), epoch, _evidenceHash()
         )));
     }
 
     function test_RotatedBackDVTCannotExecutePreRotationSlash() public {
         if (!realPrecompiles) { vm.skip(true); return; }
         vm.prank(address(101));
-        uint256 oldId = dvt.createProposal(op, 1, "abandoned on rotation");
+        uint256 oldId = dvt.createProposal(op, 1, "abandoned on rotation", _evidenceHash());
         bytes memory oldProof = _slashProof(oldId, 9);
         DVTValidator replacement = _replacement(1);
         vm.prank(owner);
         bls.setDVTValidator(address(replacement));
         vm.prank(address(101));
-        replacement.createProposal(op, 1, "replacement intent");
+        replacement.createProposal(op, 1, "replacement intent", _evidenceHash());
         vm.prank(owner);
         bls.setDVTValidator(address(dvt));
         assertLt(oldId, bls.proposalFloor());
         bytes memory queueProof = _queueProof(9);
         vm.prank(address(101));
-        dvt.queueSlashWithProof(op, 1, 9, queueProof);
+        dvt.queueSlashWithProof(op, 1, 9, _evidence(), queueProof);
         assertTrue(sp.queued());
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
         vm.prank(address(101));
-        dvt.executeWithProof(oldId, new address[](0), new uint256[](0), 9, oldProof);
+        dvt.executeWithProof(oldId, new address[](0), new uint256[](0), 9, _evidence(), oldProof);
         assertFalse(bls.executedProposals(oldId), "rotation permanently invalidates the old slash");
         (,,, bool executed,,) = dvt.proposals(oldId);
         assertFalse(executed, "failed execution cannot mark the DVT proposal");
@@ -40,32 +40,54 @@ contract RotationFloorExecution is DVTBLSTest {
     function test_SlashAllocatedAfterReactivationStillExecutes() public {
         if (!realPrecompiles) { vm.skip(true); return; }
         vm.prank(address(101));
-        uint256 oldId = dvt.createProposal(op, 1, "before A to B");
+        uint256 oldId = dvt.createProposal(op, 1, "before A to B", _evidenceHash());
         DVTValidator replacement = _replacement(1);
         vm.prank(owner);
         bls.setDVTValidator(address(replacement));
         vm.prank(address(101));
-        uint256 successorId = replacement.createProposal(op, 1, "before B to A");
+        uint256 successorId = replacement.createProposal(op, 1, "before B to A", _evidenceHash());
         vm.prank(owner);
         bls.setDVTValidator(address(dvt));
         assertEq(bls.proposalFloor(), successorId + 1);
         vm.prank(address(101));
-        uint256 freshId = dvt.createProposal(op, 1, "after reactivation");
+        uint256 freshId = dvt.createProposal(op, 1, "after reactivation", _evidenceHash());
         assertEq(freshId, bls.proposalFloor(), "the fresh floor itself is executable");
         bytes memory proof = _slashProof(freshId, 9);
         bytes memory queueProof = _queueProof(9);
         vm.prank(address(101));
-        dvt.queueSlashWithProof(op, 1, 9, queueProof);
+        dvt.queueSlashWithProof(op, 1, 9, _evidence(), queueProof);
         vm.expectCall(address(sp), abi.encodeWithSignature(
             "executeSlashWithBLS(address,uint8,bytes)", op, uint8(1), proof
         ), uint64(1));
         vm.prank(address(101));
-        dvt.executeWithProof(freshId, new address[](0), new uint256[](0), 9, proof);
+        dvt.executeWithProof(freshId, new address[](0), new uint256[](0), 9, _evidence(), proof);
         assertTrue(bls.executedProposals(freshId));
         (,,, bool executed,,) = dvt.proposals(freshId);
         assertTrue(executed);
         assertFalse(bls.executedProposals(oldId));
         assertFalse(bls.executedProposals(successorId));
+    }
+
+    /// @dev Pins current behaviour for A7.dvt: a firstProposalId below the aggregator floor is
+    ///      accepted by the constructor, setBLSAggregator and setDVTValidator alike; the
+    ///      floor is applied at allocation by nextProposalId() (DVTValidator.sol:191-196).
+    function test_LowFirstProposalIdIsLiftedToFloorNotRejected() public {
+        vm.prank(address(101));
+        dvt.createProposal(op, 1, "raise the floor", _evidenceHash());
+        DVTValidator first = _replacement(1);
+        vm.prank(owner);
+        bls.setDVTValidator(address(first));
+        uint256 floor = bls.proposalFloor();
+        assertGt(floor, 1, "precondition: floor above the next DVT's firstProposalId");
+
+        DVTValidator low = _replacement(1); // constructor + setBLSAggregator accept firstId 1
+        assertEq(low.nextProposalId(), floor, "allocation counter is lifted to the floor");
+        vm.prank(owner);
+        bls.setDVTValidator(address(low)); // no revert either
+        assertGe(low.nextProposalId(), bls.proposalFloor(), "A7.dvt readback invariant");
+        vm.prank(address(101));
+        uint256 id = low.createProposal(op, 1, "first on low DVT", _evidenceHash());
+        assertGe(id, bls.proposalFloor(), "first allocated id is at or above the floor");
     }
 
     function test_CurrentDvtIdGoesStaleAfterLaterRotation() public {
@@ -74,10 +96,10 @@ contract RotationFloorExecution is DVTBLSTest {
         vm.prank(owner);
         bls.setDVTValidator(address(replacement));
         vm.prank(address(101));
-        uint256 id = replacement.createProposal(op, 1, "proof ready while current");
+        uint256 id = replacement.createProposal(op, 1, "proof ready while current", _evidenceHash());
         assertGe(id, bls.proposalFloor());
         bytes32 digest = keccak256(abi.encode(
-            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), uint256(9), bytes32(0)
+            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), uint256(9), _evidenceHash()
         ));
         bytes memory proof = _proofForMask(0x7F, digest);
         (, bytes memory signature) = abi.decode(proof, (uint256, bytes));
@@ -98,7 +120,7 @@ contract RotationFloorExecution is DVTBLSTest {
     function test_StaleQueueProofCannotMoveFunds() public {
         if (!realPrecompiles) { vm.skip(true); return; }
         vm.prank(address(101));
-        uint256 oldId = dvt.createProposal(op, 1, "pre-rotation slash");
+        uint256 oldId = dvt.createProposal(op, 1, "pre-rotation slash", _evidenceHash());
         bytes memory oldProof = _slashProof(oldId, 9);
         bytes memory oldQueueProof = _queueProof(9);
         DVTValidator replacement = _replacement(1);
@@ -107,7 +129,7 @@ contract RotationFloorExecution is DVTBLSTest {
         assertLt(oldId, bls.proposalFloor());
         assertFalse(sp.queued());
         vm.prank(address(101));
-        replacement.queueSlashWithProof(op, 1, 9, oldQueueProof);
+        replacement.queueSlashWithProof(op, 1, 9, _evidence(), oldQueueProof);
         assertTrue(sp.queued(), "the unused queue proof survives rotation");
 
         vm.expectCall(address(sp), abi.encodeWithSignature(
@@ -121,19 +143,19 @@ contract RotationFloorExecution is DVTBLSTest {
         assertEq(bls.proposalSignersCommitment(oldId), bytes32(0));
 
         vm.prank(address(101));
-        uint256 freshId = replacement.createProposal(op, 1, "fresh slash");
+        uint256 freshId = replacement.createProposal(op, 1, "fresh slash", _evidenceHash());
         assertEq(freshId, bls.proposalFloor());
         // Merely relabelling the old signature with a fresh id is insufficient.
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SignatureVerificationFailed.selector));
         vm.prank(address(101));
-        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, oldProof);
+        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, _evidence(), oldProof);
         assertFalse(bls.executedProposals(freshId));
         bytes memory freshProof = _slashProof(freshId, 9);
         vm.expectCall(address(sp), abi.encodeWithSignature(
             "executeSlashWithBLS(address,uint8,bytes)", op, uint8(1), freshProof
         ), uint64(1));
         vm.prank(address(101));
-        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, freshProof);
+        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, _evidence(), freshProof);
         assertTrue(bls.executedProposals(freshId));
         (,,, bool executed,,) = replacement.proposals(freshId);
         assertTrue(executed);
@@ -147,7 +169,7 @@ contract RotationFloorExecution is DVTBLSTest {
         assertEq(replacement.nextProposalId(), uint256(1) << 128);
         vm.prank(address(101));
         vm.expectRevert(abi.encodeWithSelector(DVTValidator.ProposalIdSpaceExhausted.selector));
-        replacement.createProposal(op, 1, "exhausted");
+        replacement.createProposal(op, 1, "exhausted", _evidenceHash());
         vm.startPrank(owner);
         bls.setDVTValidator(address(dvt));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalFloor.selector));
@@ -189,11 +211,11 @@ contract RotationFloorExecution is DVTBLSTest {
         assertFalse(bls.usedSlashQueueHashes(queueHash));
         vm.expectCall(address(sp), abi.encodeWithSignature("executeSlashWithBLS(address,uint8,bytes)"), uint64(0));
         vm.prank(address(101));
-        replacement.queueSlashWithProof(op, 1, 9, oldQueueProof);
+        replacement.queueSlashWithProof(op, 1, 9, _evidence(), oldQueueProof);
         assertTrue(sp.queued(), "old queue approval executes after forward rotation");
         assertTrue(bls.usedSlashQueueHashes(queueHash));
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.SlashQueueProofAlreadyUsed.selector, queueHash));
         vm.prank(address(101));
-        replacement.queueSlashWithProof(op, 1, 9, oldQueueProof);
+        replacement.queueSlashWithProof(op, 1, 9, _evidence(), oldQueueProof);
     }
 }

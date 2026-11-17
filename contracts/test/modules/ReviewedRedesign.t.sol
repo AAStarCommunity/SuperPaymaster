@@ -85,19 +85,19 @@ contract ReviewedRedesign is DVTBLSTest {
     function test_Review_NoPredecessorInputCanReusePendingSignature() public {
         if (!realPrecompiles) { vm.skip(true); return; }
         vm.prank(address(101));
-        uint256 oldId = dvt.createProposal(op, 1, "pending");
+        uint256 oldId = dvt.createProposal(op, 1, "pending", _evidenceHash());
         bytes memory proof = _proofForMask(0x7F, keccak256(abi.encode(
-            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), oldId, op, uint8(1), uint256(9), bytes32(0)
+            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), oldId, op, uint8(1), uint256(9), _evidenceHash()
         )));
         DVTValidator replacement = _replacement(1);
         vm.prank(owner);
         bls.setDVTValidator(address(replacement));
         assertEq(bls.proposalFloor(), oldId + 1, "activation includes pending IDs");
         vm.startPrank(address(101));
-        uint256 freshId = replacement.createProposal(op, 1, "new intent");
+        uint256 freshId = replacement.createProposal(op, 1, "new intent", _evidenceHash());
         assertGt(freshId, oldId, "no caller-supplied predecessor can reset the floor");
         vm.expectRevert(BLSAggregator.SignatureVerificationFailed.selector);
-        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, proof);
+        replacement.executeWithProof(freshId, new address[](0), new uint256[](0), 9, _evidence(), proof);
         vm.stopPrank();
         assertFalse(bls.executedProposals(freshId));
     }
@@ -108,25 +108,25 @@ contract ReviewedRedesign is DVTBLSTest {
         vm.prank(owner);
         bls.setDVTValidator(address(replacement));
         vm.prank(address(101));
-        uint256 id = replacement.createProposal(op, 1, "successor pending");
+        uint256 id = replacement.createProposal(op, 1, "successor pending", _evidenceHash());
         bytes memory proof = _proofForMask(0x7F, keccak256(abi.encode(
-            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), uint256(9), bytes32(0)
+            bls.domainSeparator(), bls.TAG_EXECUTE_SLASH(), id, op, uint8(1), uint256(9), _evidenceHash()
         )));
         vm.prank(owner);
         bls.setDVTValidator(address(dvt));
         assertEq(bls.proposalFloor(), id + 1, "rollback preserves successor allocations");
         vm.startPrank(address(101));
-        uint256 freshId = dvt.createProposal(op, 1, "rollback intent");
+        uint256 freshId = dvt.createProposal(op, 1, "rollback intent", _evidenceHash());
         assertEq(freshId, id + 1);
         vm.expectRevert(BLSAggregator.SignatureVerificationFailed.selector);
-        dvt.executeWithProof(freshId, new address[](0), new uint256[](0), 9, proof);
+        dvt.executeWithProof(freshId, new address[](0), new uint256[](0), 9, _evidence(), proof);
         vm.stopPrank();
         assertFalse(bls.executedProposals(freshId));
     }
 
     function test_Review_BrokenCounterFailsClosedAndExplicitFloorRecovers() public {
         vm.prank(address(101));
-        uint256 pending = dvt.createProposal(op, 1, "pending");
+        uint256 pending = dvt.createProposal(op, 1, "pending", _evidenceHash());
         DVTValidator replacement = _replacement(1);
         vm.mockCallRevert(address(dvt), abi.encodeWithSignature("nextProposalId()"), abi.encodeWithSignature("Error(string)", "retired counter unavailable"));
         vm.startPrank(owner);
@@ -137,7 +137,7 @@ contract ReviewedRedesign is DVTBLSTest {
         bls.setDVTValidatorWithFloor(address(replacement), pending + 1);
         vm.stopPrank();
         vm.prank(address(101));
-        assertEq(replacement.createProposal(op, 1, "recovered"), pending + 1, "broken retired contract cannot veto allocation");
+        assertEq(replacement.createProposal(op, 1, "recovered", _evidenceHash()), pending + 1, "broken retired contract cannot veto allocation");
         vm.prank(owner);
         vm.expectRevert(BLSAggregator.InvalidProposalFloor.selector);
         bls.setDVTValidatorWithFloor(address(dvt), pending);
@@ -157,16 +157,16 @@ contract ReviewedRedesign is DVTBLSTest {
         bls.setDVTValidatorWithFloor(address(replacement), 42);
         vm.stopPrank();
         vm.prank(address(101));
-        assertEq(replacement.createProposal(op, 1, "recovered"), 42);
+        assertEq(replacement.createProposal(op, 1, "recovered", _evidenceHash()), 42);
     }
 
     function test_Review_RotationChecksBothPointersAndOwnerAuthority() public {
         vm.startPrank(owner);
-        DVTValidator wrong = new DVTValidator(address(0xBAD), 1);
+        DVTValidator wrong = new DVTValidator(address(0xBAD), 1, new bytes32[](0), new address[](0));
         wrong.setBLSAggregator(address(bls));
         vm.expectRevert(BLSAggregator.InvalidDVTPairing.selector);
         bls.setDVTValidator(address(wrong));
-        DVTValidator wrongAgg = new DVTValidator(address(registry), 1);
+        DVTValidator wrongAgg = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         wrongAgg.setBLSAggregator(address(0xBAD));
         vm.expectRevert(BLSAggregator.InvalidDVTPairing.selector);
         bls.setDVTValidator(address(wrongAgg));
@@ -189,12 +189,12 @@ contract ReviewedRedesign is DVTBLSTest {
         uint256[3] memory rotationGas;
         for (uint256 i; i < rotations; ++i) {
             vm.prank(address(101));
-            assertEq(current.createProposal(op, 1, "pending"), i + 1);
+            assertEq(current.createProposal(op, 1, "pending", _evidenceHash()), i + 1);
             // Run the real constructor/runtime without repeated code-deposit gas.
             // Rotation and allocation remain metered within one capped test call.
             DVTValidator next = DVTValidator(address(uint160(0xD000 + i)));
             vm.startPrank(owner);
-            deployCodeTo("DVTValidator.sol:DVTValidator", abi.encode(address(registry), uint256(1)), address(next));
+            deployCodeTo("DVTValidator.sol:DVTValidator", abi.encode(address(registry), uint256(1), _categories(), _checkers()), address(next));
             next.setBLSAggregator(address(bls));
             next.addValidator(address(101));
             uint256 g = gasleft();
@@ -216,7 +216,7 @@ contract ReviewedRedesign is DVTBLSTest {
         assertEq(rotationGas[2], rotationGas[0], "rotation cost must not grow with the rotation number (32 vs 2)");
         vm.expectCall(address(bls), abi.encodeWithSignature("proposalFloor()"), uint64(1));
         vm.prank(address(101));
-        assertEq(current.createProposal(op, 1, "still live"), rotations + 1);
+        assertEq(current.createProposal(op, 1, "still live", _evidenceHash()), rotations + 1);
         // gasleft() deltas here include cheatcode work (deployCodeTo) and are not the call's metered
         // gas under every engine, so the per-call cap is not asserted from inside the test; the
         // property under test is the constant rotation cost asserted above.

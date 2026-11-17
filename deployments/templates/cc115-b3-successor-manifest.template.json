@@ -67,7 +67,7 @@
       }
     },
     "DVTValidator": {
-      "version": "DVTValidator-0.7.0",
+      "version": "DVTValidator-0.8.0",
       "versionSource": "build",
       "constructorFirstProposalId": 1,
       "_constructorFirstProposalId": "5.5.0 fresh-stack value. For a rotation, replace 1 with a value greater than every raw proposal id already executed by the retained aggregator and leave ample headroom below 2^128. Pending proposals on the old DVT are abandoned and must be re-proposed on the replacement.",

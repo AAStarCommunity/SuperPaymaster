@@ -105,9 +105,9 @@ CLASSIFIED = {
             "allowed: _requireActiveValidator(msg.sender); the aggregator is never a DVT validator [guaranteed by step-13 readback AGG-NOT-DVT-VALIDATOR: no ROLE_DVT, not a registered validator]",
         "createProposal(address,uint8,string,bytes32)":
             "allowed: _requireActiveValidator(msg.sender); the aggregator is never a DVT validator [guaranteed by step-13 readback AGG-NOT-DVT-VALIDATOR: no ROLE_DVT, not a registered validator]",
-        "queueSlashWithProof(address,uint8,uint256,bytes)":
+        "queueSlashWithProof(address,uint8,uint256,bytes,bytes)":
             "allowed: _requireActiveValidator(msg.sender); the aggregator is never a DVT validator [guaranteed by step-13 readback AGG-NOT-DVT-VALIDATOR: no ROLE_DVT, not a registered validator]",
-        "executeWithProof(uint256,address[],uint256[],uint256,bytes)":
+        "executeWithProof(uint256,address[],uint256[],uint256,bytes,bytes)":
             "allowed: the aggregator passes onlyAuthorizedExecutor but the call re-enters "
             "BLSAggregator.verifyAndExecute, which is nonReentrant (executeProposal holds the lock)",
         "registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,"

@@ -190,7 +190,12 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
         console.log("=== Step 6: Deploy Other Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
         // DVTValidator must be deployed before BLSAggregator (constructor rejects address(0))
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        dvt = DVTValidator(
+            _deployDefault(
+                "DVTValidator",
+                abi.encode(address(registry), uint256(1), new bytes32[](0), new address[](0))
+            )
+        );
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );
@@ -326,6 +331,7 @@ contract DeployAnvil is V54Bootstrap, V55Bootstrap {
 
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         require(dvt.owner() == aggregator.owner(), "DeployAnvil: DVT owner != BLS owner");
+        require(dvt.categoryCount() == 0, "DeployAnvil: dvt evidence allowlist must be empty in 5.5.0");
         // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
         // is not either. With the variable unset the gate REFUSES rather than passing,
         // even when the owner is already a Safe -- it proves "this is the Safe the

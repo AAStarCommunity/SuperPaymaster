@@ -178,7 +178,12 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         console.log("=== Step 4: Deploy Modules ===");
         repSystem = ReputationSystem(_deployDefault("ReputationSystem", abi.encode(address(registry))));
-        dvt = DVTValidator(_deployDefault("DVTValidator", abi.encode(address(registry), uint256(1))));
+        dvt = DVTValidator(
+            _deployDefault(
+                "DVTValidator",
+                abi.encode(address(registry), uint256(1), new bytes32[](0), new address[](0))
+            )
+        );
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );
@@ -395,6 +400,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         // ── Step 5: DVT / BLS cross-wiring ─────────────────────────────────────
         require(aggregator.DVT_VALIDATOR() == address(dvt), "wire: aggregator.setDVTValidator");
         require(dvt.BLS_AGGREGATOR() == address(aggregator), "wire: dvt.setBLSAggregator");
+        // 5.5.0 ships an empty evidence allowlist: no slash-shape proposal can pass DVTValidator.
+        require(dvt.categoryCount() == 0, "wire: dvt evidence allowlist must be empty in 5.5.0");
 
         // ── Step 5: PaymasterFactory implementation registration ────────────────
         require(pmFactory.implementations("v4.2") == address(pmV4Impl), "wire: factory.addImplementation v4.2");
