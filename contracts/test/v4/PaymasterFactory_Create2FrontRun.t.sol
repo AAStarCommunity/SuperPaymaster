@@ -64,9 +64,21 @@ contract PaymasterFactory_Create2FrontRunTest is Test {
         assertEq(Paymaster(payable(victims)).owner(), VICTIM);
 
         vm.prank(ATTACKER);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", ATTACKER));
         Paymaster(payable(victims)).withdrawTo(payable(ATTACKER), 1 ether);
         assertEq(entryPoint.balanceOf(predicted), 1 ether, "prefund intact");
+    }
+
+    /// A prediction pins (version label, operator, salt), not code: replacing the implementation
+    /// between prediction and deployment changes the address, so integrators use the receipt.
+    function test_ImplementationReplacementChangesPredictedAddress() public {
+        address before = factory.predictPaymasterAddress(V1, VICTIM, SALT);
+        Paymaster replacement = new Paymaster(address(new FrontRunRegistry()));
+        factory.upgradeImplementation(V1, address(replacement));
+        address afterUpgrade = factory.predictPaymasterAddress(V1, VICTIM, SALT);
+        assertTrue(before != afterUpgrade);
+        vm.prank(VICTIM);
+        assertEq(factory.deployPaymasterDeterministic(V1, SALT, _initData(VICTIM)), afterUpgrade);
     }
 
     /// Existing clones keep their owner: it is fixed in the deploying transaction (_initAndVerify) and

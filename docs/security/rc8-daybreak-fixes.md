@@ -896,10 +896,12 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 **Fix.**
 - The effective salt is `keccak256(abi.encode(msg.sender, salt))`.
 - The predict call becomes `predictPaymasterAddress(string _version, address operator, bytes32 salt)`. This is an **ABI change**; SDK was notified.
-- The clone owner is always the caller, so binding the salt to the caller binds it to the future owner. A copied salt now lands elsewhere.
+- `_initAndVerify` checks, when deployment completes, that `owner()` equals the caller. Binding the salt to the caller therefore binds it to the owner at deployment, and a copied salt now lands elsewhere. This relies on the registered implementation being trusted code, which is the factory owner's trust boundary: an admin-approved malicious implementation could report one owner and authorize another.
 
 **Unaffected.**
-- **Existing clones.** A clone's owner is fixed in its deploying transaction. No factory function changes a clone's owner afterwards, and an occupied CREATE2 address cannot be deployed again (`test_ExistingCloneOwnerCannotBeDisplaced`).
+- **Existing clones.** No factory function changes a clone's owner after its deploying transaction, and an occupied CREATE2 address cannot be deployed again (`test_ExistingCloneOwnerCannotBeDisplaced`). The owner can still transfer or renounce ownership through the inherited `Ownable`. That is the owner's own action, not a takeover.
 - **`deployPaymaster` (CREATE).** It has no copied-salt targeting. Its address depends on the factory nonce, though, so an address obtained by simulation can be taken by another deploy that lands first.
 
-**Usage rule for both paths.** Fund or register a paymaster address only after its deploying receipt is confirmed and `owner()` has been checked.
+**Usage rule for both paths.** Fund or register a paymaster address only after its deploying receipt is confirmed, using the address from the receipt, and after `owner()` has been checked. Two things a prediction does not give you:
+- **Stability.** `upgradeImplementation` between prediction and deployment changes the resulting address, because version labels do not pin code.
+- **Deployability.** `predictPaymasterAddress` accepts any operator, including zero, and some returned addresses can never be deployed.
