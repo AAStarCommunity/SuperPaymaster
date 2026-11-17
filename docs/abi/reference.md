@@ -11563,7 +11563,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Deploy Paymaster using deterministic address (CREATE2)
 
-*@dev* The CREATE2 salt is keccak256(abi.encode(msg.sender, salt)): the clone owner is always      msg.sender (_initAndVerify), so binding the salt to it means a copied salt cannot land      another owner's clone at this operator's predicted address (Daybreak DB-d-M3).      Fund or register the address only after the receipt confirms it and owner() is checked.
+*@dev* The CREATE2 salt is keccak256(abi.encode(msg.sender, salt)). _initAndVerify requires      owner() == msg.sender when deployment completes (for a trusted implementation), so a      copied salt cannot land another owner's clone at this operator's predicted address      (Daybreak DB-d-M3). Fund or register only the receipt's address, after checking owner().
 
 | param | type | description |
 |---|---|---|
