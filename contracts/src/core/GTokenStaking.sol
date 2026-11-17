@@ -26,6 +26,13 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     error AmountExceedsUint128();
     error RoleNotLocked();
     error NoLockFound();
+    /// @notice exitRole(PAYMASTER_SUPER) was called with too little gas to run the operator-pause hook.
+    error InsufficientGasForPauseHook();
+
+    /// @dev Gas forwarded to SuperPaymaster.pauseUnderstakedOperator by the exit hook.
+    uint256 internal constant PAUSE_HOOK_GAS = 40_000;
+    /// @dev PAUSE_HOOK_GAS * 64/63 plus headroom for the rest of unlockAndTransfer and exitRole.
+    uint256 internal constant PAUSE_HOOK_MIN_GAS = 60_000;
     error OnlyRegistryOrAuthorized();
     error Unauthorized();
     error NotAuthorizedSlasher();
@@ -37,7 +44,7 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // ...
 
     function version() external pure override returns (string memory) {
-        return "Staking-4.2.0";
+        return "Staking-4.2.1";
     }
 
     // ====================================
@@ -213,6 +220,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
      * @notice Unlock and transfer to user (Registry only)
      * @dev OPERATORS ONLY — Regular user roles (ENDUSER, COMMUNITY) have no exit.
      *      Registry enforces this by checking roleStakes before calling.
+     * @dev Closes the exit window for operators leaving PAYMASTER_SUPER. Operators who
+     *      remain registered but are under-staked (slash or raised minStake) still rely
+     *      on the detector + manual permissionless pause.
      */
     function unlockAndTransfer(
         address user,
@@ -258,6 +268,34 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
         // before calling here, but the redundant sync makes the
         // post-condition explicit and safe under future call-graph changes.
         _syncRegistry(user, roleId, 0);
+
+        if (roleId == keccak256("PAYMASTER_SUPER")) {
+            // An exiting operator must not starve the hook via the 63/64 rule: require enough gas for
+            // the capped call plus this frame's remainder, otherwise revert (the caller retries with
+            // more gas; an honest exit is never blocked).
+            if (gasleft() < PAUSE_HOOK_MIN_GAS) revert InsufficientGasForPauseHook();
+            uint8 skipped;
+            (bool found, bytes memory result) = REGISTRY.staticcall(
+                abi.encodeWithSignature("SUPER_PAYMASTER()")
+            );
+            address paymaster = found && result.length == 32 ? address(uint160(uint256(bytes32(result)))) : address(0);
+            if (paymaster == address(0)) {
+                skipped = 1;
+            } else if (paymaster.code.length == 0) {
+                skipped = 2;
+            } else {
+                // SuperPaymasterAdmin.sol:124 and SuperPaymasterStorage.sol:392 only read Registry
+                // views (hasRole/getRoleConfig/getEffectiveStake); no mutating GTokenStaking call.
+                // Cold-storage measurement of the pause through the SP proxy: 19,520 gas; the 40,000
+                // cap is ~2x. Re-measure after any SuperPaymaster Admin upgrade.
+                (bool paused,) = paymaster.call{gas: PAUSE_HOOK_GAS}(
+                    abi.encodeWithSignature("pauseUnderstakedOperator(address)", user)
+                );
+                if (!paused) skipped = 3;
+            }
+            // Best effort, but visible: a skipped pause leaves the exit window open.
+            if (skipped != 0) emit OperatorPauseHookSkipped(user, roleId, skipped);
+        }
 
         return netAmount;
     }
@@ -447,6 +485,9 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     // Admin Functions
     // ====================================
 
+    /// @notice The PAYMASTER_SUPER exit hook did not pause `user`: reason 1 = SuperPaymaster unset,
+    ///         2 = no code at the SuperPaymaster address, 3 = the pause call failed (revert or OOG).
+    event OperatorPauseHookSkipped(address indexed user, bytes32 indexed roleId, uint8 reason);
     event RoleExitFeeUpdated(bytes32 indexed roleId, uint256 feePercent, uint256 minFee);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event SlasherAuthorizationUpdated(address indexed slasher, bool authorized);

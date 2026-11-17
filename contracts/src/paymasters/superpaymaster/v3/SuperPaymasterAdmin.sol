@@ -9,7 +9,7 @@ import "../../../interfaces/IxPNTsFactory.sol";
 
 /**
  * @title SuperPaymasterAdmin (EXTENSION)
- * @notice Governance, administration and non-hot-path views of SuperPaymaster 5.5.1 (D5b).
+ * @notice Governance, administration and non-hot-path views of SuperPaymaster 5.5.3 (D5b).
  * @dev    Reached ONLY via the SuperPaymaster core's fallback (DELEGATECALL): every function here
  *         runs against the proxy's storage, `msg.sender` is the original caller and events are
  *         emitted by the proxy. Nothing here is called from validatePaymasterUserOp / postOp.
@@ -25,6 +25,12 @@ import "../../../interfaces/IxPNTsFactory.sol";
  */
 contract SuperPaymasterAdmin is SuperPaymasterStorage {
     using SafeERC20 for IERC20;
+
+    error InvalidOracleTimestamp(uint256 updatedAt, uint256 nowTs);
+
+    /// @notice Tolerates L2 sequencer / feed clock skew of seconds; a round dated further
+    ///         ahead is a faulty or compromised report.
+    uint256 internal constant PRICE_TIMESTAMP_GRACE = 300 seconds;
 
     /// @notice Window between queueing a `setAPNTsToken` change and being allowed to execute it.
     /// @dev    P0-9: was a single instant write; could strand operator deposits.
@@ -368,11 +374,12 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
     // Price oracle (keeper / DVT / break-glass)
     // ====================================
 
-    /// @notice True when Chainlink hasn't updated for at least CHAINLINK_STALE_THRESHOLD, or reverts.
+    /// @notice True for zero/future timestamps, age beyond CHAINLINK_STALE_THRESHOLD, or feed reverts.
     function _isChainlinkStale() internal view returns (bool) {
         try ETH_USD_PRICE_FEED.latestRoundData() returns (uint80, int256, uint256, uint256 chainlinkUpdatedAt, uint80) {
-            if (chainlinkUpdatedAt == 0) return true;
-            return block.timestamp > chainlinkUpdatedAt + CHAINLINK_STALE_THRESHOLD;
+            // Zero and future rounds are not fresh, so the fallback remains available.
+            if (chainlinkUpdatedAt == 0 || chainlinkUpdatedAt > block.timestamp) return true;
+            return block.timestamp - chainlinkUpdatedAt > CHAINLINK_STALE_THRESHOLD;
         } catch {
             return true;
         }
@@ -490,7 +497,12 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
             uint80, int256 chainlinkPrice, uint256, uint256 chainlinkUpdatedAt, uint80
         ) {
             // P1-42: guard chainlinkPrice <= 0 to prevent div-by-zero
-            if (chainlinkPrice > 0 && block.timestamp - chainlinkUpdatedAt < 2 hours) {
+            // Future rounds are not fresh (compare before subtraction so a faulty feed cannot
+            // block the DVT fallback); a zero round fails the 2-hour age test. Consistent with
+            // _isChainlinkStale. Written without a separate `!= 0` term: via_ir emitted ~1.4 KB
+            // more for the four-term form.
+            if (chainlinkPrice > 0 && chainlinkUpdatedAt <= block.timestamp
+                && block.timestamp - chainlinkUpdatedAt < 2 hours) {
                 int256 delta = price > chainlinkPrice ? price - chainlinkPrice : chainlinkPrice - price;
                 if (delta * int256(BPS_DENOMINATOR) > chainlinkPrice * int256(EMERGENCY_PRICE_DEVIATION_BPS)) {
                     revert OracleError();
@@ -522,10 +534,16 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         try ETH_USD_PRICE_FEED.latestRoundData() returns (
             uint80 roundId, int256 price, uint256, uint256 updatedAt, uint80 answeredInRound
         ) {
+            if (updatedAt == 0 || updatedAt > block.timestamp + PRICE_TIMESTAMP_GRACE) {
+                revert InvalidOracleTimestamp(updatedAt, block.timestamp);
+            }
             if (price < MIN_ETH_USD_PRICE || price > MAX_ETH_USD_PRICE) revert OracleError();
             if (updatedAt < block.timestamp - priceStalenessThreshold) revert OracleError();
             if (answeredInRound < roundId) revert OracleError();
 
+            // A round dated up to PRICE_TIMESTAMP_GRACE ahead is accepted but cached as "now", so the
+            // cache and _isChainlinkStale / updatePriceDVT never see a future timestamp.
+            if (updatedAt > block.timestamp) updatedAt = block.timestamp;
             cachedPrice = PriceCache({price: price, updatedAt: updatedAt, roundId: roundId, decimals: 8});
 
             // P0-10: Chainlink came back — leave EMERGENCY mode and drop any queued override.

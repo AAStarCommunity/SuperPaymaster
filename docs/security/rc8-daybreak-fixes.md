@@ -888,3 +888,36 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 - Every "onlyOwner; the aggregator is not the owner" allowance holds only while the aggregator owns
   nothing and holds no role. This is enforced by the coverage script's deploy-path ownership check
   and by the step-13 readbacks OWNER-NOT-AGGREGATOR and AGG-NOT-DVT-VALIDATOR.
+
+## Daybreak 053117cc batch (c): DB-c-M1 exit hook and L-01 oracle timestamps (SuperPaymaster-5.5.3, Staking-4.2.1, 2026-11-18)
+
+### DB-c-M1: an operator leaving PAYMASTER_SUPER is paused in the same transaction (Medium)
+
+**Finding.** `Registry.exitRole(ROLE_PAYMASTER_SUPER)` removed the role and returned the stake but left the operator's SP configuration live. Until somebody called the permissionless `pauseUnderstakedOperator`, ops selecting that operator still reached validation, because validation reads only `isConfigured` and `isPaused`. User and protocol funds were not at risk, since sponsorship spends the operator's own aPNTs. What broke was the invariant that every sponsoring operator is backed by stake.
+
+**Fix (Staking-4.2.1).**
+- After all state updates and transfers, `GTokenStaking.unlockAndTransfer` resolves `Registry.SUPER_PAYMASTER()` and calls `pauseUnderstakedOperator(user)` when `roleId == PAYMASTER_SUPER`.
+- The call is non-fatal and capped at 40,000 gas. The cold-storage measurement is 19,520; re-measure after any SuperPaymaster Admin upgrade.
+- A skipped pause emits `OperatorPauseHookSkipped(user, roleId, reason)`: 1 = SP unset, 2 = no code, 3 = call failed.
+- `unlockAndTransfer` reverts with `InsufficientGasForPauseHook` when less than 60,000 gas remains at the hook, so an exiting operator cannot starve the call. Through `exitRole` that starvation is not reachable today (`test_TightGasCannotSkipThePause`); the guard is defence in depth (`test_GasGuardRevertsByName`).
+- At call time the role is already cleared, so `_hasEffectiveSuperStake` is false and the pause happens in the exit transaction.
+- `OperatorPaused` names the staking contract as `by`.
+- After exit the operator also cannot `deposit`, `depositFor`, use the ERC1363 callback, `configureOperator` or `setOperatorLimits`; each reverts with `Unauthorized`.
+
+**Where the fix applies.**
+- **OP:** deployed fresh with this GTokenStaking.
+- **Sepolia:** keeps GTokenStaking `0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e` (Staking-4.2.0), because GTokenStaking is not upgradeable. That runtime is byte-identical to the `053117cc` build with immutables masked, metadata hash included. The only difference from the tag tree is this hook plus the version string.
+
+**Residual window, two cases.**
+1. **Sepolia exits, and any operator that stays registered but becomes under-staked** (a raised `minStake`, or slashing in a later release). The backstop is the DVT detector's `PAUSE NEEDED` alert followed by a manual permissionless `pauseUnderstakedOperator`. Nothing executes automatically; the D2 pause-job is retired. The window is the detector poll interval, plus the time the detector reports "unknown" without alerting, plus the human response time. The detector fix (DVT #448) was not yet deployed when this was written.
+2. **An exit after the stake was slashed to zero** does not reach `unlockAndTransfer`, so the hook does not run. This is unreachable in 5.5.0, which does not slash. It is listed for the 5.5.x slashing enablement.
+
+**Monitoring notes.**
+- **Reason 3 covers two cases.** It fires both for an address that never configured an SP operator (harmless; the pause reverts with `OperatorNotConfigured`) and for an SP that is actually broken (needs an alert). Off-chain alerting on reason 3 must check `operators(user).isConfigured` first, or it will be noisy.
+- **The 40,000 gas cap is fixed for the life of this GTokenStaking**, because the contract is not upgradeable. If a later SuperPaymaster upgrade makes `pauseUnderstakedOperator` cost more than 40,000 gas, every exit skips the pause with reason 3, and the event is the only signal. The step-13 measurement must be repeated after each SuperPaymaster Admin upgrade.
+- **Cost to an honest exit.** The guard requires about 34,500 gas more in the transaction gas limit than the exit itself uses; wallets that estimate gas are unaffected.
+
+### L-01: Chainlink timestamps (Low)
+- `updatePrice` rejects `updatedAt == 0` and `updatedAt > block.timestamp + 300` with `InvalidOracleTimestamp(updatedAt, nowTs)`. A round within the 300 s grace is cached as `block.timestamp`, so the cache never holds a future timestamp.
+- `_isChainlinkStale` and `updatePriceDVT` compare before subtracting: zero and future rounds count as not fresh and cannot underflow.
+- **Measured skew.** On the OP mainnet and Sepolia ETH/USD aggregators, over the last 60 `AnswerUpdated` events each, `updatedAt` equals the block timestamp of the writing transaction: maximum and minimum offset 0 s. The grace therefore rejects no normal round.
