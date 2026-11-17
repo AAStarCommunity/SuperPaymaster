@@ -45,7 +45,6 @@ contract DeployRepCreditSepolia is V55Bootstrap {
     Registry private registry;
     GTokenAuthorization private gtoken;
     GTokenStaking private staking;
-    address private stakingDeployedHere; // set only where this run deploys GTokenStaking
     MySBT private mysbt;
     xPNTsFactory private xpntsFactory;
     xPNTsToken private apnts;
@@ -85,7 +84,6 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         );
         staking =
             GTokenStaking(_deployDefault("GTokenStaking", abi.encode(address(gtoken), deployer, address(registry))));
-        stakingDeployedHere = address(staking);
         mysbt =
             MySBT(_deployDefault("MySBT", abi.encode(address(gtoken), address(staking), address(registry), deployer)));
 
@@ -150,10 +148,9 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         superPaymaster.initBLSAggregator(address(blsAggregator));
         // Slasher-policy exception (coverage script SLASHER_EXCEPTIONS, DSR 2026-11-15): this isolated
         // evidence stack's aggregator holds the staking slasher role for guardian-slash experiments, so on
-        // this stack the #631 H-1 denylist is the only defence on the generic path. The role may only ever
-        // be granted on the staking contract THIS run deployed, never on an existing (5.5.0 production) one.
-        require(stakingDeployedHere != address(0) && address(staking) == stakingDeployedHere,
-            "RepCredit: slasher grant only on the staking deployed by this run");
+        // this stack the #631 H-1 denylist is the only defence on the generic path. No mechanical guarantee
+        // that `staking` is this run's own contract: it holds only because the script deploys its own
+        // stack (it reads no staking address from the environment or a config).
         staking.setAuthorizedSlasher(address(blsAggregator), true);
         superPaymaster.setAgentRegistries(address(agentIdentityRegistry), address(agentReputationRegistry));
 
@@ -189,7 +186,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         // agree produces a stack that looks wired and verifies nothing.
         require(
             keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.14.1"),
-            "BLSAggregator is not 4.14.0"
+            "BLSAggregator is not 4.14.1"
         );
         require(_strEq(superPaymaster.version(), SP_V55_VERSION), "SuperPaymaster is not 5.5.0");
         require(address(blsAggregator.REGISTRY()) == address(registry), "aggregator bound to another Registry");

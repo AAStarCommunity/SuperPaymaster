@@ -10,6 +10,9 @@ import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 
 contract DeployBLSModules is Script {
     function run(address registryAddr, address spAddr) external {
+        // Retired for rc.8 (DSR 2026-11-15): outside the generic-path coverage scan; deploys with a plain
+        // `new` and wires the aggregator itself. rc.8 deploys through DeployLive / the manifest.
+        revert("DeployBLSModules: retired for rc.8; use DeployLive or the manifest");
         require(registryAddr != address(0), "Registry address cannot be zero.");
         require(spAddr != address(0), "SP address cannot be zero.");
 
