@@ -207,10 +207,9 @@ contract RepCreditPragueE2E is Test {
         bytes32 messageHash = _reputationHash(proposalId, users, scores, 1, block.chainid);
         bytes memory proof = _proof(messageHash, 3);
 
+        // A completed exit retires the seat (Daybreak 053117cc M-01), so slot 1 is already empty.
         vm.prank(validators[1]);
-        vm.expectRevert(
-            abi.encodeWithSelector(BLSAggregator.SlotValidatorRoleRevoked.selector, uint8(1), validators[0])
-        );
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.UnknownValidatorSlot.selector, uint8(1)));
         dvt.executeWithProof(proposalId, users, scores, 1, "", proof);
     }
 

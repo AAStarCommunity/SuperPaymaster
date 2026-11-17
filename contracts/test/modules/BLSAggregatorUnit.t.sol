@@ -397,7 +397,7 @@ contract BLSAggregatorUnitTest is BLSRegistrationTestHelper {
     // ========================================
 
     function test_Version() public view {
-        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.14.1"));
+        assertEq(keccak256(bytes(bls.version())), keccak256("BLSAggregator-4.14.2"));
     }
 
     // ========================================

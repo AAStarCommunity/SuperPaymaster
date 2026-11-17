@@ -1,13 +1,13 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-11-17T14:31:50Z",
-  "totalHash": "1d5c6c014444b4904b2f0bde9e55ef2c9bdfa9c8c3303c2d3afa1cb8d415f1ef",
+  "buildTime": "2026-11-17T16:09:47Z",
+  "totalHash": "441e7e867139f2d50c519f08100e55a7a19587089c88b4a7ecb8c4f5a42f7575",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
     { "name": "BLSAggregator-4.11.0.deployed.json", "hash": "df667b4d7e59b78afda728c03259c35074ef634a7c257e7f40fa3247e81106ce" },
-    { "name": "BLSAggregator.json", "hash": "cba84adc14953edc330c7154fc8dc6b7fdb696935e7e30c52e8e59adf2734400" },
+    { "name": "BLSAggregator.json", "hash": "0ef0c9a9a01452853da7ab13da95a1454bb359f6e473ad85fd987943969dd10d" },
     { "name": "DVTValidator.json", "hash": "9b83712f367d04cc3b74cca14f31521f9c3b3af6af0584d2ff13265e4dbcbf1c" },
     { "name": "EntryPoint.json", "hash": "fb52a7e1d92dfed8285b78d1849661936c09401227e27e2eceda905b20cd6844" },
     { "name": "GlobalTierSource.json", "hash": "11b22ae116e85e774525d2b95788bbca2deac91a4843546633dfba6512e3b5dc" },
