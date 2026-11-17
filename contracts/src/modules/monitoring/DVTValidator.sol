@@ -159,9 +159,9 @@ contract DVTValidator is Ownable, IVersioned {
     error MissingEvidenceHash();
     error ProposalShapeMismatch();
 
-    /// @param firstProposalId First raw proposal id allocated by this deployment.
-    /// @dev Must be non-zero and below 2^128. Rotation operators must leave
-    ///      enough headroom for the deployment's expected proposal lifetime.
+    /// @param firstProposalId Non-zero lower bound for this deployment's IDs, below 2^128.
+    ///        Allocation uses max(this, aggregator.proposalFloor()) (nextProposalId), so a
+    ///        value below the floor is lifted, not rejected.
     constructor(address _registry, uint256 firstProposalId, bytes32[] memory categories, address[] memory checkers)
         Ownable(msg.sender)
     {
