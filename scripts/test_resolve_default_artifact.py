@@ -97,6 +97,17 @@ class ResolverTest(unittest.TestCase):
                 self.artifact("Widget.sol/Widget.json", **kw)
                 self.assertIsNone(R.resolve("Widget")[0])
 
+    def test_string_metadata_is_rejected_like_solidity(self):
+        path = self.artifact("Widget.sol/Widget.json")
+        with open(path) as fh:
+            a = json.load(fh)
+        a["metadata"] = json.dumps(a["metadata"])  # DefaultArtifacts.sol cannot query into a string
+        with open(path, "w") as fh:
+            json.dump(a, fh)
+        path2, why = R.resolve("Widget")
+        self.assertIsNone(path2)
+        self.assertIn("no profile.default build", why)
+
     def test_unmapped_name_fails(self):
         path, why = R.resolve("NoSuchContract")
         self.assertIsNone(path)

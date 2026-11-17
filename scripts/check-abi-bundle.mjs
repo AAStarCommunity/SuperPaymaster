@@ -89,9 +89,18 @@ function compiledArtifact(name) {
 const strip = (h) => (typeof h === "string" ? h : h?.object ?? "").replace(/^0x/, "").toLowerCase();
 
 let stale = 0, checked = 0, skipped = [], external = [];
-// A deployed bundle that was deleted is not "nothing to compare".
-for (const n of DEPLOYED_EXTERNAL) {
-  if (!existsSync(join(ABIS, `${n}.json`))) { console.error(`FAIL: abis/${n}.json is missing (deployed by this repo)`); stale++; }
+// A bundle that was deleted is not "nothing to compare". The required set is independent of
+// what abis/ currently holds: every contract extract_v3_abis.sh exports (its CONTRACTS list),
+// plus the deployed externals.
+const extractSrc = readFileSync(join(ROOT, "scripts", "extract_v3_abis.sh"), "utf8");
+const listMatch = extractSrc.match(/^CONTRACTS=\(([\s\S]*?)^\)/m);
+const REQUIRED = new Set([
+  ...(listMatch ? [...listMatch[1].matchAll(/^\s*"(\w+)"/gm)].map((m) => m[1]) : []),
+  ...DEPLOYED_EXTERNAL,
+]);
+if (!listMatch || REQUIRED.size < 10) { console.error("FAIL: could not read the CONTRACTS list from scripts/extract_v3_abis.sh"); stale++; }
+for (const n of REQUIRED) {
+  if (!existsSync(join(ABIS, `${n}.json`))) { console.error(`FAIL: abis/${n}.json is missing (required bundle)`); stale++; }
 }
 for (const file of readdirSync(ABIS).filter((f) => f.endsWith(".json"))) {
   const name = file.replace(/\.json$/, "");

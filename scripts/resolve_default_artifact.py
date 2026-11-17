@@ -141,8 +141,8 @@ def _disk_hash(path):
 def is_default_build(artifact, src, runs):
     """Mirror of DefaultArtifacts._isDefaultBuild + _localImportsFresh."""
     md = artifact.get("metadata")
-    if isinstance(md, str):
-        md = json.loads(md)
+    # Same as DefaultArtifacts.sol, which queries $.metadata.settings... directly: metadata must be
+    # a JSON object. A JSON-encoded string is rejected (Solidity rejects it too), not decoded.
     if not isinstance(md, dict):
         return False
     st = md.get("settings", {})
