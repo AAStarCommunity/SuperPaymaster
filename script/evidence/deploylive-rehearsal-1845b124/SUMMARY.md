@@ -42,3 +42,43 @@ INFO
 ## Not covered yet
 - Reputation branch run once with real BLS keys on this system: guardian registration, stake, and a genuine proof.
 - ERC-7562 / bundler path.
+
+## Reputation branch with real BLS keys — main cdb59d06 (2026-11-17)
+
+**Result: PASS.** Run on the same fork, on top of the DeployLive state above (anvil snapshot `0x0` taken first).
+
+### Setup
+- **Guardians:** three anvil test accounts (#2, #3, #4).
+- **Keys:** fresh random BLS scalars, generated for this run only and kept outside the repo. They pass the weak-key scan (`BLSKeyScanLib.isWeakScalarKey`).
+- **Governance:** the Mycelium Safe is the aggregator and DVT owner. It was impersonated on the fork (`anvil_impersonateAccount`), so its calls were not 2-of-3 Safe transactions. Every other call came from its real role holder.
+- **Order:**
+  1. ROLE_DVT stake (minStake + ticket).
+  2. `dvt.addValidator`.
+  3. `dvt.registerBLSPublicKey` with a real PoP.
+  4. Thresholds set to `setMinThreshold(2)` / `setDefaultThreshold(2)`. This is the manifest A10 → A11 order.
+- **Proposal path (production DVT path):** guardian 1 calls `dvt.createProposal(0, 0, …)`, then `dvt.executeWithProof(1, [target], [50], epoch 1, 2-of-3 aggregate)`. That goes through `BLSAggregator.verifyAndExecute`, then `Registry.batchUpdateGlobalReputation`, where Registry independently re-verifies the proof.
+- **Script:** `RehearseReputationBranch.s.sol`. 19 transactions, receipts 19/19 status 1 (`rep-broadcast.json`, `rep-branch.log`).
+
+### Readback (`rep-readback.txt`)
+- `globalReputation(target) = 50`
+- `agg.executedProposals(1) = true`
+- thresholds 2/2
+- slots 1/2/3 = guardians 1/2/3
+- `requireHealthy` passed inside the script
+
+### Controls (eth_call)
+| # | Case | Result |
+|---|---|---|
+| PC | fresh 2-of-3 proof for proposal 2 | **accepted** (`0x`) |
+| N1 | replay of the executed proof on proposal 1 | `ProposalExecutedAlready()` |
+| N2 | proof of proposal 1 applied to proposal 2 | `SignatureVerificationFailed()` |
+| N3 | proof of proposal 1 with the score changed to 150 | `SignatureVerificationFailed()` |
+| N4 | direct `Registry.batchUpdateGlobalReputation` from a non-source | `UnauthorizedSource()` |
+| N5 | non-validator calls `executeWithProof` | `NotAuthorizedExecutor()` |
+| N6 | fresh 1-of-3 proof (below the default threshold) | `InvalidSignatureCount(uint256,uint256)` |
+
+The positive control shares N2's proposal, inputs and signers. That is the evidence N2/N3 fail because the signature is bound to (domain, proposalId, users, scores, epoch), and not for some unrelated reason.
+
+### Not covered
+- The slash branch: slashing is out of scope for 5.5.0.
+- Real Safe 2-of-3 execution: the Safe was impersonated.
