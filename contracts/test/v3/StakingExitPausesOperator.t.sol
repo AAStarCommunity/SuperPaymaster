@@ -164,7 +164,8 @@ contract StakingExitPausesOperatorTest is Test {
 
     /// A paymaster that burns all gas it is given cannot block the exit, and the 40k cap bounds
     /// what the exit costs. Without the cap the call still leaves 1/64 of the gas, enough to finish,
-    /// but the burner consumes ~63/64 of the transaction's gas limit; the gasUsed bound pins the cap.
+    /// but the burner consumes ~63/64 of the 1M limit; the gasUsed bound pins the cap. Measured with
+    /// the cap: ~228k (Cancun), ~340k (Amsterdam), so the bound holds on both engines.
     function test_GasExhaustingHookCannotBlockExit() public {
         address burner = address(new GasBurningExitPaymaster());
         vm.prank(owner);
@@ -173,10 +174,10 @@ contract StakingExitPausesOperatorTest is Test {
         uint256 beforeBalance = gtoken.balanceOf(operator);
         vm.prank(operator);
         uint256 g0 = gasleft();
-        (bool ok,) = address(registry).call{gas: 600_000}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
+        (bool ok,) = address(registry).call{gas: 1_000_000}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
         uint256 used = g0 - gasleft();
         assertTrue(ok, "exit completes within a realistic gas limit");
-        assertLt(used, 300_000, "the hook's gas cap bounds the exit cost");
+        assertLt(used, 500_000, "the hook's gas cap bounds the exit cost");
         assertGt(gtoken.balanceOf(operator), beforeBalance, "stake returned");
     }
 
@@ -187,7 +188,8 @@ contract StakingExitPausesOperatorTest is Test {
         _wire();
         vm.warp(block.timestamp + 365 days);
         uint256 completed;
-        for (uint256 g = 90_000; g <= 260_000; g += 2_000) {
+        // Upper end covers Amsterdam, where the exit costs ~110k more than on Cancun.
+        for (uint256 g = 90_000; g <= 600_000; g += 2_000) {
             uint256 snap = vm.snapshot();
             vm.prank(operator);
             (bool ok,) = address(registry).call{gas: g}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
