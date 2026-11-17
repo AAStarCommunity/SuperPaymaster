@@ -40,9 +40,9 @@ interface IDVTValidator {
 ///         `roleLocks`) does not surface `slashByDVT`, so we cast the same
 ///         staking pointer to this local interface rather than widening the
 ///         shared interface (which every mock/implementer would then have to
-///         satisfy). 5.5.0 does NOT put the aggregator in `authorizedSlashers`
-///         (guardian slash is off while fraudProofVerifier == 0); enabling it grants
-///         the role in the same timelock batch as proposeFraudProofVerifier.
+///         satisfy). The 5.5.0 deploy paths do NOT put the aggregator in
+///         `authorizedSlashers` (guardian slash is off while fraudProofVerifier == 0);
+///         enabling it grants the role in the same timelock batch as proposeFraudProofVerifier.
 interface IGTokenStakingSlash {
     function slashByDVT(address operator, bytes32 roleId, uint256 penaltyAmount, string calldata reason) external;
 }
@@ -309,7 +309,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     ///           any stake by any amount, bypassing severity bps, cooldown and floor.
     ///         Whole targets are NOT blocked: Registry.updateOperatorBlacklist (own proof,
     ///         defaultThreshold, blacklistNonce) and SP.updatePriceDVT (freshness, ±20% bands)
-    ///         are legitimate generic actions. contracts/test/modules/GenericSelectorCoverage.t.sol
+    ///         are legitimate generic actions. scripts/check_generic_selector_coverage.py (CI)
     ///         classifies every privileged selector reachable from this path.
     bytes4 private constant SEL_QUEUE_SLASH = bytes4(keccak256("queueSlash(address)"));
     bytes4 private constant SEL_EXECUTE_SLASH_BLS = bytes4(keccak256("executeSlashWithBLS(address,uint8,bytes)"));
@@ -470,7 +470,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.14.0";
+        return "BLSAggregator-4.14.1";
     }
 
     // ====================================

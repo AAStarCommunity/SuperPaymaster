@@ -6632,7 +6632,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 - **Source:** `contracts/src/modules/monitoring/BLSAggregator.sol`
 - **Functions:** 1 · **Events:** 0 · **Errors:** 0
-- Narrow sub-view of GTokenStaking exposing only the directed         role-lock slash. `IGTokenStaking` (used elsewhere here for         `roleLocks`) does not surface `slashByDVT`, so we cast the same         staking pointer to this local interface rather than widening the         shared interface (which every mock/implementer would then have to         satisfy). 5.5.0 does NOT put the aggregator in `authorizedSlashers`         (guardian slash is off while fraudProofVerifier == 0); enabling it grants         the role in the same timelock batch as proposeFraudProofVerifier.
+- Narrow sub-view of GTokenStaking exposing only the directed         role-lock slash. `IGTokenStaking` (used elsewhere here for         `roleLocks`) does not surface `slashByDVT`, so we cast the same         staking pointer to this local interface rather than widening the         shared interface (which every mock/implementer would then have to         satisfy). The 5.5.0 deploy paths do NOT put the aggregator in         `authorizedSlashers` (guardian slash is off while fraudProofVerifier == 0);         enabling it grants the role in the same timelock batch as proposeFraudProofVerifier.
 
 ### Function selector index
 

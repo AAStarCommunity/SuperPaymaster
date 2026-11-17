@@ -103,6 +103,9 @@ contract DeployStandardV3 is Script {
     }
 
     function run() external {
+        // Retired for rc.8 (DSR 2026-11-15): outside the generic-path coverage scan; deploys with a plain
+        // `new` and wires the aggregator itself. rc.8 deploys through DeployLive / the manifest.
+        revert("DeployStandardV3: retired for rc.8; use DeployLive or the manifest");
         // 1. 只有在 Anvil 下才执行 Warp 和 Mock 部署
         if (block.chainid == 31337) {
             vm.warp(1 days);

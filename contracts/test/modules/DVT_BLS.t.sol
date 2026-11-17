@@ -507,7 +507,7 @@ contract DVTBLSTest is Test {
         bls.setDVTValidator(address(replacement));
         vm.prank(address(101));
         assertEq(replacement.createProposal(op, 1, "explicit higher floor"), 100);
-        assertEq(replacement.version(), "DVTValidator-0.8.0");
+        assertEq(replacement.version(), "DVTValidator-0.8.1");
     }
 
     function test_M1_PreviousCounterExhaustionReverts() public {

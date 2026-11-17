@@ -88,7 +88,9 @@ jobs:
         # GTokenStaking, DVTValidator ABIs) must be classified blocked or allowed-with-reason;
         # the denylist missed entries three times before this was enumerated. Reads abis/ and
         # sources only (no build), so it runs on every PR.
-        run: python3 scripts/check_generic_selector_coverage.py
+        run: |
+          python3 -B scripts/test_check_generic_selector_coverage.py
+          python3 scripts/check_generic_selector_coverage.py
 
       - name: D5b release gates (SP core headroom >= 1,024; core/extension layout + selector routing; GOV-2 placement)
         # D5b-design §2 item 7 / §5: `forge build --sizes` only enforces EIP-170 itself, so "tests green but

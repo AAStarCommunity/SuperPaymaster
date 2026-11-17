@@ -186,8 +186,11 @@ class DVTMonitor {
 ## 权限管理
 
 ### GTokenStaking 授权
+5.5.0 不授权：聚合器唯一的 GToken 质押罚没路径（`executeGuardianSlash`）在 `fraudProofVerifier == 0` 时不可达，
+DeployLive / DeployAnvil / Sepolia manifest 都不调用 `setAuthorizedSlasher(blsAggregator, true)`，并读回断言为 false。
+将来启用 guardian slash 时，授权必须与 `proposeFraudProofVerifier` 放在同一个 timelock 批次（另见 YetAnotherAA-Validator#441）。
 ```solidity
-// 部署时设置
+// 仅在 5.5.x 启用 guardian slash 的 timelock 批次中执行
 gTokenStaking.setAuthorizedSlasher(blsAggregator, true);
 ```
 
