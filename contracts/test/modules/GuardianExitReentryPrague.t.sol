@@ -19,8 +19,8 @@ contract ReentrySuperPaymasterStub {
 
 /// @notice Daybreak 053117cc M-01 regression. Before the fix, a guardian that completed the exit
 ///         procedure regained (i) proposer power and (ii) quorum weight just by re-registering
-///         ROLE_DVT, with no new PoP and no owner approval (both reproduced on 053117cc). A
-///         completed exit now suspends the guardian and retires its key. Real keys, Prague.
+///         ROLE_DVT, with no owner approval (both reproduced on 053117cc). A completed exit now
+///         suspends the guardian and retires its key. Real keys, Prague.
 contract GuardianExitReentryPrague is Test {
     bytes32 private constant ROLE_DVT = keccak256("DVT");
     uint256 private constant N = 4;
@@ -110,13 +110,19 @@ contract GuardianExitReentryPrague is Test {
         assertEq(registry.globalReputation(users[0]), 0, "the exited key no longer counts");
     }
 
-    /// Re-admission is an owner decision plus a fresh PoP; after it the key counts again.
-    function test_Prague_M01_ReadmissionNeedsOwnerAndFreshPoP() public {
+    /// Re-admission: owner un-suspension restores proposer power; quorum weight additionally needs a
+    /// re-registration with a valid PoP (the PoP digest has no admission epoch, so the old one is reusable).
+    function test_Prague_M01_ReadmissionUnsuspendThenReregister() public {
         if (!prague) { vm.skip(true); return; }
         address v = validators[3];
         _exitAndReregister(v);
         assertTrue(bls.suspended(v), "exit leaves the guardian suspended");
         bls.setSuspended(v, false);
+        // Between un-suspension and re-registration: proposer power only, no quorum weight.
+        vm.prank(v);
+        dvt.createProposal(address(0), 0, "proposer only", bytes32(0));
+        (,, bool activeBefore) = bls.getBLSPublicKey(v);
+        assertFalse(activeBefore, "no quorum weight before re-registration");
         BLS.G1Point memory pk = _publicKey(sk[3]);
         dvt.registerBLSPublicKey(v, pk, 4, _pop(v, pk, sk[3]));
 
@@ -229,6 +235,48 @@ contract GuardianExitReentryPrague is Test {
         vm.prank(validators[0]);
         dvt.executeWithProof(id, users, scores, 1, "", proof);
         assertEq(registry.globalReputation(users[0]), 10);
+    }
+
+    /// Slot reuse: A's key was revoked and its slot reassigned to B before A completed its exit;
+    /// consuming A's exit must not touch B's slot.
+    function test_Prague_M01_ConsumingExitDoesNotEraseReusedSlot() public {
+        if (!prague) { vm.skip(true); return; }
+        address a = validators[3];
+        vm.prank(a);
+        bls.requestGuardianExit();
+        bls.revokeBLSPublicKey(a);
+        address b = address(0x2B0);
+        uint256 skB = 21;
+        _stakeDvt(b);
+        dvt.addValidator(b);
+        BLS.G1Point memory pkB = _publicKey(skB);
+        dvt.registerBLSPublicKey(b, pkB, 4, _pop(b, pkB, skB));
+        assertEq(bls.validatorAtSlot(4), b);
+
+        (uint64 readyAt,) = bls.guardianExitRequests(a);
+        vm.warp(uint256(readyAt) + bls.GUARDIAN_FRAUD_CHALLENGE());
+        vm.prank(a);
+        registry.exitRole(ROLE_DVT);
+        assertEq(bls.validatorAtSlot(4), b, "B keeps the reused slot");
+        (,, bool activeB) = bls.getBLSPublicKey(b);
+        assertTrue(activeB);
+        assertFalse(bls.suspended(b));
+    }
+
+    /// Only the Registry can consume an exit, and only for its own msg.sender (Registry.exitRole).
+    function test_Prague_M01_UnauthorizedConsumptionRejected() public {
+        if (!prague) { vm.skip(true); return; }
+        address v = validators[3];
+        vm.prank(v);
+        bls.requestGuardianExit();
+        (uint64 readyAt,) = bls.guardianExitRequests(v);
+        vm.warp(uint256(readyAt) + bls.GUARDIAN_FRAUD_CHALLENGE());
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSelector(BLSAggregator.NotRegistry.selector, address(0xBAD)));
+        bls.consumeGuardianExit(v);
+        assertFalse(bls.suspended(v), "nobody can force-retire a guardian");
+        (,, bool active) = bls.getBLSPublicKey(v);
+        assertTrue(active);
     }
 
     function _proof(bytes32 h, uint256 mask) internal view returns (bytes memory) {

@@ -900,7 +900,7 @@ It needed no new PoP, no `addValidator` and no owner approval. Both halves were 
 
 **Fix.** `consumeGuardianExit` now also calls `_setSuspended(guardian, true)` and `_revokeBLSPublicKey(guardian)`, which adds 18 B; BLSAggregator is 24,547 B with 29 B of headroom.
 
-- **A completed exit means the address is no longer a guardian.** Coming back takes an owner un-suspension and a fresh registration with PoP. The key-owner binding is kept, so the key cannot move to another address.
+- **A completed exit means the address is no longer a guardian.** Owner un-suspension restores proposer power (DVT admission was never cleared). Quorum weight additionally needs a re-registration with a valid PoP. The PoP digest has no admission epoch, so the original PoP is reusable. That is pre-existing behaviour, tracked as a 5.5.x item: bind PoP to an epoch. The key-owner binding is kept, so the key cannot move to another address.
 - **No exit is blocked by the fix.** Both internal calls are no-ops when the target state already holds: a key that is already revoked, a guardian that never registered a key, or one that is already suspended.
 - **Tests.** `contracts/test/modules/GuardianExitReentryPrague.t.sol`, 8 tests, each fix line mutation-checked.
 

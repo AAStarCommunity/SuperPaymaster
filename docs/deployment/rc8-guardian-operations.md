@@ -20,7 +20,7 @@ Defaults: N = 3, `minThreshold` 2, `defaultThreshold` 2, slash thresholds WARNIN
 ## Re-admission after an exit
 1. The governance owner calls `BLSAggregator.setSuspended(guardian, false)`.
 2. The guardian holds ROLE_DVT with at least `minStake`.
-3. The owner calls `DVTValidator.registerBLSPublicKey(guardian, key, slot, pop)` with a fresh PoP. If `permissionlessBLSRegistration` is on, the guardian can make this call itself, but only after step 1.
+3. Between steps 1 and 3, the address has **proposer power only**: its key is revoked, so it cannot contribute to any quorum. The owner then calls `DVTValidator.registerBLSPublicKey(guardian, key, slot, pop)` with a valid PoP. The PoP digest has no admission epoch, so the original PoP is accepted again. If `permissionlessBLSRegistration` is on, the guardian can make this call itself, but only after step 1.
 4. `DVTValidator.addValidator` is needed only if the address was removed or pruned.
 
 The DVT node re-registration script must perform step 1 first.
