@@ -74,6 +74,7 @@ class InventoryRPC:
         configured = a.keccak('OperatorConfigured(address,address,address)')
         self.logs = {ex.REG: [event(grant, HOLDER, extra=[ex.role()])],
                      ex.SP: [event(configured, OLD_OPERATOR, target=ex.SP)]}
+        self.configured = {OLD_OPERATOR: 1}
         self.requests = []
 
     def __call__(self, method, params):
@@ -87,6 +88,10 @@ class InventoryRPC:
                 return '0x'+format(self.count, '064x')
             if data.startswith(a.calldata('hasRole(bytes32,address)', ex.role(), HOLDER)[:10]):
                 return '0x'+format(int('0x'+data[-40:] in self.holders), '064x')
+            if data.startswith(a.calldata('operators(address)', HOLDER)[:10]):
+                assert params[0]['to'] == ex.SP
+                flag = self.configured.get('0x'+data[-40:], 0)
+                return '0x'+''.join(format(w, '064x') for w in [0, flag]+[0]*7)
         raise AssertionError((method, params))
 
 
@@ -215,6 +220,40 @@ class ExecutorTests(unittest.TestCase):
         result = ex.inventory(rpc, BLOCK, 1, 2)
         self.assertEqual(result, dict(holders=[HOLDER], historicalOperators=[OLD_OPERATOR], pauseList=sorted([HOLDER, OLD_OPERATOR])))
         self.assertTrue(all(p[-1] == BLOCK for m, p in rpc.requests if m == 'eth_call'))
+
+    def test_inventory_scans_sp_without_topic_filter(self):
+        rpc = InventoryRPC()
+        ex.inventory(rpc, BLOCK, 1, 2)
+        sp = [p[0] for m, p in rpc.requests if m == 'eth_getLogs' and p[0]['address'] == ex.SP]
+        self.assertTrue(sp and all(q['topics'] == [] for q in sp))
+
+    def test_inventory_counts_four_argument_operator_configured(self):
+        rpc = InventoryRPC()
+        legacy = a.keccak('OperatorConfigured(address,address,address,uint256)')
+        other = '0x'+'33'*20
+        rpc.logs[ex.SP].append(event(legacy, other, block=11, index=1, target=ex.SP))
+        rpc.configured[other] = 1
+        self.assertEqual(ex.inventory(rpc, BLOCK, 1, 2)['historicalOperators'], sorted([OLD_OPERATOR, other]))
+
+    def test_inventory_rejects_unknown_sp_event(self):
+        rpc = InventoryRPC()
+        unknown = a.keccak('OperatorConfigured(address,address)')
+        rpc.logs[ex.SP].append(event(unknown, '0x'+'33'*20, block=11, index=1, target=ex.SP))
+        self.fails('sp_event_known_'+unknown, ex.inventory, rpc, BLOCK, 1, 2)
+
+    def test_inventory_rejects_configured_operator_seen_only_in_other_events(self):
+        rpc = InventoryRPC()
+        hidden = '0x'+'44'*20
+        rpc.logs[ex.SP].append(event(a.keccak('OperatorDeposited(address,uint256)'), hidden, block=11, index=1, target=ex.SP))
+        rpc.configured[hidden] = 1
+        self.fails('unlisted_configured_'+hidden, ex.inventory, rpc, BLOCK, 1, 2)
+        rpc.configured[hidden] = 0
+        self.assertNotIn(hidden, ex.inventory(rpc, BLOCK, 1, 2)['historicalOperators'])
+
+    def test_inventory_rejects_configured_holder_without_configuration_log(self):
+        rpc = InventoryRPC()
+        rpc.configured[HOLDER] = 1
+        self.fails('unlisted_configured_'+HOLDER, ex.inventory, rpc, BLOCK, 1, 2)
 
     def test_inventory_reconciles_count(self):
         rpc = InventoryRPC()
