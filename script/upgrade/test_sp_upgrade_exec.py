@@ -255,6 +255,36 @@ class ExecutorTests(unittest.TestCase):
         rpc.configured[HOLDER] = 1
         self.fails('unlisted_configured_'+HOLDER, ex.inventory, rpc, BLOCK, 1, 2)
 
+    # Independent oracle: the SP event forms of tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2
+    # (abis/SuperPaymaster.json) absent from the current ABI, plus the 4-argument OperatorConfigured
+    # (up to v5.3.2); value = topic index of the indexed `operator`, None if there is none.
+    HISTORICAL_FROM_TAGS = {
+        'OperatorConfigured(address,address,address,uint256)': 1,
+        'OperatorPaused(address)': 1, 'OperatorUnpaused(address)': 1,
+        'OperatorSlashed(address,uint256,uint8)': 1, 'ReputationUpdated(address,uint256)': 1,
+        'SlashCancelled(address)': 1, 'SlashQueued(address)': 1,
+        'PriceModeChanged(uint8,uint8)': None, 'PriceUpdated(int256,uint256)': None,
+    }
+
+    def test_inventory_classifies_every_historical_form(self):
+        self.assertEqual(ex.HISTORICAL_SP_EVENTS, self.HISTORICAL_FROM_TAGS)
+        for i, (sig, idx) in enumerate(sorted(self.HISTORICAL_FROM_TAGS.items())):
+            rpc = InventoryRPC()
+            who = '0x'+format(0x5000+i, '040x')
+            log = event(a.keccak(sig), who, block=11, index=1, target=ex.SP)
+            if idx is None:
+                log['topics'] = log['topics'][:1]
+            rpc.logs[ex.SP].append(log)
+            if 'OperatorConfigured' in sig:
+                rpc.configured[who] = 1
+            result = ex.inventory(rpc, BLOCK, 1, 2)
+            if 'OperatorConfigured' in sig:
+                self.assertIn(who, result['historicalOperators'], sig)
+                continue
+            read = [p[0]['data'][-40:] for m, p in rpc.requests if m == 'eth_call'
+                    and p[0]['data'].startswith(a.calldata('operators(address)', who)[:10])]
+            self.assertEqual(who[2:] in read, idx is not None, sig)
+
     def test_inventory_reconciles_count(self):
         rpc = InventoryRPC()
         rpc.count = 2
