@@ -1,0 +1,71 @@
+FAIL  owner(superPaymaster) != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  owner(registry) != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  owner(staking) != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  owner(gToken) != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(xPNTsFactoryV2) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(aoaProtocolRegistry) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+FAIL  owner(reputationSystem) != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(blsAggregator) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(dvtValidator) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  owner(xPNTsFactory) [legacy, exception allowed] :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  owner(paymasterFactory) [legacy, exception allowed] :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+INFO  owner(paymasterV4Impl) [legacy, exception allowed] :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+INFO  owner(microPaymentChannel) [legacy, exception allowed] :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+INFO  owner(x402Facilitator) [legacy, exception allowed] :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  pendingOwner(superPaymaster) :: 0x0000000000000000000000000000000000000000
+INFO  pendingOwner(registry) :: 0x0000000000000000000000000000000000000000
+FAIL  roleConfigs[COMMUNITY].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  roleConfigs[ENDUSER].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  roleConfigs[PAYMASTER_AOA].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  roleConfigs[PAYMASTER_SUPER].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  roleConfigs[DVT].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  roleConfigs[ANODE].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  roleConfigs[KMS].owner != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  isReputationSource(repSystem) :: expected true
+PASS  isReputationSource(aggregator) :: expected true
+PASS  isReputationSource(deployer) == false :: 
+FAIL  SP.treasury != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  staking.treasury != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  MySBT.daoMultisig != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+FAIL  aggregator.slashPolicyAdmin != deployer :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  SP.guardian != deployer :: 0x0000000000000000000000000000000000000000
+PASS  PolicyRegistry.guardian != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  PolicyRegistry.timelock :: 0x5969409aAE959726F6f1f6d05397eE9b65D80E97
+PASS  DVT.isValidator(deployer) == false :: 
+PASS  TL.PROPOSER_ROLE(deployer) == false :: 
+INFO  TL.PROPOSER_ROLE(safe) :: true
+PASS  TL.EXECUTOR_ROLE(deployer) == false :: 
+INFO  TL.EXECUTOR_ROLE(safe) :: true
+PASS  TL.CANCELLER_ROLE(deployer) == false :: 
+INFO  TL.CANCELLER_ROLE(safe) :: true
+PASS  TL.DEFAULT_ADMIN_ROLE(deployer) == false :: 
+INFO  TL.DEFAULT_ADMIN_ROLE(safe) :: true
+INFO  TL.minDelay :: 172800 [1.728e5]
+PASS  authorizedSlashers(aggregator) == false :: 
+PASS  fraudProofVerifier == 0 :: 
+PASS  owner(superPaymaster) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(registry) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(staking) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(gToken) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(xPNTsFactoryV2) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(aoaProtocolRegistry) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(reputationSystem) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(blsAggregator) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(dvtValidator) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(xPNTsFactory) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(paymasterFactory) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(paymasterV4Impl) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(microPaymentChannel) != aggregator :: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+PASS  owner(x402Facilitator) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  aggregator ETH balance == 0 :: 0
+PASS  aggregator gToken balance == 0 :: 0
+PASS  aggregator aPNTs balance == 0 :: 0
+PASS  aggregator pnts balance == 0 :: 0
+INFO  versions :: agg="BLSAggregator-4.14.1" dvt="DVTValidator-0.9.0" sp="SuperPaymaster-5.5.2"
+INFO  agg.minThreshold :: 3
+INFO  agg.defaultThreshold :: 7
+PASS  generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector :: Error: server returned an error response: error code 3: execution reverted: custom error 0xbccd864e: 1b02e44f000000000000000000000000000000000000000000000000000
+PASS  generic executeProposal(slash) rejected with ForbiddenGenericSelector :: Error: server returned an error response: error code 3: execution reverted: custom error 0xbccd864e: 678b3ee2000000000000000000000000000000000000000000000000000
+PASS  generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector :: Error: server returned an error response: error code 3: execution reverted: custom error 0xbccd864e: 8f764848000000000000000000000000000000000000000000000000000
+
+SUMMARY 37 passed, 16 failed, 53 total

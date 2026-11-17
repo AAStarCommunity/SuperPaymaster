@@ -1,0 +1,17 @@
+== readback
+globalReputation(target) = 50
+agg.executedProposals(1) = true
+thresholds = 2/2
+dvt.categoryCount = 0
+== controls
+N1 replay id1: ProposalExecutedAlready()
+S1 slash-shape create on live 0.9.0 (empty allowlist): UnknownEvidenceCategory(bytes32)
+R2 rep create with nonzero evidenceHash: ReputationEvidenceHashNotZero()
+(created proposal 2)
+PC fresh 2-of-3 for id 2: 0x
+R3 same valid proof + non-empty evidence: ReputationEvidenceNotEmpty()
+M1 rep proposal, empty batch: ProposalShapeMismatch() (raw 0x6f60164b; the decoder missed it because cast printed the selector as text)
+N2 id1 proof on id2: SignatureVerificationFailed()
+N3 score changed to 150: SignatureVerificationFailed()
+N6 1-of-3: InvalidSignatureCount(uint256,uint256)
+N5 non-validator: NotAuthorizedExecutor()

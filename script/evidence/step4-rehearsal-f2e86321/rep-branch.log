@@ -1,0 +1,61 @@
+Compiling 107 files with Solc 0.8.33
+Compiling 50 files with Solc 0.8.33
+Solc 0.8.33 finished in 6.33s
+Solc 0.8.33 finished in 17.59s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Script ran successfully.
+
+== Logs ==
+  REHEARSAL proposalId 1
+  REHEARSAL messageHash
+  0x6b566e62e9cdb2d05cbacf0bfeaa0f6961896cc00c684cf5ad62ea99b7dcefab
+  REHEARSAL globalReputation(target) 50
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 10
+
+Estimated gas price: 0.000000139 gwei
+
+Estimated total gas used for script: 7150745
+
+Estimated amount required: 0.000000000993953555 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/sp-wt/rc8-dvtev/broadcast/RehearseReputationBranch.s.sol/10/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/sp-wt/rc8-dvtev/cache/RehearseReputationBranch.s.sol/10/run-latest.json
+

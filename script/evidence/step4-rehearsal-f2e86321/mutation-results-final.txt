@@ -1,0 +1,10 @@
+m1 rep create: drop evidenceHash==0 :: RED: test_Prague_R2_ReputationRejectsEvidenceHash 
+m2 rep exec: drop empty-evidence :: RED: test_Prague_R3_ReputationRejectsRawEvidence 
+m3 slash create: drop empty-allowlist :: RED: test_EmptyAllowlistRejectsBothPathsAndReportsZeroCategories test_Prague_S1_EmptyAllowlistRejectsSlashCreation 
+m4 slash create: drop nonzero commitment :: RED: test_Prague_SlashRequiresNonzeroCommitment 
+m5 rep exec: drop empty-batch mismatch :: RED: test_Prague_M1_ReputationRejectsEmptyBatch 
+m6 slash exec: drop batch mismatch :: RED: test_Prague_M1_SlashRejectsUsersOrScores 
+m7 slash exec: drop hash equality :: RED: test_ExecuteOrder_HashBeforeBLS test_Prague_B_HashMismatchBeforeAggregator 
+m8 slash exec: skip _checkEvidence :: RED: test_ExecuteOrder_CheckerBeforeHashAndBLS test_ExecuteOrder_UnknownCategoryBeforeHashAndBLS test_PassingCheckerReachesAggregatorWithComputedHash test_Prague_B_CheckerFalseBeforeHashAndAggregator test_Prague_B_CheckerMalformedBeforeHashAndAggregator test_Prague_B_CheckerRevertBeforeHashAndAggregator test_Prague_ExecuteValidEvidenceRejectsInvalidRealSignatureThenAcceptsValidSignature test_Prague_S2_B_UnknownCategoryBeforeCheckerHashAndAggregator 
+m9 rep exec: old behaviour (always check evidence) :: RED: test_Prague_M1_ReputationRejectsEmptyBatch test_Prague_R1_ReputationWithoutCategoriesUpdatesRegistry 
+m10 queue: skip _checkEvidence :: RED: test_CheckerFalseRevertsEvidenceRejected test_EmptyAllowlistRejectsBothPathsAndReportsZeroCategories test_MalformedCheckerReturnBecomesEvidenceRejected test_Prague_S3_EmptyAllowlistRejectsQueueSlash test_QueueOrder_CheckerBeforeAggregator test_QueueOrder_UnknownCategoryBeforeAggregator test_RevertingCheckerBecomesEvidenceRejected test_UnknownCategoryRevertsOnQueue 
