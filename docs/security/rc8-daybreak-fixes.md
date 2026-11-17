@@ -905,3 +905,30 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 **Usage rule for both paths.** Fund or register a paymaster address only after its deploying receipt is confirmed, using the address from the receipt, and after `owner()` has been checked. Two things a prediction does not give you:
 - **Stability.** `upgradeImplementation` between prediction and deployment changes the resulting address, because version labels do not pin code.
 - **Deployability.** `predictPaymasterAddress` accepts any operator, including zero, and some returned addresses can never be deployed.
+
+## Completed guardian exit retires the seat (Daybreak 053117cc M-01, BLSAggregator-4.14.2, 2026-11-17)
+
+**Finding (Medium, reachable in 5.5.0).** `consumeGuardianExit`, which `Registry.exitRole(ROLE_DVT)` calls, only deleted the exit request. After a completed exit, the same address could re-register ROLE_DVT with fresh stake and immediately regain both halves of guardian power:
+
+- **(i) Proposer power.** `DVTValidator.isValidator` was still set and the address was not suspended.
+- **(ii) Quorum weight.** Its old BLS key was still active in its slot, so `_reconstructPkAgg` counted it.
+
+It needed no new PoP, no `addValidator` and no owner approval. Both halves were reproduced on main `053117cc` (real Registry, DVTValidator and keys, Prague).
+
+**Fix.** `consumeGuardianExit` now also calls `_setSuspended(guardian, true)` and `_revokeBLSPublicKey(guardian)`, which adds 18 B; BLSAggregator is 24,547 B with 29 B of headroom.
+
+- **A completed exit means the address is no longer a guardian.** Owner un-suspension restores proposer power (DVT admission was never cleared). Quorum weight additionally needs a re-registration with a valid PoP. The PoP digest has no admission epoch, so the original PoP is reusable. That is pre-existing behaviour, tracked as a 5.5.x item: bind PoP to an epoch. The key-owner binding is kept, so the key cannot move to another address.
+- **No exit is blocked by the fix.** Both internal calls are no-ops when the target state already holds: a key that is already revoked, a guardian that never registered a key, or one that is already suspended.
+- **Tests.** `contracts/test/modules/GuardianExitReentryPrague.t.sol`, 8 tests, each fix line mutation-checked.
+
+**Disclosed constraint: exits stop at the largest configured threshold.** `_requireCommitteeSurvivesExit` refuses an exit when the live guardians *before* the exit equal any configured threshold: `minThreshold`, `defaultThreshold`, or any `slashThresholds[level]`.
+
+- **This includes the slash thresholds, which have no use in 5.5.0** (no slash-shape proposal can be created while `categoryCount() == 0`). An unused threshold still constrains exits. This is by construction: the check does not know whether slashing is enabled, so a set that could later enable slashing is never shrunk below a threshold it might need.
+- **Effect with the rc.8 inputs** (min 2, default 2, slash 2/3/3):
+  - with **3 guardians, no guardian can exit voluntarily** (`GuardianExitWouldBreakQuorum(2, 3)`);
+  - with 4 guardians, one can exit, and exits then stop at 3.
+- **To allow a voluntary exit, one of these must happen first:**
+  - the governance owner adds a guardian; or
+  - `slashPolicyAdmin` lowers the MINOR/MAJOR slash thresholds to 2.
+- **The emergency paths are not subject to this check.** `revokeAndSuspend` and `revokeBLSPublicKey` (owner) can take the live set below a threshold. Proofs then fail with `InvalidSignatureCount` until guardians are re-admitted.
+- Pinned by `test_Prague_M01_ExitStopsAtTheLargestThreshold`. The operational procedure is in `docs/deployment/rc8-guardian-operations.md`.

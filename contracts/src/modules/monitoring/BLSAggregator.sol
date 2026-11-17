@@ -470,7 +470,7 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
     uint256 public constant VERIFIER_ROTATION_DELAY = GUARDIAN_SLASH_CASE_WINDOW;
 
     function version() external pure override returns (string memory) {
-        return "BLSAggregator-4.14.1";
+        return "BLSAggregator-4.14.2";
     }
 
     // ====================================
@@ -1869,6 +1869,10 @@ contract BLSAggregator is Ownable, ReentrancyGuard, IVersioned {
         if (block.timestamp < withdrawAt) revert GuardianExitNotReady(guardian, withdrawAt);
         if (block.timestamp > request.expiresAt) revert GuardianExitRequestExpired(guardian, request.expiresAt);
         delete guardianExitRequests[guardian];
+        // A completed exit retires the seat: re-entry needs owner un-suspension and a fresh
+        // registration with PoP, not just a new ROLE_DVT stake (Daybreak 053117cc M-01).
+        _setSuspended(guardian, true);
+        _revokeBLSPublicKey(guardian);
         emit GuardianExitConsumed(guardian);
     }
 
