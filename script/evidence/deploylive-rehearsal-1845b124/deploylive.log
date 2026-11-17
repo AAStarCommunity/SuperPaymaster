@@ -1,0 +1,201 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  === Step 1: Deploy Foundation (Scheme B - UUPS Proxy) ===
+    [artifact] default artifact OK: Registry 0x6C71fa78F7709C21317E7AbEb974E672929aA854 24559
+    [artifact] default artifact OK: ERC1967Proxy 0x812d8DFD26F732bE41c0283cd1a14D8698f9F424 100
+    [artifact] default artifact OK: xPNTsFactory 0xDd0D85C98D756CFEa2d40B608Df42A1BBc2b4249 6802
+    [artifact] default artifact OK: GTokenAuthorization 0x8488d18C59a6CbDA9918cB185C4A1f2b31218201 6113
+    [artifact] default artifact OK: GTokenStaking 0x4151411f3Def4852307e9E5795F197125d13954e 9061
+    [artifact] default artifact OK: MySBT 0xc575e0D0336B8FEDB609c725909797EC7d5b884F 12111
+  === Step 2: Pre-register AAStar COMMUNITY + Deploy aPNTs ===
+    aPNTs Deployed at: 0xBCd46830F4CCb53921fDbAaD23C6A339c4c93B37
+  === Step 3: Deploy SuperPaymaster (UUPS Proxy) ===
+    [artifact] default artifact OK: SuperPaymaster 0x91670321fEffb204d5B7eb5BEAf80A7A83699454 16304
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xcdfAF60EF69403c0444A4877bDA94c3EE8D32eF1
+    [artifact] default artifact OK: ERC1967Proxy 0xED352B5E3Aa6F5D5f71C9bC822EB195662fB8672 100
+  === Step 3b: Deploy xPNTs v2 stack (runbook step 4) ===
+    [artifact] default artifact OK: GlobalTierSource 0x598731042CB7C1495106fe32F4ccF16412361068 542
+    [v55] new   GlobalTierSource    0x598731042CB7C1495106fe32F4ccF16412361068
+    [artifact] default artifact OK: AOAProtocolRegistry 0x0B71D168930B2e42F6eb869f90232458986A28C6 2746
+    [v55] new   AOAProtocolRegistry 0x0B71D168930B2e42F6eb869f90232458986A28C6
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x0245d5B15c6233A662d00A19663d9A1F888192FE 22543
+    [v55] new   xPNTsTokenV2Ext     0x0245d5B15c6233A662d00A19663d9A1F888192FE
+    [artifact] default artifact OK: xPNTsTokenV2 0x739d0589eB21caE87f0A2E75c0F1C8852699902a 20008
+    [v55] new   xPNTsTokenV2 impl   0x739d0589eB21caE87f0A2E75c0F1C8852699902a
+    [artifact] default artifact OK: xPNTsFactoryV2 0x5d79f4F11FFE0380395CF5a4878580dAb47Ec0a0 8537
+    [v55] new   xPNTsFactoryV2      0x5d79f4F11FFE0380395CF5a4878580dAb47Ec0a0
+    [artifact] default artifact OK: SuperPaymasterLens 0xCE433ad4C6F4AF192CC404a23E88A47EF56caaa8 5525
+    [v55] new   SuperPaymasterLens  0xCE433ad4C6F4AF192CC404a23E88A47EF56caaa8
+  === Step 4: Deploy Modules ===
+    [artifact] default artifact OK: ReputationSystem 0xe7F0dcb625AcfBFDC901E20197C3EFdc6440715C 7731
+    [artifact] default artifact OK: DVTValidator 0xBca9518c3002de3c6cB52F075D22F797118046A4 8448
+    [artifact] default artifact OK: BLSAggregator 0xb6BbB471e6afE265E0602B193ABa5633E8F40453 24529
+    [artifact] default artifact OK: MicroPaymentChannel 0x5f3703726f78F9f4d26BF821a7bEAa82eeCee15E 6117
+    [artifact] default artifact OK: PaymasterFactory 0x8e8825389ab3e5D7A3E151EfD2e915FE87D3f84e 6158
+    [artifact] default artifact OK: Paymaster 0x15890DFd98fFdd9B9C69CD8B9EAEA3Db54A611E5 10492
+  === Step 5: The Grand Wiring ===
+    Agent registries wired (ERC-8004 official)
+      identity:    0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
+      reputation:  0x8004BAa17C55a88189AE136b182e5fdA19dE9b63
+      validation:  0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58  (recorded, not wired to SP yet)
+    Cache Price Force-Initialized
+  === Step 6: Role Orchestration (Jason / AAStar) ===
+    aPNTs: 0xBCd46830F4CCb53921fDbAaD23C6A339c4c93B37 SP: 0xED352B5E3Aa6F5D5f71C9bC822EB195662fB8672
+  === Step 7: Mycelium Community (Anni) ===
+    Anni (Mycelium Admin): 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+    Mycelium Community Registered
+    Mycelium PAYMASTER_SUPER Registered
+    1000 aPNTs transferred to Anni
+    [v55] v2 token issued: PNTs 0x5D0b501ff822Dd0c9EdB43269FCDC57cd10D5666
+    Operator Configured (PNTs v2 -> SuperPaymaster)
+    1000 aPNTs Deposited to SuperPaymaster
+    500 PNTs Minted to Anni
+  === Step 8: v5.4 god-split (X402Facilitator + Timelock + PolicyRegistry) ===
+    [artifact] default artifact OK: X402Facilitator 0xF6f742A585BCd4866e641fA632bB15a9faf4EA37 4332
+    [v5.4] X402Facilitator: 0xF6f742A585BCd4866e641fA632bB15a9faf4EA37
+           version: X402Facilitator-1.0.0
+           owner:   0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    [v5.4] X402Facilitator owner -> governor (atomic at deploy): 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [artifact] default artifact OK: TimelockController 0x5969409aAE959726F6f1f6d05397eE9b65D80E97 5458
+    [v5.4] TimelockController: 0x5969409aAE959726F6f1f6d05397eE9b65D80E97
+           minDelay (s): 172800
+           proposer/executor/admin: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [artifact] default artifact OK: PolicyRegistry 0x4F9a4c6241B698C46929eA9AB3Ec7936af1a99Be 8310
+    [v5.4] PolicyRegistry: 0x4F9a4c6241B698C46929eA9AB3Ec7936af1a99Be
+           version:  PolicyRegistry-3.0.2
+           timelock: 0x5969409aAE959726F6f1f6d05397eE9b65D80E97
+           guardian: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+           SP authorized: true
+    [v5.4] Wiring X402Facilitator on 1 xPNTs token(s)
+      WIRED token: 0xBCd46830F4CCb53921fDbAaD23C6A339c4c93B37
+  === Wiring Integrity Check (D-H4) ===
+    BLSAggregator + DVTValidator ownership transferred to governance: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    aPNTs communityOwner transferred to governance: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    xPNTsFactory ownership transferred to governance: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    xPNTsFactoryV2 + AOAProtocolRegistry ownership transferred to governance: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [gov-gate] BLSAggregator owner is Safe-compatible M-of-N: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [gov-gate]   getThreshold()     : 2
+    [gov-gate]   getOwners().length : 3
+    [gov-gate]   criterion          : code, not 0xef0100, threshold>=2, owners>=threshold, distinct
+    [gov-gate]   declared via       : GOVERNANCE_OWNER (checked == owner)
+    [gov-gate]   NOT proven         : that this is a canonical Gnosis Safe (no
+    [gov-gate]                        runtime-codehash / factory allowlist exists yet)
+    [gov-gate]   owner: 0x871608cBA092105b91e91295A1d79fFC539BFb48
+    [gov-gate]   owner: 0xBB05d2E9890BceC6141e40A1066bf8927169b75E
+    [gov-gate]   owner: 0x8c3499252232105A1615767C459DB9BBbf1273D6
+    [gov-gate] subject: 0xb6BbB471e6afE265E0602B193ABa5633E8F40453
+    [gov-gate] aPNTs owner is Safe-compatible M-of-N: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [gov-gate]   getThreshold()     : 2
+    [gov-gate]   getOwners().length : 3
+    [gov-gate]   criterion          : code, not 0xef0100, threshold>=2, owners>=threshold, distinct
+    [gov-gate]   declared via       : GOVERNANCE_OWNER (checked == owner)
+    [gov-gate]   NOT proven         : that this is a canonical Gnosis Safe (no
+    [gov-gate]                        runtime-codehash / factory allowlist exists yet)
+    [gov-gate]   owner: 0x871608cBA092105b91e91295A1d79fFC539BFb48
+    [gov-gate]   owner: 0xBB05d2E9890BceC6141e40A1066bf8927169b75E
+    [gov-gate]   owner: 0x8c3499252232105A1615767C459DB9BBbf1273D6
+    [gov-gate] subject: 0xBCd46830F4CCb53921fDbAaD23C6A339c4c93B37
+    [gov-gate] xPNTsFactory owner is Safe-compatible M-of-N: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [gov-gate]   getThreshold()     : 2
+    [gov-gate]   getOwners().length : 3
+    [gov-gate]   criterion          : code, not 0xef0100, threshold>=2, owners>=threshold, distinct
+    [gov-gate]   declared via       : GOVERNANCE_OWNER (checked == owner)
+    [gov-gate]   NOT proven         : that this is a canonical Gnosis Safe (no
+    [gov-gate]                        runtime-codehash / factory allowlist exists yet)
+    [gov-gate]   owner: 0x871608cBA092105b91e91295A1d79fFC539BFb48
+    [gov-gate]   owner: 0xBB05d2E9890BceC6141e40A1066bf8927169b75E
+    [gov-gate]   owner: 0x8c3499252232105A1615767C459DB9BBbf1273D6
+    [gov-gate] subject: 0xDd0D85C98D756CFEa2d40B608Df42A1BBc2b4249
+    [gov-gate] xPNTsFactoryV2 owner is Safe-compatible M-of-N: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [gov-gate]   getThreshold()     : 2
+    [gov-gate]   getOwners().length : 3
+    [gov-gate]   criterion          : code, not 0xef0100, threshold>=2, owners>=threshold, distinct
+    [gov-gate]   declared via       : GOVERNANCE_OWNER (checked == owner)
+    [gov-gate]   NOT proven         : that this is a canonical Gnosis Safe (no
+    [gov-gate]                        runtime-codehash / factory allowlist exists yet)
+    [gov-gate]   owner: 0x871608cBA092105b91e91295A1d79fFC539BFb48
+    [gov-gate]   owner: 0xBB05d2E9890BceC6141e40A1066bf8927169b75E
+    [gov-gate]   owner: 0x8c3499252232105A1615767C459DB9BBbf1273D6
+    [gov-gate] subject: 0x5d79f4F11FFE0380395CF5a4878580dAb47Ec0a0
+    [gov-gate] AOAProtocolRegistry owner is Safe-compatible M-of-N: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+    [gov-gate]   getThreshold()     : 2
+    [gov-gate]   getOwners().length : 3
+    [gov-gate]   criterion          : code, not 0xef0100, threshold>=2, owners>=threshold, distinct
+    [gov-gate]   declared via       : GOVERNANCE_OWNER (checked == owner)
+    [gov-gate]   NOT proven         : that this is a canonical Gnosis Safe (no
+    [gov-gate]                        runtime-codehash / factory allowlist exists yet)
+    [gov-gate]   owner: 0x871608cBA092105b91e91295A1d79fFC539BFb48
+    [gov-gate]   owner: 0xBB05d2E9890BceC6141e40A1066bf8927169b75E
+    [gov-gate]   owner: 0x8c3499252232105A1615767C459DB9BBbf1273D6
+    [gov-gate] subject: 0x0B71D168930B2e42F6eb869f90232458986A28C6
+    [artifact] default artifact OK: GlobalTierSource 0x598731042CB7C1495106fe32F4ccF16412361068 542
+    [artifact] default artifact OK: AOAProtocolRegistry 0x0B71D168930B2e42F6eb869f90232458986A28C6 2746
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x0245d5B15c6233A662d00A19663d9A1F888192FE 22543
+    [artifact] default artifact OK: xPNTsTokenV2 0x739d0589eB21caE87f0A2E75c0F1C8852699902a 20008
+    [artifact] default artifact OK: xPNTsFactoryV2 0x5d79f4F11FFE0380395CF5a4878580dAb47Ec0a0 8537
+    [artifact] default artifact OK: SuperPaymasterLens 0xCE433ad4C6F4AF192CC404a23E88A47EF56caaa8 5525
+    [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)
+    [artifact] default artifact OK: SuperPaymaster 0x91670321fEffb204d5B7eb5BEAf80A7A83699454 16304
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xcdfAF60EF69403c0444A4877bDA94c3EE8D32eF1
+  === T-4: all contracts == profile.default artifact ===
+    [artifact] default artifact OK: ERC1967Proxy 0x812d8DFD26F732bE41c0283cd1a14D8698f9F424 100
+    [artifact] default artifact OK: Registry 0x6C71fa78F7709C21317E7AbEb974E672929aA854 24559
+    [artifact] default artifact OK: ERC1967Proxy 0xED352B5E3Aa6F5D5f71C9bC822EB195662fB8672 100
+    [artifact] default artifact OK: SuperPaymaster 0x91670321fEffb204d5B7eb5BEAf80A7A83699454 16304
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0xcdfAF60EF69403c0444A4877bDA94c3EE8D32eF1
+    [artifact] default artifact OK: xPNTsFactory 0xDd0D85C98D756CFEa2d40B608Df42A1BBc2b4249 6802
+    [artifact] default artifact OK: xPNTsToken 0x3d345f2690d515e4583D682DFF679D703F81Bba5 15301
+    [artifact] EIP-1167 clone OK -> xPNTsToken 0xBCd46830F4CCb53921fDbAaD23C6A339c4c93B37
+    [artifact] default artifact OK: GTokenAuthorization 0x8488d18C59a6CbDA9918cB185C4A1f2b31218201 6113
+    [artifact] default artifact OK: GTokenStaking 0x4151411f3Def4852307e9E5795F197125d13954e 9061
+    [artifact] default artifact OK: MySBT 0xc575e0D0336B8FEDB609c725909797EC7d5b884F 12111
+    [artifact] default artifact OK: ReputationSystem 0xe7F0dcb625AcfBFDC901E20197C3EFdc6440715C 7731
+    [artifact] default artifact OK: DVTValidator 0xBca9518c3002de3c6cB52F075D22F797118046A4 8448
+    [artifact] default artifact OK: BLSAggregator 0xb6BbB471e6afE265E0602B193ABa5633E8F40453 24529
+    [artifact] default artifact OK: MicroPaymentChannel 0x5f3703726f78F9f4d26BF821a7bEAa82eeCee15E 6117
+    [artifact] default artifact OK: PaymasterFactory 0x8e8825389ab3e5D7A3E151EfD2e915FE87D3f84e 6158
+    [artifact] default artifact OK: Paymaster 0x15890DFd98fFdd9B9C69CD8B9EAEA3Db54A611E5 10492
+    [artifact] default artifact OK: Paymaster 0x15890DFd98fFdd9B9C69CD8B9EAEA3Db54A611E5 10492
+    [artifact] EIP-1167 clone OK -> Paymaster 0xcc0Dca06410F8A5529e9e7882c53143ee969A89F
+    [artifact] default artifact OK: X402Facilitator 0xF6f742A585BCd4866e641fA632bB15a9faf4EA37 4332
+    [artifact] default artifact OK: PolicyRegistry 0x4F9a4c6241B698C46929eA9AB3Ec7936af1a99Be 8310
+    [artifact] default artifact OK: TimelockController 0x5969409aAE959726F6f1f6d05397eE9b65D80E97 5458
+    [artifact] default artifact OK: GlobalTierSource 0x598731042CB7C1495106fe32F4ccF16412361068 542
+    [artifact] default artifact OK: AOAProtocolRegistry 0x0B71D168930B2e42F6eb869f90232458986A28C6 2746
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x0245d5B15c6233A662d00A19663d9A1F888192FE 22543
+    [artifact] default artifact OK: xPNTsTokenV2 0x739d0589eB21caE87f0A2E75c0F1C8852699902a 20008
+    [artifact] default artifact OK: xPNTsFactoryV2 0x5d79f4F11FFE0380395CF5a4878580dAb47Ec0a0 8537
+    [artifact] default artifact OK: SuperPaymasterLens 0xCE433ad4C6F4AF192CC404a23E88A47EF56caaa8 5525
+    [v55] step-4 read-back OK (sealed registry, approvals, template codehash, factory->SP)
+    [artifact] default artifact OK: xPNTsTokenV2 0x739d0589eB21caE87f0A2E75c0F1C8852699902a 20008
+    [artifact] EIP-1167 clone OK -> xPNTsTokenV2 0x5D0b501ff822Dd0c9EdB43269FCDC57cd10D5666
+  
+  --- Live Phase 1 Complete ---
+  Config saved to: /Users/jason/Dev/aastar/sp-wt/rc8-bls/deployments/config.op-rehearsal-1845b124.json
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 10
+
+Estimated gas price: 0.000044881 gwei
+
+Estimated total gas used for script: 88658044
+
+Estimated amount required: 0.000003979061672764 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /Users/jason/Dev/aastar/sp-wt/rc8-bls/broadcast/DeployLive.s.sol/10/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/sp-wt/rc8-bls/cache/DeployLive.s.sol/10/run-latest.json
+
