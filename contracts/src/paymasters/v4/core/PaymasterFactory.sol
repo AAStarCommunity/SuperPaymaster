@@ -29,7 +29,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
 
 
     function version() external pure override returns (string memory) {
-        return "PaymasterFactory-1.0.2";
+        return "PaymasterFactory-1.1.0";
     }
 
     // ====================================
@@ -189,8 +189,12 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
 
     /**
      * @notice Deploy Paymaster using deterministic address (CREATE2)
+     * @dev The CREATE2 salt is keccak256(abi.encode(msg.sender, salt)): the clone owner is always
+     *      msg.sender (_initAndVerify), so binding the salt to it means a copied salt cannot land
+     *      another owner's clone at this operator's predicted address (Daybreak DB-d-M3).
+     *      Fund or register the address only after the receipt confirms it and owner() is checked.
      * @param _version Version of Paymaster implementation
-     * @param salt Salt for deterministic deployment
+     * @param salt Operator-chosen salt
      * @param initData Initialization data
      * @return paymaster Deterministically deployed Paymaster address
      */
@@ -218,7 +222,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
         }
 
         // Deploy with deterministic address
-        paymaster = implementation.cloneDeterministic(salt);
+        paymaster = implementation.cloneDeterministic(keccak256(abi.encode(operator, salt)));
 
         // CEI: record state before external calls (mirrors deployPaymaster ordering).
         paymasterByOperator[operator] = paymaster;
@@ -234,10 +238,11 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
     /**
      * @notice Predict deterministic Paymaster address
      * @param _version Version to use
-     * @param salt Salt for CREATE2
+     * @param operator The address that will call deployPaymasterDeterministic (and own the clone)
+     * @param salt Operator-chosen salt
      * @return predicted Predicted Paymaster address
      */
-    function predictPaymasterAddress(string memory _version, bytes32 salt)
+    function predictPaymasterAddress(string memory _version, address operator, bytes32 salt)
         external
         view
         returns (address predicted)
@@ -247,7 +252,7 @@ contract PaymasterFactory is Ownable, ReentrancyGuard, IVersioned {
             revert ImplementationNotFound(_version);
         }
 
-        return implementation.predictDeterministicAddress(salt);
+        return implementation.predictDeterministicAddress(keccak256(abi.encode(operator, salt)));
     }
 
     // ====================================

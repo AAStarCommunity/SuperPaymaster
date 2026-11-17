@@ -888,3 +888,18 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 - Every "onlyOwner; the aggregator is not the owner" allowance holds only while the aggregator owns
   nothing and holds no role. This is enforced by the coverage script's deploy-path ownership check
   and by the step-13 readbacks OWNER-NOT-AGGREGATOR and AGG-NOT-DVT-VALIDATOR.
+
+## PaymasterFactory CREATE2 salt bound to the operator (Daybreak 053117cc DB-d-M3, PaymasterFactory-1.1.0, 2026-11-18)
+
+**Finding (Medium, reachable in 5.5.0).** `deployPaymasterDeterministic` used the caller's salt unchanged. Anyone who copied a victim's salt could deploy first and land a clone at the victim's predicted address. That clone's owner is the attacker, because `_initAndVerify` requires owner == msg.sender. The attacker could then `withdrawTo` any EntryPoint deposit the victim had already made to that address. This was reproduced on main `053117cc` with a real EntryPoint v0.7: a 1 ETH prefund was taken.
+
+**Fix.**
+- The effective salt is `keccak256(abi.encode(msg.sender, salt))`.
+- The predict call becomes `predictPaymasterAddress(string _version, address operator, bytes32 salt)`. This is an **ABI change**; SDK was notified.
+- The clone owner is always the caller, so binding the salt to the caller binds it to the future owner. A copied salt now lands elsewhere.
+
+**Unaffected.**
+- **Existing clones.** A clone's owner is fixed in its deploying transaction. No factory function changes a clone's owner afterwards, and an occupied CREATE2 address cannot be deployed again (`test_ExistingCloneOwnerCannotBeDisplaced`).
+- **`deployPaymaster` (CREATE).** It has no copied-salt targeting. Its address depends on the factory nonce, though, so an address obtained by simulation can be taken by another deploy that lands first.
+
+**Usage rule for both paths.** Fund or register a paymaster address only after its deploying receipt is confirmed and `owner()` has been checked.

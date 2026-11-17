@@ -11509,7 +11509,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x6c583e59` | `paymasterByOperator(address)` | view | — | Mapping of operator address to their deployed Paymaster address |
 | `0x821ac3fb` | `paymasterList(uint256)` | view | — | List of all deployed Paymaster addresses |
-| `0xbde9cb2a` | `predictPaymasterAddress(string,bytes32)` | view | — | Predict deterministic Paymaster address |
+| `0x6db99434` | `predictPaymasterAddress(string,address,bytes32)` | view | — | Predict deterministic Paymaster address |
 | `0x7b103999` | `registry()` | view | — | Optional Registry for role gating (zero = open deployment) |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x85365cbb` | `setDefaultVersion(string)` | nonpayable | onlyOwner | Set default version for deployments |
@@ -11563,10 +11563,12 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Deploy Paymaster using deterministic address (CREATE2)
 
+*@dev* The CREATE2 salt is keccak256(abi.encode(msg.sender, salt)): the clone owner is always      msg.sender (_initAndVerify), so binding the salt to it means a copied salt cannot land      another owner's clone at this operator's predicted address (Daybreak DB-d-M3).      Fund or register the address only after the receipt confirms it and owner() is checked.
+
 | param | type | description |
 |---|---|---|
 | `_version` | `string` | Version of Paymaster implementation |
-| `salt` | `bytes32` | Salt for deterministic deployment |
+| `salt` | `bytes32` | Operator-chosen salt |
 | `initData` | `bytes` | Initialization data |
 
 | returns | type | description |
@@ -11749,16 +11751,17 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
-#### `predictPaymasterAddress(string _version, bytes32 salt)`
+#### `predictPaymasterAddress(string _version, address operator, bytes32 salt)`
 
-`0xbde9cb2a` · view · access: —
+`0x6db99434` · view · access: —
 
 > Predict deterministic Paymaster address
 
 | param | type | description |
 |---|---|---|
 | `_version` | `string` | Version to use |
-| `salt` | `bytes32` | Salt for CREATE2 |
+| `operator` | `address` | The address that will call deployPaymasterDeterministic (and own the clone) |
+| `salt` | `bytes32` | Operator-chosen salt |
 
 | returns | type | description |
 |---|---|---|
