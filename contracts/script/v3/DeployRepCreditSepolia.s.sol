@@ -190,7 +190,7 @@ contract DeployRepCreditSepolia is V55Bootstrap {
         // the wiring. A wrong build or a Registry/aggregator pair whose separators cannot
         // agree produces a stack that looks wired and verifies nothing.
         require(
-            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.14.1"),
+            keccak256(bytes(blsAggregator.version())) == keccak256("BLSAggregator-4.14.2"),
             "BLSAggregator is not 4.14.1"
         );
         require(_strEq(superPaymaster.version(), SP_V55_VERSION), "SuperPaymaster is not 5.5.0");
