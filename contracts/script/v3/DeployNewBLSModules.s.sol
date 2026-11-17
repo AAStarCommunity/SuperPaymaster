@@ -2,38 +2,21 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Script.sol";
-import "forge-std/console.sol";
 import "src/modules/monitoring/BLSAggregator.sol";
 import "src/modules/monitoring/DVTValidator.sol";
 import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
 
-/// @notice Redeploy the two non-upgradeable BLS modules after the slash-consensus
-///         unification (PR #329). Order matters: DVTValidator first, because the
-///         hardened BLSAggregator constructor now rejects a zero dvtValidator.
+/// @notice RETIRED (5.5.0): formerly redeployed the two non-upgradeable BLS modules after
+///         the slash-consensus unification (PR #329); `run()` now reverts. Only the
+///         governance hand-off helper remains (contracts/test/scripts/DeployLiveGovernance.t.sol).
 contract DeployNewBLSModules is Script {
-    address constant REGISTRY = 0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71;
-    address constant SUPERPAYMASTER = 0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9;
-
-    function run() external {
-        uint256 pk = vm.envUint("PRIVATE_KEY");
-        vm.startBroadcast(pk);
-
-        DVTValidator dvt = new DVTValidator(REGISTRY, 1);
-        BLSAggregator bls = new BLSAggregator(REGISTRY, SUPERPAYMASTER, address(dvt));
-        dvt.setBLSAggregator(address(bls));
-
-        // CC-48 round-6 HIGH-1: this script targets a LIVE chain by construction (the
-        // Registry/SP addresses above are hard-coded Sepolia). Hand the aggregator's
-        // disarm authority to governance before the broadcast ends.
-        _settleGovernance(bls, dvt);
-
-        vm.stopBroadcast();
-
-        GovernanceOwnerGate.requireGovernanceOwner(address(bls), bls.owner(), "BLSAggregator");
-        require(dvt.owner() == bls.owner(), "DeployNewBLSModules: DVT owner != BLS owner");
-
-        console.log("DVTValidator:", address(dvt));
-        console.log("BLSAggregator:", address(bls));
+    /// @notice Retired from 5.5.0. A plain `new` in a script ships whatever profile compiled
+    ///         that script, and this file was compiled under the runs=200 "registry-size"
+    ///         profile: it would deploy the .registry-size BLSAggregator/DVTValidator, not
+    ///         the profile.default (runs=500) bytes the tests and size evidence measure.
+    ///         Deploy through DeployLive / UpgradeLive (DefaultArtifacts._deployDefault).
+    function run() external pure {
+        revert("DeployNewBLSModules: retired since 5.5.0 (ships runs=200 bytecode); use DeployLive/UpgradeLive");
     }
 
     /// @dev The governance owner to hand BLSAggregator + DVTValidator to. Reads the
