@@ -29,10 +29,20 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
     /// @notice exitRole(PAYMASTER_SUPER) was called with too little gas to run the operator-pause hook.
     error InsufficientGasForPauseHook();
 
-    /// @dev Gas forwarded to SuperPaymaster.pauseUnderstakedOperator by the exit hook.
-    uint256 internal constant PAUSE_HOOK_GAS = 40_000;
-    /// @dev PAUSE_HOOK_GAS * 64/63 plus headroom for the rest of unlockAndTransfer and exitRole.
-    uint256 internal constant PAUSE_HOOK_MIN_GAS = 60_000;
+    /// @dev Gas forwarded to SuperPaymaster.pauseUnderstakedOperator by the exit hook. This contract
+    ///      is not upgradeable, so the value must absorb future repricing and Admin upgrades. Hook call
+    ///      measured cold: 19,520 (Cancun/Prague), 27,520 (Amsterdam), i.e. about 3.6x headroom on
+    ///      Amsterdam. test_HookCostAtMostHalfTheCap fails if the margin drops below 2x.
+    uint256 internal constant PAUSE_HOOK_GAS = 100_000;
+    /// @dev Minimum gasleft() at the hook, so the callee always receives the full PAUSE_HOOK_GAS:
+    ///        PAUSE_HOOK_GAS * 64/63               = 101,588  (63/64 rule)
+    ///      + calls before the CALL (Registry.SUPER_PAYMASTER staticcall, extcodesize, encoding):
+    ///        measured cold 6,950 (Cancun/Prague), 7,450 (Amsterdam)
+    ///      + work after the call returns (skip event, returns, Registry RoleExited and reentrancy
+    ///        unlock): about 6,000
+    ///      + the last two again as margin                        = 128,488, rounded up to 130,000.
+    ///      test_SuccessfulExitAlwaysForwardsTheFullCap checks the first term empirically.
+    uint256 internal constant PAUSE_HOOK_MIN_GAS = 130_000;
     error OnlyRegistryOrAuthorized();
     error Unauthorized();
     error NotAuthorizedSlasher();

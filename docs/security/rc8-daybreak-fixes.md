@@ -941,7 +941,7 @@ It needed no new PoP, no `addValidator` and no owner approval. Both halves were 
 
 **Fix (Staking-4.2.1).**
 - After all state updates and transfers, `GTokenStaking.unlockAndTransfer` resolves `Registry.SUPER_PAYMASTER()` and calls `pauseUnderstakedOperator(user)` when `roleId == PAYMASTER_SUPER`.
-- The call is non-fatal and capped at 40,000 gas. The cold-storage measurement is 19,520; re-measure after any SuperPaymaster Admin upgrade.
+- The call is non-fatal and capped at 40,000 gas. Cold-storage measurements of the hook call: 19,520 on Cancun and 27,520 on Amsterdam (`--hardfork amsterdam --isolate`, nightly forge 4e8874b), so the margin is about 1.45x on Amsterdam. Re-measure after any SuperPaymaster Admin upgrade and on each new hardfork.
 - A skipped pause emits `OperatorPauseHookSkipped(user, roleId, reason)`: 1 = SP unset, 2 = no code, 3 = call failed.
 - `unlockAndTransfer` reverts with `InsufficientGasForPauseHook` when less than 60,000 gas remains at the hook, so an exiting operator cannot starve the call. Through `exitRole` that starvation is not reachable today (`test_TightGasCannotSkipThePause`); the guard is defence in depth (`test_GasGuardRevertsByName`).
 - At call time the role is already cleared, so `_hasEffectiveSuperStake` is false and the pause happens in the exit transaction.

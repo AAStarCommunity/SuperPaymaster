@@ -24,7 +24,20 @@ contract GasBurningExitPaymaster {
     fallback() external { while (true) {} }
 }
 
+/// Records the gas it receives. The slot starts non-zero: a 0 -> non-zero SSTORE is repriced on
+/// Amsterdam and would make the recording itself run out of gas.
+contract ExitGasRecorder {
+    uint256 public entry = 1;
+    fallback() external { entry = gasleft(); }
+}
+
+interface VmCool {
+    function cool(address target) external;
+}
+
 contract StakingExitPausesOperatorTest is Test {
+    /// Mirrors GTokenStaking.PAUSE_HOOK_GAS (internal).
+    uint256 internal constant HOOK_GAS = 100_000;
     Registry registry;
     GTokenStaking staking;
     GToken gtoken;
@@ -162,10 +175,10 @@ contract StakingExitPausesOperatorTest is Test {
         assertFalse(isPaused);
     }
 
-    /// A paymaster that burns all gas it is given cannot block the exit, and the 40k cap bounds
-    /// what the exit costs. Without the cap the call still leaves 1/64 of the gas, enough to finish,
-    /// but the burner consumes ~63/64 of the 1M limit; the gasUsed bound pins the cap. Measured with
-    /// the cap: ~228k (Cancun), ~340k (Amsterdam), so the bound holds on both engines.
+    /// A paymaster that burns all gas it is given cannot block the exit, and the cap bounds what the
+    /// exit costs. Without the cap the call still leaves 1/64 of the gas, enough to finish, but the
+    /// burner consumes ~63/64 of the 2M limit; the gasUsed bound pins the cap. With the 100k cap the
+    /// exit costs ~290k (Cancun/Prague) and ~400k (Amsterdam), well under the 1M bound.
     function test_GasExhaustingHookCannotBlockExit() public {
         address burner = address(new GasBurningExitPaymaster());
         vm.prank(owner);
@@ -174,10 +187,10 @@ contract StakingExitPausesOperatorTest is Test {
         uint256 beforeBalance = gtoken.balanceOf(operator);
         vm.prank(operator);
         uint256 g0 = gasleft();
-        (bool ok,) = address(registry).call{gas: 1_000_000}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
+        (bool ok,) = address(registry).call{gas: 2_000_000}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
         uint256 used = g0 - gasleft();
         assertTrue(ok, "exit completes within a realistic gas limit");
-        assertLt(used, 500_000, "the hook's gas cap bounds the exit cost");
+        assertLt(used, 1_000_000, "the hook's gas cap bounds the exit cost");
         assertGt(gtoken.balanceOf(operator), beforeBalance, "stake returned");
     }
 
@@ -189,7 +202,7 @@ contract StakingExitPausesOperatorTest is Test {
         vm.warp(block.timestamp + 365 days);
         uint256 completed;
         // Upper end covers Amsterdam, where the exit costs ~110k more than on Cancun.
-        for (uint256 g = 90_000; g <= 600_000; g += 2_000) {
+        for (uint256 g = 90_000; g <= 900_000; g += 3_000) {
             uint256 snap = vm.snapshot();
             vm.prank(operator);
             (bool ok,) = address(registry).call{gas: g}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
@@ -215,7 +228,7 @@ contract StakingExitPausesOperatorTest is Test {
         vm.prank(operator);
         registry.exitRole(keccak256("COMMUNITY")); // no-op for the SUPER lock; keeps setup realistic
         bool sawGuard;
-        for (uint256 g = 40_000; g <= 200_000 && !sawGuard; g += 1_000) {
+        for (uint256 g = 40_000; g <= 300_000 && !sawGuard; g += 1_000) {
             uint256 snap = vm.snapshot();
             vm.prank(address(registry));
             (bool ok, bytes memory ret) =
@@ -224,6 +237,57 @@ contract StakingExitPausesOperatorTest is Test {
             vm.revertTo(snap);
         }
         assertTrue(sawGuard, "some gas limit reaches the hook with less than PAUSE_HOOK_MIN_GAS left");
+    }
+
+    /// The guard's safety property, checked across its boundary: whenever an exit completes, the
+    /// paymaster received the full cap (never a 63/64-starved remainder). Setting the minimum to the
+    /// cap itself makes this fail (a completing exit forwarded ~91.6k).
+    /// forge-config: default.isolate = true
+    function test_SuccessfulExitAlwaysForwardsTheFullCap() public {
+        ExitGasRecorder rec = new ExitGasRecorder();
+        vm.prank(owner);
+        registry.setSuperPaymaster(address(rec));
+        vm.warp(block.timestamp + 365 days);
+        uint256 first;
+        for (uint256 g = 100_000; g <= 1_200_000 && first == 0; g += 1_000) {
+            uint256 snap = vm.snapshot();
+            vm.prank(operator);
+            (bool ok,) = address(registry).call{gas: g}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
+            if (ok) first = g;
+            vm.revertTo(snap);
+        }
+        assertGt(first, 0, "control: the exit completes at some gas limit");
+        uint256 completed;
+        for (uint256 g = first - 1_000; g <= first + 5_000; g += 25) {
+            uint256 snap = vm.snapshot();
+            vm.prank(operator);
+            (bool ok,) = address(registry).call{gas: g}(abi.encodeCall(Registry.exitRole, (SUPER_ROLE)));
+            if (ok) {
+                ++completed;
+                assertGe(rec.entry(), HOOK_GAS - 200, "a completed exit forwarded less than the cap");
+            }
+            vm.revertTo(snap);
+        }
+        assertGt(completed, 0, "control: some limit in the fine sweep completes");
+    }
+
+    /// The pause the hook runs costs at most half the cap, with the paymaster's and Registry's
+    /// storage cold (and every account cold where tests run isolated; the Amsterdam gate runs
+    /// --no-isolate, so there accounts are warm). Fails if repricing or an Admin change erodes the
+    /// margin below 2x.
+    /// forge-config: default.isolate = true
+    function test_HookCostAtMostHalfTheCap() public {
+        _exit(operator, SUPER_ROLE); // hook unwired: the operator stays configured and unpaused
+        _wire();
+        (,, bool before,,,,,,) = sp.operators(operator);
+        assertFalse(before, "control: not paused before the call");
+        VmCool(address(vm)).cool(address(sp));
+        VmCool(address(vm)).cool(address(registry));
+        vm.prank(address(staking));
+        (bool ok,) = address(sp).call{gas: HOOK_GAS / 2}(abi.encodeWithSignature("pauseUnderstakedOperator(address)", operator));
+        assertTrue(ok, "the pause fits in half the cap");
+        (,, bool isPaused,,,,,,) = sp.operators(operator);
+        assertTrue(isPaused, "the pause took effect");
     }
 
     /// A staked role other than PAYMASTER_SUPER reaches unlockAndTransfer but not the hook.
