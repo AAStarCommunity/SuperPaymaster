@@ -384,14 +384,14 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
 
     function test_PostRotationDvtReputationUpdateExecutes() public {
         _skipWithoutPrague();
-        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         oldDvt.setBLSAggregator(address(aggA));
         oldDvt.addValidator(validators[0]);
         aggA.setDVTValidator(address(oldDvt));
         vm.prank(validators[0]);
         uint256 oldId = oldDvt.createProposal(address(0), 0, "before rotation");
 
-        DVTValidator next = new DVTValidator(address(registry), 1);
+        DVTValidator next = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         next.setBLSAggregator(address(aggA));
         next.addValidator(validators[0]);
         aggA.setDVTValidator(address(next));
@@ -404,7 +404,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
 
         assertEq(registry.globalReputation(users[0]), 0);
         vm.prank(validators[0]);
-        next.executeWithProof(id, users, scores, 1, proof);
+        next.executeWithProof(id, users, scores, 1, "", proof);
         assertEq(registry.globalReputation(users[0]), 50);
         assertTrue(aggA.executedProposals(id));
         (,,, bool executed,,) = next.proposals(id);
@@ -421,7 +421,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     ///         post-rotation proof still executes (test_PostRotationDvtReputationUpdateExecutes).
     function test_PreRotationReputationProofCannotExecuteThroughGenericPath() public {
         _skipWithoutPrague();
-        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         oldDvt.setBLSAggregator(address(aggA));
         oldDvt.addValidator(validators[0]);
         aggA.setDVTValidator(address(oldDvt));
@@ -431,7 +431,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         bytes memory repProof =
             _proof(_reputationHash(address(aggA), address(registry), block.chainid, oldId, users, scores, 1), 3);
 
-        DVTValidator next = new DVTValidator(address(registry), 1);
+        DVTValidator next = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         next.setBLSAggregator(address(aggA));
         aggA.setDVTValidator(address(next));
         assertGt(aggA.proposalFloor(), oldId, "the old id is below the floor");
@@ -466,7 +466,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     function test_OwnerDirectLowIdStillExecutesAfterRotation() public {
         _skipWithoutPrague();
         uint256 callerChosenId = 41;
-        DVTValidator oldDvt = new DVTValidator(address(registry), callerChosenId);
+        DVTValidator oldDvt = new DVTValidator(address(registry), callerChosenId, new bytes32[](0), new address[](0));
         oldDvt.setBLSAggregator(address(aggA));
         oldDvt.addValidator(validators[0]);
         aggA.setDVTValidator(address(oldDvt));
@@ -477,7 +477,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
             _reputationHash(address(aggA), address(registry), block.chainid, callerChosenId, users, scores, 1), 3
         );
 
-        DVTValidator next = new DVTValidator(address(registry), 1);
+        DVTValidator next = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         next.setBLSAggregator(address(aggA));
         aggA.setDVTValidator(address(next));
         aggA.setDVTValidator(address(oldDvt));
@@ -485,7 +485,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         assertLt(callerChosenId, aggA.proposalFloor());
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
         vm.prank(validators[0]);
-        oldDvt.executeWithProof(callerChosenId, users, scores, 1, proof);
+        oldDvt.executeWithProof(callerChosenId, users, scores, 1, "", proof);
 
         assertEq(registry.globalReputation(users[0]), 0);
         aggA.verifyAndExecute(callerChosenId, address(0), 0, users, scores, 1, bytes32(0), proof);
@@ -499,7 +499,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     /// @dev Regression for the scope of the guarantee (review F7), not a signature-generation change.
     function test_RotationAllocationFloorPreservesAuthorizedRegistryProof() public {
         if (!pragueAvailable) { vm.skip(true); return; }
-        DVTValidator oldDvt = new DVTValidator(address(registry), 1);
+        DVTValidator oldDvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         oldDvt.setBLSAggregator(address(aggA));
         oldDvt.addValidator(validators[0]);
         aggA.setDVTValidator(address(oldDvt));
@@ -507,7 +507,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         uint256 id = oldDvt.createProposal(address(0), 0, "pending reputation");
         (address[] memory users, uint256[] memory scores) = _batch(address(0xCAFE), 50);
         bytes memory proof = _proof(_reputationHash(address(aggA), address(registry), block.chainid, id, users, scores, 1), 3);
-        DVTValidator next = new DVTValidator(address(registry), 1);
+        DVTValidator next = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         next.setBLSAggregator(address(aggA));
         aggA.setDVTValidator(address(next));
         assertEq(next.nextProposalId(), id + 1, "DVT allocation cannot reuse pending ID");
@@ -515,7 +515,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
         assertLt(id, aggA.proposalFloor());
         vm.expectRevert(abi.encodeWithSelector(BLSAggregator.InvalidProposalId.selector));
         vm.prank(validators[0]);
-        oldDvt.executeWithProof(id, users, scores, 1, proof);
+        oldDvt.executeWithProof(id, users, scores, 1, "", proof);
         assertEq(registry.globalReputation(users[0]), 0, "stale current-DVT execution cannot update reputation");
         assertFalse(aggA.executedProposals(id));
         registry.setReputationSource(address(this), true);
@@ -532,7 +532,7 @@ contract RepCreditDomainReplay is BLSRegistrationTestHelper {
     mapping(address => DVTValidator) private gateways;
 
     function _freshAggregatorWithPermissionlessRegistration() internal returns (BLSAggregator agg) {
-        DVTValidator gateway = new DVTValidator(address(registry), 1);
+        DVTValidator gateway = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         agg = new BLSAggregator(address(registry), address(0xBEEF), address(gateway));
         gateway.setBLSAggregator(address(agg));
         gateways[address(agg)] = gateway;

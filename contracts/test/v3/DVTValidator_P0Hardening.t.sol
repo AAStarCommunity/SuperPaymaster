@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import {MockEvidenceCategory} from "src/mocks/MockEvidenceCategory.sol";
 
 import "forge-std/Test.sol";
 import "src/modules/monitoring/DVTValidator.sol";
@@ -88,7 +89,11 @@ contract DVTValidator_P0HardeningTest is Test {
     function setUp() public {
         staking = new MockStakingDVT();
         registry = new MockRegistryDVT(address(staking), MIN_STAKE);
-        dvt = new DVTValidator(address(registry), 1);
+        bytes32[] memory categories = new bytes32[](1);
+        categories[0] = keccak256("test");
+        address[] memory checkers = new address[](1);
+        checkers[0] = address(new MockEvidenceCategory());
+        dvt = new DVTValidator(address(registry), 1, categories, checkers);
         dvt.setBLSAggregator(blsAggregator);
         vm.mockCall(blsAggregator, abi.encodeWithSignature("proposalFloor()"), abi.encode(uint256(0)));
         vm.mockCall(blsAggregator, abi.encodeWithSignature("suspended(address)"), abi.encode(false));
@@ -104,7 +109,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
     function test_Constructor_RevertsWhenFirstProposalIdIsZero() public {
         vm.expectRevert(abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, 0));
-        new DVTValidator(address(registry), 0);
+        new DVTValidator(address(registry), 0, new bytes32[](0), new address[](0));
     }
 
     function test_Constructor_RevertsWhenFirstProposalIdIsAtUint128Boundary() public {
@@ -112,7 +117,7 @@ contract DVTValidator_P0HardeningTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(DVTValidator.InvalidFirstProposalId.selector, firstProposalId)
         );
-        new DVTValidator(address(registry), firstProposalId);
+        new DVTValidator(address(registry), firstProposalId, new bytes32[](0), new address[](0));
     }
 
     // -----------------------------------------------------------------------
@@ -164,7 +169,7 @@ contract DVTValidator_P0HardeningTest is Test {
         // Build a registry whose GTOKEN_STAKING returns address(0).
         MockRegistryDVT brokenReg = new MockRegistryDVT(address(0), MIN_STAKE);
         brokenReg.setIsDvt(validator1, true);
-        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1);
+        DVTValidator dvt2 = new DVTValidator(address(brokenReg), 1, new bytes32[](0), new address[](0));
         vm.expectRevert(DVTValidator.StakingNotConfigured.selector);
         dvt2.addValidator(validator1);
     }
@@ -175,31 +180,31 @@ contract DVTValidator_P0HardeningTest is Test {
 
     function test_ExecuteWithProof_RevertsForAnonymousCaller() public {
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "x");
+        uint256 id = dvt.createProposal(operator, 1, "x", _evidenceHash());
 
         vm.prank(attacker);
         vm.expectRevert(DVTValidator.NotAuthorizedExecutor.selector);
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, _evidence(), "");
     }
 
     function test_ExecuteWithProof_AllowsRegisteredValidator() public {
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "x");
+        uint256 id = dvt.createProposal(operator, 1, "x", _evidenceHash());
 
         // The explicit downstream error proves authorization passed and the
         // proposal reached the aggregator, rather than failing in this contract.
         vm.prank(validator1);
         vm.expectRevert(DownstreamReached.selector);
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, _evidence(), "");
     }
 
     function test_ExecuteWithProof_AllowsBLSAggregator() public {
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "x");
+        uint256 id = dvt.createProposal(operator, 1, "x", _evidenceHash());
 
         vm.prank(blsAggregator);
         vm.expectRevert(DownstreamReached.selector);
-        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(id, new address[](0), new uint256[](0), 0, _evidence(), "");
     }
 
     // -----------------------------------------------------------------------
@@ -214,7 +219,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
     function test_MarkProposalExecuted_AllowsExistingId() public {
         vm.prank(validator1);
-        uint256 id = dvt.createProposal(operator, 1, "x");
+        uint256 id = dvt.createProposal(operator, 1, "x", _evidenceHash());
 
         vm.prank(blsAggregator);
         dvt.markProposalExecuted(id);
@@ -226,7 +231,7 @@ contract DVTValidator_P0HardeningTest is Test {
     function test_ExecuteWithProof_RevertsForUnbornId() public {
         vm.prank(validator1);
         vm.expectRevert(DVTValidator.ProposalDoesNotExist.selector);
-        dvt.executeWithProof(999, new address[](0), new uint256[](0), 0, "");
+        dvt.executeWithProof(999, new address[](0), new uint256[](0), 0, _evidence(), "");
     }
 
     /// @notice The pre-poison attack surface in the original code allowed a
@@ -240,7 +245,7 @@ contract DVTValidator_P0HardeningTest is Test {
 
         vm.startPrank(validator1);
         for (uint256 i = 0; i < 5; i++) {
-            dvt.createProposal(operator, 1, "legit");
+            dvt.createProposal(operator, 1, "legit", _evidenceHash());
         }
         vm.stopPrank();
 
@@ -248,5 +253,12 @@ contract DVTValidator_P0HardeningTest is Test {
         // freshly executable, not already marked.
         (,,, bool executedFlag,,) = dvt.proposals(5);
         assertFalse(executedFlag, "proposal 5 must not be pre-poisoned");
+    }
+    function _evidence() internal pure returns (bytes memory) {
+        return abi.encode(keccak256("test"), bytes(""));
+    }
+
+    function _evidenceHash() internal pure returns (bytes32) {
+        return keccak256(abi.encode(keccak256("SuperPaymaster.DVT.Evidence.v2"), keccak256("test"), keccak256("")));
     }
 }

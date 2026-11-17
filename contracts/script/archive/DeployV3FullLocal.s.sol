@@ -110,7 +110,7 @@ contract DeployV3FullLocal is Script {
 
         // 3.2 DVT Validator Setup
         // 3.2 DVT Validator Setup
-        DVTValidator dvt = new DVTValidator(address(registry), 1);
+        DVTValidator dvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         dvt.setBLSAggregator(address(aggregator));
         console.log("DVTValidator Local:", address(dvt));
 

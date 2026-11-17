@@ -61,7 +61,7 @@ contract DeployBLSAggregatorSepolia is Script {
 
         vm.startBroadcast(pk);
 
-        DVTValidator dvt = new DVTValidator(REGISTRY, 1);
+        DVTValidator dvt = new DVTValidator(REGISTRY, 1, new bytes32[](0), new address[](0));
         BLSAggregator agg = new BLSAggregator(REGISTRY, SUPER_PAYMASTER, address(dvt));
         dvt.setBLSAggregator(address(agg));
         require(

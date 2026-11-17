@@ -71,7 +71,7 @@ contract DeployStage3Sepolia is Script {
         aggregator.setThreshold(3);
         registry.setBLSAggregator(address(aggregator));
 
-        DVTValidator dvt = new DVTValidator(address(registry), 1);
+        DVTValidator dvt = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         dvt.setBLSAggregator(address(aggregator));
 
         BLSValidator blsValidator = new BLSValidator();

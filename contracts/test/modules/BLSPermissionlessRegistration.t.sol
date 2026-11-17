@@ -129,7 +129,7 @@ contract BLSPermissionlessRegistrationTest is Test {
         registry = new MockRegistryPermissionlessRegistration();
         staking = new MockStakingPermissionlessRegistration();
         registry.setStakingAddr(address(staking));
-        gateway = new DVTValidator(address(registry), 1);
+        gateway = new DVTValidator(address(registry), 1, new bytes32[](0), new address[](0));
         dvt = address(gateway);
         bls = new BLSAggregator(address(registry), sp, dvt);
         gateway.setBLSAggregator(address(bls));
