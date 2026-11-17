@@ -1,8 +1,8 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-11-17T14:31:50Z",
-  "totalHash": "1d5c6c014444b4904b2f0bde9e55ef2c9bdfa9c8c3303c2d3afa1cb8d415f1ef",
+  "buildTime": "2026-11-17T17:02:39Z",
+  "totalHash": "2a4bc2758665614f6e40604224d3aae3b82e71a38e98271444252f0637a60b7a",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
@@ -18,7 +18,7 @@
     { "name": "MicroPaymentChannel.json", "hash": "98bf2b4a9285588b5ec80dfbe0a8fed4e46d3b06e92fd465d9790ef1b9e2c642" },
     { "name": "MySBT.json", "hash": "93b0027febd39b67b1fe38887bf968a7c0f578ca2bf1d8b18b6cd3002a62b946" },
     { "name": "Paymaster.json", "hash": "fd30b440d43cd384c632be6a5b76a55a2a2a4664fec338f74deb9411e513e7b1" },
-    { "name": "PaymasterFactory.json", "hash": "06ad32dc353dd7bbe8ea5d937cea0892953a70954e8682531bee64400488ecf7" },
+    { "name": "PaymasterFactory.json", "hash": "3cf0ed117b644e03b6566b6d536ca248ddea16f9656d14a8a3b4de8dd8dbce63" },
     { "name": "PolicyRegistry.json", "hash": "bfbb5459570befc9f81f323e058e02bcc3de338e85248d16f8266c254994e20e" },
     { "name": "Registry.json", "hash": "417451d682eadea97ac53719ebc56961c55c4fd2baa7b6c4eb696dd18188ed34" },
     { "name": "ReputationSystem.json", "hash": "c06e8e28a5776b0eb5576a6e157ffa48f3beb0152dd9962031d8d0d8fca5b793" },

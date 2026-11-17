@@ -669,6 +669,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x6d8a4aff` | `xpntsFactory()` | SuperPaymasterAdmin |
 | `0x6d8a4aff` | `xpntsFactory()` | SuperPaymasterStorage |
 | `0x6da12d0c` | `userActiveRoles(address,uint256)` | GTokenStaking |
+| `0x6db99434` | `predictPaymasterAddress(string,address,bytes32)` | PaymasterFactory |
 | `0x6df80b4e` | `setRule(bytes32,uint256,uint256,uint256,string)` | ReputationSystem |
 | `0x6ec85439` | `DRYRUN_SPONSORSHIP_PAUSED()` | SuperPaymasterLens |
 | `0x6ef778ee` | `setConsumerAuthorization(address,bool)` | PolicyRegistry |
@@ -1188,7 +1189,6 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xbd111870` | `priceStalenessThreshold()` | SuperPaymasterStorage |
 | `0xbd111870` | `priceStalenessThreshold()` | Paymaster |
 | `0xbd111870` | `priceStalenessThreshold()` | PaymasterBase |
-| `0xbde9cb2a` | `predictPaymasterAddress(string,bytes32)` | PaymasterFactory |
 | `0xbdfbdffd` | `credibilityScore()` | IxPNTsToken |
 | `0xbdfbdffd` | `credibilityScore()` | xPNTsToken |
 | `0xbe29f491` | `setAssetPolicy(address,address,(uint128,uint128,uint256,uint64))` | PolicyRegistry |

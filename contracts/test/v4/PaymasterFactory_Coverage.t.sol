@@ -438,7 +438,7 @@ contract PaymasterFactory_CoverageTest is Test {
         bytes32 salt = keccak256("operator-a-salt");
 
         // Predict before deployment
-        address predicted = factory.predictPaymasterAddress(V1, salt);
+        address predicted = factory.predictPaymasterAddress(V1, operatorA, salt);
 
         vm.prank(operatorA);
         address actual = factory.deployPaymasterDeterministic(V1, salt, _initData(operatorA));
@@ -487,7 +487,7 @@ contract PaymasterFactory_CoverageTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(PaymasterFactory.ImplementationNotFound.selector, V1)
         );
-        factory.predictPaymasterAddress(V1, bytes32(uint256(1)));
+        factory.predictPaymasterAddress(V1, operatorA, bytes32(uint256(1)));
     }
 
     // ==========================================================================
@@ -495,7 +495,7 @@ contract PaymasterFactory_CoverageTest is Test {
     // ==========================================================================
 
     function test_A7_Version() public view {
-        assertEq(factory.version(), "PaymasterFactory-1.0.2");
+        assertEq(factory.version(), "PaymasterFactory-1.1.0");
     }
 
     function test_A7_HasImplementation_FalseWhenEmpty() public view {
