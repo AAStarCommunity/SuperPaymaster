@@ -296,8 +296,8 @@ contract GTokenStaking is ReentrancyGuard, Ownable, IGTokenStaking {
             } else {
                 // SuperPaymasterAdmin.sol:124 and SuperPaymasterStorage.sol:392 only read Registry
                 // views (hasRole/getRoleConfig/getEffectiveStake); no mutating GTokenStaking call.
-                // Cold-storage measurement of the pause through the SP proxy: 19,520 gas; the 40,000
-                // cap is ~2x. Re-measure after any SuperPaymaster Admin upgrade.
+                // Cost of the pause through the SP proxy: see PAUSE_HOOK_GAS. Re-measure after any
+                // SuperPaymaster Admin upgrade and each hardfork.
                 (bool paused,) = paymaster.call{gas: PAUSE_HOOK_GAS}(
                     abi.encodeWithSignature("pauseUnderstakedOperator(address)", user)
                 );
