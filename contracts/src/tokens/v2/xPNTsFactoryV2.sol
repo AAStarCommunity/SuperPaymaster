@@ -303,7 +303,7 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
         if (communityToToken[msg.sender] != address(0)) {
             revert AlreadyDeployed(msg.sender);
         }
-        if (exchangeRate == 0) revert InvalidParameters();
+        if (bytes(name).length == 0 || exchangeRate == 0) revert InvalidParameters();
 
         // Deploy new xPNTs token proxy using clone pattern
         address newTokenAddress = implementation.clone();

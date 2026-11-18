@@ -15475,7 +15475,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - **Source:** `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
 - **Functions:** 46 · **Events:** 11 · **Errors:** 15
 - **Title:** xPNTsFactoryV2
-- xPNTs v2 (XPNTs-4.0.1) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
+- xPNTs v2 (XPNTs-4.0.2) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
 
 ### Function selector index
 
@@ -16480,8 +16480,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `fields` | `bytes1` |  |
-| `name` | `string` |  |
-| `version` | `string` |  |
+| `domainName` | `string` |  |
+| `domainVersion` | `string` |  |
 | `chainId` | `uint256` |  |
 | `verifyingContract` | `address` |  |
 | `salt` | `bytes32` |  |
@@ -17226,8 +17226,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8e4c8aa6` | `InvalidAddress(address)` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0xd2529034` | `InvalidParam()` |
-| `0xb3512b0c` | `InvalidShortString()` |
 | `0x8baa579f` | `InvalidSignature()` |
+| `0x20717de0` | `IssuanceCapExceeded(uint256,uint256,uint256)` |
 | `0x227bc153` | `MathOverflowedMulDiv()` |
 | `0x54641f00` | `NoDebtToRepay()` |
 | `0xba112c93` | `NoLock()` |
@@ -17860,8 +17860,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `fields` | `bytes1` |  |
-| `name` | `string` |  |
-| `version` | `string` |  |
+| `domainName` | `string` |  |
+| `domainVersion` | `string` |  |
 | `chainId` | `uint256` |  |
 | `verifyingContract` | `address` |  |
 | `salt` | `bytes32` |  |
@@ -18743,8 +18743,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8e4c8aa6` | `InvalidAddress(address)` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0xd2529034` | `InvalidParam()` |
-| `0xb3512b0c` | `InvalidShortString()` |
 | `0x8baa579f` | `InvalidSignature()` |
+| `0x20717de0` | `IssuanceCapExceeded(uint256,uint256,uint256)` |
 | `0x227bc153` | `MathOverflowedMulDiv()` |
 | `0x54641f00` | `NoDebtToRepay()` |
 | `0xba112c93` | `NoLock()` |
@@ -19057,8 +19057,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `fields` | `bytes1` |  |
-| `name` | `string` |  |
-| `version` | `string` |  |
+| `domainName` | `string` |  |
+| `domainVersion` | `string` |  |
 | `chainId` | `uint256` |  |
 | `verifyingContract` | `address` |  |
 | `salt` | `bytes32` |  |
@@ -19615,8 +19615,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8e4c8aa6` | `InvalidAddress(address)` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
 | `0xd2529034` | `InvalidParam()` |
-| `0xb3512b0c` | `InvalidShortString()` |
 | `0x8baa579f` | `InvalidSignature()` |
+| `0x20717de0` | `IssuanceCapExceeded(uint256,uint256,uint256)` |
 | `0x54641f00` | `NoDebtToRepay()` |
 | `0xba112c93` | `NoLock()` |
 | `0x0ca968d8` | `NotApproved(address)` |

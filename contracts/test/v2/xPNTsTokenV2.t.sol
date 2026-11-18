@@ -106,6 +106,7 @@ contract xPNTsTokenV2Test is Test {
         assertEq(t.DOMAIN_SEPARATOR(), _domain(t.name(), block.chainid, address(t)));
     }
 
+    /// @dev Discriminating C2-02 evidence: the pre-fix clone accepts the empty-name signature.
     function test_C2_02_permit_uses_named_domain_and_rejects_empty_name() public {
         uint256 value = 7 ether;
         uint256 deadline = block.timestamp + 1 hours;
@@ -123,7 +124,8 @@ contract xPNTsTokenV2Test is Test {
         assertEq(t.nonces(signer), 1);
     }
 
-    function test_C2_02_permit_rejects_cross_chain_and_cross_clone_replay() public {
+    /// @dev Regression control: OZ already isolated clone and chain domains before C2-02.
+    function test_regression_permit_rejects_cross_chain_and_cross_clone_replay() public {
         uint256 value = 7 ether;
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, signer, address(spender), value, 0, deadline));
@@ -261,7 +263,8 @@ contract xPNTsTokenV2Test is Test {
         assertEq(token.debts(user), 0);
     }
 
-    function test_C2_02_executeBySig_rejects_cross_clone_and_cross_chain_replay() public {
+    /// @dev Regression control: OZ already isolated clone and chain domains before C2-02.
+    function test_regression_executeBySig_rejects_cross_clone_and_cross_chain_replay() public {
         vm.prank(address(0xC2));
         xPNTsTokenV2 other = xPNTsTokenV2(
             factory.deployxPNTsToken("Comm", "xC2", "Comm2", "comm2.eth", 1 ether, address(0))
@@ -317,6 +320,92 @@ contract xPNTsTokenV2Test is Test {
         _ext().mint(user, 5 ether + 1);
         assertEq(t.debts(user), 5 ether);
         assertEq(t.totalSupply(), supply);
+    }
+
+    function test_factory_rejects_empty_token_name() public {
+        vm.prank(address(0xC2));
+        vm.expectRevert(xPNTsFactoryV2.InvalidParameters.selector);
+        factory.deployxPNTsToken("", "xC2", "Comm2", "comm2.eth", 1 ether, address(0));
+        assertEq(factory.communityToToken(address(0xC2)), address(0));
+    }
+
+    function test_implementation_domain_is_empty_and_differs_from_clone() public view {
+        (bytes1 fields, string memory domainName, string memory domainVersion, uint256 chainId,
+            address verifyingContract, bytes32 salt, uint256[] memory extensions) = impl.eip712Domain();
+        assertEq(uint8(fields), 15);
+        assertEq(domainName, "");
+        assertEq(domainVersion, "1");
+        assertEq(chainId, block.chainid);
+        assertEq(verifyingContract, address(impl));
+        assertEq(salt, bytes32(0));
+        assertEq(extensions.length, 0);
+        assertEq(impl.DOMAIN_SEPARATOR(), _domain("", block.chainid, address(impl)));
+        assertNotEq(impl.DOMAIN_SEPARATOR(), t.DOMAIN_SEPARATOR());
+    }
+
+    /// @dev Discriminating C2-02 evidence: the pre-fix clone accepts this old empty-name domain.
+    function test_C2_02_executeBySig_rejects_old_empty_name_domain() public {
+        bytes memory params = abi.encode(sp);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 structHash = keccak256(abi.encode(
+            _ext().ACTION_TYPEHASH(), signer, uint8(1), keccak256(params), uint256(0), deadline
+        ));
+        bytes32 oldDigest = MessageHashUtils.toTypedDataHash(_domain("", block.chainid, address(t)), structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, oldDigest);
+        vm.expectRevert(xPNTsV2Base.InvalidSignature.selector);
+        _ext().executeBySig(signer, 1, params, deadline, abi.encodePacked(r, s, v));
+        assertEq(t.actionNonce(signer), 0);
+        (v, r, s) = vm.sign(userPk, _ext().actionDigest(signer, 1, params, 0, deadline));
+        _ext().executeBySig(signer, 1, params, deadline, abi.encodePacked(r, s, v));
+        assertEq(t.actionNonce(signer), 1);
+    }
+
+    function test_I_01_above_cap_zero_net_mint_repays_debt() public {
+        uint256 supply = t.totalSupply();
+        uint256 balance = t.balanceOf(user);
+        stdstore.target(address(t)).sig("debts(address)").with_key(user).checked_write(5 ether);
+        vm.prank(community);
+        _ext().setIssuanceCap(supply - 1);
+        vm.prank(community);
+        _ext().mint(user, 5 ether);
+        assertEq(t.debts(user), 0);
+        assertEq(t.totalSupply(), supply);
+        assertEq(t.balanceOf(user), balance);
+        assertGt(t.totalSupply(), t.issuanceCap());
+    }
+
+    function test_I_01_above_cap_settlement_repayment_and_burn_work() public {
+        registry.setCreditLimit(user, 300 ether);
+        _enableAuto();
+        vm.prank(user);
+        _ext().requestCredit(300 ether);
+        vm.prank(sp);
+        (IxPNTsTokenV2.LockResult result,) = t.tryLockForGas(user, OP1, 100 ether, false);
+        assertEq(uint8(result), uint8(IxPNTsTokenV2.LockResult.OK));
+        vm.prank(sp);
+        assertEq(uint8(t.tryReserveCredit(user, OP2, 200 ether)), uint8(IxPNTsTokenV2.CreditResult.OK));
+        vm.prank(community);
+        _ext().setIssuanceCap(1 ether);
+        uint256 supply = t.totalSupply();
+        vm.prank(sp);
+        assertEq(t.settleLocked(user, OP1, 30 ether), 30 ether);
+        assertEq(t.lockedOf(user), 0);
+        assertEq(t.totalSupply(), supply - 30 ether);
+        assertGt(t.totalSupply(), t.issuanceCap());
+        vm.prank(sp);
+        assertEq(t.settleCredit(user, OP2, 150 ether), 150 ether);
+        assertEq(t.debts(user), 150 ether);
+        assertEq(t.creditReservedOf(user), 0);
+        assertEq(t.totalSupply(), supply - 30 ether);
+        vm.prank(user);
+        _ext().repayDebt(150 ether);
+        assertEq(t.debts(user), 0);
+        assertEq(t.totalSupply(), supply - 180 ether);
+        assertGt(t.totalSupply(), t.issuanceCap());
+        vm.prank(user);
+        t.burn(1 ether);
+        assertEq(t.totalSupply(), supply - 181 ether);
+        assertGt(t.totalSupply(), t.issuanceCap());
     }
 
     function test_A9_factory_cannot_pull() public {
