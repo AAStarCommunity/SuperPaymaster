@@ -1,7 +1,8 @@
 {
+  "schema": "sp-inventory/2",
   "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
   "chainId": 11155111,
-  "at": "2026-11-18T02:22:13.848Z",
+  "at": "2026-11-18T03:00:58.648Z",
   "endpoints": [
     {
       "label": "archive(Alchemy)",
@@ -14,13 +15,17 @@
   ],
   "crossCheck": {
     "allLogs": {
-      "archive": 498,
-      "second": 498,
+      "archive": 499,
+      "second": 499,
+      "removed": 0,
+      "duplicates": 0,
       "identical": true
     },
     "registryGrants": {
       "archive": 5,
       "second": 5,
+      "removed": 0,
+      "duplicates": 0,
       "identical": true
     }
   },
@@ -96,11 +101,11 @@
     "pendingDebts": []
   },
   "pinnedBlock": {
-    "number": 12158399,
-    "hash": "0x7db3394fc4a77369e4231cdef2a8184af33e7b9c07111471cd336a5c6588b1fe",
+    "number": 12158619,
+    "hash": "0x67da8e573a528b46fd5634b599de12498b967f10aff0cc20130a8c8187e70bea",
     "finalized": [
-      12158399,
-      12158399
+      12158619,
+      12158619
     ]
   },
   "deployBlock": {
@@ -109,7 +114,7 @@
   },
   "range": {
     "from": 11151016,
-    "to": 12158399
+    "to": 12158619
   },
   "events": {
     "unclassified": 0,
@@ -176,7 +181,7 @@
     },
     {
       "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
-      "count": 430,
+      "count": 431,
       "firstBlock": 11151035,
       "signature": "PriceUpdated(int256,uint256)",
       "class": "historical",

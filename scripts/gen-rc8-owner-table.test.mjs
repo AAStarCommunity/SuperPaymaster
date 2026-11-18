@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync } f
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { load, validate, render, flags, status, main, renderedRowIds, digestOf, TABLE, DOC } from "./gen-rc8-owner-table.mjs";
+import { load, validate, render, flags, status, main, renderedRowIds, digestOf, probeGaps, TABLE, DOC } from "./gen-rc8-owner-table.mjs";
 
 const R = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { t: T0, ctx: CTX } = load();
@@ -125,7 +125,7 @@ test("three classes: rules per class", () => {
     row(b, "pntsPmv4.owner").operatorOwner = "D";
     assert.ok(validate(b, CTX).some((e) => e.includes("class 2")));
     const c = clone();
-    delete row(c, "dvt.validators").pending;
+    row(c, "liveness.owner").class = null;
     assert.ok(validate(c, CTX).some((e) => e.includes("pending author decision")));
     const d = clone();
     row(d, "sp.xpntsFactory").class = 1;
@@ -158,4 +158,45 @@ test("aggregator flag: authority slot held by an aggregator is a violation unles
     assert.equal(flags(t, { ...r, aggAllowed: true }), "allowed (by design)");
     assert.equal(flags(t, { ...r, current: { value: t.identities.SAFE } }), "ok");
     assert.equal(flags(T0, row(T0, "staking.slashers")), "**VIOLATION (current)**");
+});
+
+test("M6 (round 3): the reviewer's case stays PENDING: probe hit removed, probe recorded absent, slasher row unreadable", () => {
+    const t = clone();
+    const B41 = t.identities.AGG_4_1_B;
+    t.legacyProbe.results.hits = t.legacyProbe.results.hits.filter((h) => h.subject !== B41);
+    t.legacyProbe.results.memberAbsent = [...t.legacyProbe.results.memberAbsent, "STAKING.authorizedSlashers(x)"];
+    row(t, "staking.slashers").current = { error: "both endpoints timed out" };
+    const st = status(t, CTX, row(t, "agg_4_1_b.owner"));
+    assert.match(st, /PENDING/);
+    assert.match(st, /member probe did not answer: STAKING\.authorizedSlashers\(x\)/);
+    assert.match(st, /row staking\.slashers unreadable/);
+    // Each of the two failure signals alone also keeps it pending.
+    const a = clone();
+    a.legacyProbe.results.hits = a.legacyProbe.results.hits.filter((h) => h.subject !== B41);
+    row(a, "staking.slashers").current = { error: "both endpoints timed out" };
+    assert.match(status(a, CTX, row(a, "agg_4_1_b.owner")), /PENDING.*unreadable/);
+    const b = clone();
+    b.legacyProbe.results.hits = b.legacyProbe.results.hits.filter((h) => h.subject !== B41);
+    row(b, "staking.slashers").current.value = [b.identities.AGG_4_11];
+    b.legacyProbe.results.gettersFailed = ["SP.owner()"];
+    assert.match(status(b, CTX, row(b, "liveness.owner")), /PENDING.*getter read failed: SP\.owner\(\)/);
+    b.legacyProbe.results.gettersFailed = [];
+    assert.deepEqual(probeGaps(b), []);
+    assert.equal(status(b, CTX, row(b, "agg_4_1_b.owner")), "legacy (verified at pin)");
+});
+
+test("item 9: isValidator[D] on the old DVTValidator is PENDING on the A7.dvt readbacks", () => {
+    const st = status(T0, CTX, row(T0, "dvt.validators"));
+    assert.match(st, /PENDING/);
+    assert.match(st, /DVT_VALIDATOR\(\) != 0x568b/);
+    assert.match(st, /Registry\.blsAggregator\(\) is not any old aggregator/);
+    assert.match(st, /manifest_exec\.py:637/);
+    assert.match(st, /probe AGG_4_11\.DVT_VALIDATOR\(\)/);
+});
+
+test("item 10: a class-2 row owned by D must say the operator identity is the deployer EOA", () => {
+    const t = clone();
+    row(t, "apntsPmv4.owner").notes = null;
+    assert.ok(validate(t, CTX).some((e) => e.includes("deployer EOA")));
+    assert.match(render(T0, CTX), /D is both the deployer EOA and the AAStar operator/);
 });

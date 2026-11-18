@@ -22,12 +22,13 @@
 //   Neither endpoint URL is printed or written; errors are redacted before output.
 //   The output file is written ONLY when every positive control holds (exit 1 and no file otherwise).
 //   Two-endpoint helpers (redaction, independence, finalized pin, log comparison) live in lib/two-endpoint.mjs.
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import {
     createPublicClient, http, parseAbiItem, getAddress, decodeEventLog, toEventSelector,
     keccak256, encodeAbiParameters, stringToHex, hexToBigInt, numberToHex,
 } from "viem";
-import { makeRedactor, assertIndependent, both, compareLogs, pinFinalized } from "./lib/two-endpoint.mjs";
+import { makeRedactor, assertIndependent, both, compareLogs, pinFinalized, writeAtomic } from "./lib/two-endpoint.mjs";
+import { INVENTORY_SCHEMA, REQUIRED_CONTROLS } from "./lib/inventory-accept.mjs";
 
 const [envFile, secondRpc, outPath] = process.argv.slice(2);
 const env = Object.fromEntries(readFileSync(envFile, "utf8").split("\n")
@@ -145,7 +146,7 @@ async function main() {
         { label: `second(${providers[1]})`, client: createPublicClient({ transport: http(secondRpc, { timeout: 60_000 }) }) },
     ];
     const clients = endpoints.map((ep) => ep.client);
-    const res = { sp: SP, chainId: CHAIN_ID, at: new Date().toISOString(), endpoints: [], crossCheck: {}, state: {} };
+    const res = { schema: INVENTORY_SCHEMA, sp: SP, chainId: CHAIN_ID, at: new Date().toISOString(), endpoints: [], crossCheck: {}, state: {} };
 
     // One pinned, reorg-safe range: the finalized block, identical (number and hash) on both endpoints,
     // both reporting chain id 11155111.
@@ -187,7 +188,7 @@ async function main() {
     // OperatorConfigured operator must read isConfigured).
     const must = async (label, fn) => {
         const r = await both(clients, fn, redact);
-        if (r.error) throw new Error(`${label}: ${r.error}`);
+        if (!r.ok) throw new Error(`${label}: ${r.error}`);
         return r.value;
     };
     const read = (fn, args = []) => must(`SP.${fn}`, (c) => c.readContract({ address: SP, abi: SP_ABI, functionName: fn, args, blockNumber: head }));
@@ -195,7 +196,7 @@ async function main() {
     res.state.APNTS_TOKEN = await read("APNTS_TOKEN");
     res.state.pendingAPNTsToken = await read("pendingAPNTsToken");
     const eta = await both(clients, (c) => c.readContract({ address: SP, abi: SP_ABI, functionName: "pendingAPNTsEta", blockNumber: head }), redact);
-    res.state.pendingAPNTsEta = eta.error ? null : eta.value.toString();
+    res.state.pendingAPNTsEta = eta.ok ? eta.value.toString() : null;
     const ops = [...new Set(ev.OperatorConfigured.map((x) => getAddress(x.args.operator)))];
     res.state.operators = [];
     for (const op of ops) {
@@ -267,8 +268,11 @@ async function main() {
         console.error("INVENTORY INCOMPLETE: see positiveControl (no output file written)");
         process.exit(1);
     }
-    // Written only after every control holds: a consumer never sees a file from a failed run.
-    writeFileSync(outPath, JSON.stringify(res, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2));
+    if (JSON.stringify(Object.keys(res.positiveControl).sort()) !== JSON.stringify([...REQUIRED_CONTROLS[INVENTORY_SCHEMA]].sort())) {
+        throw new Error("positiveControl names differ from REQUIRED_CONTROLS for " + INVENTORY_SCHEMA);
+    }
+    // Written only after every control holds, atomically: temp file in the same directory, then rename.
+    writeAtomic(outPath, JSON.stringify(res, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2));
 }
 
 main().catch((e) => {

@@ -10,7 +10,7 @@
 // After a read, regenerate the doc: node scripts/gen-rc8-owner-table.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { createPublicClient, http, parseAbi, parseAbiItem, getAddress, keccak256, stringToHex } from "viem";
+import { createPublicClient, http, parseAbi, parseAbiItem, getAddress, keccak256, stringToHex, toFunctionSelector } from "viem";
 import { makeRedactor, assertIndependent, both as both2, verifyPin, requireIdenticalLogs, codeAt } from "./lib/two-endpoint.mjs";
 import { inventoryErrors } from "./lib/inventory-accept.mjs";
 
@@ -36,7 +36,7 @@ const norm = (v) => (typeof v === "string" && /^0x[0-9a-fA-F]{40}$/.test(v) ? ge
 
 async function both(fn) {
     const r = await both2(clients, fn, redact);
-    return r.error ? { error: "reverted or absent: " + r.error.slice(0, 120) } : r;
+    return r.ok ? r : { ok: false, revert: r.revert, error: (r.revert ? "reverted: " : "read failed: ") + r.error.slice(0, 120) };
 }
 
 async function deployBlock(c, address) {
@@ -66,8 +66,8 @@ const subst = (args, member) => (args ?? []).map((a) => (a === "$member" ? membe
 async function readCall(address, r, member) {
     const abi = parseAbi([r.fn]);
     const res = await both((c) => c.readContract({ address, abi, functionName: abi[0].name, args: subst(r.args, member), blockNumber: block }));
-    if (res.value !== undefined && r.pick !== undefined) res.value = res.value[r.pick];
-    if (res.value !== undefined) res.value = norm(res.value);
+    if (res.ok && r.pick !== undefined) res.value = res.value[r.pick];
+    if (res.ok) res.value = norm(res.value);
     return res;
 }
 
@@ -76,18 +76,41 @@ async function readRange(address, r) {
     const out = [];
     for (let i = r.range[0]; i <= r.range[1]; i++) {
         const res = await readCall(address, r, i);
-        if (res.error) return { error: `index ${i}: ${res.error}` };
+        if (!res.ok) return { ok: false, error: `index ${i}: ${res.error}` };
         if (res.value !== "0x0000000000000000000000000000000000000000") out.push({ index: i, value: res.value });
     }
-    return { value: out.map((x) => x.value), indexed: out };
+    return { ok: true, value: out.map((x) => x.value), indexed: out };
 }
 
 // Class-3 (legacy) evidence: no deployed rc.8 contract returns a legacy subject from any zero-argument
-// address getter of its rc.8 ABI, and no rc.8 role mapping holds it. Getters absent from the deployed
-// (older) version revert and are recorded as absent, not as clean.
+// address getter of its rc.8 ABI, and no rc.8 role mapping holds it. Every read is classified:
+//   ok          - answered on both endpoints (the value is the evidence);
+//   notInCode   - reverted AND the 4-byte selector does not occur in the deployed runtime: the getter does
+//                 not exist on the deployed (older) version, so it cannot return the subject;
+//   reverted    - reverted although the selector occurs in the code: unexplained, NOT evidence of absence;
+//   failed      - transport/provider failure: NOT evidence of absence.
+// The generator keeps every class-3 row PENDING while any read is reverted or failed.
 async function legacyProbe(lp) {
     const subjects = [...new Set(lp.subjects.map((k) => getAddress(resolve(k))))];
     const hit = (v) => [v].flat().filter((x) => typeof x === "string" && /^0x[0-9a-fA-F]{40}$/.test(x)).map((x) => getAddress(x)).filter((x) => subjects.includes(x));
+    const codes = {};
+    const runtime = async (target) => {
+        if (!(target in codes)) {
+            const r = await both((c) => c.getCode({ address: resolve(target), blockNumber: block }));
+            if (!r.ok) throw new Error(`getCode(${target}) failed: ${r.error}`);
+            codes[target] = (r.value ?? "0x").toLowerCase();
+        }
+        return codes[target];
+    };
+    const classify = async (target, fn, res) => {
+        if (res.ok) return "ok";
+        if (!res.revert) return "failed";
+        const selector = toFunctionSelector(fn).slice(2);
+        // PUSH4 <selector>, or PUSH3 when the selector's first byte is 0x00 (the optimizer drops it).
+        const code = await runtime(target);
+        const present = code.includes("63" + selector) || (selector.startsWith("00") && code.includes("62" + selector.slice(2)));
+        return present ? "reverted" : "notInCode";
+    };
     const getters = [], hits = [];
     for (const [target, spec] of Object.entries(lp.getterTargets)) {
         const abiJson = spec.abi ? JSON.parse(readFileSync(new URL("../../" + spec.abi, import.meta.url), "utf8")) : [];
@@ -97,20 +120,24 @@ async function legacyProbe(lp) {
         for (const fn of [...new Set(fns)].sort()) {
             const res = await readCall(resolve(target), { fn });
             const name = fn.slice(9, fn.indexOf("("));
-            getters.push({ target, getter: name, ...(res.error ? { absent: true } : { value: res.value }) });
-            for (const h of res.error ? [] : hit(res.value)) hits.push({ subject: h, probe: `${target}.${name}()` });
+            getters.push({ target, getter: name, status: await classify(target, fn, res) });
+            for (const h of res.ok ? hit(res.value) : []) hits.push({ subject: h, probe: `${target}.${name}()` });
         }
     }
     const members = [];
     for (const subject of subjects) for (const m of lp.memberProbes) {
         const res = await readCall(resolve(m.target), { fn: m.fn, args: m.args, pick: m.pick }, subject);
         const label = `${m.target}.${m.label}`;
-        members.push({ subject, probe: label, ...(res.error ? { absent: true } : { value: res.value }) });
-        if (!res.error && res.value === true) hits.push({ subject, probe: label });
+        members.push({ subject, probe: label, status: await classify(m.target, m.fn, res) });
+        if (res.ok && res.value === true) hits.push({ subject, probe: label });
     }
-    return { subjects, gettersRead: getters.filter((g) => !g.absent).length,
-        gettersAbsent: getters.filter((g) => g.absent).map((g) => `${g.target}.${g.getter}()`),
-        memberReads: members.filter((m) => !m.absent).length, memberAbsent: [...new Set(members.filter((m) => m.absent).map((m) => m.probe))], hits };
+    const by = (list, st, f) => [...new Set(list.filter((g) => g.status === st).map(f))];
+    const gname = (g) => `${g.target}.${g.getter}()`;
+    return { subjects, gettersRead: getters.filter((g) => g.status === "ok").length,
+        gettersNotInCode: by(getters, "notInCode", gname), gettersReverted: by(getters, "reverted", gname), gettersFailed: by(getters, "failed", gname),
+        memberReads: members.filter((m) => m.status === "ok").length,
+        // Any member probe that did not answer for some subject: keeps every class-3 row PENDING.
+        memberAbsent: [...new Set(members.filter((m) => m.status !== "ok").map((m) => m.probe))], hits };
 }
 
 async function readSet(address, r) {
@@ -140,10 +167,10 @@ async function readSet(address, r) {
     const holders = [];
     for (const m of [...candidates].sort()) {
         const res = await readCall(address, r.check, m);
-        if (res.error) return { error: `${m}: ${res.error}` };
+        if (!res.ok) return { ok: false, error: `${m}: ${res.error}` };
         if (res.value === true) holders.push(m);
     }
-    return { value: holders, deployBlock: Number(fromBlocks[0]), seeds, candidates: candidates.size };
+    return { ok: true, value: holders, deployBlock: Number(fromBlocks[0]), seeds, candidates: candidates.size };
 }
 
 async function main() {
@@ -154,28 +181,28 @@ async function main() {
     const roles = [...src.matchAll(/^bytes32 constant (ROLE_\w+)\s*=\s*keccak256\("(\w+)"\);/gm)].map((m) => ({ constant: m[1], name: m[2], id: keccak256(stringToHex(m[2])) }));
     for (const r of roles) {
         const cfg = await readCall(ID.REGISTRY, { fn: table.roleConfigFn, args: [r.id] });
-        if (cfg.error) throw new Error(`getRoleConfig(${r.name}) failed: ${cfg.error}`);
+        if (!cfg.ok) throw new Error(`getRoleConfig(${r.name}) failed: ${cfg.error}`);
         Object.assign(r, { description: cfg.value.description, owner: norm(cfg.value.owner), isActive: cfg.value.isActive,
             minStake: cfg.value.minStake.toString(), configured: cfg.value.minStake > 0n || cfg.value.owner !== "0x0000000000000000000000000000000000000000" });
     }
     // Negative control: an id that is not a role must read back unconfigured, or "configured" proves nothing.
     const none = await readCall(ID.REGISTRY, { fn: table.roleConfigFn, args: [keccak256(stringToHex("NOT_A_ROLE"))] });
-    if (none.error || none.value.isActive || none.value.owner !== "0x0000000000000000000000000000000000000000") throw new Error("role negative control failed");
+    if (!none.ok || none.value.isActive || none.value.owner !== "0x0000000000000000000000000000000000000000") throw new Error("role negative control failed");
     if (roles.length !== 7 || !roles.every((r) => r.configured)) throw new Error("expected 7 configured roles from IRegistry.sol");
     table.roles = roles;
     for (const row of table.rows) {
         const address = resolve(row.address);
         let res;
-        if (address === null) res = { error: "not deployed at the pinned block (address assigned at deploy)" };
+        if (address === null) res = { ok: false, error: "not deployed at the pinned block (address assigned at deploy)" };
         else if (row.read.fn && !row.read.range) res = await readCall(address, row.read);
         else if (row.read.storage) res = await both((c) => c.getStorageAt({ address, slot: row.read.storage, blockNumber: block }))
-            .then((x) => (x.value ? { value: getAddress("0x" + x.value.slice(26)) } : x));
+            .then((x) => (x.ok ? { ok: true, value: getAddress("0x" + x.value.slice(26)) } : x));
         else if (row.read.code) res = await codeAt(clients, address, block, redact); // a failed read stays an error
         else if (row.read.set) res = await readSet(address, row.read.set);
         else if (row.read.range) res = await readRange(address, row.read);
-        else if (row.read.inventory) res = { value: row.read.inventory.split(".").reduce((o, k) => o[k], inv) };
+        else if (row.read.inventory) res = { ok: true, value: row.read.inventory.split(".").reduce((o, k) => o[k], inv) };
         else throw new Error("row " + row.id + ": unknown read kind");
-        row.current = res.error ? { error: res.error } : { value: res.value, ...(res.seeds ? { seeds: res.seeds, deployBlock: res.deployBlock, candidates: res.candidates } : {}) };
+        row.current = !res.ok ? { error: res.error } : { value: res.value, ...(res.seeds ? { seeds: res.seeds, deployBlock: res.deployBlock, candidates: res.candidates } : {}) };
         console.log(row.id, JSON.stringify(row.current.value ?? row.current.error).slice(0, 140));
     }
     if (table.legacyProbe) table.legacyProbe.results = await legacyProbe(table.legacyProbe);

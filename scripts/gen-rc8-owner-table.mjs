@@ -94,6 +94,21 @@ export function legacyHits(t, ctx, subjectKey) {
     return hits;
 }
 
+// Reads that did not answer cannot show absence: any of them keeps every class-3 row PENDING.
+export function probeGaps(t) {
+    const res = t.legacyProbe?.results ?? {};
+    const gaps = [];
+    for (const g of res.gettersFailed ?? []) gaps.push(`getter read failed: ${g}`);
+    for (const g of res.gettersReverted ?? []) gaps.push(`getter reverted although present in code: ${g}`);
+    for (const m of res.memberAbsent ?? []) gaps.push(`member probe did not answer: ${m}`);
+    for (const r of t.rows) {
+        if (r.kind !== "authority" || r.class === 3 || !r.current || !("error" in r.current)) continue;
+        if (Object.hasOwn(t.identities, r.address) && t.identities[r.address] === null) continue; // not deployed at the pin: holds nothing yet
+        gaps.push(`row ${r.id} unreadable`);
+    }
+    return gaps;
+}
+
 export function validate(t, ctx) {
     const errors = [];
     const err = (m) => errors.push(m);
@@ -122,6 +137,9 @@ export function validate(t, ctx) {
     const ids = new Set();
     const probed = new Set((t.legacyProbe?.subjects ?? []));
     if (!t.legacyProbe?.results) err("legacyProbe results missing");
+    else for (const k of ["hits", "gettersNotInCode", "gettersReverted", "gettersFailed", "memberAbsent"]) {
+        if (!Array.isArray(t.legacyProbe.results[k])) err(`legacyProbe.results.${k} must be a list`);
+    }
     for (const r of t.rows) {
         for (const c of COLUMNS) if (!(c in r)) err(`row ${r.id}: missing column ${c}`);
         if (ids.has(r.id)) err(`duplicate row id ${r.id}`);
@@ -139,6 +157,8 @@ export function validate(t, ctx) {
             const ok = new Set([...GOVERNANCE, ...(t.protocolContracts ?? [])].map((k) => resolveId(t, k)));
             if (!exp.every((a) => ok.has(a))) err(`row ${r.id}: class 1 expects only TL48 / SAFE / no holder / rc.8 protocol contracts`);
         }
+        // Nothing may read as "the deployer holds no privilege": an operator-owned row held by D says so.
+        if (r.class === 2 && resolveId(t, r.operatorOwner) === t.identities.D && !/same address as the deployer EOA/.test(r.notes ?? "")) err(`row ${r.id}: class 2 owned by D must note that the operator identity is the deployer EOA`);
         if (r.class === 2 && (!r.operatorOwner || JSON.stringify(exp) !== JSON.stringify([resolveId(t, r.operatorOwner)]))) err(`row ${r.id}: class 2 must name its operator owner as the expected value`);
         if (r.class === 3) {
             const subj = r.class3?.subjects ?? [];
@@ -155,8 +175,8 @@ export function status(t, ctx, r) {
     if (r.class === 1) return /^MISSING/.test(r.step) || /: MISSING/.test(r.step) ? "**GAP (step missing)**" : "handed over";
     if (r.class === 2) return `operator-owned (${r.operatorOwner})`;
     const hits = (r.class3.subjects ?? []).flatMap((s) => legacyHits(t, ctx, s));
-    const reqs = r.class3.requires ?? [];
-    if (hits.length || reqs.length) return `**PENDING (legacy once cleared: ${[...hits, ...reqs].join("; ")})**`;
+    const reqs = r.class3.requires ?? [], gaps = probeGaps(t);
+    if (hits.length || reqs.length || gaps.length) return `**PENDING (legacy once cleared: ${[...hits, ...gaps, ...reqs].join("; ")})**`;
     return r.class3.authorDecision ? "legacy (author decision)" : "legacy (verified at pin)";
 }
 
@@ -196,6 +216,7 @@ export function render(t, ctx) {
         "`node scripts/gen-rc8-owner-table.mjs`; check: `node scripts/gen-rc8-owner-table.mjs --check`.", "",
         "**Expected** is the post-rc.8 value. **Class**: (1) handed over to TL48 / the community Safe (or no holder); (2) operator-owned by design; " +
         "(3) legacy: not referenced or trusted by any rc.8 contract (mechanical evidence in the legacy probe section), shown PENDING until every reference is cleared. " +
+        "**D is both the deployer EOA and the AAStar operator**: a class-2 row owned by D is a privilege the deployer EOA keeps. " +
         "**Agg** = no aggregator may hold an owner/admin/proposer/executor/ProxyAdmin/role slot (wiring that must point at the aggregator is allow-listed).", "");
     p("## Identities", "", "| Name | Address |", "|---|---|");
     for (const [k, v] of Object.entries(t.identities)) p(`| ${k}${t.aggregators.includes(k) ? " (aggregator)" : ""} | ${v ? `\`${v}\`` : "assigned at deploy"} |`);
@@ -229,7 +250,9 @@ export function render(t, ctx) {
     p("## Legacy (class 3) evidence", "",
         `Probes at the pinned block, both endpoints: ${res.gettersRead} zero-argument address getters of the rc.8 ABIs on ${Object.keys(lp.getterTargets).join(", ")}; ` +
         `${res.memberReads} role/mapping reads (${lp.memberProbes.map((m) => `${m.target}.${m.label}`).join(", ")}) for each subject. ` +
-        `Getters absent from the deployed (older) versions, recorded as absent, not clean: ${res.gettersAbsent.join(", ") || "none"}. ` +
+        `Getters whose selector is not in the deployed (older) runtime, so they cannot return a subject: ${res.gettersNotInCode.join(", ") || "none"}. ` +
+        `Reads that did not answer (keep every class-3 row PENDING): reverted although present ${res.gettersReverted.join(", ") || "none"}; ` +
+        `transport failures ${res.gettersFailed.join(", ") || "none"}; member probes ${res.memberAbsent.join(", ") || "none"}. ` +
         `Source scan (address, case-insensitive): ${lp.sourceScan.join(", ")}. ${esc(lp.note)}`, "",
         "| Subject | Probe hits | Row hits (non-legacy rows whose current value holds it) | Source hits |", "|---|---|---|---|");
     for (const k of lp.subjects) {
