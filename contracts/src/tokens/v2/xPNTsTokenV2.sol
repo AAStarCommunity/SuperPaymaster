@@ -362,7 +362,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
         return abi.decode(ret, (uint256));
     }
 
-    /// @dev AUTO grants only reputation-derived credit above Registry's level-1 floor.
+    /// @dev AUTO grants only reputation-derived credit above the reputation-0 floor.
     ///      Both source reads are bounded STATICCALLs; any failure or underflow returns 0.
     function _autoTierOf(address user) internal view returns (uint256) {
         uint256 tier = _tierOf(user);

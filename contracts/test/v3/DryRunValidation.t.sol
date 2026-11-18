@@ -73,6 +73,7 @@ contract MockAPNTsDR is ERC20 {
 contract MockRegistryDR is IRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
+    uint256[1] public levelThresholds = [uint256(13)];
     function creditTierConfig(uint256) external pure returns (uint256) { return 0; }
     function hasRole(bytes32 role, address account) external view returns (bool) {
         return roles[role][account];

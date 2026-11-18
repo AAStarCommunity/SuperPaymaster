@@ -67,6 +67,7 @@ contract MockRegistry is IRegistry {
 
     // V3.1 Mock Logic
     mapping(address => uint256) public creditLimits;
+    uint256[1] public levelThresholds = [uint256(13)];
     function creditTierConfig(uint256) external pure returns (uint256) { return 0; }
 
     function setCreditForUser(address user, uint256 limit) external {

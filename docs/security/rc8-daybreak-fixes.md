@@ -888,3 +888,56 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
 - Every "onlyOwner; the aggregator is not the owner" allowance holds only while the aggregator owns
   nothing and holds no role. This is enforced by the coverage script's deploy-path ownership check
   and by the step-13 readbacks OWNER-NOT-AGGREGATOR and AGG-NOT-DVT-VALIDATOR.
+
+## M-02 AUTO credit floor — Medium-1 follow-up
+
+Medium-1: setting thresholds to `[0,34,89,233,610]` and tier 2 to 200 ether
+makes every reputation-0 address level 2. Subtracting tier 1 (100 ether)
+therefore granted each zero-reputation Sybil 100 ether of AUTO credit.
+Option (b) fixes the floor to the credit tier of a reputation-0 address.
+`GlobalTierSource-1.0.1` remains the unreleased version. MANUAL keeps its full tier.
+
+The premise is Registry's strictly ascending thresholds (`Registry.sol:918`):
+only the first threshold can be zero. `_levelForReputation` (`Registry.sol:938`)
+therefore assigns reputation 0 to level 2 exactly when threshold 0 is zero,
+and otherwise to level 1. `creditFloor()` reads `levelThresholds(0)` with no
+try/catch: every failure propagates and the token's bounded source call turns it
+into AUTO 0. That includes an empty schedule, where Registry's generated getter
+reverts with empty data (not a bounds panic). This is exact, not a fallback: with
+no thresholds every address is at level 1, so AUTO is tier1 - tier1 = 0 for all.
+Not special-casing an empty revert also means an out-of-gas revert can never be
+mistaken for an empty schedule (which would lower the floor).
+
+Registry's exposure ledger still uses `creditTierConfig[1]` as `floorLimit`
+(`Registry.sol:606`). In the Medium-1 configuration it books more than actual
+AUTO credit per counted promoted user, conservatively for AUTO. The disclosure
+test covers four promoted users and two untouched zero-reputation users:
+AUTO caps sum to 3,100 ether versus 3,500 ether of booked exposure. MANUAL credit
+for untouched reputation-0 addresses above tier 1 is not booked: this is the
+owner-approved "floor bounded elsewhere" assumption (`Registry.sol:1055`).
+**5.5.x follow-up:** unify Registry's floor with GlobalTierSource's reputation-0 floor.
+
+This is a validation-phase change. The added frames run only on the credit
+route: lock returns INSUFFICIENT, `tryReserveCredit` runs with policy AUTO and
+a current-epoch request, and `tierOf` returns a positive tier. After
+`creditFloor()`, the tier source STATICCALLs `Registry.levelThresholds(uint256)`
+and the proxy DELEGATECALLs its implementation, before `creditTierConfig`.
+The OP011 AUTO trace has 15 frames; MANUAL remains 10. These reads use the same
+global Registry tables already read by `getCreditLimit`: `levelThresholds`
+and `creditTierConfig`. There is no new storage-access class; this relies on
+STO-033 for a staked paymaster.
+
+Same-user, same-level offline Cancun and Prague measurement: AUTO 321,155 gas, MANUAL
+312,420 gas, delta **8,735 gas**, below the two 100,000-gas source budgets.
+
+Step-14 real bundler tracer coverage remains a **known gap** for successful
+AUTO credit reservation on Sepolia under the stated no-reputation-producer
+setup: with the default thresholds every address is level 1, so AUTO returns 0
+before reserving credit. The floor frames still execute for a current-epoch
+level-1 AUTO request with a positive tier. Local OP011 tests exercise the
+successful route using a real Registry proxy and explicit reputation promotion;
+they do not establish real bundler acceptance. No chain or RPC checks were made
+for this follow-up.
+
+ABI bundle validation passes. ABI-doc generation/check is blocked by missing
+local `viem` dependencies; no network installation was attempted.
