@@ -34,6 +34,12 @@ def read_endpoint_file(key, raw):
     except OSError:
         raise RuntimeError('unreadable endpoint file for ' + key) from None
     require(text and '\n' not in text and URL_SCHEME.match(text) is not None, 'endpoint file for ' + key + ' must hold one URL')
+    # Start-up self-check: the scanner must be able to recognise this URL's credential.
+    from deploylive_rehearse import credential_fragments
+    try:
+        credential_fragments(text, strict=True)
+    except RuntimeError:
+        raise RuntimeError('endpoint file for ' + key + ' has no credential-like segment; scanner cannot guard it') from None
     return text
 
 
@@ -164,8 +170,13 @@ def cap_control(rpc, evidence, production=False, sleep=time.sleep):
     return record
 
 
-def archive(source, destination, copy=None):
+def archive(source, destination, copy=None, env=None):
     source, destination = Path(source).resolve(), Path(destination).resolve()
+    # Same scanner as safe_logs and the final scan: one implementation, three call sites.
+    from deploylive_rehearse import scan_evidence
+    for key in URL_KEYS:
+        if env and URL_SCHEME.match(env.get(key) or ''):
+            scan_evidence(source, env[key], [], key)
     require(source.is_dir() and not destination.exists(), 'archive source missing or destination exists')
     require(not destination.is_relative_to(source) and not source.is_relative_to(destination), 'archive overlaps evidence')
     archive_records(source)
@@ -273,7 +284,7 @@ def safe_logs(evidence, prefix, result, env, after_broadcast=False):
         try:
             require(redact_error(content) == content and not re.search(r'(?i)(?:https?|wss?)://', content), 'raw output contains credentials; refusing write')
             for key in URL_KEYS:
-                scan_content(content.encode(), env.get(key, ''), json.loads(env.get('REHEARSAL_BLS_SCALARS', '[]')))
+                scan_content(content.encode(), env.get(key, ''), json.loads(env.get('REHEARSAL_BLS_SCALARS', '[]')), key, prefix)
             if env.get('PRIVATE_KEY_ANNI'):
                 require(env['PRIVATE_KEY_ANNI'].lower() not in content.lower(), 'raw output contains secret; refusing write')
         except (RuntimeError, ValueError, TypeError):

@@ -36,33 +36,56 @@ def guard_bls_verbosity(args, env, default=3):
     require(verbosity < 3, 'BLS rehearsal refuses forge verbosity >= 3')
 
 
-MIN_FRAGMENT = 6
 
 
-def scan_evidence(directory, rpc_url, scalars):
+def scan_evidence(directory, rpc_url, scalars, label='endpoint'):
     directory = Path(directory).resolve()
     require(directory.is_dir(), 'evidence directory must exist')
     for path in directory.rglob('*'):
         require(not path.is_symlink(), 'evidence symlinks refused')
         if path.is_file():
-            scan_content(path.read_bytes(), rpc_url, scalars)
+            scan_content(path.read_bytes(), rpc_url, scalars, label, str(path.relative_to(directory)))
 
 
-def scan_content(content, rpc_url, scalars):
+LOOPBACK_HOSTS = ('127.0.0.1', '::1', 'localhost')
+
+
+def credential_like(fragment):
+    # Only segments shaped like credentials count. A generic word in an endpoint path (an API
+    # version, a network name, "gateway") is not a secret, and it also occurs in ordinary forge
+    # output: a 6-character word of a real endpoint matched a function name in a -vv log and
+    # stopped a deploy (acceptance at 1bda832d).
+    return len(fragment) >= 16 or (len(fragment) >= 8 and any(c.isalpha() for c in fragment)
+                                   and any(c.isdigit() for c in fragment))
+
+
+def credential_fragments(rpc_url, strict=False):
+    """The needles for one endpoint: the full URL and host verbatim, plus credential-like
+    path/query segments. With strict=True (the start-up self-check on each real endpoint
+    file), a non-loopback URL without any credential-like segment STOPs: the scanner cannot
+    guard a credential format it does not recognise, so it must not pass it as harmless."""
     url = urlsplit(rpc_url)
-    needles = {rpc_url, url.hostname or ''}
-    # Path/query fragments count only from MIN_FRAGMENT characters, like the fixed final scan: a
-    # short segment such as a provider's API-version prefix ("v2") is not a secret and occurs in
-    # ordinary logs, which made every Alchemy-backed run fail. The full URL and host still count.
-    needles.update(fragment for fragment in unquote(url.path).split('/') if len(fragment) >= MIN_FRAGMENT)
-    needles.update(fragment for fragment in re.split(r'[=&]', unquote(url.query)) if len(fragment) >= MIN_FRAGMENT)
+    if url.hostname in LOOPBACK_HOSTS:
+        return set()  # a loopback endpoint carries no credential (a rehearsal fork)
+    parts = [f for f in unquote(url.path).split('/') if f]
+    parts += [f for f in re.split(r'[=&]', unquote(url.query)) if f]
+    fragments = {f for f in parts if credential_like(f)}
+    if strict:
+        require(bool(fragments), 'endpoint URL has no credential-like segment; scanner cannot guard it')
+    return {rpc_url, url.hostname or ''} | fragments
+
+
+def scan_content(content, rpc_url, scalars, label='endpoint', where='output'):
+    needles = credential_fragments(rpc_url) if rpc_url else set()
     for scalar in scalars:
         n = int(str(scalar), 16 if str(scalar).startswith('0x') else 10)
         require(n > 0, 'invalid rehearsal scalar')
         needles.update((str(n), f'{n:064x}', hex(n)))
     encoded = [n.encode().lower() for n in needles if n]
     content = content.lower()
-    require(not any(n in content for n in encoded), 'evidence contains sensitive material (details redacted)')
+    # Name the variable and the file, never the value.
+    require(not any(n in content for n in encoded),
+            f'evidence contains sensitive material: {label} matched in {where} (value redacted)')
 
 
 def local_endpoint(url):
@@ -330,7 +353,7 @@ def main():
         elif mode == 'hook':
             hook(rpc, cfg, argv[6] if len(argv) == 7 else cfg['genesisOperator'])
     finally:
-        scan_evidence(evidence, source_rpc, scalars)
+        scan_evidence(evidence, source_rpc, scalars, 'REHEARSAL_SOURCE_RPC')
     print('PASS ' + mode)
 
 

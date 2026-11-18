@@ -84,8 +84,10 @@ class Ddf5Test(unittest.TestCase):
         self.assertEqual(env['DEPLOYLIVE_FORGE_RPC_URL'],'https://rpc.invalid/secret'); self.assertNotIn('ETH_RPC_URL',env)
 
     def test_endpoint_permissions_type_owner_lines(self):
-        p=self.root/'rpc'; p.write_text('https://rpc.invalid\n'); p.chmod(0o600)
-        self.assertEqual(c.read_endpoint_file('RPC',str(p)),'https://rpc.invalid')
+        # Fixture URL carries a credential-like segment: the start-up self-check refuses a URL the
+        # scanner could not guard (DSR 2026-11-19).
+        p=self.root/'rpc'; p.write_text('https://rpc.invalid/k3yAbc123def456\n'); p.chmod(0o600)
+        self.assertEqual(c.read_endpoint_file('RPC',str(p)),'https://rpc.invalid/k3yAbc123def456')
         for mode in (0o644,0o610):
             p.chmod(mode)
             with self.assertRaises(RuntimeError): c.read_endpoint_file('RPC',str(p))

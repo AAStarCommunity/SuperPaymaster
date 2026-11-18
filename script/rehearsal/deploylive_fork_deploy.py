@@ -294,7 +294,7 @@ def cli(argv=None):
         return cap_control(RPC(env['DEPLOYLIVE_RPC']), evidence)
     if args.action == 'archive':
         require(bool(args.to), 'archive requires --to')
-        return archive(evidence,args.to)
+        return archive(evidence,args.to,env=env)
     previous = dict(os.environ)
     previous_argv = sys.argv[:]
     try:
