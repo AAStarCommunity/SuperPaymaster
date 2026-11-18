@@ -35,6 +35,16 @@ Happy mode accepts an OP-mainnet Anvil fork with chain ID 10 (also 31337).
 The wrapper explicitly runs `anvil_setCode(deployer, "0x")` before the run:
 this is the selected rehearsal approach for undelegating default-mnemonic OP
 accounts. It is an Anvil-only preparation step, never a production transaction.
+
+**What the three "deployer has no code" checks do and do not guarantee.** Production
+DeployLive calls `_requireUndelegatedDeployer` in the preflight, right before CREATE TL and
+right before CREATE H. `forge script` simulates the whole run first and broadcasts afterwards,
+so all three checks execute during the simulation. They are not re-evaluated on chain when the
+corresponding transaction is broadcast. A delegation added to the deployer DURING the broadcast
+can only come from a 7702 authorization signed by the deployer key itself, which the
+trusted-deployer premise covers. After the run, the checker detects it: it reads back
+`deployerCodeLength` and asserts the predicted TL/H addresses. The checks are not three live
+on-chain gates.
 `DEPLOYLIVE_EVIDENCE_DIR` may be an existing directory outside the worktree.
 Forge stdout/stderr are written as `forge.stdout.log` and `forge.stderr.log`,
 including failed Forge runs; the outer driver scans those files before returning.
