@@ -32,7 +32,7 @@ class AuthorityCheckpointTests(unittest.TestCase):
                     rpc = t.isolation_tests.fixture_rpc(copy.deepcopy(self.pin), {key: t.isolation_tests.raw(values)})
                     spec_inventory = self.pin['oldOwnerIsolation']['inventory']
                     action = lambda: m.isolation.audit(rpc, self.pin, spec_inventory, t.isolation_tests.FIXTURE_CALLSITE_TARGETS)
-                    gate = 'old_owner_role_admin_'+role['name'] if args else 'old_owner_authority_Registry_'+owner_row['name']
+                    gate = 'old_owner_role_admin_declared_'+role['name'] if args else 'old_owner_authority_member_Registry_'+owner_row['name']
                 else:
                     rpc = t.old_timelock_rpc(self.pin, self.pin['stateBlock'], (u.REG, signature, args, t.isolation_tests.raw(values)))
                     action = lambda: m.old_timelock_holds_nothing(rpc, self.pin, self.pin['stateBlock'])

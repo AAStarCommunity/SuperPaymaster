@@ -178,7 +178,7 @@ negative('unlocking','rq3_stake_not_unlocking',lambda t:t.rpc.set(t.cfg['entryPo
 negative('configured','rq3_genesis_unconfigured',lambda t:t.pins[0]['sp']['deployerOperator'].__setitem__(1,1))
 negative('shared_pin','rq3_shared_pin',lambda t:t.pins[1]['capped'].update(totalSupply=1))
 negative('gtoken','rq3_safe_gtoken',lambda t:([p['endUser'].update(deployerGToken=0) for p in t.pins],t.rpc.set(t.cfg['gToken'],'balanceOf(address)',t.cfg['governanceOwner'],value=0)))
-negative('headroom','C1_cap_headroom',lambda t:[p['capped'].update(cap=0) for p in t.pins])
+negative('headroom','rq3_cap_headroom',lambda t:[p['capped'].update(cap=0) for p in t.pins])
 
 
 class SendGates(unittest.TestCase):

@@ -1070,3 +1070,125 @@ Both are 130 B proxies owned by the same EOA. The rc.8 Sepolia manifest does
 not call setAgentRegistries; the in-place upgrade keeps storage, so both pointers
 stay set after rc.8 on the testnet. These are owner-provided findings; this round
 performed no network verification.
+## I-01 issuance cap enforced; C2-02 per-clone EIP-712 name (XPNTs-4.0.2)
+
+**I-01.** `xPNTsV2Base._update` checks the issuance cap on every mint, net of automatic debt
+repayment. Zero net issuance remains allowed even when supply already exceeds a lowered cap;
+settlement, debt repayment and burns remain available. This cap is a community self-constraint:
+`setIssuanceCap` is `onlyCommunityOwner` with no delay, so the owner can raise it and mint in one
+transaction. The economic guard remains `isOverIssued`'s value model. A cap of `0` means unlimited,
+and new clones default to `0`. The cap bounds circulating supply (`totalSupply`), not cumulative
+issuance: a burn frees room that a later mint can use again
+(`test_I_01_issuance_cap_exact_boundary_and_burn_reopens_room`).
+
+**C2-02.** The EIP-712 domain changes from
+`{name: "", version: "1", chainId, verifyingContract: clone}` to
+`{name: token.name(), version: "1", chainId, verifyingContract: clone}`.
+`DOMAIN_SEPARATOR()` and `eip712Domain()` are computed per call. Both ERC-2612 `permit` and
+`executeBySig` / `actionDigest` (`V2Action`) are affected. The implementation itself retains name
+`""`. New clones cannot have an empty name: the factory rejects it with `InvalidParameters()`, and
+`initialize` itself rejects it with `InvalidParam()`, so the rule also holds for a clone initialized
+outside the factory. `eip712Domain()` keeps the EIP-5267 output names `name` and `version`, so clients
+that read the result by name keep working.
+Existing 4.0.1 clones keep name `""` forever: these are EIP-1167 clones, not upgradeable contracts.
+`deployments/config.sepolia.json` contains no v2 clones (configuration evidence, not a chain scan).
+The SDK must read `eip712Domain()` per clone and must not hard-code the name. Deploy the new
+implementation and factory for new named-domain clones; do not apply 4.0.2 signing assumptions
+to existing 4.0.1 clones. Regenerated ABI bundles expose `IssuanceCapExceeded`.
+
+**Evidence scope.** The cross-chain and cross-clone permit / V2Action replay tests are regression
+controls: OpenZeppelin already rebuilt the domain for clone address and chain before this fix.
+They are not discriminating C2-02 evidence. Named-domain equality, rejecting an old empty-name
+permit, named-domain `actionDigest`, and rejecting an old empty-name V2Action signature are the
+discriminating cases. The latter signs with the correct clone, chain, nonce and deadline, rejects
+that signature, then accepts the named-domain signature at the same nonce.
+
+**Formal-evidence scope.** Halmos was not re-run for this change. The D5c-1 checks in
+`contracts/test/halmos/XPNTsV2Halmos.t.sol` and arithmetic checks in
+`contracts/test/halmos/MintRepayLemma.t.sol` predate the new cap branch in `_update`; their prior
+results are not a proof of XPNTs-4.0.2. In particular, the mint branches of `check_I2_coreAbi` /
+`check_I2_extAbi` (allowance/budget counters, authorized pulls, lock accounting and renewal bounds)
+and `check_I6_coreAbi` / `check_I6_extAbi` / `check_I6J_coreAbi` / `check_I6J_extAbi`
+(authorized credit reservation/debt increases, reservation accounting, and the cumulative
+`debts + creditReserved <= B` induction property), including the no-debt mint partitions,
+have not been re-proven with the cap guard. Nor have the other D5c-1 properties been re-proven
+against this bytecode. The arithmetic lemma M (`repayX <= mint`) and its M1/M2/M3 decomposition
+have not been re-run or extended to prove cap admission, zero-net admission above a lowered cap,
+or atomic rollback when positive net issuance exceeds the cap. Foundry unit/fuzz/invariant runs
+are executable regression evidence, not renewed symbolic proofs of these properties.
+
+## M-02 AUTO credit floor — Medium-1 follow-up
+
+Medium-1: setting thresholds to `[0,34,89,233,610]` and tier 2 to 200 ether
+makes every reputation-0 address level 2. Subtracting tier 1 (100 ether)
+therefore granted each zero-reputation Sybil 100 ether of AUTO credit.
+Option (b) fixes the floor to the credit tier of a reputation-0 address.
+`GlobalTierSource-1.0.1` remains the unreleased version. MANUAL keeps its full tier.
+
+The premise is Registry's strictly ascending thresholds (`Registry.sol:918`):
+only the first threshold can be zero. `_levelForReputation` (`Registry.sol:938`)
+therefore assigns reputation 0 to level 2 exactly when threshold 0 is zero,
+and otherwise to level 1. `creditFloor()` reads `levelThresholds(0)` with no
+try/catch: every failure propagates and the token's bounded source call turns it
+into AUTO 0. That includes an empty schedule, where Registry's generated getter
+reverts with empty data (not a bounds panic). This is exact, not a fallback: with
+no thresholds every address is at level 1, so AUTO is tier1 - tier1 = 0 for all.
+Not special-casing an empty revert also means an out-of-gas revert can never be
+mistaken for an empty schedule (which would lower the floor).
+
+Registry's exposure ledger still uses `creditTierConfig[1]` as `floorLimit`
+(`Registry.sol:606`). In the Medium-1 configuration it books more than actual
+AUTO credit per counted promoted user, conservatively for AUTO. The disclosure
+test covers four promoted users and two untouched zero-reputation users:
+AUTO caps sum to 3,100 ether versus 3,500 ether of booked exposure. This holds only in the
+steady state of a complete seed and a valid ledger. It is not universal: a
+price-changing `setCreditTier` after promotions runs `_invalidateCreditPopulation` and zeroes
+`totalCreditExposure` (`Registry.sol:780-784`) while promoted users keep their AUTO credit, and an
+incomplete seed has the same effect. MANUAL credit
+for untouched reputation-0 addresses above tier 1 is not booked: this is the
+owner-approved "floor bounded elsewhere" assumption (`Registry.sol:1055`).
+**5.5.x follow-up:** unify Registry's floor with GlobalTierSource's reputation-0 floor.
+
+This is a validation-phase change. The added frames run only on the credit
+route: lock returns INSUFFICIENT, `tryReserveCredit` runs with policy AUTO and
+a current-epoch request, and `tierOf` returns a positive tier. After
+`creditFloor()`, the tier source STATICCALLs `Registry.levelThresholds(uint256)`
+and the proxy DELEGATECALLs its implementation, before `creditTierConfig`.
+The OP011 AUTO trace has 15 frames; MANUAL remains 10. These reads use the same
+global Registry tables already read by `getCreditLimit`: `levelThresholds`
+and `creditTierConfig`. There is no new storage-access class; this relies on
+STO-033 for a staked paymaster.
+
+Same-user, same-level offline Cancun and Prague measurement on the credit route: AUTO 321,148 gas,
+MANUAL 312,420 gas, delta **8,728 gas**. `test_M02_credit_validation_gas_delta` pins the delta to
+5,000–15,000. The delta is outcome-dependent rather than fixed: if the 63/64 rule leaves the floor
+call too little gas, the token answers NO_CREDIT (signature failure) and validation does not revert.
+
+Step-14 real bundler tracer coverage remains a **known gap** for successful
+AUTO credit reservation on Sepolia under the stated no-reputation-producer
+setup: with the default thresholds every address is level 1, so AUTO returns 0
+before reserving credit. The floor frames still execute for a current-epoch
+level-1 AUTO request with a positive tier. Local OP011 tests exercise the
+successful route using a real Registry proxy and explicit reputation promotion;
+they do not establish real bundler acceptance. No chain or RPC checks were made
+for this follow-up.
+
+`abis/` and `docs/abi/{reference,selectors}.md` were regenerated with `scripts/extract_v3_abis.sh`
+and `pnpm gen:abi-docs`, using the main checkout's node_modules. `check-abi-bundle` and
+`gen:abi-docs:check` pass on this head.
+
+Further premises and limits:
+- **The invariant assumes GlobalTierSource is the only approved tier source.** Any source
+  approved under `KIND_TIER_SOURCE` whose `creditFloor()` returns 0 would give reputation-0
+  addresses the full tier. The choice of source is bounded by the sealed AOAProtocolRegistry and
+  the 48 h timelock, so this is not a new attack surface.
+- **A token pointing at an older source without `creditFloor()` silently gets AUTO 0**
+  (fail-closed). This goes in the release notes.
+- **Coverage of the new deduction.** The existing AUTO unit tests, the Halmos proofs and the PoC
+  mocks still return `creditFloor() = 0`, so they exercise the old semantics. The new deduction
+  is covered only by `M02AutoCreditFloor.t.sol` and the D3 cases: the differential fuzz
+  (including an end-to-end AUTO-0 check for reputation 0 on every random valid schedule) and the
+  Medium-1 regression. There is no symbolic proof.
+- **Empty threshold schedule.** The validation trace has 13 frames and no banned opcode; the
+  out-of-bounds getter reverts with empty data, not INVALID. Validation answers NO_CREDIT (signature
+  failure) rather than reverting. This is pinned by `test_OP011_validation_trace_credit_empty_schedule`.

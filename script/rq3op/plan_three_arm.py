@@ -217,7 +217,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         pins.append(pin); worksheets.append(ws); cs.append(c)
     first=worksheets[0]; p=pins[0]['phaseC']
     operator_top=first['operatorTarget']; mint=m.positive(operator_top-p['capped']['deployerBalance'])
-    a.need('C1_cap_headroom',p['capped']['totalSupply']+mint<=p['capped']['cap'] and p['capped']['cap']==cfg['expectedCap'],True)
+    a.need('rq3_cap_headroom',p['capped']['totalSupply']+mint<=p['capped']['cap'] and p['capped']['cap']==cfg['expectedCap'],True)
     tickets=sum(w['endUserStake']+w['endUserTicket'] for w in worksheets if not w['accountMember'])
     transfer=m.positive(tickets-p['endUser']['deployerGToken'])
     a.need('rq3_safe_gtoken',word(cfg['gToken'],'balanceOf(address)',ctx['safe'])>=transfer,True)

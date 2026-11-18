@@ -51,6 +51,39 @@ contract GasBurnerTier {
 
 contract MaxTier {
     function tierOf(address, address) external pure returns (uint256) { return type(uint256).max; }
+    function creditFloor() external pure returns (uint256) { return 0; }
+}
+
+contract RevertingFloorTier {
+    function tierOf(address, address) external pure returns (uint256) { return 1_000 ether; }
+    function creditFloor() external pure returns (uint256) { revert("no floor"); }
+}
+
+contract MalformedFloorTier {
+    function tierOf(address, address) external pure returns (uint256) { return 1_000 ether; }
+    fallback() external {
+        assembly {
+            mstore(0, not(0))
+            return(0, 31)
+        }
+    }
+}
+
+contract WideFloorTier {
+    function tierOf(address, address) external pure returns (uint256) { return 1_000 ether; }
+    function creditFloor() external pure returns (uint256, uint256) { return (0, 0); }
+}
+
+contract GasBurnerFloorTier {
+    function tierOf(address, address) external pure returns (uint256) { return 1_000 ether; }
+    function creditFloor() external view returns (uint256 x) {
+        while (gasleft() > 0) { x += 1; }
+    }
+}
+
+contract UnderflowFloorTier {
+    function tierOf(address, address) external pure returns (uint256) { return 99 ether; }
+    function creditFloor() external pure returns (uint256) { return 100 ether; }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +128,11 @@ contract xPNTsTokenV2D3Test is Test {
     EmptyTier emptyTier;
     GasBurnerTier burnTier;
     MaxTier maxTier;
+    RevertingFloorTier revFloorTier;
+    MalformedFloorTier malformedFloorTier;
+    WideFloorTier wideFloorTier;
+    GasBurnerFloorTier burnFloorTier;
+    UnderflowFloorTier underflowFloorTier;
 
     address governance = address(0xA11CE);
     address community = address(0xC0);
@@ -123,6 +161,11 @@ contract xPNTsTokenV2D3Test is Test {
         emptyTier = new EmptyTier();
         burnTier = new GasBurnerTier();
         maxTier = new MaxTier();
+        revFloorTier = new RevertingFloorTier();
+        malformedFloorTier = new MalformedFloorTier();
+        wideFloorTier = new WideFloorTier();
+        burnFloorTier = new GasBurnerFloorTier();
+        underflowFloorTier = new UnderflowFloorTier();
 
         vm.startPrank(governance);
         reg.bootstrapApprove(reg.KIND_SP(), reg.spKey(sp));
@@ -135,6 +178,11 @@ contract xPNTsTokenV2D3Test is Test {
         reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(emptyTier).codehash);
         reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(burnTier).codehash);
         reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(maxTier).codehash);
+        reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(revFloorTier).codehash);
+        reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(malformedFloorTier).codehash);
+        reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(underflowFloorTier).codehash);
+        reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(wideFloorTier).codehash);
+        reg.bootstrapApprove(reg.KIND_TIER_SOURCE(), address(burnFloorTier).codehash);
         reg.bootstrapApprove(reg.KIND_SPENDER(), address(spender).codehash);
         reg.seal();
         vm.stopPrank();
@@ -501,6 +549,40 @@ contract xPNTsTokenV2D3Test is Test {
         assertEq(cap, 0);
         assertLt(spent, t.TIER_SOURCE_GAS() + 30_000, "forwarded gas is capped");
         assertEq(uint8(_reserve(user, OP1, 1 ether)), uint8(IxPNTsTokenV2.CreditResult.NO_CREDIT));
+    }
+
+    function test_creditFloor_revert_is_zero() public {
+        _policy(2);
+        assertEq(_capWith(address(revFloorTier)), 0);
+    }
+
+    function test_creditFloor_malformed_return_is_zero() public {
+        _policy(2);
+        assertEq(_capWith(address(malformedFloorTier)), 0);
+    }
+
+    function test_creditFloor_wide_return_is_zero() public {
+        _policy(2);
+        assertEq(_capWith(address(wideFloorTier)), 0);
+    }
+
+    function test_creditFloor_gas_exhaustion_is_zero_and_bounded() public {
+        _policy(2);
+        _switchTier(address(burnFloorTier));
+        vm.prank(user);
+        _ext().requestCredit(1_000 ether);
+        assertEq(t.effectiveCreditCap(user), 0);
+        uint256 budget = 2 * t.TIER_SOURCE_GAS();
+        uint256 g = gasleft();
+        IxPNTsTokenV2.CreditResult result = _reserve(user, OP1, 1 ether);
+        uint256 spent = g - gasleft();
+        assertEq(uint8(result), uint8(IxPNTsTokenV2.CreditResult.NO_CREDIT));
+        assertLt(spent, budget, "validation credit call stays within two source budgets");
+    }
+
+    function test_creditFloor_above_tier_is_zero_without_underflow() public {
+        _policy(2);
+        assertEq(_capWith(address(underflowFloorTier)), 0);
     }
 
     function test_tierOf_positive_control_huge_tier_is_clipped_by_request() public {

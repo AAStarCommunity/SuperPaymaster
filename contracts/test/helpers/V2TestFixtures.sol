@@ -9,6 +9,8 @@ pragma solidity 0.8.33;
 /// @dev Registry stub: COMMUNITY role for everyone; configurable credit tier.
 contract MockRegistryV2 {
     mapping(address => uint256) public creditLimit;
+    uint256[1] public levelThresholds = [uint256(13)];
+    mapping(uint256 => uint256) public creditTierConfig;
     function hasRole(bytes32, address) external pure returns (bool) { return true; }
     function getCreditLimit(address u) external view returns (uint256) { return creditLimit[u]; }
     function setCreditLimit(address u, uint256 v) external { creditLimit[u] = v; }
@@ -48,6 +50,9 @@ interface IExt {
     function activateSpender(address s) external;
     function removeAutoApprovedSpender(address s) external;
     function mint(address to, uint256 amount) external;
+    function setIssuanceCap(uint256 cap) external;
+    function isOverIssued() external view returns (bool);
+    function ACTION_TYPEHASH() external view returns (bytes32);
     function repayDebt(uint256 amountXPNTs) external;
     function executeBySig(address user, uint8 kind, bytes calldata params, uint256 deadline, bytes calldata sig) external;
     function actionDigest(address user, uint8 kind, bytes calldata params, uint256 nonce, uint256 deadline) external view returns (bytes32);

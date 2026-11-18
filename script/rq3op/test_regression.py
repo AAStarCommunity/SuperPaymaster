@@ -11,7 +11,7 @@ from unittest.mock import patch
 import test_manifest_exec as t
 
 ROOT = Path(__file__).resolve().parents[2]
-REV = 'a6139689'
+REV = 'cf8b1068'
 
 def encoded(plan):
     return json.dumps({'phaseC': plan['phaseC'], 'steps': [s for s in plan['steps'] if s.get('phase') == 'C']}, sort_keys=True, separators=(',', ':')).encode()

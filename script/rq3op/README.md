@@ -167,7 +167,7 @@ hashes with its existing manifest functions. Do not change S inside a frozen pla
 Use `manifest_exec.sp_attempt_precheck` as the draft's injected helper; it now reads
 SP from `phaseC.addresses.SP`, as does `price_gate`. Legacy plans without that key
 retain their Sepolia behavior. This branch and the actual draft both name the
-price policy gate `C_price_bound` (the design note's `_exec` suffix was stale).
+price policy gate `C_price_bound_exec` (main's post-rename execution gate).
 
 The sending integration must run `plan_three_arm.pre_send` on two agreeing,
 anchored clients immediately before **every arm's send**, then the existing
