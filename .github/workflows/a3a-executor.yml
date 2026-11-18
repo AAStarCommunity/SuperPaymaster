@@ -57,6 +57,9 @@ jobs:
       - name: Offline manifest live-sender tests (local anvil with the public anvil keys; no network, no real key)
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_send.py </dev/null
+      - name: Manifest live-sender gate-removal probes (each control must turn red without its gate)
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/probe_send_gates.py </dev/null
       - name: Offline PoP adapter tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_pop_adapter.py

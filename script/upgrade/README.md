@@ -551,4 +551,5 @@ itself never retries.
 
 ```sh
 A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_manifest_send.py
+A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/probe_send_gates.py
 ```
