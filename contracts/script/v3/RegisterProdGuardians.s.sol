@@ -36,7 +36,7 @@ contract RegisterProdGuardians is Script {
         require(block.chainid == 11155111, "not Sepolia (11155111)");
         uint256 pk = vm.envUint("PRIVATE_KEY_JASON");
         BLSAggregator agg = BLSAggregator(PRODAGG);
-        require(keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.14.1"), "unexpected version");
+        require(keccak256(bytes(agg.version())) == keccak256("BLSAggregator-4.14.2"), "unexpected version");
 
         DVTValidator dvt = DVTValidator(agg.DVT_VALIDATOR());
         require(dvt.BLS_AGGREGATOR() == address(agg), "DVT/BLS pairing mismatch");

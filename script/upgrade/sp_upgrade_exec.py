@@ -140,6 +140,43 @@ def scan(rpc, target, start, end, topics):
     return sorted(result, key=lambda x: (a.qty(x['blockNumber']), a.qty(x['transactionIndex']), a.qty(x['logIndex'])))
 
 
+OPERATOR_CONFIGURED = ('OperatorConfigured(address,address,address)',
+                       'OperatorConfigured(address,address,address,uint256)')
+# SP event forms absent from the current ABI, with the topic index of their indexed `operator` (or None):
+# the 4-argument OperatorConfigured (up to 5.3.2) and the 5.4.x forms (tags v5.4.0-beta.1-redeploy,
+# v5.4.1-rc.1, v5.4.2) whose selector changed in 5.5.x.
+HISTORICAL_SP_EVENTS = {
+    'OperatorConfigured(address,address,address,uint256)': 1,
+    'OperatorPaused(address)': 1, 'OperatorUnpaused(address)': 1,
+    'OperatorSlashed(address,uint256,uint8)': 1, 'ReputationUpdated(address,uint256)': 1,
+    'SlashCancelled(address)': 1, 'SlashQueued(address)': 1,
+    'PriceModeChanged(uint8,uint8)': None, 'PriceUpdated(int256,uint256)': None,
+}
+
+
+@lru_cache(maxsize=None)
+def sp_event_classes():
+    """topic0 -> topic index of the indexed `operator` argument (None if the event has none)."""
+    raw = json.loads((Path(__file__).resolve().parents[2]/'abis'/'SuperPaymaster.full.json').read_text())
+    classes = {}
+    for e in (raw if isinstance(raw, list) else raw['abi']):
+        if e.get('type') != 'event':
+            continue
+        indexed = [i['name'] for i in e['inputs'] if i['indexed']]
+        sig = e['name']+'('+','.join(i['type'] for i in e['inputs'])+')'
+        classes[a.keccak(sig)] = 1+indexed.index('operator') if 'operator' in indexed else None
+    for sig, idx in HISTORICAL_SP_EVENTS.items():
+        classes.setdefault(a.keccak(sig), idx)
+    return classes
+
+
+def operator_configured(rpc, who, block):
+    words = uints(a.call(rpc, SP, 'operators(address)', who, block=block))
+    a.need('operators_words', len(words) >= 2, True)
+    a.need('operators_bool_'+who, words[1] in (0, 1), True)
+    return words[1]
+
+
 def inventory(rpc, block, reg_start, sp_start):
     grant = a.keccak('RoleRegistered(bytes32,address,uint256,uint256)')
     logs = scan(rpc, REG, reg_start, block, [grant, role()])
@@ -155,13 +192,25 @@ def inventory(rpc, block, reg_start, sp_start):
         if held:
             holders.append(who)
     a.need('holder_count', len(holders), a.word(rpc, REG, 'getRoleUserCount(bytes32)', role(), block=block))
-    topic = a.keccak('OperatorConfigured(address,address,address)')
-    logs = scan(rpc, SP, sp_start, block, [topic])
-    operators = set()
-    for log in logs:
-        a.need('operator_topics', len(log['topics']), 2)
-        a.need('operator_topic', log['topics'][0], topic)
-        operators.add(addr_word(int(a.typed(log['topics'][1], a.HASH32), 16)))
+    # No topic filter: an OperatorConfigured form this tool does not know must fail, not vanish.
+    classes = sp_event_classes()
+    configured = {a.keccak(sig) for sig in OPERATOR_CONFIGURED}
+    operators, keyed = set(), set()
+    for log in scan(rpc, SP, sp_start, block, []):
+        topics = log['topics']
+        a.need('sp_log_topic0', len(topics) >= 1, True)
+        a.need('sp_event_known_'+topics[0], topics[0] in classes, True)
+        if topics[0] in configured:
+            a.need('operator_topics', len(topics), 2)
+            operators.add(addr_word(int(a.typed(topics[1], a.HASH32), 16)))
+        idx = classes[topics[0]]
+        if idx is not None:
+            a.need('operator_topic_present', len(topics) > idx, True)
+            keyed.add(addr_word(int(a.typed(topics[idx], a.HASH32), 16)))
+    # Independent of the configuration log: any operator-indexed address or role holder outside the
+    # list must read back as not configured.
+    for who in sorted((keyed | set(holders)) - operators):
+        a.need('unlisted_configured_'+who, operator_configured(rpc, who, block), 0)
     a.need('nonempty_holders', len(holders) > 0, True)
     a.need('nonempty_operators', len(operators) > 0, True)
     return dict(holders=holders, historicalOperators=sorted(operators), pauseList=sorted(set(holders) | operators))

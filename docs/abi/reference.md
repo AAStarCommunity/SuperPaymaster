@@ -92,7 +92,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## GTokenStaking
 
 - **Source:** `contracts/src/core/GTokenStaking.sol`
-- **Functions:** 29 · **Events:** 10 · **Errors:** 19
+- **Functions:** 29 · **Events:** 11 · **Errors:** 20
 - **Title:** GTokenStaking v4.2.0 — Unified Ticket Model
 - Unified Role-Based Staking with Ticket Model (transfer to treasury)
 
@@ -465,7 +465,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Unlock and transfer to user (Registry only)
 
-*@dev* OPERATORS ONLY — Regular user roles (ENDUSER, COMMUNITY) have no exit.      Registry enforces this by checking roleStakes before calling.
+*@dev* OPERATORS ONLY — Regular user roles (ENDUSER, COMMUNITY) have no exit.      Registry enforces this by checking roleStakes before calling.Closes the exit window for operators leaving PAYMASTER_SUPER. Operators who      remain registered but are under-staked (slash or raised minStake) still rely      on the detector + manual permissionless pause.
 
 | param | type | description |
 |---|---|---|
@@ -503,6 +503,7 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | topic0 | event |
 |---|---|
+| `0xd18cefb4314afeb456df4a1f5036ea113976b4b766c9dd2454878b4e0cdc67d9` | `OperatorPauseHookSkipped(address,bytes32,uint8)` |
 | `0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0` | `OwnershipTransferred(address,address)` |
 | `0xc80e6b66eb58558814d2cbd504bae3d3ed4eb316287800124c793081728599ad` | `RoleExitFeeUpdated(bytes32,uint256,uint256)` |
 | `0xe0a56452e1e2337147f048c582bc931e7c341d221b44961f32dec8b73fd669bc` | `SlasherAuthorizationUpdated(address,bool)` |
@@ -523,6 +524,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x54ada055` | `AmountExceedsUint128()` |
 | `0x1425ea42` | `FailedInnerCall()` |
 | `0xcd4e6167` | `FeeTooHigh()` |
+| `0x643ae308` | `InsufficientGasForPauseHook()` |
 | `0xf1bc94d2` | `InsufficientStake()` |
 | `0xe6c4247b` | `InvalidAddress()` |
 | `0xf90e998d` | `NoLockFound()` |
@@ -9030,9 +9032,9 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterAdmin
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
-- **Functions:** 97 · **Events:** 49 · **Errors:** 47
+- **Functions:** 97 · **Events:** 49 · **Errors:** 48
 - **Title:** SuperPaymasterAdmin (EXTENSION)
-- Governance, administration and non-hot-path views of SuperPaymaster 5.5.1 (D5b).
+- Governance, administration and non-hot-path views of SuperPaymaster 5.5.3 (D5b).
 
 ### Function selector index
 
@@ -10173,6 +10175,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xc52a9bd3` | `InvalidConfiguration()` |
 | `0xcbbf5bce` | `InvalidContextLength()` |
 | `0xf92ee8a9` | `InvalidInitialization()` |
+| `0x26da4047` | `InvalidOracleTimestamp(uint256,uint256)` |
 | `0x49e27cff` | `InvalidOwner()` |
 | `0x67cc8b75` | `InvalidXPNTsToken()` |
 | `0xa24a1471` | `NoEmergencyPending()` |
@@ -11509,7 +11512,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0x8da5cb5b` | `owner()` | view | — |  |
 | `0x6c583e59` | `paymasterByOperator(address)` | view | — | Mapping of operator address to their deployed Paymaster address |
 | `0x821ac3fb` | `paymasterList(uint256)` | view | — | List of all deployed Paymaster addresses |
-| `0xbde9cb2a` | `predictPaymasterAddress(string,bytes32)` | view | — | Predict deterministic Paymaster address |
+| `0x6db99434` | `predictPaymasterAddress(string,address,bytes32)` | view | — | Predict deterministic Paymaster address |
 | `0x7b103999` | `registry()` | view | — | Optional Registry for role gating (zero = open deployment) |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — |  |
 | `0x85365cbb` | `setDefaultVersion(string)` | nonpayable | onlyOwner | Set default version for deployments |
@@ -11563,10 +11566,12 @@ Authoritative, auto-generated reference for every external/public function, even
 
 > Deploy Paymaster using deterministic address (CREATE2)
 
+*@dev* The CREATE2 salt is keccak256(abi.encode(msg.sender, salt)). _initAndVerify requires      owner() == msg.sender when deployment completes (for a trusted implementation), so a      copied salt cannot land another owner's clone at this operator's predicted address      (Daybreak DB-d-M3). Fund or register only the receipt's address, after checking owner().
+
 | param | type | description |
 |---|---|---|
 | `_version` | `string` | Version of Paymaster implementation |
-| `salt` | `bytes32` | Salt for deterministic deployment |
+| `salt` | `bytes32` | Operator-chosen salt |
 | `initData` | `bytes` | Initialization data |
 
 | returns | type | description |
@@ -11749,16 +11754,17 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `address` |  |
 
-#### `predictPaymasterAddress(string _version, bytes32 salt)`
+#### `predictPaymasterAddress(string _version, address operator, bytes32 salt)`
 
-`0xbde9cb2a` · view · access: —
+`0x6db99434` · view · access: —
 
 > Predict deterministic Paymaster address
 
 | param | type | description |
 |---|---|---|
 | `_version` | `string` | Version to use |
-| `salt` | `bytes32` | Salt for CREATE2 |
+| `operator` | `address` | The address that will call deployPaymasterDeterministic (and own the clone) |
+| `salt` | `bytes32` | Operator-chosen salt |
 
 | returns | type | description |
 |---|---|---|

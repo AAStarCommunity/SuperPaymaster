@@ -889,6 +889,82 @@ BLSAggregator-4.14.0 as merged in #630 had two gaps on the GENERIC `executePropo
   nothing and holds no role. This is enforced by the coverage script's deploy-path ownership check
   and by the step-13 readbacks OWNER-NOT-AGGREGATOR and AGG-NOT-DVT-VALIDATOR.
 
+## PaymasterFactory CREATE2 salt bound to the operator (Daybreak 053117cc DB-d-M3, PaymasterFactory-1.1.0, 2026-11-18)
+
+**Finding (Medium, reachable in 5.5.0).** `deployPaymasterDeterministic` used the caller's salt unchanged. Anyone who copied a victim's salt could deploy first and land a clone at the victim's predicted address. That clone's owner is the attacker, because `_initAndVerify` requires owner == msg.sender. The attacker could then `withdrawTo` any EntryPoint deposit the victim had already made to that address. This was reproduced on main `053117cc` with a real EntryPoint v0.7: a 1 ETH prefund was taken.
+
+**Fix.**
+- The effective salt is `keccak256(abi.encode(msg.sender, salt))`.
+- The predict call becomes `predictPaymasterAddress(string _version, address operator, bytes32 salt)`. This is an **ABI change**; SDK was notified.
+- `_initAndVerify` checks, when deployment completes, that `owner()` equals the caller. Binding the salt to the caller therefore binds it to the owner at deployment, and a copied salt now lands elsewhere. This relies on the registered implementation being trusted code, which is the factory owner's trust boundary: an admin-approved malicious implementation could report one owner and authorize another.
+
+**Unaffected.**
+- **Existing clones.** No factory function changes a clone's owner after its deploying transaction, and an occupied CREATE2 address cannot be deployed again (`test_ExistingCloneOwnerCannotBeDisplaced`). The owner can still transfer or renounce ownership through the inherited `Ownable`. That is the owner's own action, not a takeover.
+- **`deployPaymaster` (CREATE).** It has no copied-salt targeting. Its address depends on the factory nonce, though, so an address obtained by simulation can be taken by another deploy that lands first.
+
+**Usage rule for both paths.** Fund or register a paymaster address only after its deploying receipt is confirmed, using the address from the receipt, and after `owner()` has been checked. Two things a prediction does not give you:
+- **Stability.** `upgradeImplementation` between prediction and deployment changes the resulting address, because version labels do not pin code.
+- **Deployability.** `predictPaymasterAddress` accepts any operator, including zero, and some returned addresses can never be deployed.
+
+## Completed guardian exit retires the seat (Daybreak 053117cc M-01, BLSAggregator-4.14.2, 2026-11-17)
+
+**Finding (Medium, reachable in 5.5.0).** `consumeGuardianExit`, which `Registry.exitRole(ROLE_DVT)` calls, only deleted the exit request. After a completed exit, the same address could re-register ROLE_DVT with fresh stake and immediately regain both halves of guardian power:
+
+- **(i) Proposer power.** `DVTValidator.isValidator` was still set and the address was not suspended.
+- **(ii) Quorum weight.** Its old BLS key was still active in its slot, so `_reconstructPkAgg` counted it.
+
+It needed no new PoP, no `addValidator` and no owner approval. Both halves were reproduced on main `053117cc` (real Registry, DVTValidator and keys, Prague).
+
+**Fix.** `consumeGuardianExit` now also calls `_setSuspended(guardian, true)` and `_revokeBLSPublicKey(guardian)`, which adds 18 B; BLSAggregator is 24,547 B with 29 B of headroom.
+
+- **A completed exit means the address is no longer a guardian.** Owner un-suspension restores proposer power (DVT admission was never cleared). Quorum weight additionally needs a re-registration with a valid PoP. The PoP digest has no admission epoch, so the original PoP is reusable. That is pre-existing behaviour, tracked as a 5.5.x item: bind PoP to an epoch. The key-owner binding is kept, so the key cannot move to another address.
+- **No exit is blocked by the fix.** Both internal calls are no-ops when the target state already holds: a key that is already revoked, a guardian that never registered a key, or one that is already suspended.
+- **Tests.** `contracts/test/modules/GuardianExitReentryPrague.t.sol`, 8 tests, each fix line mutation-checked.
+
+**Disclosed constraint: exits stop at the largest configured threshold.** `_requireCommitteeSurvivesExit` refuses an exit when the live guardians *before* the exit equal any configured threshold: `minThreshold`, `defaultThreshold`, or any `slashThresholds[level]`.
+
+- **This includes the slash thresholds, which have no use in 5.5.0** (no slash-shape proposal can be created while `categoryCount() == 0`). An unused threshold still constrains exits. This is by construction: the check does not know whether slashing is enabled, so a set that could later enable slashing is never shrunk below a threshold it might need.
+- **Effect with the rc.8 inputs** (min 2, default 2, slash 2/3/3):
+  - with **3 guardians, no guardian can exit voluntarily** (`GuardianExitWouldBreakQuorum(2, 3)`);
+  - with 4 guardians, one can exit, and exits then stop at 3.
+- **To allow a voluntary exit, one of these must happen first:**
+  - the governance owner adds a guardian; or
+  - `slashPolicyAdmin` lowers the MINOR/MAJOR slash thresholds to 2.
+- **The emergency paths are not subject to this check.** `revokeAndSuspend` and `revokeBLSPublicKey` (owner) can take the live set below a threshold. Proofs then fail with `InvalidSignatureCount` until guardians are re-admitted.
+- Pinned by `test_Prague_M01_ExitStopsAtTheLargestThreshold`. The operational procedure is in `docs/deployment/rc8-guardian-operations.md`.
+
+## Daybreak 053117cc batch (c): DB-c-M1 exit hook and L-01 oracle timestamps (SuperPaymaster-5.5.3, Staking-4.2.1, 2026-11-18)
+
+### DB-c-M1: an operator leaving PAYMASTER_SUPER is paused in the same transaction (Medium)
+
+**Finding.** `Registry.exitRole(ROLE_PAYMASTER_SUPER)` removed the role and returned the stake but left the operator's SP configuration live. Until somebody called the permissionless `pauseUnderstakedOperator`, ops selecting that operator still reached validation, because validation reads only `isConfigured` and `isPaused`. User and protocol funds were not at risk, since sponsorship spends the operator's own aPNTs. What broke was the invariant that every sponsoring operator is backed by stake.
+
+**Fix (Staking-4.2.1).**
+- After all state updates and transfers, `GTokenStaking.unlockAndTransfer` resolves `Registry.SUPER_PAYMASTER()` and calls `pauseUnderstakedOperator(user)` when `roleId == PAYMASTER_SUPER`.
+- The call is non-fatal and capped at 100,000 gas (DSR ruling: GTokenStaking is not upgradeable, so the cap must absorb future repricing and Admin upgrades). Cold measurements of the hook call: 19,520 on Cancun and Prague, 27,520 on Amsterdam (`--hardfork amsterdam --isolate`, nightly forge 4e8874b), so the headroom is about 3.6x on Amsterdam. `test_HookCostAtMostHalfTheCap` fails if it drops below 2x. Forwarding more gas does not widen a gas-burning surface: the callee is the protocol's own `Registry.SUPER_PAYMASTER()`, upgraded through the timelock.
+- A skipped pause emits `OperatorPauseHookSkipped(user, roleId, reason)`: 1 = SP unset, 2 = no code, 3 = call failed.
+- `unlockAndTransfer` reverts with `InsufficientGasForPauseHook` when less than 130,000 gas remains at the hook, so an exiting operator cannot starve the call: 100,000 x 64/63 = 101,588, plus the pre-call work measured cold (6,950 Cancun/Prague, 7,450 Amsterdam), plus about 6,000 of post-call work, plus the last two again as margin. `test_SuccessfulExitAlwaysForwardsTheFullCap` checks across the boundary, on every engine, that a completed exit always forwarded the full cap; with the minimum set to the cap itself it fails. `test_GasGuardRevertsByName` pins the guard.
+- At call time the role is already cleared, so `_hasEffectiveSuperStake` is false and the pause happens in the exit transaction.
+- `OperatorPaused` names the staking contract as `by`.
+- After exit the operator also cannot `deposit`, `depositFor`, use the ERC1363 callback, `configureOperator` or `setOperatorLimits`; each reverts with `Unauthorized`.
+
+**Where the fix applies.**
+- **OP:** deployed fresh with this GTokenStaking.
+- **Sepolia:** keeps GTokenStaking `0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e` (Staking-4.2.0), because GTokenStaking is not upgradeable. That runtime is byte-identical to the `053117cc` build with immutables masked, metadata hash included. The only difference from the tag tree is this hook plus the version string.
+
+**Residual window, two cases.**
+1. **Sepolia exits, and any operator that stays registered but becomes under-staked** (a raised `minStake`, or slashing in a later release). The backstop is the DVT detector's `PAUSE NEEDED` alert followed by a manual permissionless `pauseUnderstakedOperator`. Nothing executes automatically; the D2 pause-job is retired. The window is the detector poll interval, plus the time the detector reports "unknown" without alerting, plus the human response time. The detector fix (DVT #448) was not yet deployed when this was written.
+2. **An exit after the stake was slashed to zero** does not reach `unlockAndTransfer`, so the hook does not run. This is unreachable in 5.5.0, which does not slash. It is listed for the 5.5.x slashing enablement.
+
+**Monitoring notes.**
+- **Reason 3 covers two cases.** It fires both for an address that never configured an SP operator (harmless; the pause reverts with `OperatorNotConfigured`) and for an SP that is actually broken (needs an alert). Off-chain alerting on reason 3 must check `operators(user).isConfigured` first, or it will be noisy.
+- **The 100,000 gas cap is fixed for the life of this GTokenStaking**, because the contract is not upgradeable. If a later SuperPaymaster Admin upgrade or a network hardfork makes `pauseUnderstakedOperator` cost more than 100,000 gas, every exit skips the pause with reason 3, and the event is the only signal. Re-measure (step 13, and `test_HookCostAtMostHalfTheCap`) after each SuperPaymaster Admin upgrade and each hardfork.
+- **Cost to an honest exit.** The guard requires more transaction gas limit than the exit uses: measured minimal completing limit vs gas used is 296,000 vs 166,623 on Cancun (about 129k extra) and 444,250 vs 355,878 on Amsterdam (about 88k extra). Unused gas is not charged; wallets that estimate gas are unaffected, only a hard-coded `exitRole` gas limit below these values fails (and then reverts, never skipping the pause).
+
+### L-01: Chainlink timestamps (Low)
+- `updatePrice` rejects `updatedAt == 0` and `updatedAt > block.timestamp + 300` with `InvalidOracleTimestamp(updatedAt, nowTs)`. A round within the 300 s grace is cached as `block.timestamp`, so the cache never holds a future timestamp.
+- `_isChainlinkStale` and `updatePriceDVT` compare before subtracting: zero and future rounds count as not fresh and cannot underflow.
+- **Measured skew.** On the OP mainnet and Sepolia ETH/USD aggregators, over the last 60 `AnswerUpdated` events each, `updatedAt` equals the block timestamp of the writing transaction: maximum and minimum offset 0 s. The grace therefore rejects no normal round.
 
 ## I-01 issuance cap enforced; C2-02 per-clone EIP-712 name (XPNTs-4.0.2)
 
