@@ -25,6 +25,21 @@ def digest(s):
     return "0x" + hashlib.sha256(s.encode()).hexdigest()
 
 class CheckerTest(unittest.TestCase):
+    def test_commit_gate(self):
+        for mutation, op, dirty, expected in (
+                (("config", "commit", "b" * 40), True, False, False),
+                (None, True, True, False),
+                ("missing_commit", True, False, False),
+                (("config", "commit", ""), False, True, True),
+                (None, True, False, True),
+                (("config", "commit", "A" * 40), True, False, False),
+                (("config", "commit", "abc"), True, False, False),
+                (("config", "commit", "b" * 40), False, False, False)):
+            with self.subTest(mutation=mutation, op=op, dirty=dirty):
+                code, output = self.run_checker(mutation, op=op, git_dirty=dirty)
+                self.assertIn(("PASS" if expected else "FAIL") + "  source commit", output)
+                self.assertEqual(code, 0 if expected else 1, output)
+
     def test_OPDefaultsOffAndRejectsEitherLivePointer(self):
         code, output = self.run_checker(op=True)
         self.assertEqual(code, 0, output)
@@ -33,10 +48,11 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         cfg = {k: addr(i + 1) for i, k in enumerate(keys)}
+        cfg["commit"] = "a" * 40
         cfg.update(simpleAccountFactory=addr(101), agentValidationRegistry=addr(105) if agents else ZERO, enableAgentRegistries=agents, aPNTsPaymasterV4=ZERO, pnts=ZERO, deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
                    slashThreshold0=2, slashThreshold1=2, slashThreshold2=2, guardians=[addr(101), addr(102)])
         safe, deployer, tl, h = addr(200), addr(201), cfg["timelockController"], cfg["handoverBootstrap"]
@@ -96,7 +112,10 @@ class CheckerTest(unittest.TestCase):
             creation_hashes[obj['bytecode']['object']] = pins[name]
         for name, pin in pins.items():
             creation_hashes[release_artifact(name)['bytecode']['object']] = pin
+        if mutation == "missing_commit": del cfg["commit"]
         def fake_run(cmd, **kwargs):
+            if cmd[0] == "git":
+                return SimpleNamespace(returncode=0, stdout=(" M file\n" if git_dirty else "") if cmd[-1] == "--porcelain" else "a" * 40 + "\n")
             self.assertEqual(cmd[0], "cast")
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
