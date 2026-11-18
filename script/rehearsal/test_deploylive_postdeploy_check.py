@@ -101,14 +101,15 @@ class CheckerTest(unittest.TestCase):
         runtime_codes = {}
         creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
         pins = json.loads((CHECKER.parents[2]/'deployments/creation-pins.31337.json').read_text())
-        for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
-            for artifact in (CHECKER.parents[2]/'out'/f'{name}.sol').glob('*.json'):
-                obj = json.loads(artifact.read_text())
-                settings = obj.get('metadata', {}).get('settings', {})
-                if settings.get('optimizer', {}).get('runs') == (200 if name == 'Registry' else 500) and settings.get('evmVersion') == 'cancun':
-                    runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
-                    creation_hashes[obj['bytecode']['object']] = pins[name]
         from deploylive_runtime import release_artifact
+        # Use the checker's own artifact selection. A glob over out/<Name>.sol/*.json also matches other
+        # contracts compiled from the same source file (out/Registry.sol/IGuardianExitGate.json has the
+        # same runs/evmVersion); filesystem order then decided which runtime the fake chain served, and
+        # on CI's Linux runner the interface won.
+        for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
+            obj = release_artifact(name)
+            runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
+            creation_hashes[obj['bytecode']['object']] = pins[name]
         for name, pin in pins.items():
             creation_hashes[release_artifact(name)['bytecode']['object']] = pin
         if mutation == "missing_commit": del cfg["commit"]
@@ -302,6 +303,16 @@ class CheckerTest(unittest.TestCase):
         rc, out = self.run_checker(('config', 'deployerCodeLength', 23))
         self.assertEqual(rc, 1, out)
         self.assertIn('FAIL  deployer has no code', out)
+
+    def test_artifact_selection_independent_of_glob_order(self):
+        # CI regression: out/Registry.sol/ also holds IGuardianExitGate.json with the same settings.
+        # Serve every glob in reverse order (the order CI's runner produced); the run must still PASS.
+        import pathlib
+        original = pathlib.Path.glob
+        with patch.object(pathlib.Path, 'glob', lambda self, pattern: iter(sorted(original(self, pattern), reverse=True))):
+            rc, out = self.run_checker()
+        self.assertEqual(rc, 0, out)
+        self.assertIn('PASS  runtime Registry', out)
 
     def test_round8_real_proxy(self):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
