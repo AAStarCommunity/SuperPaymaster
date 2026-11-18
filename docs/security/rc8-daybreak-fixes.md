@@ -1012,3 +1012,79 @@ against this bytecode. The arithmetic lemma M (`repayX <= mint`) and its M1/M2/M
 have not been re-run or extended to prove cap admission, zero-net admission above a lowered cap,
 or atomic rollback when positive net issuance exceeds the cap. Foundry unit/fuzz/invariant runs
 are executable regression evidence, not renewed symbolic proofs of these properties.
+
+## M-02 AUTO credit floor — Medium-1 follow-up
+
+Medium-1: setting thresholds to `[0,34,89,233,610]` and tier 2 to 200 ether
+makes every reputation-0 address level 2. Subtracting tier 1 (100 ether)
+therefore granted each zero-reputation Sybil 100 ether of AUTO credit.
+Option (b) fixes the floor to the credit tier of a reputation-0 address.
+`GlobalTierSource-1.0.1` remains the unreleased version. MANUAL keeps its full tier.
+
+The premise is Registry's strictly ascending thresholds (`Registry.sol:918`):
+only the first threshold can be zero. `_levelForReputation` (`Registry.sol:938`)
+therefore assigns reputation 0 to level 2 exactly when threshold 0 is zero,
+and otherwise to level 1. `creditFloor()` reads `levelThresholds(0)` with no
+try/catch: every failure propagates and the token's bounded source call turns it
+into AUTO 0. That includes an empty schedule, where Registry's generated getter
+reverts with empty data (not a bounds panic). This is exact, not a fallback: with
+no thresholds every address is at level 1, so AUTO is tier1 - tier1 = 0 for all.
+Not special-casing an empty revert also means an out-of-gas revert can never be
+mistaken for an empty schedule (which would lower the floor).
+
+Registry's exposure ledger still uses `creditTierConfig[1]` as `floorLimit`
+(`Registry.sol:606`). In the Medium-1 configuration it books more than actual
+AUTO credit per counted promoted user, conservatively for AUTO. The disclosure
+test covers four promoted users and two untouched zero-reputation users:
+AUTO caps sum to 3,100 ether versus 3,500 ether of booked exposure. This holds only in the
+steady state of a complete seed and a valid ledger. It is not universal: a
+price-changing `setCreditTier` after promotions runs `_invalidateCreditPopulation` and zeroes
+`totalCreditExposure` (`Registry.sol:780-784`) while promoted users keep their AUTO credit, and an
+incomplete seed has the same effect. MANUAL credit
+for untouched reputation-0 addresses above tier 1 is not booked: this is the
+owner-approved "floor bounded elsewhere" assumption (`Registry.sol:1055`).
+**5.5.x follow-up:** unify Registry's floor with GlobalTierSource's reputation-0 floor.
+
+This is a validation-phase change. The added frames run only on the credit
+route: lock returns INSUFFICIENT, `tryReserveCredit` runs with policy AUTO and
+a current-epoch request, and `tierOf` returns a positive tier. After
+`creditFloor()`, the tier source STATICCALLs `Registry.levelThresholds(uint256)`
+and the proxy DELEGATECALLs its implementation, before `creditTierConfig`.
+The OP011 AUTO trace has 15 frames; MANUAL remains 10. These reads use the same
+global Registry tables already read by `getCreditLimit`: `levelThresholds`
+and `creditTierConfig`. There is no new storage-access class; this relies on
+STO-033 for a staked paymaster.
+
+Same-user, same-level offline Cancun and Prague measurement on the credit route: AUTO 321,148 gas,
+MANUAL 312,420 gas, delta **8,728 gas**. `test_M02_credit_validation_gas_delta` pins the delta to
+5,000–15,000. The delta is outcome-dependent rather than fixed: if the 63/64 rule leaves the floor
+call too little gas, the token answers NO_CREDIT (signature failure) and validation does not revert.
+
+Step-14 real bundler tracer coverage remains a **known gap** for successful
+AUTO credit reservation on Sepolia under the stated no-reputation-producer
+setup: with the default thresholds every address is level 1, so AUTO returns 0
+before reserving credit. The floor frames still execute for a current-epoch
+level-1 AUTO request with a positive tier. Local OP011 tests exercise the
+successful route using a real Registry proxy and explicit reputation promotion;
+they do not establish real bundler acceptance. No chain or RPC checks were made
+for this follow-up.
+
+`abis/` and `docs/abi/{reference,selectors}.md` were regenerated with `scripts/extract_v3_abis.sh`
+and `pnpm gen:abi-docs`, using the main checkout's node_modules. `check-abi-bundle` and
+`gen:abi-docs:check` pass on this head.
+
+Further premises and limits:
+- **The invariant assumes GlobalTierSource is the only approved tier source.** Any source
+  approved under `KIND_TIER_SOURCE` whose `creditFloor()` returns 0 would give reputation-0
+  addresses the full tier. The choice of source is bounded by the sealed AOAProtocolRegistry and
+  the 48 h timelock, so this is not a new attack surface.
+- **A token pointing at an older source without `creditFloor()` silently gets AUTO 0**
+  (fail-closed). This goes in the release notes.
+- **Coverage of the new deduction.** The existing AUTO unit tests, the Halmos proofs and the PoC
+  mocks still return `creditFloor() = 0`, so they exercise the old semantics. The new deduction
+  is covered only by `M02AutoCreditFloor.t.sol` and the D3 cases: the differential fuzz
+  (including an end-to-end AUTO-0 check for reputation 0 on every random valid schedule) and the
+  Medium-1 regression. There is no symbolic proof.
+- **Empty threshold schedule.** The validation trace has 13 frames and no banned opcode; the
+  out-of-bounds getter reverts with empty data, not INVALID. Validation answers NO_CREDIT (signature
+  failure) rather than reverting. This is pinned by `test_OP011_validation_trace_credit_empty_schedule`.

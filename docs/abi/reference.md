@@ -15204,7 +15204,7 @@ Authoritative, auto-generated reference for every external/public function, even
 ## GlobalTierSource
 
 - **Source:** `contracts/src/tokens/v2/GlobalTierSource.sol`
-- **Functions:** 3 · **Events:** 0 · **Errors:** 0
+- **Functions:** 4 · **Events:** 0 · **Errors:** 0
 - **Title:** GlobalTierSource
 - 5.5.0's only credit tier source: the protocol-wide reputation tier from Registry.
 
@@ -15212,11 +15212,22 @@ Authoritative, auto-generated reference for every external/public function, even
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0xd44b6730` | `creditFloor()` | view | — |  |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0xc77aca48` | `tierOf(address,address)` | view | — |  |
 | `0x54fd4d50` | `version()` | pure | — | Get human-readable version string |
 
 ### Functions
+
+#### `creditFloor()`
+
+`0xd44b6730` · view · access: —
+
+*@dev* The tier of a reputation-0 address. Registry thresholds are strictly ascending      (contracts/src/core/Registry.sol:918), so only the first can be zero: reputation 0 is at      level 2 iff levelThresholds[0] == 0, else level 1. Any failure, including an empty      schedule (the generated getter reverts out of bounds), propagates; the token then grants      AUTO 0. That is exact for an empty schedule (every address is level 1, so AUTO is      tier1 - tier1 = 0) and never mistakes an out-of-gas revert for an empty schedule.
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` | Credit tier of a reputation-0 address. |
 
 #### `REGISTRY()`
 
@@ -15252,15 +15263,29 @@ Authoritative, auto-generated reference for every external/public function, even
 ## IRegistryCreditLimit
 
 - **Source:** `contracts/src/tokens/v2/GlobalTierSource.sol`
-- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- **Functions:** 3 · **Events:** 0 · **Errors:** 0
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0xaf5eda02` | `creditTierConfig(uint256)` | view | — |  |
 | `0x2c333e25` | `getCreditLimit(address)` | view | — |  |
+| `0x5c445412` | `levelThresholds(uint256)` | view | — |  |
 
 ### Functions
+
+#### `creditTierConfig(uint256 level)`
+
+`0xaf5eda02` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `level` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
 
 #### `getCreditLimit(address user)`
 
@@ -15274,19 +15299,40 @@ Authoritative, auto-generated reference for every external/public function, even
 |---|---|---|
 | `_0` | `uint256` |  |
 
+#### `levelThresholds(uint256 index)`
+
+`0x5c445412` · view · access: —
+
+| param | type | description |
+|---|---|---|
+| `index` | `uint256` |  |
+
+| returns | type | description |
+|---|---|---|
+| `_0` | `uint256` |  |
+
 ## ICreditTierSource
 
 - **Source:** `contracts/src/tokens/v2/ICreditTierSource.sol`
-- **Functions:** 1 · **Events:** 0 · **Errors:** 0
+- **Functions:** 2 · **Events:** 0 · **Errors:** 0
 - Pluggable credit tier source for xPNTs v2 (spec §8.7).
 
 ### Function selector index
 
 | selector | function | mutability | access | notice |
 |---|---|---|---|---|
+| `0xd44b6730` | `creditFloor()` | view | — |  |
 | `0xc77aca48` | `tierOf(address,address)` | view | — |  |
 
 ### Functions
+
+#### `creditFloor()`
+
+`0xd44b6730` · view · access: —
+
+| returns | type | description |
+|---|---|---|
+| `floor` | `uint256` | Credit tier of a reputation-0 address. |
 
 #### `tierOf(address community, address user)`
 
@@ -15481,7 +15527,7 @@ Authoritative, auto-generated reference for every external/public function, even
 - **Source:** `contracts/src/tokens/v2/xPNTsFactoryV2.sol`
 - **Functions:** 46 · **Events:** 11 · **Errors:** 15
 - **Title:** xPNTsFactoryV2
-- xPNTs v2 (XPNTs-4.0.2) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
+- xPNTs v2 (XPNTs-4.0.3) factory for the AOA balance-mode stack.Factory for deploying xPNTs tokens with AI-powered deposit predictions
 
 ### Function selector index
 
