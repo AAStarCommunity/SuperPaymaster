@@ -1,0 +1,5 @@
+driver payload (no fee fields), validation=true -> ERROR {"code": -38012, "message": "err: max fee per gas less than block base fee"}
+diagnostic payload (+maxFeePerGas 10 gwei), validation=true -> ERROR {"code": -38013, "message": "err: intrinsic gas too high -- GasFloorMoreThanGasLimit"}
+bisect: prefix 3 ok, prefix 4 errors -> first failing index 3 GTokenAuthorization gas limit 13033334
+ error: {"code": -38013, "message": "err: intrinsic gas too high -- GasFloorMoreThanGasLimit"}
+full sequence validation=false -> ERROR {"code": -38013, "message": "err: intrinsic gas too high -- GasFloorMoreThanGasLimit"}

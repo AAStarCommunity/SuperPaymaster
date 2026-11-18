@@ -1,0 +1,4 @@
+sha256 /Users/jason/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-ddf-e6f5c7a8/dvt-export.json: 74c724e78363fd76cb58fdfa7acdd2ff5f9c829b965f7e23e04b60b8332ae927
+sha256 /Users/jason/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-ddf-e6f5c7a8/pop-request.json: 3e62e9fa69f36cd5cfd0e75c16a6ba060d682e45cd9872e7bee080761a28730d
+STOP cast_not_found: install foundry or add it to PATH
+exit=3

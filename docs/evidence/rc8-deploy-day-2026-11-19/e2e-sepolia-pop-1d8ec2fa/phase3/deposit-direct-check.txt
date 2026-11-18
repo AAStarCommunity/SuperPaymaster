@@ -1,0 +1,11 @@
+#3 child creates: [('CREATE', '0xe9baa8ceddd419b99ea56dcca0007759ff7804de')]
+ child 0xe9baa8ceddd419b99ea56dcca0007759ff7804de runtime len 15301 gasUsed(frame) 3818699
+#3 st_exec observed from reservoir counter: 25748370
+ st_exec - 183600(new account) - 1530*L(child deposit) = 2154240 ; /48960 (32B*1530 per new slot) = 44.0
+ #1 st_exec 293760 / 48960 = 6.0
+ #7 st_exec 685440 / 48960 = 14.0
+ #24 st_exec 195840 / 48960 = 4.0
+ #25 st_exec 195840 / 48960 = 4.0
+ #30 st_exec 979200 / 48960 = 20.0
+ #33 st_exec 293760 / 48960 = 6.0
+ #97 st_exec 489600 / 48960 = 10.0

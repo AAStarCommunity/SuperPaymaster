@@ -1,0 +1,33 @@
+raw first/last depth-1 steps (verbatim from debug_traceCall structLogger):
+ #1 Registry: reserve=87053152 first={'op': 'PUSH1', 'gas': 16355206, 'stateGasReservoir': 86869552, 'refund': 0} last={'op': 'RETURN', 'gas': 16307878, 'stateGasReservoir': 86575792, 'refund': 0} traced gas=38526576
+ #3 xPNTsFactory: reserve=84136512 first={'op': 'PUSH1', 'gas': 16355190, 'stateGasReservoir': 83952912, 'refund': 0} last={'op': 'RETURN', 'gas': 16049268, 'stateGasReservoir': 58204542, 'refund': 0} traced gas=37068256
+ #7 MySBT: reserve=49454986 first={'op': 'PUSH1', 'gas': 16542606, 'stateGasReservoir': 49271386, 'refund': 0} last={'op': 'RETURN', 'gas': 16450867, 'stateGasReservoir': 48585946, 'refund': 0} traced gas=19727493
+ #16 SuperPaymaster: reserve=130330738 first={'op': 'PUSH2', 'gas': 16136948, 'stateGasReservoir': 130147138, 'refund': 0} last={'op': 'RETURN', 'gas': 15972787, 'stateGasReservoir': 95917978, 'refund': 10000} traced gas=60155369
+ #24 xPNTsTokenV2Ext: reserve=80428252 first={'op': 'PUSH2', 'gas': 16363470, 'stateGasReservoir': 80244652, 'refund': 0} last={'op': 'RETURN', 'gas': 16325848, 'stateGasReservoir': 80048812, 'refund': 0} traced gas=35214126
+ #25 xPNTsTokenV2: reserve=72384880 first={'op': 'PUSH2', 'gas': 16404546, 'stateGasReservoir': 72201280, 'refund': 0} last={'op': 'RETURN', 'gas': 16367512, 'stateGasReservoir': 72005440, 'refund': 0} traced gas=31192440
+ #30 BLSAggregator: reserve=88553104 first={'op': 'PUSH1', 'gas': 16355052, 'stateGasReservoir': 88369504, 'refund': 0} last={'op': 'RETURN', 'gas': 16224982, 'stateGasReservoir': 87390304, 'refund': 0} traced gas=39276552
+ #33 Paymaster: reserve=43543416 first={'op': 'PUSH1', 'gas': 16579454, 'stateGasReservoir': 43359816, 'refund': 0} last={'op': 'RETURN', 'gas': 16537596, 'stateGasReservoir': 43066056, 'refund': 0} traced gas=16771708
+ #97 TimelockHandoverBootstrap: reserve=12241808 first={'op': 'PUSH1', 'gas': 16715144, 'stateGasReservoir': 12058208, 'refund': 0} last={'op': 'RETURN', 'gas': 16353998, 'stateGasReservoir': 11568608, 'refund': 69696} traced gas=1051208
+
+| tx | total gasUsed | regular (gross) | state | refund | regular headroom to 2^24 | method |
+|---|---:|---:|---:|---:|---:|---|
+| #1 Registry | 38,526,576 | 473,946 | 38,052,630 | 0 | 16,303,270 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #3 xPNTsFactory | 37,068,256 | 729,226 | 36,339,030 | 0 | 16,047,990 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #7 MySBT | 19,727,493 | 328,623 | 19,398,870 | 0 | 16,448,593 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #16 SuperPaymaster | 60,155,369 | 807,489 | 59,357,880 | 10,000 | 15,969,727 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #24 xPNTsTokenV2Ext | 35,214,126 | 455,586 | 34,758,540 | 0 | 16,321,630 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #25 xPNTsTokenV2 | 31,192,440 | 413,430 | 30,779,010 | 0 | 16,363,786 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #30 BLSAggregator | 39,276,552 | 556,842 | 38,719,710 | 0 | 16,220,374 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #33 Paymaster | 16,771,708 | 241,588 | 16,530,120 | 0 | 16,535,628 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+| #97 TimelockHandoverBootstrap | 1,051,208 | 423,224 | 697,680 | 69,696 | 16,353,992 | trace counters (debug_traceCall structLogger gas/stateGasReservoir) + deposit formula |
+
+breakdown: i, reg_intrinsic, reg_exec, reg_deposit(6/word), st_intrinsic, st_exec, st_deposit(1530*L), L, eth_getCode len, sum-refund==mined
+1 422010 47328 4608 183600 293760 37575270 24559 24559 OK True
+3 422026 305922 1278 183600 25748370 10407060 6802 6802 OK True
+7 234610 91739 2274 183600 685440 18529830 12111 12111 OK True
+16 640268 164161 3060 183600 34229160 24945120 16304 16304 OK True
+24 413746 37622 4218 183600 195840 34379100 22470 22470 OK True
+25 372670 37034 3726 183600 195840 30399570 19869 19869 OK True
+30 422164 130070 4608 183600 979200 37556910 24547 24547 OK True
+33 197762 41858 1968 183600 293760 16052760 10492 10492 OK True
+97 62072 361146 6 183600 489600 24480 16 16 OK True

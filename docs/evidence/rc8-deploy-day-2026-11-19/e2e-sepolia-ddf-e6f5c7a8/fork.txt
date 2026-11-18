@@ -1,0 +1,5 @@
+proxy pid 79389 (port 8620) anvil pid 79439 port 8621
+chainId 11155111 client anvil/v1.8.7 block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 ts 1795027368
+hardFork Amsterdam forkBlock 12163279
+anvil argv: ~/Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil --fork-url http://127.0.0.1:8620 --fork-block-number 12163279 --hardfork amsterdam --port 8621 --silent
+proxy argv: ~/.pyenv/versions/3.11.9/bin/python3 -I ~/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-ddf-e6f5c7a8/helpers/rpc_forward_proxy.py 8620 ~/Dev/aastar/manifest-live/.rpc/rpcb ~/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-ddf-e6f5c7a8/proxy-errors.log

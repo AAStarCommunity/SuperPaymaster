@@ -1,0 +1,6 @@
+LARGE_CREATES ('Registry', 'xPNTsFactory', 'MySBT', 'SuperPaymaster', 'xPNTsTokenV2Ext', 'xPNTsTokenV2', 'BLSAggregator', 'TimelockHandoverBootstrap')
+plan CREATE contractNames: ['Registry', 'ERC1967Proxy.default', 'xPNTsFactory', 'GTokenAuthorization', 'GTokenStaking', 'MySBT', 'APNTsCapped', 'SuperPaymaster', 'ERC1967Proxy.default', 'GlobalTierSource', 'AOAProtocolRegistry', 'xPNTsTokenV2Ext', 'xPNTsTokenV2', 'xPNTsFactoryV2', 'SuperPaymasterLens', 'ReputationSystem', 'DVTValidator', 'BLSAggregator', 'MicroPaymentChannel', 'PaymasterFactory', 'Paymaster', 'X402Facilitator', 'PolicyRegistry', 'TimelockController.default', 'TimelockHandoverBootstrap.default']
+gate targets matched: [(0, 'Registry'), (2, 'xPNTsFactory'), (6, 'MySBT'), (15, 'SuperPaymaster'), (23, 'xPNTsTokenV2Ext'), (24, 'xPNTsTokenV2'), (29, 'BLSAggregator')]
+inventory check sorted(matched)==sorted(LARGE_CREATES): False ; missing: ['TimelockHandoverBootstrap']
+max planned gas limit (15, 'SuperPaymaster', 78201979) (fork/Sepolia block gas limit 200000000? see below)
+txs with limit <= 2^24: 85

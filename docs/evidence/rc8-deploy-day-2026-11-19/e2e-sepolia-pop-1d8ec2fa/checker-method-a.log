@@ -1,0 +1,218 @@
+cmd: python3 script/rehearsal/deploylive_postdeploy_check.py <local-rpc> /Users/jason/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-pop-1d8ec2fa/config.method-a.json 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 (PATH ~/.foundry/bin, git status lines 0, head 1d8ec2fa65cd1d5836369e49eccbc6e46e98f7a3)
+PASS  source commit :: config.commit must match HEAD in a clean worktree; empty local commit exempt
+PASS  external ethUsdFeed :: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+PASS  external entryPoint :: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+PASS  external agentIdentityRegistry :: 0x0000000000000000000000000000000000000000
+PASS  external agentReputationRegistry :: 0x0000000000000000000000000000000000000000
+PASS  external accountFactory :: 0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985
+PASS  external validation registry recorded :: 0x0000000000000000000000000000000000000000
+PASS  artifact directory :: DEFAULT_ARTIFACTS_OUT equals config
+PASS  artifact compile settings :: Cancun, viaIR, Registry/H=200; all other pins=500
+PASS  deployer has no code :: live and recorded code length zero
+PASS  creationPinsSha256 :: sha256 of committed chain pin file
+PASS  release creation pins :: all 25 metadata artifacts match committed pins
+PASS  creation pin Registry :: local artifact creation hash == committed pin
+PASS  runtime Registry :: release artifact; compiler immutable references masked
+PASS  creation pin SuperPaymaster :: local artifact creation hash == committed pin
+PASS  runtime SuperPaymaster :: release artifact; compiler immutable references masked
+PASS  creation pin TimelockController :: local artifact creation hash == committed pin
+PASS  runtime TimelockController :: release artifact; compiler immutable references masked
+PASS  owner(superPaymaster) != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(registry) != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(staking) != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(gToken) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(xPNTsFactoryV2) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(aoaProtocolRegistry) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(reputationSystem) != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(blsAggregator) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(dvtValidator) != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  owner(xPNTsFactory) [legacy, exception allowed] :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  owner(paymasterFactory) [legacy, exception allowed] :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+INFO  owner(paymasterV4Impl) [legacy, exception allowed] :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+INFO  owner(microPaymentChannel) [legacy, exception allowed] :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+INFO  owner(x402Facilitator) [legacy, exception allowed] :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+INFO  pendingOwner(superPaymaster) :: 0x0000000000000000000000000000000000000000
+INFO  pendingOwner(registry) :: 0x0000000000000000000000000000000000000000
+PASS  roleConfigs[COMMUNITY].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  roleConfigs[ENDUSER].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  roleConfigs[PAYMASTER_AOA].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  roleConfigs[PAYMASTER_SUPER].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  roleConfigs[DVT].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  roleConfigs[ANODE].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  roleConfigs[KMS].owner != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  isReputationSource(repSystem) :: expected true
+PASS  isReputationSource(aggregator) :: expected true
+PASS  isReputationSource(deployer) == false :: 
+PASS  SP.treasury != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  staking.treasury != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  MySBT.daoMultisig != deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  aggregator.slashPolicyAdmin != deployer :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  SP.guardian != deployer :: 0xba8afe220c8ee8108878d4c358d104d408d893b3
+PASS  PolicyRegistry.guardian != deployer :: 0x624d8497a04b343ab491af82b2ad8fdbdc12c642
+INFO  PolicyRegistry.timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  DVT.isValidator(deployer) == false :: 
+PASS  TL.PROPOSER_ROLE(deployer) == false :: 
+INFO  TL.PROPOSER_ROLE(safe) :: true
+PASS  TL.EXECUTOR_ROLE(deployer) == false :: 
+INFO  TL.EXECUTOR_ROLE(safe) :: true
+PASS  TL.CANCELLER_ROLE(deployer) == false :: 
+INFO  TL.CANCELLER_ROLE(safe) :: true
+PASS  TL.DEFAULT_ADMIN_ROLE(deployer) == false :: 
+INFO  TL.DEFAULT_ADMIN_ROLE(safe) :: false
+INFO  TL.minDelay :: 172800 [1.728e5]
+PASS  authorizedSlashers(aggregator) == false :: 
+PASS  fraudProofVerifier == 0 :: 
+PASS  owner(superPaymaster) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(registry) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(staking) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(gToken) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(xPNTsFactoryV2) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(aoaProtocolRegistry) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(reputationSystem) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(blsAggregator) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(dvtValidator) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(xPNTsFactory) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(paymasterFactory) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(paymasterV4Impl) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(microPaymentChannel) != aggregator :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(x402Facilitator) != aggregator :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  aggregator ETH balance == 0 :: 0
+PASS  aggregator gToken balance == 0 :: 0
+PASS  aggregator aPNTs balance == 0 :: 0
+PASS  aggregator pnts balance == 0 :: 0
+INFO  versions :: agg="BLSAggregator-4.14.2" dvt="DVTValidator-0.9.0" sp="SuperPaymaster-5.5.3"
+INFO  agg.minThreshold :: 2
+INFO  agg.defaultThreshold :: 2
+PASS  generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector :: 0xbccd864e 0xbccd864e1b02e44f00000000000000000000000000000000000000000000000000000000
+PASS  generic executeProposal(slash) rejected with ForbiddenGenericSelector :: 0xbccd864e 0xbccd864e678b3ee200000000000000000000000000000000000000000000000000000000
+PASS  generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector :: 0xbccd864e 0xbccd864e8f76484800000000000000000000000000000000000000000000000000000000
+PASS  AOA Paymaster absent :: no AOA deployment
+PASS  config legacy pnts == zero :: config only; no on-chain absence claim
+PASS  owner(superPaymaster) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(registry) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(staking) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(gToken) == expected :: expected 0x51edf11fdb0a4f66220efb8efa54eca77232e114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(xPNTsFactoryV2) == expected :: expected 0x51edf11fdb0a4f66220efb8efa54eca77232e114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(aoaProtocolRegistry) == expected :: expected 0x51edf11fdb0a4f66220efb8efa54eca77232e114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(reputationSystem) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(blsAggregator) == expected :: expected 0x51edf11fdb0a4f66220efb8efa54eca77232e114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(dvtValidator) == expected :: expected 0x51edf11fdb0a4f66220efb8efa54eca77232e114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(xPNTsFactory) == expected :: expected 0x51edf11fdb0a4f66220efb8efa54eca77232e114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(paymasterFactory) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(paymasterV4Impl) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(microPaymentChannel) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  owner(x402Facilitator) == expected :: expected 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114; actual 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  owner(aPNTs) == expected :: expected 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; actual 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148
+PASS  pendingOwner(registry) == 0 :: expected zero
+PASS  pendingOwner(superPaymaster) == 0 :: expected zero
+PASS  pendingOwner(aPNTs) == 0 :: expected zero
+PASS  roleConfigs[COMMUNITY].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(COMMUNITY) == false :: false
+PASS  roleConfigs[ENDUSER].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(ENDUSER) == false :: false
+PASS  roleConfigs[PAYMASTER_AOA].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(PAYMASTER_AOA) == false :: false
+PASS  roleConfigs[PAYMASTER_SUPER].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(PAYMASTER_SUPER) == false :: false
+PASS  roleConfigs[DVT].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(DVT) == false :: false
+PASS  roleConfigs[ANODE].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(ANODE) == false :: false
+PASS  roleConfigs[KMS].owner == timelock :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployer.hasRole(KMS) == false :: false
+PASS  deployer Registry role list empty :: []
+PASS  SP.treasury == expected :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  staking.treasury == expected :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  MySBT.daoMultisig == expected :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  aggregator.slashPolicyAdmin == expected :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  SP.guardian == expected :: 0xBa8AfE220C8ee8108878D4C358D104D408D893B3
+PASS  PolicyRegistry.guardian == expected :: 0x624D8497A04b343ab491af82B2AD8FdBdc12C642
+PASS  PolicyRegistry.timelock == expected :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  SP.APNTS_TOKEN == expected :: 0x41d1aa70fD501E23D36A29B2b16BE88AfEa4279e
+PASS  APNTsCapped.minter == expected :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  APNTsCapped.capGuardian == expected :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  pmFactory.registry == expected :: 0x4b71DB19fBA1a506E0b8ee729B6DC2001Aa19895
+PASS  TL.minDelay == expected :: 172800
+PASS  APNTsCapped.cap == expected :: 300000000000000000000000
+PASS  SP.priceStalenessThreshold == expected :: 4200
+PASS  agg.minThreshold == expected :: 2
+PASS  agg.defaultThreshold == expected :: 2
+PASS  agg.slashThresholds[0] == input :: 2
+PASS  agg.slashThresholds[1] == input :: 3
+PASS  agg.slashThresholds[2] == input :: 3
+PASS  expectedGuardian nonzero and not deployer :: required address
+PASS  expectedSPGuardian nonzero and not deployer :: required address
+PASS  genesisOperator nonzero and not deployer :: required address
+PASS  Safe nonzero and not deployer :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  guardian N == inputs :: 3
+PASS  guardian[1] registered :: 0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3
+PASS  guardian[2] registered :: 0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f
+PASS  guardian[3] registered :: 0xD904A706E355D6b48bAeDBec472CE94BC6981601
+PASS  genesis operator has COMMUNITY :: 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+PASS  genesis operator has PAYMASTER_SUPER :: 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9
+PASS  genesis isConfigured == false :: registered; operator configuration deferred
+PASS  H runtime non-callable :: constructor-only revert runtime
+PASS  TL.DEFAULT_ADMIN_ROLE exact members :: expected ['0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148']; actual ['0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148']
+PASS  TL.DEFAULT_ADMIN_ROLE(H) == false :: false
+PASS  TL.DEFAULT_ADMIN_ROLE(safe) == expected :: false
+PASS  TL.PROPOSER_ROLE exact members :: expected ['0x51edf11fdb0a4f66220efb8efa54eca77232e114']; actual ['0x51edf11fdb0a4f66220efb8efa54eca77232e114']
+PASS  TL.PROPOSER_ROLE(H) == false :: false
+PASS  TL.PROPOSER_ROLE(safe) == expected :: true
+PASS  TL.EXECUTOR_ROLE exact members :: expected ['0x51edf11fdb0a4f66220efb8efa54eca77232e114']; actual ['0x51edf11fdb0a4f66220efb8efa54eca77232e114']
+PASS  TL.EXECUTOR_ROLE(H) == false :: false
+PASS  TL.EXECUTOR_ROLE(safe) == expected :: true
+PASS  TL.CANCELLER_ROLE exact members :: expected ['0x51edf11fdb0a4f66220efb8efa54eca77232e114']; actual ['0x51edf11fdb0a4f66220efb8efa54eca77232e114']
+PASS  TL.CANCELLER_ROLE(H) == false :: false
+PASS  TL.CANCELLER_ROLE(safe) == expected :: true
+PASS  TL.DEFAULT_ADMIN_ROLE(timelock) == true :: true
+PASS  config deployer == CLI :: 0x51ac694981b6cea06aa6c51751c227aac5f6b8a3
+PASS  config governanceOwner == CLI :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114
+PASS  Safe code excludes delegation :: contract, not EIP-7702
+PASS  Safe threshold/owners :: threshold >= 2, distinct nonzero owners >= threshold
+PASS  Safe owners exclude deployer :: getOwners() readback
+PASS  Safe official proxy codehash :: independent storage / module read
+PASS  Safe official singleton :: independent storage / module read
+PASS  Safe modules empty :: independent storage / module read
+PASS  Safe guard zero :: independent storage / module read
+PASS  Safe official fallback handler :: independent storage / module read
+INFO  role overlap table :: address :: roles
+INFO  role overlap :: 0x51edf11fdb0a4f66220efb8efa54eca77232e114 :: DEPLOYER_GTOKEN_RECIPIENT, GOVERNANCE_OWNER, X402_OWNER
+INFO  role overlap :: 0x7dd4ac1bdd8787e06960290fbc40a39d19e4a148 :: SLASH_POLICY_ADMIN, REPUTATION_OWNER, MPC_OWNER, PAYMASTER_FACTORY_OWNER
+PASS  required principals pairwise distinct :: Safe, guardians, genesis, deployer
+PASS  deployer GToken balance == recorded :: recorded 0; actual 0
+PASS  deployer GToken allowance == recorded :: recorded 0; actual 0
+PASS  deployer SBT balance == recorded :: recorded 0; actual 0
+PASS  deployer pending SBT burn == false :: no deferred burn
+PASS  SLASH_POLICY_ADMIN resolved contract :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  X402_OWNER resolved contract :: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+PASS  REPUTATION_OWNER resolved contract :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  MPC_OWNER resolved contract :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  PAYMASTER_FACTORY_OWNER resolved contract :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+PASS  deployerGTokenRecipient resolved contract :: 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+PASS  GToken recipient exact delta :: 2059000000000000000000
+PASS  GToken mint ledger :: [2000000000000000000000, 199000000000000000000]
+PASS  GToken mint events == ledger :: all zero-source Transfer events since deployment
+PASS  GToken totalSupply == mints :: 2199000000000000000000
+PASS  GToken ticket ledger :: tickets paid to Safe treasury
+PASS  GToken stake[0] :: 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074: 0
+PASS  GToken stake[1] :: 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074: 0
+PASS  GToken stake[2] :: 0xEcAACb915f7D92e9916f449F7ad42BD0408733c9 0x2024516755f401845808190bb830b0e4523d0df0845503cab52130a794699a0f: 50000000000000000000
+PASS  GToken stake[3] :: 0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3 0x3b5016dc6721b132ddcb7027030b137a739df81e419695dae0899a866c1c514d: 30000000000000000000
+PASS  GToken stake[4] :: 0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f 0x3b5016dc6721b132ddcb7027030b137a739df81e419695dae0899a866c1c514d: 30000000000000000000
+PASS  GToken stake[5] :: 0xD904A706E355D6b48bAeDBec472CE94BC6981601 0x3b5016dc6721b132ddcb7027030b137a739df81e419695dae0899a866c1c514d: 30000000000000000000
+PASS  GToken conservation :: minted = locked + tickets to treasury + remainder to recipient
+PASS  GToken treasury tickets :: measured treasury delta excluding recipient remainder
+PASS  deployer GToken mint rejected :: OwnableUnauthorizedAccount
+PASS  TL history exactly H batch executed :: one operation; ten scheduled and ten executed calls; exact payloads
+INFO  registryImpl.owner :: 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3
+INFO-PASS  registryImpl isolated :: owner 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3; initializers disabled; upgrades require proxy context
+INFO  spImpl.owner :: 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3
+INFO-PASS  spImpl isolated :: owner 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3; initializers disabled; upgrades require proxy context
+INFO  paymasterV4Impl.owner :: 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148; recorded 0x7dD4ac1Bdd8787e06960290Fbc40A39d19E4A148
+INFO  spAdminImpl.owner :: 0x0000000000000000000000000000000000000000; recorded 0x0000000000000000000000000000000000000000
+INFO  xPNTsTokenV1Impl.owner :: <revert: RPC/local command failed>; recorded N/A: no owner() getter
+INFO  xPNTsTokenV2Impl.owner :: <revert: RPC/local command failed>; recorded N/A: no owner() getter
+INFO  xPNTsTokenV2Ext.owner :: <revert: RPC/local command failed>; recorded N/A: no owner() getter
+
+SUMMARY 188 passed, 0 failed, 188 total
+exit=0

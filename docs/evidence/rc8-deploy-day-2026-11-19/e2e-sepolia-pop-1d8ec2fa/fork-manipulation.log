@@ -1,0 +1,34 @@
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+snapshot 0x2
+anvil_setNextBlockTimestamp 1795022353 None
+anvil_setBlockTimestampInterval 12 None
+anvil_impersonateAccount 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 None
+== method a
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+== method b
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+== revert S0 after replay measurement
+anvil_removeBlockTimestampInterval True
+anvil_stopImpersonatingAccount None
+evm_revert 0x2 True
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+snapshot 0x3
+anvil_setNextBlockTimestamp 1795022353 None
+anvil_setBlockTimestampInterval 12 None
+anvil_impersonateAccount 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 None
+== method a (fresh nightly out)
+state block 12162972 hash 0x64209377f5c80a7b6ad1bfa75f4967b9a591cf54abf9a57211685288afd60b98 ts 1795023505 deployer nonce 136 code 0x
+== revert S1 after method a
+anvil_removeBlockTimestampInterval True
+anvil_stopImpersonatingAccount None
+evm_revert 0x3 True
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+anvil_setNextBlockTimestamp 1795022353 None
+anvil_setBlockTimestampInterval 12 None
+anvil_impersonateAccount 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 None
+== method b (fresh nightly out, --skip-simulation)
+state block 12162972 hash 0x5c3e3fe84d4c4c8f08d569a35d8691e1b9eb517467d569f383dbebcb9728c063 ts 1795023505 deployer nonce 136 code 0x
+final fork state before kill:
+state block 12162972 hash 0x5c3e3fe84d4c4c8f08d569a35d8691e1b9eb517467d569f383dbebcb9728c063 ts 1795023505 deployer nonce 136 code 0x
+anvil 76853 killed

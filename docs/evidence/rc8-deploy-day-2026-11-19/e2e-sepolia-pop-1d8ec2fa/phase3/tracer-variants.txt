@@ -1,0 +1,6 @@
+trace_transaction #33 :: {"jsonrpc": "2.0", "id": 1, "result": [{"action": {"from": "0x51ac694981b6cea06aa6c51751c227aac5f6b8a3", "gas": "0xfa18ca", "init": "0x60a03461018957601f612abe38819003918201601f19168301916001600160401b0383118484101761018d5780849260209460405283398101031261018957516001600160a01b03811690819003610189573315610176575f8054336001600160a01b0319821681178355604051939290916001600160a01b0316907f8be0079c5316591…
+debug_traceTransaction stateGasTracer+config :: {"jsonrpc": "2.0", "id": 1, "result": {}}
+debug_traceTransaction structLogger enableReturnData :: {"failed": false, "gas": 16771708, "structLogs": []}
+debug_traceCall probe tracer=stateGasTracer :: {"jsonrpc": "2.0", "id": 1, "error": {"code": -32602, "message": "unsupported tracer type"}}
+debug_traceCall probe tracer=None :: {"failed": false, "gas": 223236, "returnValue": "0x602a60005260206000f3", "steps": 7, "firstStep": {"pc": 0, "op": "PUSH1", "gas": 1792094, "gasCost": 3, "stateGasReservoir": 0, "depth": 1, "stack": [], "refund": 0}}
+estimateGas probe 223236

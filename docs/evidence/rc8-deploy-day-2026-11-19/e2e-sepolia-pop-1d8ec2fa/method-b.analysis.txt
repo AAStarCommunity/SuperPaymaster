@@ -1,0 +1,19 @@
+broadcast txs 97 receipts 97
+all status 1: True []
+gasUsed == replay measurement for 97 of 97 ; differing: []
+max gasUsed 16 SuperPaymaster 60,155,369 total-gas headroom to 2^24 -43,378,153
+total gasUsed > 2^24: [(1, 'Registry', 38526576), (3, 'xPNTsFactory', 37068256), (7, 'MySBT', 19727493), (16, 'SuperPaymaster', 60155369), (24, 'xPNTsTokenV2Ext', 35214126), (25, 'xPNTsTokenV2', 31192440), (30, 'BLSAggregator', 39276552)]
+min gasLimit/gasUsed ratio 93 AOAProtocolRegistry 1.3
+  #1 Registry  gasLimit 50,084,548 gasUsed 38,526,576 status 0x1 headroom-to-cap -21,749,360 limit-headroom 11,557,972
+  #16 SuperPaymaster  gasLimit 78,214,979 gasUsed 60,155,369 status 0x1 headroom-to-cap -43,378,153 limit-headroom 18,059,610
+  #27 SuperPaymasterLens  gasLimit 11,376,965 gasUsed 8,751,512 status 0x1 headroom-to-cap 8,025,704 limit-headroom 2,625,453
+  #30 BLSAggregator  gasLimit 51,059,517 gasUsed 39,276,552 status 0x1 headroom-to-cap -22,499,336 limit-headroom 11,782,965
+  #53 DVTValidator registerBLSPublicKey gasLimit 1,308,366 gasUsed 991,369 status 0x1 headroom-to-cap 15,785,847 limit-headroom 316,997
+  #56 DVTValidator registerBLSPublicKey gasLimit 1,308,349 gasUsed 991,356 status 0x1 headroom-to-cap 15,785,860 limit-headroom 316,993
+  #59 DVTValidator registerBLSPublicKey gasLimit 1,308,351 gasUsed 991,357 status 0x1 headroom-to-cap 15,785,859 limit-headroom 316,994
+  #97 TimelockHandoverBootstrap.default  gasLimit 1,457,175 gasUsed 1,051,208 status 0x1 headroom-to-cap 15,726,008 limit-headroom 405,967
+total gasUsed 457,727,943
+method b on-chain gasLimit == node eth_estimateGas (replay) for 0 of 97
+validatorAtSlot(1) 0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3
+validatorAtSlot(2) 0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f
+validatorAtSlot(3) 0xD904A706E355D6b48bAeDBec472CE94BC6981601

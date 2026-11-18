@@ -1,0 +1,23 @@
+cmd: FOUNDRY_OUT=cache/dlr-out-nightly FOUNDRY_CACHE_PATH=cache/dlr-cache-nightly nice -n 10 forge build --offline --evm-version prague (forge forge Version: 1.8.7-nightly, head 1d8ec2fa65cd1d5836369e49eccbc6e46e98f7a3)
+222 │         vm.roll(op2Last + WINDOW + 1);
+89 │         vm.warp(block.timestamp + MIN_DELAY);
+263 │         vm.warp(block.timestamp + 24 hours + 1);
+306 │         uint256 chainA = block.chainid;
+    ‡
+312 │         vm.chainId(chainB);
+1022 │         uint256 registeredAt = block.timestamp;
+1023 │
+1024 │         vm.warp(registeredAt + 7 days - 1);
+1117 │         uint256 firstStart = block.timestamp;
+1118 │         vm.warp(firstStart + 8 days);
+1132 │         uint256 secondStart = block.timestamp;
+     ‡
+1144 │         vm.warp(secondStart + 7 days - 1);
+157 │         vm.warp(block.timestamp + paymaster.APNTS_TOKEN_TIMELOCK());
+358 │         vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
+393 │             vm.warp(block.timestamp + paymaster.OPERATOR_WITHDRAWAL_DELAY());
+125 │         vm.warp(block.timestamp + 1 days + 1);
+347 │         vm.warp(block.timestamp + 3601);
+414 │         for (uint i = 0; i < memberships.length; i++) {
+exit=
+exit=0

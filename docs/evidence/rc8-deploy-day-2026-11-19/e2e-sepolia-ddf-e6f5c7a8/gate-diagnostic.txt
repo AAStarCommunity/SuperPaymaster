@@ -1,0 +1,5 @@
+relabeled: index 45 -> SuperPaymaster/updatePrice(); TimelockHandoverBootstrap.default -> TimelockHandoverBootstrap
+PRICE price_init_index=45 block_time=12.48 factor=3 head.timestamp=1795027368 updatedAt=1795026804 age=564 threshold=4200 margin=1951.2
+price_window returned block 0xb998cf block_time 12.48
+GAS tolerance=0.05 multiplier=130
+gas_crosscheck: STOP eth_simulateV1 full-sequence support required; endpoint failed or unsupported

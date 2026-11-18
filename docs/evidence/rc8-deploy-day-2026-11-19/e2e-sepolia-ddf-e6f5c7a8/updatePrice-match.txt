@@ -1,0 +1,4 @@
+plan txs 97
+rows with function==updatePrice(): []
+rows whose calldata selector is updatePrice() 0x673a7e28: [(45, 'ERC1967Proxy.default', None, '0x3c73dd3c576a594dd1e7afdeec9f8757c35a31e7')]
+verbatim plan entry index 45 {"transactionType": "CALL", "contractName": "ERC1967Proxy.default", "contractAddress": "0x3c73dd3c576a594dd1e7afdeec9f8757c35a31e7", "function": null, "arguments": null}

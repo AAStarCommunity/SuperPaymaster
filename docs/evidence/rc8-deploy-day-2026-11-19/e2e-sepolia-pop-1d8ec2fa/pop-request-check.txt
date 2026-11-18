@@ -1,0 +1,28 @@
+keys . OK
+keys .addresses OK
+keys .pin OK
+keys .pin.senders OK
+keys .pin.senders.deployer OK
+schema deploylive-pop-request/1 chainId 11155111 spCommit 1d8ec2fa65cd1d5836369e49eccbc6e46e98f7a3 guardianCount 3
+KEYSET PASS
+pin.block 12162874 pin.blockHash 0xe46e8826e30b6ff8bd893d012eee38e0151c730c1d95edf1b3a746731d7e8372 fork hash(12162874) 0xe46e8826e30b6ff8bd893d012eee38e0151c730c1d95edf1b3a746731d7e8372 match YES
+fork after prediction: block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c deployer nonce 39 nonce@pin.block 39 code 0x
+predicted 0x73b85a082bab7a392c9bB7006dBBC96bdCB19ade code-on-fork 0x
+predicted 0x486ADb0bD89761d07D040dAb132F5cE9D40BF206 code-on-fork 0x
+predicted 0x4b71DB19fBA1a506E0b8ee729B6DC2001Aa19895 code-on-fork 0x
+dry-run tx count 30 first nonce 39 last nonce 68
+sum of simulated gas limits 70773045
+  Registry 0x7ba33be864b063534027ad7315bad3796feb1e1f gasLimit 7072049
+  xPNTsFactory 0xaa920baa1833192c8d9393e43274dea827d8174d gasLimit 7037906
+  SuperPaymaster 0x31fdbf9f475d4f67f0b3a745caf909152b165908 gasLimit 11082839
+  xPNTsTokenV2Ext 0x0125b68420bf4be60a185cbfb132d4137aa9333e gasLimit 6492548
+  xPNTsTokenV2 0x8182376c9ab5de719495d796dea253139dc67609 gasLimit 5762125
+  DVTValidator 0x486adb0bd89761d07d040dab132f5ce9d40bf206 gasLimit 2849393
+  BLSAggregator 0x73b85a082bab7a392c9bb7006dbbc96bdcb19ade gasLimit 7266914
+None 0x4b71db19fba1a506e0b8ee729b6dc2001aa19895 nonce 40 compute-address 0x4b71DB19fBA1a506E0b8ee729B6DC2001Aa19895
+None 0x4b71db19fba1a506e0b8ee729b6dc2001aa19895 nonce 46 compute-address 0xe2536c48a31C7a6382e80208075BbAF72489E4Bb
+None 0x4b71db19fba1a506e0b8ee729b6dc2001aa19895 nonce 47 compute-address 0xc50019933e3481ce02C56C35a86994789480cA94
+None 0x4b71db19fba1a506e0b8ee729b6dc2001aa19895 nonce 49 compute-address 0x45558687d8925b08Fd16A4aAF4DE066Dd9767f39
+None 0x4b71db19fba1a506e0b8ee729b6dc2001aa19895 nonce 52 compute-address 0xA7bB3F1aaB5cB463D7eB8252Ff256cC2f248AF09
+DVTValidator 0x486adb0bd89761d07d040dab132f5ce9d40bf206 nonce 67 compute-address 0x486ADb0bD89761d07D040dAb132F5cE9D40BF206
+BLSAggregator 0x73b85a082bab7a392c9bb7006dbbc96bdcb19ade nonce 68 compute-address 0x73b85a082bab7a392c9bB7006dBBC96bdCB19ade

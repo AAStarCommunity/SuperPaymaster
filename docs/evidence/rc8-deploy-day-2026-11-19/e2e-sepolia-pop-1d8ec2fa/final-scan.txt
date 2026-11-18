@@ -1,0 +1,8 @@
+== positive control (planted Tenderly hostname in scratchpad file)
+HIT <control file>
+scanned 1 files, 7 needles, hits 1
+control exit=0
+== evidence + worktree broadcast/ cache/
+scanned 2458 files, 7 needles, hits 0
+scan exit=0
+note: 'control exit=0' above is sed's exit status (pipe); the scanner itself reported hits 1 for the control and would exit 1. Main scan exit=0 is the scanner's own status.

@@ -1,0 +1,110 @@
+PRICE price_init_index=45 block_time=12.12 factor=3 head.timestamp=1795031964 updatedAt=1795030440 age=1524 threshold=4200 margin=1039.8
+PRICE corroboration not applicable on a fork; single fork endpoint
+GAS single-endpoint real-chain tolerance=0.05 multiplier=130
+GAS fees index=0 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=1 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=2 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=3 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=4 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=5 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=6 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=7 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=8 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=9 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=10 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=11 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=12 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=13 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=14 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=15 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=16 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=17 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=18 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=19 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=20 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=21 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=22 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=23 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=24 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=25 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=26 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=27 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=28 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=29 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=30 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=31 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=32 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=33 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=34 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=35 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=36 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=37 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=38 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=39 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=40 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=41 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=42 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=43 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=44 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=45 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=46 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=47 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=48 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=49 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=50 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=51 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=52 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=53 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=54 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=55 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=56 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=57 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=58 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=59 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=60 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=61 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=62 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=63 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=64 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=65 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=66 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=67 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=68 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=69 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=70 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=71 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=72 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=73 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=74 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=75 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=76 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=77 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=78 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=79 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=80 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=81 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=82 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=83 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=84 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=85 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=86 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=87 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=88 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=89 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=90 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=91 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=92 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=93 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=94 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=95 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS fees index=96 maxFeePerGas=0x3b9aca1e maxPriorityFeePerGas=0x3b9aca00
+GAS index=0 contract=Registry limit=50084548 simulated=38526576 real=38526576 tolerance=0.05
+GAS index=2 contract=xPNTsFactory limit=48188732 simulated=37068256 real=37068256 tolerance=0.05
+GAS index=6 contract=MySBT limit=25645740 simulated=19727493 real=19727493 tolerance=0.05
+GAS index=15 contract=SuperPaymaster limit=78201979 simulated=60155369 real=60155369 tolerance=0.05
+GAS index=23 contract=xPNTsTokenV2Ext limit=45778363 simulated=35214126 real=35214126 tolerance=0.05
+GAS index=24 contract=xPNTsTokenV2 limit=40550172 simulated=31192440 real=31192440 tolerance=0.05
+GAS index=29 contract=BLSAggregator limit=51059517 simulated=39276552 real=39276552 tolerance=0.05
+GAS index=96 contract=TimelockHandoverBootstrap.default limit=1366570 simulated=1051208 real=1051208 tolerance=0.05
+PRICE price_init_index=45 block_time=12.12 factor=3 head.timestamp=1795031964 updatedAt=1795030440 age=1524 threshold=4200 margin=1039.8
+PRICE corroboration not applicable on a fork; single fork endpoint

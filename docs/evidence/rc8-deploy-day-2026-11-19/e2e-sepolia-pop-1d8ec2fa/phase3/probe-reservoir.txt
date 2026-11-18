@@ -1,0 +1,9 @@
+G=2000000: top-level {'failed': False, 'gas': 223236, 'returnValue': '0x602a60005260206000f3'}
+   first {'pc': 0, 'op': 'PUSH1', 'gas': 1792094, 'gasCost': 3, 'stateGasReservoir': 0, 'depth': 1, 'refund': 0}
+   last  {'pc': 11, 'op': 'RETURN', 'gas': 1792070, 'gasCost': 0, 'stateGasReservoir': 0, 'depth': 1, 'refund': 0}
+G=16777216: top-level {'failed': False, 'gas': 223236, 'returnValue': '0x602a60005260206000f3'}
+   first {'pc': 0, 'op': 'PUSH1', 'gas': 16569310, 'gasCost': 3, 'stateGasReservoir': 0, 'depth': 1, 'refund': 0}
+   last  {'pc': 11, 'op': 'RETURN', 'gas': 16569286, 'gasCost': 0, 'stateGasReservoir': 0, 'depth': 1, 'refund': 0}
+G=17777216: top-level {'failed': False, 'gas': 223236, 'returnValue': '0x602a60005260206000f3'}
+   first {'pc': 0, 'op': 'PUSH1', 'gas': 16752910, 'gasCost': 3, 'stateGasReservoir': 816400, 'depth': 1, 'refund': 0}
+   last  {'pc': 11, 'op': 'RETURN', 'gas': 16752886, 'gasCost': 0, 'stateGasReservoir': 816400, 'depth': 1, 'refund': 0}

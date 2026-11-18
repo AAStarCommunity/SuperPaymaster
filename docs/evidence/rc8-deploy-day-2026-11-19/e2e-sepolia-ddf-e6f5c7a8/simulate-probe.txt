@@ -1,0 +1,18 @@
+eth_simulateV1 ERROR {'code': -38012, 'message': 'err: max fee per gas less than block base fee'}
+fork head 12163279 ts 1795027368
+Alchemy validation True -> ERROR {"code": -38012, "message": "max fee per gas less than block base fee"}
+Alchemy validation False -> ok status 0x1 gasUsed 31607
+Tenderly HTTP 429 retry 0
+Tenderly HTTP 429 retry 1
+Tenderly HTTP 429 retry 2
+Tenderly HTTP 429 retry 3
+Tenderly HTTP 429 retry 4
+Tenderly HTTP 429 retry 5
+Tenderly validation True -> ERROR "gave up"
+Tenderly HTTP 429 retry 0
+Tenderly HTTP 429 retry 1
+Tenderly HTTP 429 retry 2
+Tenderly HTTP 429 retry 3
+Tenderly HTTP 429 retry 4
+Tenderly HTTP 429 retry 5
+Tenderly validation False -> ERROR "gave up"

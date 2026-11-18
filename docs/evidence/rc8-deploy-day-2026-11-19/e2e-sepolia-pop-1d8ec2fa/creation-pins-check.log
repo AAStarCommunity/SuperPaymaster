@@ -1,0 +1,2 @@
+cmd: python3 script/rehearsal/creation_pins.py --check deployments/creation-pins.11155111.json --artifacts out (PATH has forge 1.7.1 bin)
+exit=0

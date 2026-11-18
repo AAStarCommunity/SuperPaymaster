@@ -1,0 +1,200 @@
+cmd: forge script --offline contracts/script/v3/DeployLive.s.sol:DeployLive --rpc-url <local> --sender 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 --unlocked --evm-version prague -vv (forge forge Version: 1.8.7-nightly, head 1d8ec2fa65cd1d5836369e49eccbc6e46e98f7a3, POP_REQUEST_OUT=/Users/jason/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-pop-1d8ec2fa/pop-request.json)
+Compiling 143 files with Solc 0.8.33
+Compiling 110 files with Solc 0.8.33
+Solc 0.8.33 finished in 16.80s
+Solc 0.8.33 finished in 25.85s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/src/tokens/v2/xPNTsV2Base.sol:255:13:
+    |
+255 |             string memory name,
+    |             ^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/src/tokens/v2/xPNTsV2Base.sol:228:5:
+    |
+228 |     function name() public view override returns (string memory) { return _tokenName; }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (2519): This declaration shadows an existing declaration.
+   --> contracts/src/tokens/v2/xPNTsV2Base.sol:255:13:
+    |
+255 |             string memory name,
+    |             ^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> contracts/src/tokens/v2/xPNTsV2Base.sol:228:5:
+    |
+228 |     function name() public view override returns (string memory) { return _tokenName; }
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/paymasters/v4/PaymasterBase.sol:313:9:
+    |
+313 |         PostOpMode mode,
+    |         ^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:230:40:
+    |
+230 |     function mintForRole(address user, bytes32 roleId, bytes calldata roleData)
+    |                                        ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> contracts/src/tokens/MySBT.sol:294:37:
+    |
+294 |     function airdropMint(address u, bytes32 roleId, bytes calldata roleData)
+    |                                     ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol:45:5:
+   |
+45 |     function _authorizeUpgrade(address) internal override onlyOwner { _requireNoPendingOwner(); }
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traces:
+  [27886623] → new DeployLive@0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519
+    ├─ [3009799] → new T4ArtifactReader@0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141
+    │   └─ ← [Return] 13573 bytes of code
+    └─ ← [Return] 123838 bytes of code
+
+  [93643] DeployLive::setUp()
+    ├─ [0] VM::envAddress("ENTRY_POINT") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("ETH_USD_FEED") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envAddress("SIMPLE_ACCOUNT_FACTORY") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("DEPLOYER_ADDRESS", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    └─ ← [Stop]
+
+  [266250807] DeployLive::run()
+    ├─ [0] VM::getNonce(0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3) [staticcall]
+    │   └─ ← [Return] 39
+    ├─ [0] VM::envOr("DEPLOYLIVE_POP_REQUEST_OUT", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::isContext(6) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::isContext(7) [staticcall]
+    │   └─ ← [Return] false
+    ├─ [0] VM::envOr("SP_COMMIT", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("GOVERNANCE_OWNER", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envExists("GOVERNOR_ADDRESS") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("SLASH_POLICY_ADMIN", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("X402_OWNER", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("REPUTATION_OWNER", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("MPC_OWNER", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("PAYMASTER_FACTORY_OWNER", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("DEPLOYER_GTOKEN_RECIPIENT", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::readFile("deployments/safe-official.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonBytes32Array("<stringified JSON>", ".proxyCodehashes") [staticcall]
+    │   └─ ← [Return] [0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".singletons") [staticcall]
+    │   └─ ← [Return] [0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552, 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762]
+    ├─ [0] VM::load(0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114, 0x0000000000000000000000000000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] 0x00000000000000000000000029fcb43b46531bca003ddc8fcb67ffe91900c762
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".fallbackHandlers") [staticcall]
+    │   └─ ← [Return] [0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4, 0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99]
+    ├─ [0] VM::load(0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114, 0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5) [staticcall]
+    │   └─ ← [Return] 0x000000000000000000000000fd0732dc9e303f09fcef3a7388ad10a83459ec99
+    ├─ [7233] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getThreshold() [staticcall]
+    │   ├─ [2402] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getThreshold() [delegatecall]
+    │   │   └─ ← [Return] 2
+    │   └─ ← [Return] 2
+    ├─ [17243] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getOwners() [staticcall]
+    │   ├─ [12394] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getOwners() [delegatecall]
+    │   │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    ├─ [17243] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getOwners() [staticcall]
+    │   ├─ [12394] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getOwners() [delegatecall]
+    │   │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    ├─ [8060] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getModulesPaginated(ECRecover: [0x0000000000000000000000000000000000000001], 10) [staticcall]
+    │   ├─ [3217] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getModulesPaginated(ECRecover: [0x0000000000000000000000000000000000000001], 10) [delegatecall]
+    │   │   └─ ← [Return] [], ECRecover: [0x0000000000000000000000000000000000000001]
+    │   └─ ← [Return] [], ECRecover: [0x0000000000000000000000000000000000000001]
+    ├─ [0] VM::load(0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114, 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [0] VM::envOr("GUARDIAN_ADDRESS", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("SP_GUARDIAN", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("GENESIS_AASTAR_OPERATOR", 0x0000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("APNTS_CAP", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("GUARDIAN_N", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("GUARDIAN_MIN_THRESHOLD", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("GUARDIAN_DEFAULT_THRESHOLD", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::toString(0) [staticcall]
+    │   └─ ← [Return] "0"
+    ├─ [0] VM::envOr("GUARDIAN_SLASH_THRESHOLD_0", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::toString(1) [staticcall]
+    │   └─ ← [Return] "1"
+    ├─ [0] VM::envOr("GUARDIAN_SLASH_THRESHOLD_1", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::toString(2) [staticcall]
+    │   └─ ← [Return] "2"
+    ├─ [0] VM::envOr("GUARDIAN_SLASH_THRESHOLD_2", 0) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::envOr("DEPLOYLIVE_POP_REQUEST_OUT", "") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::readFile("deployments/safe-official.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonBytes32Array("<stringified JSON>", ".proxyCodehashes") [staticcall]
+    │   └─ ← [Return] [0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c]
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".singletons") [staticcall]
+    │   └─ ← [Return] [0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552, 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762]
+    ├─ [0] VM::load(0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114, 0x0000000000000000000000000000000000000000000000000000000000000000) [staticcall]
+    │   └─ ← [Return] 0x00000000000000000000000029fcb43b46531bca003ddc8fcb67ffe91900c762
+    ├─ [0] VM::parseJsonAddressArray("<stringified JSON>", ".fallbackHandlers") [staticcall]
+    │   └─ ← [Return] [0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4, 0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99]
+    ├─ [0] VM::load(0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114, 0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5) [staticcall]
+    │   └─ ← [Return] 0x000000000000000000000000fd0732dc9e303f09fcef3a7388ad10a83459ec99
+    ├─ [7233] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getThreshold() [staticcall]
+    │   ├─ [2402] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getThreshold() [delegatecall]
+    │   │   └─ ← [Return] 2
+    │   └─ ← [Return] 2
+    ├─ [17243] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getOwners() [staticcall]
+    │   ├─ [12394] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getOwners() [delegatecall]
+    │   │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    ├─ [17243] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getOwners() [staticcall]
+    │   ├─ [12394] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getOwners() [delegatecall]
+    │   │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    │   └─ ← [Return] [0x871608cBA092105b91e91295A1d79fFC539BFb48, 0xBB05d2E9890BceC6141e40A1066bf8927169b75E, 0x8c3499252232105A1615767C459DB9BBbf1273D6]
+    ├─ [8060] 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114::getModulesPaginated(ECRecover: [0x0000000000000000000000000000000000000001], 10) [staticcall]
+    │   ├─ [3217] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::getModulesPaginated(ECRecover: [0x0000000000000000000000000000000000000001], 10) [delegatecall]
+    │   │   └─ ← [Return] [], ECRecover: [0x0000000000000000000000000000000000000001]
+    │   └─ ← [Return] [], ECRecover: [0x0000000000000000000000000000000000000001]
+    ├─ [0] VM::load(0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114, 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8) [staticcall]
+    │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    ├─ [5661] 0x694AA1769357215DE4FAC081bf1f309aDC325306::decimals() [staticcall]
+    │   ├─ [341] 0x719E22E3D4b690E5d96cCb40619180B5427F14AE::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   └─ ← [Return] 8
+    ├─ [16043] 0x694AA1769357215DE4FAC081bf1f309aDC325306::latestRoundData() [staticcall]
+    │   ├─ [7612] 0x719E22E3D4b690E5d96cCb40619180B5427F14AE::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 37710 [3.771e4], 174995000000 [1.749e11], 1795018824 [1.795e9], 1795018824 [1.795e9], 37710 [3.771e4]
+    │   └─ ← [Return] 18446744073709589326 [1.844e19], 174995000000 [1.749e11], 1795018824 [1.795e9], 1795018824 [1.795e9], 18446744073709589326 [1.844e19]
+    ├─ [0] VM::toString(11155111 [1.115e7]) [staticcall]
+    │   └─ ← [Return] "11155111"
+    ├─ [0] VM::readFile("deployments/external-deps.11155111.json") [staticcall]
+    │   └─ ← [Return] <file>
+    ├─ [0] VM::parseJsonAddress("<stringified JSON>", ".entryPoint") [staticcall]

@@ -1,0 +1,37 @@
+# Sepolia (11155111) DeployLive inputs for the e2e PoP rehearsal on a LOCAL anvil fork. Public, non-secret.
+# Thresholds and owner choices copied from deploylive-happy-87d4fb2b/inputs.happy.sh (DSR ceremony choices).
+# NOTE: GUARDIAN_ADDRESS / SP_GUARDIAN / GENESIS_AASTAR_OPERATOR are the happy-rehearsal placeholders
+# (public anvil-mnemonic accounts). No Sepolia production principals are committed anywhere; deploy day must supply them.
+export FOUNDRY_VERBOSITY=2
+export DEFAULT_ARTIFACTS_OUT=out
+export DEPLOYLIVE_EVM_VERSION=prague
+export CREATION_PINS=deployments/creation-pins.11155111.json
+export EXTERNAL_TOKENS_FILE=script/rehearsal/inputs/external-tokens.json
+# From deployments/external-deps.11155111.json
+export ENTRY_POINT=0x0000000071727De22E5E9d8BAf0edAc6f37da032
+export ETH_USD_FEED=0x694AA1769357215DE4FAC081bf1f309aDC325306
+export SIMPLE_ACCOUNT_FACTORY=0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985
+export GOVERNANCE_OWNER=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+export GUARDIAN_ADDRESS=0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+export SP_GUARDIAN=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC
+export GENESIS_AASTAR_OPERATOR=0x90F79bf6EB2c4f870365E785982E1f101E93b906
+export APNTS_CAP=300000000000000000000000
+export GUARDIAN_N=3
+export GUARDIAN_MIN_THRESHOLD=2
+export GUARDIAN_DEFAULT_THRESHOLD=2
+export GUARDIAN_SLASH_THRESHOLD_0=2
+export GUARDIAN_SLASH_THRESHOLD_1=3
+export GUARDIAN_SLASH_THRESHOLD_2=3
+export SLASH_POLICY_ADMIN=timelock
+export X402_OWNER=safe
+export REPUTATION_OWNER=timelock
+export MPC_OWNER=timelock
+export PAYMASTER_FACTORY_OWNER=timelock
+export DEPLOYER_GTOKEN_RECIPIENT=safe
+# a=0: agent registries off
+unset GOVERNOR_ADDRESS ENABLE_AGENT_REGISTRIES AGENT_IDENTITY_REGISTRY AGENT_REPUTATION_REGISTRY AGENT_VALIDATION_REGISTRY DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP DEPLOYLIVE_REHEARSAL PRIVATE_KEY PRIVATE_KEY_ANNI ETH_RPC_URL GUARDIANS
+export DEPLOYER=0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3
+export DEPLOYER_ADDRESS=$DEPLOYER
+export ENV=e2e-sepolia-pop-1d8ec2fa
+export SP_COMMIT=1d8ec2fa65cd1d5836369e49eccbc6e46e98f7a3
+export DEPLOYLIVE_EVIDENCE_DIR=/Users/jason/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-pop-1d8ec2fa

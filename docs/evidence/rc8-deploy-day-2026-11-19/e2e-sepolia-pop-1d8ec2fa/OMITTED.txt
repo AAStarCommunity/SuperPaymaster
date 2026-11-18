@@ -1,0 +1,1 @@
+predict.attempt1-outside-root.log (17,119,649 bytes, sha256 09efd377c516861c3089e4551fcc61746faa253cbfe9f3a9a31457d2df1db7c3) is a failed first attempt (request path outside the worktree); only its first 200 lines are kept here for size.

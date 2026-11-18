@@ -1,0 +1,3 @@
+GUARDIAN_ADDRESS_PLACEHOLDER 0x624D8497A04b343ab491af82B2AD8FdBdc12C642
+SP_GUARDIAN_PLACEHOLDER 0xBa8AfE220C8ee8108878D4C358D104D408D893B3
+# address only from `cast wallet new`; keys discarded in-process, never printed or written. PLACEHOLDERS for this rehearsal (DSR ruling).

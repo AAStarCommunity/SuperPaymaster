@@ -1,0 +1,18 @@
+fork pid 46340 client anvil/v1.8.7 block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+snapshot 0x0
+anvil_setNextBlockTimestamp 1795022353 None
+anvil_setBlockTimestampInterval 12 None
+anvil_impersonateAccount 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 None
+== revert S0 for split measurement
+anvil_removeBlockTimestampInterval True
+anvil_stopImpersonatingAccount None
+evm_revert 0x0 True
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+state block 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c ts 1795022352 deployer nonce 39 code 0x
+snapshot 0x1
+anvil_setNextBlockTimestamp 1795022353 None
+anvil_setBlockTimestampInterval 12 None
+anvil_impersonateAccount 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 None
+anvil 46340 killed
+8614 free

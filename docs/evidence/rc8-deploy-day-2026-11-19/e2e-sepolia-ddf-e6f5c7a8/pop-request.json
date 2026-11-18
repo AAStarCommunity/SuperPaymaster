@@ -1,0 +1,21 @@
+{
+  "addresses": {
+    "BLSAggregator": "0x73b85a082bab7a392c9bB7006dBBC96bdCB19ade",
+    "DVTValidator": "0x486ADb0bD89761d07D040dAb132F5cE9D40BF206",
+    "Registry": "0x4b71DB19fBA1a506E0b8ee729B6DC2001Aa19895"
+  },
+  "chainId": 11155111,
+  "guardianCount": 3,
+  "pin": {
+    "block": 12163278,
+    "blockHash": "0xa487767b70e19b7e41eb3778714d2214f3def3189a8befeb36af45dc597f0de4",
+    "senders": {
+      "deployer": {
+        "address": "0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3",
+        "nonce": 39
+      }
+    }
+  },
+  "schema": "deploylive-pop-request/1",
+  "spCommit": "e6f5c7a8973096a1c547da765390fa9ddef9e71a"
+}

@@ -1,0 +1,6 @@
+hardFork Amsterdam block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 blockAccessListHash 0x3b33b4fb7a97a83a898c2516770811a85882da3ec68f3e5e38904b359eecf45c slotNumber 0xb11f06
+command: eth_sendTransaction {"from": "0x00000000000000000000000000000000c0ffee02", "data": "0x5b600056", "gas": "0x1312d00"} bytecode 0x5b600056 (JUMPDEST PUSH1 0 JUMP)
+tx gasLimit 20000000 receipt status 0x0 gasUsed 16777216 contractAddress 0x57b085a6e65a8b75102b812a8aca30e4cb426ca6
+CONTROL PASS (capped at 16,777,216 and failed)
+revert True
+after revert block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 unchanged True

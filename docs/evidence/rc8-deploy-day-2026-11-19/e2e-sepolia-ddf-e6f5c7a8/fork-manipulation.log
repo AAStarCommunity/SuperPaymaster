@@ -1,0 +1,13 @@
+state block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 ts 1795027368 deployer nonce 39
+evm_snapshot 0x1
+anvil_setNextBlockTimestamp 1795027369 None
+anvil_setBlockTimestampInterval 12 None
+== after driver run 1 (STOP): block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 deployer nonce 39 balance 10000.000000000000000000 code 0x
+anvil_removeBlockTimestampInterval True
+evm_revert 0x1 True
+state block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 ts 1795027368 deployer nonce 39 balanceWei 9663065286236340481
+evm_snapshot (for resume) 0x2
+79439 killed
+79389 killed
+8620 free
+8621 free

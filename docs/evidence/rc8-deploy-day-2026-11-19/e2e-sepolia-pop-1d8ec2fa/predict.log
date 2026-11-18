@@ -1,0 +1,62 @@
+cmd: forge script --offline contracts/script/v3/DeployLive.s.sol:DeployLive --rpc-url <local> --sender 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3 --unlocked --evm-version prague -vv (forge forge Version: 1.8.7-nightly, head 1d8ec2fa65cd1d5836369e49eccbc6e46e98f7a3, POP_REQUEST_OUT=cache/e2e-sepolia-pop/pop-request.json)
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  Deployer: 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3
+  === Step 1: Deploy Foundation (Scheme B - UUPS Proxy) ===
+    [artifact] default artifact OK: Registry 0x7ba33bE864B063534027aD7315bAd3796fEb1e1F 24559
+    [artifact] default artifact OK: ERC1967Proxy 0x4b71DB19fBA1a506E0b8ee729B6DC2001Aa19895 100
+    [artifact] default artifact OK: xPNTsFactory 0xAA920BaA1833192c8D9393E43274dEA827d8174D 6802
+    [artifact] default artifact OK: GTokenAuthorization 0x85CC0DccA7cB54DAbF84A4d426287884333B31ea 6113
+    [artifact] default artifact OK: GTokenStaking 0xF11847Ac193f23BBa5da378F74AAF2D785c5Bcec 9455
+    [artifact] default artifact OK: MySBT 0x3BA7e0DAFf10A1a853eA2764396A9E4DfaDEe918 12111
+  === Step 2: Pre-register AAStar COMMUNITY + Deploy aPNTs ===
+    [artifact] default artifact OK: APNTsCapped 0x41d1aa70fD501E23D36A29B2b16BE88AfEa4279e 5346
+    aPNTs Deployed at: 0x41d1aa70fD501E23D36A29B2b16BE88AfEa4279e
+  === Step 3: Deploy SuperPaymaster (UUPS Proxy) ===
+    [artifact] default artifact OK: SuperPaymaster 0x31FdBf9f475d4f67f0b3a745CAF909152b165908 16304
+    [artifact] SuperPaymasterAdmin extension OK (default build; entryPoint/REGISTRY/feed == core) 0x5491180bfb1ceB0fbc6eC48dea2E302248A16f04
+    [artifact] default artifact OK: ERC1967Proxy 0x3C73Dd3C576a594Dd1e7afDEEc9f8757C35A31E7 100
+  === Step 3b: Deploy xPNTs v2 stack (runbook step 4) ===
+    [artifact] default artifact OK: GlobalTierSource 0x5f67d4970439FBB2C7DD41bb2e0A4c981AD04Ccb 792
+    [v55] new   GlobalTierSource    0x5f67d4970439FBB2C7DD41bb2e0A4c981AD04Ccb
+    [artifact] default artifact OK: AOAProtocolRegistry 0x42d299982F2E945e0A6D3Aa806a97E9f266a5C62 2746
+    [v55] new   AOAProtocolRegistry 0x42d299982F2E945e0A6D3Aa806a97E9f266a5C62
+    [artifact] default artifact OK: xPNTsTokenV2Ext 0x0125B68420bf4bE60a185CbFB132d4137aA9333e 22470
+    [v55] new   xPNTsTokenV2Ext     0x0125B68420bf4bE60a185CbFB132d4137aA9333e
+    [artifact] default artifact OK: xPNTsTokenV2 0x8182376c9Ab5DE719495d796dea253139Dc67609 19869
+    [v55] new   xPNTsTokenV2 impl   0x8182376c9Ab5DE719495d796dea253139Dc67609
+    [artifact] default artifact OK: xPNTsFactoryV2 0x2c873D7aFD9C10001078E9ABa703B535BCa00A67 8553
+    [v55] new   xPNTsFactoryV2      0x2c873D7aFD9C10001078E9ABa703B535BCa00A67
+    [artifact] default artifact OK: SuperPaymasterLens 0x62253AD4b62b782FB4151b66C5D857a35C36C19c 5525
+    [v55] new   SuperPaymasterLens  0x62253AD4b62b782FB4151b66C5D857a35C36C19c
+  === Step 4: Deploy Modules ===
+    [artifact] default artifact OK: ReputationSystem 0xc681374655203ABD20635C1Db4ED7583584A8356 7731
+    [artifact] default artifact OK: DVTValidator 0x486ADb0bD89761d07D040dAb132F5cE9D40BF206 9613
+    [artifact] default artifact OK: BLSAggregator 0x73b85a082bab7a392c9bB7006dBBC96bdCB19ade 24547
+  STOP: PoP request written; simulation ends before guardian registration: cache/e2e-sepolia-pop/pop-request.json
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated max fee per gas: 0.000000037 gwei
+Estimated base fee per gas: 0.000000016 gwei
+Estimated max priority fee per gas: 0.000000005 gwei
+
+Estimated total gas used for script: 70773045
+
+Estimated amount required: 0.000000002618602665 ETH
+
+==========================
+
+SIMULATION COMPLETE. To broadcast these transactions, add --broadcast and wallet configuration(s) to the previous command. See forge script --help for more.
+
+Transactions saved to: /Users/jason/Dev/aastar/sp-wt/rc8-e2e/broadcast/DeployLive.s.sol/11155111/dry-run/run-latest.json
+
+Sensitive values saved to: /Users/jason/Dev/aastar/sp-wt/rc8-e2e/cache/deploylive-rehearsal-cache/DeployLive.s.sol/11155111/dry-run/run-latest.json
+
+exit=0

@@ -1,0 +1,6 @@
+Alchemy eth_config current activationTime 1791294816 2026-10-06T13:53:36 forkId 0x6c1d9423 chainId 0xaa36a7 BUILDER_*: ['BUILDER_DEPOSIT_CONTRACT_ADDRESS', 'BUILDER_EXIT_CONTRACT_ADDRESS'] next None
+Tenderly eth_config ERROR {'code': -32601, 'message': 'method not found'}
+latest Alchemy 12163281 Tenderly 12163281 -> fixed block 12163279
+Alchemy block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 ts 1795027368 blockAccessListHash 0x3b33b4fb7a97a83a898c2516770811a85882da3ec68f3e5e38904b359eecf45c slotNumber 0xb11f06
+Tenderly block 12163279 hash 0xdd2ce6958f6b7fd4092a0f3582720f3783c0531f14b7955675233ae3ffcecd02 ts 1795027368 blockAccessListHash 0x3b33b4fb7a97a83a898c2516770811a85882da3ec68f3e5e38904b359eecf45c slotNumber 0xb11f06
+same block hash/blockAccessListHash/slotNumber on both: True

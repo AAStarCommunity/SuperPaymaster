@@ -1,0 +1,102 @@
+| # | nonce | contract / call | estimate | gasUsed | > 16,777,216 | sim gas limit (forge, x1.3) | block ts |
+|---|---|---|---:|---:|---|---:|---:|
+| 1 | 39 | CREATE Registry | 38,526,576 | 38,526,576 | YES | 50,084,548 | 1795022353 (+0s, blk 12162876) |
+| 2 | 40 | CREATE ERC1967Proxy | 6,499,315 | 6,499,315 | no | 8,449,109 | 1795022365 (+12s, blk 12162877) |
+| 3 | 41 | CREATE xPNTsFactory | 37,068,256 | 37,068,256 | YES | 48,188,732 | 1795022377 (+24s, blk 12162878) |
+| 4 | 42 | CREATE GTokenAuthorization | 10,025,642 | 10,025,642 | no | 13,033,334 | 1795022389 (+36s, blk 12162879) |
+| 5 | 43 | CREATE GTokenStaking | 15,164,009 | 15,164,009 | no | 19,713,211 | 1795022401 (+48s, blk 12162880) |
+| 6 | 44 | GTokenStaking.setTreasury | 32,157 | 32,157 | no | 44,415 | 1795022413 (+60s, blk 12162881) |
+| 7 | 45 | CREATE MySBT | 19,727,493 | 19,727,493 | YES | 25,645,740 | 1795022425 (+72s, blk 12162882) |
+| 8 | 46 | Registry(proxy).setStaking | 1,400,587 | 1,379,055 | no | 1,904,818 | 1795022437 (+84s, blk 12162883) |
+| 9 | 47 | Registry(proxy).setMySBT | 140,799 | 138,951 | no | 191,925 | 1795022449 (+96s, blk 12162884) |
+| 10 | 48 | GTokenAuthorization.setMySBT | 128,594 | 128,594 | no | 188,068 | 1795022461 (+108s, blk 12162885) |
+| 11 | 49 | Registry(proxy).syncExitFees | 91,767 | 90,725 | no | 125,313 | 1795022473 (+120s, blk 12162886) |
+| 12 | 50 | GTokenAuthorization.mint | 240,534 | 240,534 | no | 332,237 | 1795022485 (+132s, blk 12162887) |
+| 13 | 51 | GTokenAuthorization.approve | 127,889 | 127,889 | no | 187,037 | 1795022497 (+144s, blk 12162888) |
+| 14 | 52 | Registry(proxy).registerRole | 3,290,428 | 3,217,207 | no | 4,443,766 | 1795022509 (+156s, blk 12162889) |
+| 15 | 53 | CREATE APNTsCapped | 9,183,561 | 9,183,561 | no | 11,938,629 | 1795022521 (+168s, blk 12162890) |
+| 16 | 54 | CREATE SuperPaymaster | 60,165,369 | 60,155,369 | YES | 78,201,979 | 1795022533 (+180s, blk 12162891) |
+| 17 | 55 | CREATE ERC1967Proxy | 1,266,870 | 1,266,870 | no | 1,646,931 | 1795022545 (+192s, blk 12162892) |
+| 18 | 56 | SuperPaymaster(proxy).setTreasury | 43,828 | 43,239 | no | 59,723 | 1795022557 (+204s, blk 12162893) |
+| 19 | 57 | CREATE GlobalTierSource | 1,434,850 | 1,434,850 | no | 1,865,305 | 1795022569 (+216s, blk 12162894) |
+| 20 | 58 | CREATE AOAProtocolRegistry | 4,569,186 | 4,569,186 | no | 5,939,941 | 1795022581 (+228s, blk 12162895) |
+| 21 | 59 | AOAProtocolRegistry.bootstrapApprove | 132,189 | 132,189 | no | 182,585 | 1795022593 (+240s, blk 12162896) |
+| 22 | 60 | AOAProtocolRegistry.bootstrapApprove | 132,330 | 132,330 | no | 193,532 | 1795022605 (+252s, blk 12162897) |
+| 23 | 61 | AOAProtocolRegistry.seal | 128,302 | 128,302 | no | 177,216 | 1795022617 (+264s, blk 12162898) |
+| 24 | 62 | CREATE xPNTsTokenV2Ext | 35,214,126 | 35,214,126 | YES | 45,778,363 | 1795022629 (+276s, blk 12162899) |
+| 25 | 63 | CREATE xPNTsTokenV2 | 31,192,440 | 31,192,440 | YES | 40,550,172 | 1795022641 (+288s, blk 12162900) |
+| 26 | 64 | CREATE xPNTsFactoryV2 | 15,920,898 | 15,920,898 | no | 20,697,167 | 1795022653 (+300s, blk 12162901) |
+| 27 | 65 | CREATE SuperPaymasterLens | 8,751,512 | 8,751,512 | no | 11,376,965 | 1795022665 (+312s, blk 12162902) |
+| 28 | 66 | CREATE ReputationSystem | 12,725,704 | 12,725,704 | no | 16,543,415 | 1795022677 (+324s, blk 12162903) |
+| 29 | 67 | CREATE DVTValidator | 15,309,477 | 15,309,477 | no | 19,902,320 | 1795022689 (+336s, blk 12162904) |
+| 30 | 68 | CREATE BLSAggregator | 39,276,552 | 39,276,552 | YES | 51,059,517 | 1795022701 (+348s, blk 12162905) |
+| 31 | 69 | CREATE MicroPaymentChannel | 9,894,350 | 9,894,350 | no | 12,862,655 | 1795022713 (+360s, blk 12162906) |
+| 32 | 70 | CREATE PaymasterFactory | 10,128,656 | 10,128,656 | no | 13,167,252 | 1795022725 (+372s, blk 12162907) |
+| 33 | 71 | CREATE Paymaster | 16,771,708 | 16,771,708 | no | 21,803,220 | 1795022737 (+384s, blk 12162908) |
+| 34 | 72 | Registry(proxy).setSuperPaymaster | 137,729 | 135,929 | no | 198,796 | 1795022749 (+396s, blk 12162909) |
+| 35 | 73 | Registry(proxy).setReputationSource | 137,083 | 135,296 | no | 186,877 | 1795022761 (+408s, blk 12162910) |
+| 36 | 74 | Registry(proxy).setReputationSource | 137,071 | 135,284 | no | 186,860 | 1795022773 (+420s, blk 12162911) |
+| 37 | 75 | Registry(proxy).setReputationSource | 37,597 | 29,892 | no | 41,288 | 1795022785 (+432s, blk 12162912) |
+| 38 | 76 | Registry(proxy).setBLSAggregator | 137,493 | 135,697 | no | 198,456 | 1795022797 (+444s, blk 12162913) |
+| 39 | 77 | DVTValidator.setBLSAggregator | 129,864 | 129,864 | no | 179,374 | 1795022809 (+456s, blk 12162914) |
+| 40 | 78 | BLSAggregator.setDVTValidator | 145,561 | 143,378 | no | 209,690 | 1795022821 (+468s, blk 12162915) |
+| 41 | 79 | PaymasterFactory.addImplementation | 244,821 | 244,821 | no | 338,158 | 1795022833 (+480s, blk 12162916) |
+| 42 | 80 | PaymasterFactory.setRegistry | 129,877 | 129,877 | no | 179,392 | 1795022845 (+492s, blk 12162917) |
+| 43 | 81 | SuperPaymaster(proxy).setXPNTsFactory | 143,348 | 139,673 | no | 204,271 | 1795022857 (+504s, blk 12162918) |
+| 44 | 82 | xPNTsFactory.setSuperPaymasterAddress | 129,983 | 129,983 | no | 179,537 | 1795022869 (+516s, blk 12162919) |
+| 45 | 83 | SuperPaymaster(proxy).initBLSAggregator | 143,144 | 139,475 | no | 203,981 | 1795022881 (+528s, blk 12162920) |
+| 46 | 84 | SuperPaymaster(proxy).updatePrice | 396,227 | 384,700 | no | 531,365 | 1795022893 (+540s, blk 12162921) |
+| 47 | 85 | GTokenAuthorization.mint | 44,694 | 44,694 | no | 61,733 | 1795022905 (+552s, blk 12162922) |
+| 48 | 86 | GTokenAuthorization.approve | 30,269 | 30,269 | no | 41,808 | 1795022917 (+564s, blk 12162923) |
+| 49 | 87 | Registry(proxy).safeMintForRole | 3,448,177 | 3,362,502 | no | 4,644,455 | 1795022929 (+576s, blk 12162924) |
+| 50 | 88 | Registry(proxy).safeMintForRole | 2,011,401 | 1,948,155 | no | 2,849,176 | 1795022941 (+588s, blk 12162925) |
+| 51 | 89 | Registry(proxy).safeMintForRole | 3,360,691 | 3,276,362 | no | 4,791,679 | 1795022953 (+600s, blk 12162926) |
+| 52 | 90 | DVTValidator.addValidator | 178,184 | 178,184 | no | 246,116 | 1795022965 (+612s, blk 12162927) |
+| 53 | 91 | DVTValidator.registerBLSPublicKey | 1,006,436 | 991,369 | no | 1,449,877 | 1795022977 (+624s, blk 12162928) |
+| 54 | 92 | Registry(proxy).safeMintForRole | 3,261,205 | 3,178,430 | no | 4,390,205 | 1795022989 (+636s, blk 12162929) |
+| 55 | 93 | DVTValidator.addValidator | 178,172 | 178,172 | no | 246,099 | 1795023001 (+648s, blk 12162930) |
+| 56 | 94 | DVTValidator.registerBLSPublicKey | 1,006,423 | 991,356 | no | 1,369,309 | 1795023013 (+660s, blk 12162931) |
+| 57 | 95 | Registry(proxy).safeMintForRole | 3,261,217 | 3,178,442 | no | 4,648,471 | 1795023025 (+672s, blk 12162932) |
+| 58 | 96 | DVTValidator.addValidator | 178,184 | 178,184 | no | 246,116 | 1795023037 (+684s, blk 12162933) |
+| 59 | 97 | DVTValidator.registerBLSPublicKey | 1,006,424 | 991,357 | no | 1,369,310 | 1795023049 (+696s, blk 12162934) |
+| 60 | 98 | BLSAggregator.setMinThreshold | 34,049 | 34,049 | no | 49,796 | 1795023061 (+708s, blk 12162935) |
+| 61 | 99 | BLSAggregator.setDefaultThreshold | 34,555 | 34,555 | no | 50,536 | 1795023073 (+720s, blk 12162936) |
+| 62 | 100 | BLSAggregator.setMinThreshold | 26,250 | 24,049 | no | 35,171 | 1795023085 (+732s, blk 12162937) |
+| 63 | 101 | BLSAggregator.setSlashThreshold | 25,308 | 23,116 | no | 31,928 | 1795023097 (+744s, blk 12162938) |
+| 64 | 102 | BLSAggregator.setSlashThreshold | 25,320 | 23,128 | no | 31,944 | 1795023109 (+756s, blk 12162939) |
+| 65 | 103 | BLSAggregator.setSlashThreshold | 25,320 | 23,128 | no | 31,944 | 1795023121 (+768s, blk 12162940) |
+| 66 | 104 | Registry(proxy).exitRole | 378,382 | 296,506 | no | 433,639 | 1795023133 (+780s, blk 12162941) |
+| 67 | 105 | GTokenAuthorization.approve | 29,885 | 23,908 | no | 33,022 | 1795023145 (+792s, blk 12162942) |
+| 68 | 106 | CREATE X402Facilitator | 7,132,992 | 7,132,992 | no | 9,272,889 | 1795023157 (+804s, blk 12162943) |
+| 69 | 107 | X402Facilitator.transferOwnership | 29,920 | 29,920 | no | 41,327 | 1795023169 (+816s, blk 12162944) |
+| 70 | 108 | CREATE PolicyRegistry | 13,285,425 | 13,285,425 | no | 17,271,052 | 1795023181 (+828s, blk 12162945) |
+| 71 | 109 | SuperPaymaster(proxy).setGuardian | 143,914 | 140,222 | no | 193,680 | 1795023193 (+840s, blk 12162946) |
+| 72 | 110 | MySBT.setDAOMultisig | 30,071 | 30,071 | no | 41,535 | 1795023205 (+852s, blk 12162947) |
+| 73 | 111 | GTokenAuthorization.transferOwnership | 30,242 | 30,242 | no | 44,228 | 1795023217 (+864s, blk 12162948) |
+| 74 | 112 | GTokenAuthorization.transfer | 42,860 | 34,288 | no | 47,360 | 1795023229 (+876s, blk 12162949) |
+| 75 | 113 | CREATE TimelockController | 9,125,446 | 9,125,446 | no | 11,863,079 | 1795023241 (+888s, blk 12162950) |
+| 76 | 114 | Registry(proxy).configureRole | 85,734 | 72,592 | no | 100,267 | 1795023253 (+900s, blk 12162951) |
+| 77 | 115 | Registry(proxy).configureRole | 85,734 | 72,592 | no | 100,267 | 1795023265 (+912s, blk 12162952) |
+| 78 | 116 | Registry(proxy).configureRole | 85,986 | 72,844 | no | 100,614 | 1795023277 (+924s, blk 12162953) |
+| 79 | 117 | Registry(proxy).configureRole | 85,986 | 72,844 | no | 100,614 | 1795023289 (+936s, blk 12162954) |
+| 80 | 118 | Registry(proxy).configureRole | 85,986 | 72,844 | no | 100,614 | 1795023301 (+948s, blk 12162955) |
+| 81 | 119 | Registry(proxy).configureRole | 85,986 | 72,844 | no | 100,614 | 1795023313 (+960s, blk 12162956) |
+| 82 | 120 | Registry(proxy).configureRole | 85,986 | 72,844 | no | 100,614 | 1795023325 (+972s, blk 12162957) |
+| 83 | 121 | BLSAggregator.setSlashPolicyAdmin | 31,795 | 31,795 | no | 46,499 | 1795023337 (+984s, blk 12162958) |
+| 84 | 122 | GTokenStaking.transferOwnership | 30,179 | 30,179 | no | 44,136 | 1795023349 (+996s, blk 12162959) |
+| 85 | 123 | ReputationSystem.transferOwnership | 30,057 | 30,057 | no | 43,958 | 1795023361 (+1008s, blk 12162960) |
+| 86 | 124 | BLSAggregator.transferOwnership | 31,255 | 31,255 | no | 43,170 | 1795023373 (+1020s, blk 12162961) |
+| 87 | 125 | DVTValidator.transferOwnership | 30,057 | 30,057 | no | 43,958 | 1795023385 (+1032s, blk 12162962) |
+| 88 | 126 | xPNTsFactory.transferOwnership | 30,487 | 30,487 | no | 42,109 | 1795023397 (+1044s, blk 12162963) |
+| 89 | 127 | PaymasterFactory.transferOwnership | 30,102 | 30,102 | no | 41,577 | 1795023409 (+1056s, blk 12162964) |
+| 90 | 128 | Paymaster.transferOwnership | 30,742 | 30,742 | no | 42,461 | 1795023421 (+1068s, blk 12162965) |
+| 91 | 129 | MicroPaymentChannel.transferOwnership | 29,948 | 29,948 | no | 41,364 | 1795023433 (+1080s, blk 12162966) |
+| 92 | 130 | xPNTsFactoryV2.transferOwnership | 30,575 | 30,575 | no | 42,230 | 1795023445 (+1092s, blk 12162967) |
+| 93 | 131 | AOAProtocolRegistry.transferOwnership | 29,916 | 29,916 | no | 41,320 | 1795023457 (+1104s, blk 12162968) |
+| 94 | 132 | Registry(proxy).transferOwnership | 137,719 | 135,919 | no | 187,736 | 1795023469 (+1116s, blk 12162969) |
+| 95 | 133 | SuperPaymaster(proxy).transferOwnership | 137,729 | 135,929 | no | 198,796 | 1795023481 (+1128s, blk 12162970) |
+| 96 | 134 | APNTsCapped.transferOwnership | 130,258 | 130,258 | no | 190,502 | 1795023493 (+1140s, blk 12162971) |
+| 97 | 135 | CREATE TimelockHandoverBootstrap | 1,120,904 | 1,051,208 | no | 1,366,570 | 1795023505 (+1152s, blk 12162972) |
+txs 97 all status 1: True | total gasUsed 457,727,943 | over-cap (total gas) count 7 [1, 3, 7, 16, 24, 25, 30]
+max gasUsed 16 SuperPaymaster 60,155,369 headroom to cap -43,378,153
+blocks 12162876 .. 12162972 ts 1795022353 .. 1795023505

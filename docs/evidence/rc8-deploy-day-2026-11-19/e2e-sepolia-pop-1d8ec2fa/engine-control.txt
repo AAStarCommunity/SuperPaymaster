@@ -1,0 +1,18 @@
+== port 8611
+Traceback (most recent call last):
+  File "/Users/jason/Dev/aastar/manifest-live/tmp-evidence/e2e-sepolia-pop-1d8ec2fa/helpers/engine_control.py", line 18, in <module>
+    print("estimateGas", int(est,16), "gasUsed", int(rc["gasUsed"],16), "status", rc["status"], "codeLen", (len(rpc("eth_getCode", [rc["contractAddress"], "latest"]))-2)//2)
+                                                     ~~^^^^^^^^^^^
+TypeError: 'NoneType' object is not subscriptable
+== port 8612
+estimateGas 55330 gasUsed 55330 status 0x1 codeLen 10
+revert True
+height before/after 12162875 12162875 hash unchanged True sender nonce after 0
+== port 8611 (receipt read after race; same tx)
+block 12162876 txs 1
+from 0x00000000000000000000000000000000c0ffee01 gasUsed 223236 status 0x1 codeLen 10
+revert snapshot 0x0: True
+height 12162875 hash 0xd2c406daeb1f87fc513411f68e1e690628f774dce3f9c850d16f0b729c57786c sender nonce 0
+== PHASE 2 EIP-7825 positive control (20M-gas infinite-loop CREATE, inside snapshot/revert)
+8611 (no --enable-tx-gas-limit): accepted, receipt gasUsed 16777216 status 0x0 -> regular gas capped at 2^24
+8613 (--enable-tx-gas-limit, same block, killed after): accepted, receipt gasUsed 16777216 status 0x0
