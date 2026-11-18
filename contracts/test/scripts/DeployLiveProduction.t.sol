@@ -142,6 +142,10 @@ contract DeployLiveProductionTest is DeployLiveSafeFixture {
     function test_TicketsReachSafeWithSeparateRecipient() public { _productionPath(true, false); }
     function test_ProductionPathAgentsEnabled() public { _productionPath(false, true); }
     function _productionPath(bool separate, bool agents) internal {
+        // The whole multi-transaction deployment runs inside one test frame and reads full artifact
+        // JSON into EVM memory; on Amsterdam that frame alone hits MemoryOOG. Real broadcasts are
+        // separate transactions (each well under the EIP-7825 cap); gas is not what this test checks.
+        vm.pauseGasMetering();
         string memory outputDir = separate ? "cache/deploylive-tests/separate/" : agents ? "cache/deploylive-tests/agents/" : "cache/deploylive-tests/";
         string memory configPath = string.concat(outputDir, "config.round6-fixture.json");
         vm.createDir(outputDir, true);
