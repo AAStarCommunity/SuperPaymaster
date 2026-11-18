@@ -22,7 +22,7 @@ def main():
     try:
         rpc('anvil_setBalance', deployer, hex(10**22))
         result = subprocess.run([
-            '/Users/jason/.foundry/bin/forge', 'script', '--offline',
+            os.environ.get('FORGE', 'forge'), 'script', '--offline',
             'contracts/script/v3/DeployLive.s.sol:DeployLive', '--rpc-url', url,
             '--sender', deployer, '--unlocked', '--broadcast', '--slow', '--evm-version', 'prague', '-vv'],
             cwd=ROOT, env=env, capture_output=True, text=True)

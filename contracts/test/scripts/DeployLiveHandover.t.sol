@@ -11,6 +11,7 @@ contract HandoverFixture is Ownable2StepNamespaced {
     constructor() Ownable(msg.sender) {}
 }
 contract SafeInputFixture {
+    function getModulesPaginated(address, uint256) external pure returns (address[] memory, address) { return (new address[](0), address(1)); }
     function getThreshold() external pure returns (uint256) { return 2; }
     function getOwners() external pure returns (address[] memory a) {
         a = new address[](2); a[0] = address(91); a[1] = address(92);
@@ -194,6 +195,54 @@ contract DeployLiveHandoverTest is Test {
         assertEq(vm.getNonce(deployer), nonce);
     }
 
+    function test_Round7SafeModulesAndGuardRejected() public {
+        vm.chainId(10);
+        InputsHarness h = inputs();
+        address[] memory modules = new address[](1); modules[0] = address(777);
+        vm.mockCall(safe, abi.encodeWithSignature("getModulesPaginated(address,uint256)", address(1), 10), abi.encode(modules, address(1)));
+        vm.expectRevert("DeployLive: Safe modules"); h.load(deployer);
+        vm.clearMockedCalls();
+        vm.store(safe, keccak256("guard_manager.guard.address"), bytes32(uint256(777)));
+        vm.expectRevert("DeployLive: Safe guard"); h.load(deployer);
+    }
+    function test_Round7AuthorityRejectsEOA() public { badAuthority(0); }
+    function test_Round7AuthorityRejectsDelegation() public { badAuthority(1); }
+    function test_Round7AuthorityRejectsThresholdOne() public { badAuthority(2); }
+    function test_Round7AuthorityRejectsDeployerOwner() public { badAuthority(3); }
+    function test_Round7AuthorityRejectsModules() public { badAuthority(4); }
+    function test_Round7AuthorityRejectsGuard() public { badAuthority(5); }
+    function test_Round7SafeGuardRejected() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        vm.store(safe, keccak256("guard_manager.guard.address"), bytes32(uint256(777)));
+        vm.expectRevert("DeployLive: Safe guard"); h.load(deployer);
+    }
+    function badAuthority(uint256 bad) internal {
+        vm.chainId(10);
+        string[6] memory keys = ["SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "DEPLOYER_GTOKEN_RECIPIENT"];
+        address candidate = address(777);
+        for (uint256 i; i < keys.length; ++i) {
+            InputsHarness h = inputs(); h.putString(keys[i], vm.toString(candidate));
+            vm.etch(candidate, type(SafeInputFixture).runtimeCode);
+            if (bad == 0) vm.etch(candidate, "");
+            if (bad == 1) vm.etch(candidate, hex"ef01000000000000000000000000000000000000000001");
+            if (bad == 2) vm.mockCall(candidate, abi.encodeWithSignature("getThreshold()"), abi.encode(uint256(1)));
+            if (bad == 3) {
+                address[] memory owners = new address[](2); owners[0] = deployer; owners[1] = address(92);
+                vm.mockCall(candidate, abi.encodeWithSignature("getOwners()"), abi.encode(owners));
+            }
+            if (bad == 4) {
+                address[] memory modules = new address[](1); modules[0] = deployer;
+                vm.mockCall(candidate, abi.encodeWithSignature("getModulesPaginated(address,uint256)", address(1), 10), abi.encode(modules, address(1)));
+            }
+            if (bad == 5) vm.store(candidate, keccak256("guard_manager.guard.address"), bytes32(uint256(1)));
+            vm.expectRevert(); h.load(deployer);
+            vm.clearMockedCalls(); vm.store(candidate, keccak256("guard_manager.guard.address"), 0);
+        }
+    }
+    function test_Round7EmptyRecipientNamedError() public {
+        vm.chainId(10); InputsHarness h = inputs(); h.putString("DEPLOYER_GTOKEN_RECIPIENT", "");
+        vm.expectRevert("DeployLive: DEPLOYER_GTOKEN_RECIPIENT"); h.load(deployer);
+    }
     function test_SafeRejectsEOADelegationAndBadThreshold() public {
         vm.chainId(10);
         InputsHarness h = inputs();

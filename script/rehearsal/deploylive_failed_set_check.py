@@ -47,8 +47,8 @@ def inventory(rpc, cfg, emit=print):
         readable[address] = valid
     allowed = {cfg['gToken'].lower(), cfg['aPNTs'].lower()}
     tokens = set(allowed) | set(readable)
-    # Start at genesis: pre-funding a predicted address before deployment is still external value.
-    logs = rpc('eth_getLogs', {'fromBlock': '0x0', 'toBlock': 'latest',
+    # Bound discovery to deployment history; explicit tokens are checked regardless of logs.
+    logs = rpc('eth_getLogs', {'fromBlock': hex(int(cfg['deploymentStartBlock'])), 'toBlock': 'latest',
         'topics': [cast('keccak', 'Transfer(address,address,uint256)'), None, ['0x' + a[2:].zfill(64) for a in addresses]]})
     tokens.update(e['address'].lower() for e in logs)
     for address in addresses:
@@ -72,10 +72,10 @@ def inventory(rpc, cfg, emit=print):
     # Inventory all registrations, including registrations subsequently exited.
     logs = rpc('eth_getLogs', {'address': cfg['registry'], 'fromBlock': hex(int(cfg['deploymentStartBlock'])), 'toBlock': 'latest',
         'topics': [cast('keccak', 'RoleRegistered(bytes32,address,uint256,uint256)')]})
-    accounts = set(cfg.get('guardians', []) + [cfg['genesisOperator']])
-    if cfg.get('deployer'): accounts.add(cfg['deployer'])
+    accounts = {a.lower() for a in cfg.get('guardians', []) + [cfg['genesisOperator']]}
+    if cfg.get('deployer'): accounts.add(cfg['deployer'].lower())
     for event in logs:
-        accounts.add('0x' + event['topics'][2][-40:])
+        accounts.add('0x' + event['topics'][2][-40:].lower())
         emit('REGISTRATION EVENT ' + json.dumps(event, sort_keys=True))
     for account in sorted(accounts):
         emit(f"REGISTRATIONS {account} {rpc.call(cfg['registry'], 'getUserRoles(address)', account)}")

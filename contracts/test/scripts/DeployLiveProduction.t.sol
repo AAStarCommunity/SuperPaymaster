@@ -7,6 +7,7 @@ import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/Time
 import {TimelockHandoverBootstrap} from "../../script/v3/TimelockHandoverBootstrap.sol";
 import {DeployLive} from "../../script/v3/DeployLive.s.sol";
 contract Round6Safe {
+    function getModulesPaginated(address, uint256) external pure returns (address[] memory, address) { return (new address[](0), address(1)); }
     function getThreshold() external pure returns (uint256) { return 2; }
     function getOwners() external pure returns (address[] memory a) {
         a = new address[](2); a[0] = address(91); a[1] = address(92);
@@ -16,11 +17,19 @@ contract Round6Safe {
 interface IMintProbe { function mint(address to, uint256 amount) external; function balanceOf(address account) external view returns (uint256); }
 
 contract ProductionHarness is DeployLive {
+    bool agentsEnabled;
+    function enableAgents() external { agentsEnabled = true; }
+    bool badCreationPin;
+    function useBadCreationPin() external { badCreationPin = true; }
+    function _creationCode(string memory name) internal view override returns (bytes memory) {
+        if (badCreationPin && keccak256(bytes(name)) == keccak256("Registry")) return hex"00";
+        return super._creationCode(name);
+    }
     bool stopForTest;
     bool separateRecipient;
     function useSeparateRecipient() external { separateRecipient = true; }
     function _configPath(string memory) internal view override returns (string memory) {
-        return separateRecipient ? "cache/deploylive-tests/separate/config.round6-fixture.json" : "cache/deploylive-tests/config.round6-fixture.json";
+        return separateRecipient ? "cache/deploylive-tests/separate/config.round6-fixture.json" : agentsEnabled ? "cache/deploylive-tests/agents/config.round6-fixture.json" : "cache/deploylive-tests/config.round6-fixture.json";
     }
     function stopBeforeH() external { stopForTest = true; }
     function configure(address sender, address safe, address ep, address feed, address factory) external {
@@ -28,6 +37,8 @@ contract ProductionHarness is DeployLive {
     }
     function _addressInput(string memory k) internal view override returns (address) {
         bytes32 h = keccak256(bytes(k));
+        if (h == keccak256("AGENT_IDENTITY_REGISTRY")) return agentsEnabled ? address(103) : address(0);
+        if (h == keccak256("AGENT_REPUTATION_REGISTRY")) return agentsEnabled ? address(104) : address(0);
         if (h == keccak256("GOVERNANCE_OWNER")) return safeInput;
         if (h == keccak256("GUARDIAN_ADDRESS")) return address(202);
         if (h == keccak256("SP_GUARDIAN")) return address(203);
@@ -44,6 +55,7 @@ contract ProductionHarness is DeployLive {
     }
     function _uintInput(string memory k) internal view override returns (uint256) {
         bytes32 h = keccak256(bytes(k));
+        if (h == keccak256("ENABLE_AGENT_REGISTRIES")) return agentsEnabled ? 1 : 0;
         if (h == keccak256("DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP")) return stopForTest ? 1 : 0;
         if (h == keccak256("DEPLOYLIVE_REHEARSAL")) return 1;
         if (h == keccak256("APNTS_CAP")) return 1_000_000 ether;
@@ -105,6 +117,10 @@ contract ProductionHarness is DeployLive {
             address[] memory owners = new address[](2); owners[0] = deployer; owners[1] = address(92);
             vm.mockCall(safeInput, abi.encodeWithSignature("getOwners()"), abi.encode(owners));
         }
+        if (kind == 11) vm.mockCall(address(mysbt), abi.encodeWithSignature("balanceOf(address)", deployer), abi.encode(uint256(1)));
+        if (kind == 12) vm.mockCall(address(registry), abi.encodeWithSignature("pendingSBTBurn(address)", deployer), abi.encode(true));
+        if (kind == 13) vm.mockCall(policyRegistryAddr, abi.encodeWithSignature("timelock()"), abi.encode(address(999)));
+        if (kind == 14) vm.mockCall(policyRegistryAddr, abi.encodeWithSignature("guardian()"), abi.encode(address(999)));
         _assertHandover();
     }
     function verifyRound6() external view {
@@ -121,19 +137,21 @@ contract ProductionHarness is DeployLive {
 }
 
 contract DeployLiveProductionTest is Test {
-    function test_ProductionPathN3() public { _productionPath(false); }
-    function test_TicketsReachSafeWithSeparateRecipient() public { _productionPath(true); }
-    function _productionPath(bool separate) internal {
-        string memory outputDir = separate ? "cache/deploylive-tests/separate/" : "cache/deploylive-tests/";
+    function test_ProductionPathN3() public { _productionPath(false, false); }
+    function test_TicketsReachSafeWithSeparateRecipient() public { _productionPath(true, false); }
+    function test_ProductionPathAgentsEnabled() public { _productionPath(false, true); }
+    function _productionPath(bool separate, bool agents) internal {
+        string memory outputDir = separate ? "cache/deploylive-tests/separate/" : agents ? "cache/deploylive-tests/agents/" : "cache/deploylive-tests/";
         string memory configPath = string.concat(outputDir, "config.round6-fixture.json");
         vm.createDir(outputDir, true);
-        vm.chainId(987654); vm.warp(10000);
+        vm.chainId(31337); vm.warp(10000);
         address sender = tx.origin;
         address safe = address(new Round6Safe());
         vm.setEnv("GOVERNANCE_OWNER", vm.toString(safe));
         vm.setEnv("ENV", "round6-fixture");
         address ep = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
         address feed = address(100); address factory = address(101); address impl = address(102);
+        vm.etch(address(103), hex"00"); vm.etch(address(104), hex"00");
         vm.etch(ep, hex"00"); vm.etch(feed, hex"00"); vm.etch(factory, hex"00"); vm.etch(impl, hex"00");
         vm.mockCall(feed, abi.encodeWithSignature("decimals()"), abi.encode(uint8(8)));
         vm.mockCall(feed, abi.encodeWithSignature("latestRoundData()"), abi.encode(uint80(1), int256(2000e8), block.timestamp, block.timestamp, uint80(1)));
@@ -147,15 +165,19 @@ contract DeployLiveProductionTest is Test {
         vm.mockCall(address(0x0f), "", abi.encode(uint256(1)));
         ProductionHarness h = new ProductionHarness();
         h.configure(sender, safe, ep, feed, factory);
-        if (separate) h.useSeparateRecipient();
-        string memory pins = "contracts/test/fixtures/deploylive/production-pins.json";
+        if (agents) h.enableAgents();
+        if (separate) { vm.etch(address(0x222), type(Round6Safe).runtimeCode); h.useSeparateRecipient(); }
+        string memory pins = "deployments/creation-pins.31337.json";
         vm.createDir("cache/deploylive-tests", true); vm.setEnv("CREATION_PINS", pins); vm.setEnv("DEPLOYLIVE_EVM_VERSION", "cancun");
+        uint64 startNonce = vm.getNonce(sender);
         vm.startStateDiffRecording();
         h.run();
         VmSafe.AccountAccess[] memory records = vm.stopAndReturnStateDiff();
         string memory config = vm.readFile(configPath);
         address bootstrap = vm.parseJsonAddress(config, ".handoverBootstrap");
         address tl = vm.parseJsonAddress(config, ".timelockController");
+        uint256 v54Distance; bool sawV54;
+        address facilitator = vm.parseJsonAddress(config, ".x402Facilitator");
         uint256 distance; bool sawTL; bool sawH; uint256 transactions;
         string memory journal = "[";
         for (uint256 i; i < records.length; ++i) {
@@ -165,15 +187,25 @@ contract DeployLiveProductionTest is Test {
             assertEq(record.value, 0, "pre-H broadcast value");
             if (transactions++ > 0) journal = string.concat(journal, ",");
             journal = string.concat(journal, '{"to":"', vm.toString(record.account), '","value":', vm.toString(record.value), '}');
-            if (record.account == tl && record.kind == VmSafe.AccountAccessKind.Create) sawTL = true;
+            if (record.account == facilitator && record.kind == VmSafe.AccountAccessKind.Create) sawV54 = true;
+            if (record.account == tl && record.kind == VmSafe.AccountAccessKind.Create) {
+                assertTrue(sawV54); assertEq(v54Distance, 7, "v5.4-to-TL distance");
+                sawTL = true;
+            }
+            if (sawV54 && !sawTL) ++v54Distance;
             if (sawTL) ++distance;
         }
         assertTrue(sawTL && sawH, "complete TL-to-H record required");
         assertEq(distance, 22, "derived call-list distance");
-        assertEq(vm.parseJsonUint(config, ".observedBootstrapNonce"), vm.parseJsonUint(config, ".handoverBootstrapNonce"));
+        assertEq(vm.parseJsonUint(config, ".observedBootstrapNonce"), startNonce + transactions);
+        assertEq(transactions, agents ? 97 : 96, "86 + 3N + c + a");
+        assertEq(vm.parseJsonBool(config, ".enableAgentRegistries"), agents);
+        assertEq(vm.parseJsonAddress(config, ".agentIdentityRegistry"), agents ? address(103) : address(0));
+        assertEq(vm.parseJsonAddress(config, ".agentReputationRegistry"), agents ? address(104) : address(0));
         vm.writeFile(string.concat(outputDir, "production-transactions.json"), string.concat(journal, "]"));
         emit log_named_uint("pre-H zero-value transactions", transactions);
         emit log_named_uint("TL-to-H observed distance", distance);
+        emit log_named_uint("v5.4-to-TL observed distance", v54Distance);
         h.verifyRound6();
         assertEq(vm.parseJsonUint(config, ".ticketsToTreasury"), 74 ether);
         assertEq(vm.parseJsonUint(config, ".deployerRemainderToRecipient"), 1985 ether);
@@ -186,14 +218,15 @@ contract DeployLiveProductionTest is Test {
         vm.chainId(31337);
         ProductionHarness failed = new ProductionHarness();
         failed.configure(sender, safe, ep, feed, factory); failed.stopBeforeH();
+        if (agents) failed.enableAgents();
         if (separate) failed.useSeparateRecipient();
         failed.run(); failed.failedCreate(vm.parseJsonAddress(config, ".gToken"), vm.parseJsonAddress(config, ".aPNTs"));
         vm.writeFile(string.concat(outputDir, "config.abandoned.json"), vm.readFile(configPath));
         vm.removeFile(configPath);
-        string[11] memory errors = ["handover: facilitator owner", "handover: single owner", "handover: mint accounting",
+        string[15] memory errors = ["handover: facilitator owner", "handover: single owner", "handover: mint accounting",
             "handover: stake accounting", "handover: ticket treasury", "handover: GToken conservation",
             "handover: GToken conservation", "handover: deployer GToken balance", "handover: recipient GToken delta",
-            "handover: slash admin", "DeployLive: deployer is Safe owner"];
+            "handover: slash admin", "DeployLive: deployer is Safe owner", "handover: deployer SBT balance", "handover: pending SBT burn", "handover: policy timelock", "handover: policy guardian"];
         bool allRejected = true;
         for (uint256 kind; kind < errors.length; ++kind) {
             uint256 slots = kind == 1 ? 10 : kind == 3 || kind == 4 ? 6 : 1;

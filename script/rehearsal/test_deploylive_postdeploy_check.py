@@ -5,6 +5,8 @@ import io
 import json
 from pathlib import Path
 import runpy
+import re
+import builtins
 import sys
 import unittest
 from unittest.mock import patch
@@ -13,17 +15,27 @@ from types import SimpleNamespace
 CHECKER = Path(__file__).with_name("deploylive_postdeploy_check.py")
 ZERO = "0x" + "0" * 40
 
+CHECKSUMMED = json.loads((CHECKER.parents[2] / "contracts/test/fixtures/deploylive/checksummed-addresses.json").read_text())
+
 def addr(n):
-    return "0x" + f"{n:040x}"
+    return CHECKSUMMED.get(str(n), "0x" + f"{n:040x}")
 
 def digest(s):
     return "0x" + hashlib.sha256(s.encode()).hexdigest()
 
 class CheckerTest(unittest.TestCase):
-    def run_checker(self, mutation=None, safe_recovery=False):
+    def test_OPDefaultsOffAndRejectsEitherLivePointer(self):
+        code, output = self.run_checker(op=True)
+        self.assertEqual(code, 0, output)
+        for getter in ("agentIdentityRegistry", "agentReputationRegistry"):
+            code, output = self.run_checker(("superPaymaster", getter + "()(address)", [], addr(999)), op=True)
+            self.assertEqual(code, 1, output)
+            self.assertIn("FAIL  external " + getter, output)
+
+    def run_checker(self, mutation=None, safe_recovery=False, op=False):
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         cfg = {k: addr(i + 1) for i, k in enumerate(keys)}
-        cfg.update(deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
+        cfg.update(simpleAccountFactory=addr(101), agentValidationRegistry=addr(105), aPNTsPaymasterV4=ZERO, pnts=ZERO, deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
                    slashThreshold0=2, slashThreshold1=2, slashThreshold2=2, guardians=[addr(101), addr(102)])
         safe, deployer, tl, h = addr(200), addr(201), cfg["timelockController"], cfg["handoverBootstrap"]
         cfg.update(deployer=deployer, governanceOwner=safe, SLASH_POLICY_ADMIN=tl, X402_OWNER=safe, REPUTATION_OWNER=tl, MPC_OWNER=tl, PAYMASTER_FACTORY_OWNER=tl)
@@ -32,8 +44,18 @@ class CheckerTest(unittest.TestCase):
                    gTokenMintCount=2, gTokenMintRecipients=[deployer, deployer], gTokenMintAmounts=[2000, 166], gTokenTotalSupply=2166,
                    stakeAccounts=[deployer, cfg['genesisOperator'], cfg['genesisOperator'], *cfg['guardians']], stakeRoles=[digest('COMMUNITY'), digest('COMMUNITY'), digest('PAYMASTER_SUPER'), digest('DVT'), digest('DVT')], stakeAmounts=[0, 0, 50, 30, 30], ticketAmounts=[30, 30, 5, 3, 3], ticketTreasuries=[safe]*5,
                    registryImplOwner=deployer, spImplOwner=deployer)
+        op_deps = json.loads((CHECKER.parents[2] / "deployments/external-deps.10.json").read_text())
+        if op:
+            cfg.update(simpleAccountFactory=op_deps["accountFactory"], agentValidationRegistry=op_deps["agentValidationRegistry"])
+        authority_bad = None
+        if isinstance(mutation, tuple) and mutation[0] == "authority":
+            cfg[mutation[1]] = addr(777)
+            authority_bad = mutation[2]
         if isinstance(mutation, tuple) and len(mutation) == 3 and mutation[0] == "config": cfg[mutation[1]] = mutation[2]
+        if mutation == "address_case":
+            cfg['stakeAccounts'] = ['0x' + a[2:].upper() for a in cfg['stakeAccounts']]
         if mutation == "nonzero_recorded_balance": cfg["deployerGTokenBalance"] = 1
+        if mutation == "sbt_recorded_nonzero": cfg["deployerSBTBalance"] = 1
         if mutation == "recipient_delta": cfg['deployerGTokenTransferred'] = 2058
         if mutation == "mint_sum": cfg['gTokenMintAmounts'] = [2000, 198]
         if mutation == "ticket_treasury": cfg['ticketTreasuries'] = [safe]
@@ -54,22 +76,46 @@ class CheckerTest(unittest.TestCase):
         if mutation == "unexpected_admin": membership[roles["DEFAULT_ADMIN_ROLE"]].add(addr(250))
         if mutation in role_names:
             membership[roles[mutation]].add(h)
+        runtime_codes = {}
+        for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
+            for artifact in (CHECKER.parents[2]/'out'/f'{name}.sol').glob('*.json'):
+                obj = json.loads(artifact.read_text())
+                settings = obj.get('metadata', {}).get('settings', {})
+                if settings.get('optimizer', {}).get('runs') == (200 if name == 'Registry' else 500) and settings.get('evmVersion') == 'cancun':
+                    runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
         def fake_run(cmd, **kwargs):
             self.assertEqual(cmd[0], "cast")
-            kind, args = cmd[1], cmd[2:]
+            kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
                 return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.invalid/private-token")
             out, rc = "", 0
             if kind in ("keccak", "calldata", "sig", "abi-encode"):
                 out = digest("|".join(args))
             elif kind == "balance": out = "0"
+            elif kind == "storage" and args[0].lower() in (safe.lower(), addr(777).lower()) and (args[0].lower() == safe.lower() or authority_bad):
+                slot = args[1]
+                value = "d9db270c1b5e3bd161e8c8503c55ceabee709552" if slot == "0" else "f48f2b2d2a534e402487b3ee7c18c33aec0fe5e4" if slot == digest("fallback_manager.handler.address") else "0"
+                if mutation == "safe_v141" and slot == "0": value = "29fcb43b46531bca003ddc8fcb67ffe91900c762"
+                if mutation == "safe_singleton" and slot == "0": value = "777"
+                if mutation == "safe_handler" and slot == digest("fallback_manager.handler.address"): value = "777"
+                if mutation == "safe_guard" and slot == digest("guard_manager.guard.address"): value = "777"
+                if args[0] == addr(777) and authority_bad == "guard" and slot == digest("guard_manager.guard.address"): value = "777"
+                out = "0x" + value.zfill(64)
             elif kind == "storage": out = "0x" + cfg["registryImpl" if args[0] == cfg["registry"] else "spImpl"][2:].zfill(64)
             elif kind == "code":
                 out = "0x" if mutation in ("absent_h", "half_handover") and args[0] == h else "0x60806040525f80fd"
+                if args[0] in runtime_codes:
+                    out = runtime_codes[args[0]]
+                    if mutation == "runtime_" + next(k for k in ("registryImpl", "spImpl", "timelockController") if cfg[k] == args[0]): out = "0xff" + out[4:]
+                if args[0] == addr(777) and authority_bad == "eoa": out = "0x"
+                if args[0] == addr(777) and authority_bad == "delegation": out = "0xef0100" + "00"*20
                 if args[0] == safe and mutation == "delegated_safe": out = "0xef0100" + "00" * 20
             elif kind == "rpc":
+                if args[0] == "eth_chainId":
+                    return SimpleNamespace(returncode=0, stdout=('"0xa"' if op else '"0x7a69"') if mutation != "unknown_chain" else '"0xf423f"', stderr="")
                 if args[0] == "eth_call":
                     q = json.loads(args[1])
+                    q["to"] = addr(int(q["to"], 16))
                     if q["to"] in (cfg["registryImpl"], cfg["spImpl"]):
                         error = "UUPSUnauthorizedCallContext()" if q["data"] == digest("|".join(["upgradeToAndCall(address,bytes)", q["to"], "0x"])) else "InvalidInitialization()"
                         rc, out = 1, digest(error)
@@ -116,7 +162,10 @@ class CheckerTest(unittest.TestCase):
                     out = json.dumps(logs)
             elif kind == "call":
                 target, sig, *params = args
-                if sig == "getThreshold()(uint256)": out = "1" if mutation == "threshold_one" else "2"
+                if sig == "getModulesPaginated(address,uint256)(address[],address)": out = ("[" + addr(777) + "]" if mutation == "safe_modules" else "[]") + "\n" + addr(1)
+                elif sig == "getThreshold()(uint256)": out = "1" if mutation == "threshold_one" else "2"
+                elif sig == "getOwners()(address[])" and mutation == "owners_error":
+                    rc, out = 1, "error " + addr(301) + " " + addr(302)
                 elif sig == "getOwners()(address[])": out = "[" + (deployer if mutation == "deployer_safe_owner" else cfg["guardians"][0] if mutation == "overlap" else addr(301)) + ", " + addr(302) + "]"
                 elif sig.startswith("hashOperationBatch"): out = digest("operation")
                 elif sig == "isOperationDone(bytes32)(bool)": out = "true"
@@ -140,6 +189,12 @@ class CheckerTest(unittest.TestCase):
                 elif "Threshold" in sig or "Thresholds" in sig: out = "2"
                 elif sig == "validatorAtSlot(uint8)(address)": out = cfg["guardians"][int(params[0]) - 1]
                 elif sig == "operators(address)": out = "0x" + "0" * (64 * 9)
+                elif sig == "ETH_USD_PRICE_FEED()(address)": out = op_deps["ethUsdFeed"] if op else addr(100)
+                elif sig == "agentIdentityRegistry()(address)": out = ZERO if op else addr(103)
+                elif sig == "agentReputationRegistry()(address)": out = ZERO if op else addr(104)
+                elif sig == "entryPoint()(address)": out = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
+                elif sig == "pendingSBTBurn(address)(bool)": out = "true" if mutation == "pending_burn" else "false"
+                elif sig == "getPaymasterByOperator(address)(address)": out = addr(999) if mutation == "aoa_present" else ZERO
                 elif sig == "getUserRoles(address)(bytes32[])": out = "[]"
                 elif sig == "authorizedSlashers(address)(bool)": out = "false"
                 elif sig == "fraudProofVerifier()(address)": out = ZERO
@@ -148,6 +203,11 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "getLockedStake(address,bytes32)(uint256)": out = "50" if params[1] == digest("PAYMASTER_SUPER") else "30" if params[1] == digest("DVT") else "0"
                 elif sig == "version()(string)": out = '"fixture"'
                 else: self.fail(f"Unhandled {sig}")
+                if target == addr(777):
+                    if authority_bad == "threshold" and sig == "getThreshold()(uint256)": out = "1"
+                    if authority_bad == "owner" and sig == "getOwners()(address[])": out = "[" + deployer + ", " + addr(302) + "]"
+                    if authority_bad == "modules" and sig.startswith("getModulesPaginated"): out = "[" + deployer + "]\n" + addr(1)
+                if mutation == "sbt_recorded_nonzero" and target == cfg["sbt"] and sig == "balanceOf(address)(uint256)" and params[0] == deployer: out = "1"
                 if mutation == "nonzero_recorded_balance" and target == cfg["gToken"] and sig == "balanceOf(address)(uint256)" and params[0] == deployer: out = "1"
                 if isinstance(mutation, tuple) and len(mutation) == 4:
                     key, changed_sig, changed_params, replacement = mutation
@@ -156,12 +216,68 @@ class CheckerTest(unittest.TestCase):
                         if sig == "getRoleConfig(bytes32)": out = "0x" + "0" * (64 * 11) + replacement[2:].zfill(64) + "0" * 64
             else: self.fail(f"Non-read-only command: {kind}")
             return SimpleNamespace(returncode=rc, stdout=out if rc == 0 else "", stderr=out if rc else "")
+        original_open = builtins.open
+        def fixture_open(path, *args, **kwargs):
+            if str(path) == "fixture.json": return io.StringIO(json.dumps(cfg))
+            return original_open(path, *args, **kwargs)
         output = io.StringIO()
-        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", return_value=io.StringIO(json.dumps(cfg))), patch("subprocess.run", side_effect=fake_run), contextlib.redirect_stdout(output):
+        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())
         return caught.exception.code, output.getvalue()
+
+    def test_round7_each_unsafe_authority(self):
+        for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "deployerGTokenRecipient"):
+            for bad in ("eoa", "delegation", "threshold", "owner", "modules", "guard"):
+                with self.subTest(key=key, bad=bad):
+                    rc, out = self.run_checker(("authority", key, bad))
+                    self.assertEqual(rc, 1)
+                    self.assertIn("FAIL  " + key + " resolved contract", out)
+
+    def test_round7_explicit_authorities(self):
+        for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "deployerGTokenRecipient"):
+            rc, out = self.run_checker(("config", key, addr(777)))
+            self.assertEqual(rc, 1)
+            self.assertIn("FAIL  " + key + " resolved contract", out)
+
+    def test_round7_runtime_bytecode(self):
+        for key in ("registryImpl", "spImpl", "timelockController"):
+            with self.subTest(key=key): self.assertEqual(self.run_checker("runtime_" + key)[0], 1)
+
+    def test_round7_external_dependencies(self):
+        for mutation in ["unknown_chain", ("config", "simpleAccountFactory", addr(999)), ("config", "agentValidationRegistry", addr(999))] + [("superPaymaster", sig + "()(address)", [], addr(999)) for sig in ("ETH_USD_PRICE_FEED", "agentIdentityRegistry", "agentReputationRegistry", "entryPoint")]:
+            with self.subTest(mutation=mutation):
+                rc, out = self.run_checker(mutation)
+                self.assertEqual(rc, 1)
+                label = "external dependencies" if mutation == "unknown_chain" else "external accountFactory" if mutation[1] == "simpleAccountFactory" else "external validation registry recorded" if mutation[1] == "agentValidationRegistry" else "external " + {"ETH_USD_PRICE_FEED": "ethUsdFeed", "entryPoint": "entryPoint", "agentIdentityRegistry": "agentIdentityRegistry", "agentReputationRegistry": "agentReputationRegistry"}[mutation[1].split("(")[0]]
+                self.assertRegex(out, r"FAIL +" + label)
+
+    def test_round7_safe_v141(self):
+        rc, out = self.run_checker("safe_v141")
+        self.assertEqual(rc, 0, out)
+
+    def test_round7_safe_security(self):
+        for mutation in ("safe_singleton", "safe_handler", "safe_guard", "safe_modules"):
+            with self.subTest(mutation=mutation):
+                self.assertEqual(self.run_checker(mutation)[0], 1)
+
+    def test_round7_absent_contract_checks(self):
+        for mutation in ("aoa_present", ("config", "aPNTsPaymasterV4", None), ("config", "aPNTsPaymasterV4", addr(999)), ("config", "pnts", addr(999))):
+            self.assertEqual(self.run_checker(mutation)[0], 1)
+
+    def test_round7_sbt_zero_and_no_pending_burn(self):
+        for mutation in ("pending_burn", "sbt_recorded_nonzero"):
+            self.assertEqual(self.run_checker(mutation)[0], 1)
+
+    def test_round7_address_case(self):
+        rc, out = self.run_checker("address_case")
+        self.assertEqual(rc, 0, out)
+
+    def test_round7_owners_read_error(self):
+        rc, out = self.run_checker("owners_error")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FAIL  Safe owners exclude deployer", out)
 
     def test_round6c_accounting(self):
         for mutation, label in [
@@ -220,7 +336,7 @@ class CheckerTest(unittest.TestCase):
     def test_round6b_overlap_info(self):
         rc, out = self.run_checker("overlap")
         self.assertEqual(rc, 0, out)
-        self.assertIn("INFO  role overlap :: " + addr(101) + " :: Safe owner[0], guardian[0]", out)
+        self.assertIn("INFO  role overlap :: " + addr(101).lower() + " :: Safe owner[0], guardian[0]", out)
         self.assertIn("GOVERNANCE_OWNER", out)
         self.assertIn("DEPLOYER_GTOKEN_RECIPIENT", out)
 
@@ -244,8 +360,8 @@ class CheckerTest(unittest.TestCase):
 
     def test_round6_absent_contracts_na(self):
         rc, out = self.run_checker()
-        self.assertIn("N/A  AOA Paymaster", out)
-        self.assertIn("N/A  legacy uncapped aPNTs", out)
+        self.assertIn("PASS  AOA Paymaster absent", out)
+        self.assertIn("PASS  legacy uncapped aPNTs absent", out)
 
     def test_cancelled_recovery_rejected(self):
         self.assertEqual(self.run_checker(safe_recovery=True)[0], 1)

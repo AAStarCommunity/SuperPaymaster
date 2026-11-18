@@ -15,6 +15,11 @@ abstract contract DeployLivePins is DefaultArtifacts {
         return vm.getCode(_defaultArtifact(name));
     }
     function _assertCreationPins(string memory path) internal view {
+        require(keccak256(bytes(path)) == keccak256(bytes(string.concat(
+            "deployments/creation-pins.", vm.toString(block.chainid), ".json"))), "DeployLive: committed creation pins required");
+        _assertCreationPinContents(path);
+    }
+    function _assertCreationPinContents(string memory path) internal view {
         string memory pins = vm.readFile(path);
         string[24] memory names = _pinnedNames();
         for (uint256 i; i < names.length; ++i) {

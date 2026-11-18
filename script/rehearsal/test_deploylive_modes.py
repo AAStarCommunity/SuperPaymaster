@@ -52,3 +52,27 @@ class ModesTest(unittest.TestCase):
         send = next(c for c in calls if c[0] == 'send')
         self.assertEqual(send[2], dict(nonce=22, expected_status=0))
         self.assertEqual(send[1], ('deployer', '0x1234'))
+
+    def test_round7_failure_external_tokens_option(self):
+        import json
+        import os
+        import sys
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory(dir=r.ROOT/'cache/deploylive-tests/round7') as tmp:
+            root = Path(tmp)
+            config = root/'config.json'; config.write_text('{}')
+            tokens = root/'tokens.json'
+            groups = {'31337': [{'label': 'fixture', 'address': '0x'+'88'*20, 'decimals': 18}]}
+            tokens.write_text(json.dumps(groups))
+            captured = []
+            def inventory(rpc, cfg, emit):
+                captured.append(cfg.get('externalTokens'))
+                emit('PASS external tokens')
+                return cfg.get('externalTokens') == groups
+            argv = ['driver', 'failure', 'http://127.0.0.1:12345', str(config), 'deployer', 'safe', '--external-tokens', str(tokens)]
+            env = {'DEPLOYLIVE_EVIDENCE_DIR': str(root), 'REHEARSAL_BLS_SCALARS': '[123456789]', 'REHEARSAL_SOURCE_RPC': 'http://source.invalid/token', 'FOUNDRY_VERBOSITY': '2'}
+            with patch.object(sys, 'argv', argv), patch.dict(os.environ, env), patch.object(r, 'RPC'), patch.object(r, 'fail_bootstrap'), patch.object(r, 'scan_evidence'), patch('deploylive_failed_set_check.inventory', side_effect=inventory), patch.object(r.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=1, stdout='FAIL expected failed H')]):
+                r.main()
+            self.assertEqual(captured, [groups])

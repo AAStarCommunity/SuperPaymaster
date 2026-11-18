@@ -1,4 +1,4 @@
-# DeployLive round-six governance ceremony
+# DeployLive round-seven governance ceremony
 
 The deployer is trusted during deployment. Acceptance is the verified final state,
 not a successful simulation or a partially written config. `contracts/src` is unchanged.
@@ -16,8 +16,7 @@ are in [2,N]. EntryPoint v0.7, the fresh 8-decimal oracle and the account factor
 are checked before broadcast.
 
 The following five inputs have **no production defaults**. Each accepts the exact
-literal `timelock`, the exact literal `safe`, or a nonzero contract address other
-than the deployer. The declared choice is resolved, applied, asserted and recorded.
+literal `timelock`, the exact literal `safe`, or a contract passing the Safe checks below. The declared choice is resolved, applied, asserted and recorded.
 
 | Input | DSR ceremony choice | Authority |
 |---|---|---|
@@ -29,8 +28,8 @@ than the deployer. The declared choice is resolved, applied, asserted and record
 
 `GOVERNOR_ADDRESS` must be absent on production, including an empty declaration.
 The rejection points to `X402_OWNER`. Legacy local behavior still resolves governor.
-`DEPLOYER_GTOKEN_RECIPIENT` is also required: a nonzero address other than the
-deployer (`safe` explicitly resolves the Safe). Explicit rehearsal choices are in
+`DEPLOYER_GTOKEN_RECIPIENT` is required and accepts `safe`, `timelock`, or a
+contract passing the same Safe checks. Empty input has a named error. Explicit rehearsal choices are in
 [inputs/deploylive-rehearsal.inputs](inputs/deploylive-rehearsal.inputs); this file
 is never loaded implicitly by the production script.
 
@@ -38,16 +37,26 @@ BLSAggregator, DVTValidator, xPNTsFactory v1, xPNTsFactoryV2 and
 AOAProtocolRegistry owners are always the Safe. Every slot is checked using
 GovernanceOwnerGate.readMofN, exact address equality, contract code and rejection
 of the EIP-7702 prefix. This proves a Safe-compatible threshold >= 2 with enough
-unique nonzero owners, not a canonical Safe implementation/factory attestation.
+unique nonzero owners, excluding the deployer. The script additionally requires
+no enabled modules (including the pagination sentinel) and a zero guard. Explicit
+owner/recipient contracts pass these same checks. The independent checker also
+requires slot 0 to match the singleton allowlist and the fallback-handler slot to
+match the handler allowlist in `deployments/safe-official.json`. That JSON cites
+each address's repository source; no package download or network lookup was used.
+This checks the requested storage and interfaces; it is not proxy bytecode attestation.
 The general gate's local-chain bypass is not used for the production rehearsal.
 GToken owner, MySBT DAO, both treasuries, APNTsCapped minter and capGuardian are Safe.
 Registry, SuperPaymaster and APNTsCapped ownership goes to TL through H.
-AOA Paymaster and legacy uncapped aPNTs are not deployed; their checker rows are N/A.
+AOA Paymaster and legacy uncapped aPNTs are not deployed; the checker requires zero config addresses and no deployer paymaster in the factory.
 
 ## Bytecode and execution environment
 
-Before any broadcast, `CREATION_PINS` must name the release pin JSON. Generate or
-check it with `python3 script/rehearsal/creation_pins.py <pin-file> [--check]`.
+Production `CREATION_PINS` must be exactly `deployments/creation-pins.<chainId>.json`;
+missing files and rehearsal paths fail before broadcast. Chain 31337 production rehearsal also requires its committed
+`deployments/creation-pins.31337.json`; the legacy rehearsal file is rejected. Config records the exact file's SHA-256. The OP file is
+`deployments/creation-pins.10.json`; CI independently rebuilds and compares it.
+Regeneration belongs to reviewed release preparation, never automatic deployment.
+Generate or check it with `python3 script/rehearsal/creation_pins.py <pin-file> [--check]`.
 The tool copies source/dependencies/config to a fresh worktree-local temporary
 directory, excludes existing outputs, caches and environment files, creates an
 empty `out-clean`, sets `DEFAULT_ARTIFACTS_OUT=out-clean`, and builds offline.
@@ -63,8 +72,10 @@ PaymasterFactory, Paymaster, X402Facilitator, PolicyRegistry, GlobalTierSource,
 AOAProtocolRegistry, xPNTsTokenV2Ext, xPNTsTokenV2, xPNTsFactoryV2,
 SuperPaymasterLens and xPNTsToken.
 
-For a Prague fork, retain **Cancun release artifacts in `out-cancun`** and set
-`DEFAULT_ARTIFACTS_OUT=out-cancun`, while the forge runner uses `--evm-version prague`.
+For a Prague fork, retain **Cancun release artifacts in `out`** and set
+`DEFAULT_ARTIFACTS_OUT=out`, while the forge runner uses `--evm-version prague`
+and a separate `FOUNDRY_OUT` and `FOUNDRY_CACHE_PATH`. The independent checker
+reads the reviewed release artifacts from `out`, not the deployment config.
 Cancun bytes are the deployed release; Prague supplies EIP-2537 for BLS verification.
 Do not let the simulation overwrite or silently replace the release artifact set.
 `compare_artifacts.py <dirA> <dirB>` lists creation/runtime differences and missing
@@ -130,14 +141,15 @@ need the pre-handover owner. A reverted H CREATE leaves no H code and no externa
 party able to propose or execute via TL: predicted H alone retains P/E/C.
 There is no recovery procedure. The failed set is **ABANDONED**, never published.
 
-Run the normal checker and retain its FAIL with registration rows. Also run
+Retain the normal checker FAIL and the separate inventory tool's registration rows. Also run
 `deploylive_failed_set_check.py <local-fork-rpc> <failed-config>`. The external list
 is [inputs/external-tokens.json](inputs/external-tokens.json), selected by
 `eth_chainId`; the rehearsal inputs explicitly set `EXTERNAL_TOKENS_FILE`. Labels
 and decimals are explicit metadata, never inferred from `symbol()`. The OP group
 contains native USDC, USDC.e, bridged USDT, USDT0, DAI, WETH and OP; Sepolia
 contains Circle USDC and both specified WETH deployments. Unknown chains and
-empty groups FAIL. Local rehearsal configs must supply `externalTokens` with a
+empty groups FAIL. Pass `--external-tokens <worktree-file>` to failure mode. It writes the supplied
+groups into the abandoned config as `externalTokens`; supply a
 `"31337"` group of deployed mock tokens (each entry: `label`, `address`, `decimals`).
 Every listed address must have code before any balance call; missing code FAILs
 and its balance is never read. Every listed token is read directly against every
@@ -145,7 +157,7 @@ contract in the failed set and must return an ABI uint256 equal to zero. Empty,
 malformed or reverted reads FAIL. The Transfer scan remains a fallback for
 unlisted tokens. It reads each
 recorded contract's ETH balance, discovers incoming Transfer-emitting tokens from
-genesis (including pre-funding), reads balances for every discovered token/holder,
+the recorded `deploymentStartBlock`, reads balances for every discovered token/holder,
 and permits positive balances only for this set's GToken/APNTsCapped. It prints
 historical and current registrations and the abandoned addresses. Any incomplete
 RPC read fails the inventory; an inventory PASS never accepts the deployment.
@@ -166,7 +178,7 @@ keys are public and harmless; abandoned registrations have authority only in tha
 ## Rehearsal driver and evidence
 
 Modes: `happy`, `failure`, `governance`, plus existing `prepare`, `hook`, `guard`.
-Invocation: `deploylive_rehearse.py MODE LOCAL_RPC CONFIG DEPLOYER SAFE [OPERATOR]`.
+Invocation: `deploylive_rehearse.py MODE LOCAL_RPC CONFIG DEPLOYER SAFE [OPERATOR] [--external-tokens FILE]`.
 The mutating driver requires an Anvil fork. These modes were unit-tested only here;
 no fork was available or accessed. The Solidity production fixture runs locally
 with mock infrastructure/BLS boundaries, not a fork or genuine PoP validation.
@@ -192,181 +204,130 @@ path/query fragments and scalar decimal/hex forms. Any hit fails without echoing
 Include all forge/broadcast outputs in that evidence directory before invoking the
 driver; files outside it cannot be certified by the scan.
 
-The complete valid-config checker count is **155 + 2N**: 159 for N=2, 161 for N=3.
-Round six was 153 + 2N; 6b adds Safe owners exclude deployer, and 6c adds
-GToken treasury tickets. External-token inventory is a separate failed-set audit
-and is not included in this post-deployment SUMMARY.
-This includes N guardian checks and N+3 stake checks; N/A and INFO rows do not count.
-The two implementation-isolation assertions remain counted as INFO-PASS.
-See DEPLOYLIVE_VALIDATION.md for exact test output and remaining evidence limits.
+## Reviewed external dependencies
 
-## Row-by-row checker mapping to the original 53
+`deployments/external-deps.10.json` records the owner-provided OP verification at
+block 159689777. `external-deps.31337.json` is explicitly a fixture group. Other
+chain IDs fail until their reviewed file exists. Production defaults identity and reputation to ZERO; explicit opt-in must match
+the reviewed file. The validation address is recorded only, never wired to SP.
+The checker obtains chainId itself and checks SP feed, EntryPoint, identity and
+reputation getters, account-factory config and recorded validation address against
+that file. It does not take expected dependency addresses from deployer inputs.
 
-O01–O53 identify the original assertions in their execution order. Each row below
-is one counted output for N=2, including both INFO-PASS rows. “New” means there
-is no equivalent original assertion; related authority rows cite the original ID.
-For N=3, insert guardian[3] after guardian[2] and stake[5] after stake[4]; subsequent
-row numbers shift accordingly. INFO and N/A output and fail-fast input parsing are
-not counted. This supersedes the old 157-row snapshot without dropping any check.
+## Transaction counts and checker count
 
-| Current row (N=2) | Assertion | Original 53 / extension |
-|---:|---|---|
-| 1 | `owner(superPaymaster) != deployer` | O01 unchanged |
-| 2 | `owner(registry) != deployer` | O02 unchanged |
-| 3 | `owner(staking) != deployer` | O03 unchanged |
-| 4 | `owner(gToken) != deployer` | O04 unchanged |
-| 5 | `owner(xPNTsFactoryV2) != deployer` | O05 unchanged |
-| 6 | `owner(aoaProtocolRegistry) != deployer` | O06 unchanged |
-| 7 | `owner(reputationSystem) != deployer` | O07 unchanged |
-| 8 | `owner(blsAggregator) != deployer` | O08 unchanged |
-| 9 | `owner(dvtValidator) != deployer` | O09 unchanged |
-| 10 | `roleConfigs[COMMUNITY].owner != deployer` | O10 unchanged |
-| 11 | `roleConfigs[ENDUSER].owner != deployer` | O11 unchanged |
-| 12 | `roleConfigs[PAYMASTER_AOA].owner != deployer` | O12 unchanged |
-| 13 | `roleConfigs[PAYMASTER_SUPER].owner != deployer` | O13 unchanged |
-| 14 | `roleConfigs[DVT].owner != deployer` | O14 unchanged |
-| 15 | `roleConfigs[ANODE].owner != deployer` | O15 unchanged |
-| 16 | `roleConfigs[KMS].owner != deployer` | O16 unchanged |
-| 17 | `isReputationSource(repSystem)` | O17 unchanged |
-| 18 | `isReputationSource(aggregator)` | O18 unchanged |
-| 19 | `isReputationSource(deployer) == false` | O19 unchanged |
-| 20 | `SP.treasury != deployer` | O20 unchanged |
-| 21 | `staking.treasury != deployer` | O21 unchanged |
-| 22 | `MySBT.daoMultisig != deployer` | O22 unchanged |
-| 23 | `aggregator.slashPolicyAdmin != deployer` | O23 unchanged |
-| 24 | `SP.guardian != deployer` | O24 unchanged |
-| 25 | `PolicyRegistry.guardian != deployer` | O25 unchanged |
-| 26 | `DVT.isValidator(deployer) == false` | O26 unchanged |
-| 27 | `TL.PROPOSER_ROLE(deployer) == false` | O27 unchanged |
-| 28 | `TL.EXECUTOR_ROLE(deployer) == false` | O28 unchanged |
-| 29 | `TL.CANCELLER_ROLE(deployer) == false` | O29 unchanged |
-| 30 | `TL.DEFAULT_ADMIN_ROLE(deployer) == false` | O30 unchanged |
-| 31 | `authorizedSlashers(aggregator) == false` | O31 unchanged |
-| 32 | `fraudProofVerifier == 0` | O32 unchanged |
-| 33 | `owner(superPaymaster) != aggregator` | O33 unchanged |
-| 34 | `owner(registry) != aggregator` | O34 unchanged |
-| 35 | `owner(staking) != aggregator` | O35 unchanged |
-| 36 | `owner(gToken) != aggregator` | O36 unchanged |
-| 37 | `owner(xPNTsFactoryV2) != aggregator` | O37 unchanged |
-| 38 | `owner(aoaProtocolRegistry) != aggregator` | O38 unchanged |
-| 39 | `owner(reputationSystem) != aggregator` | O39 unchanged |
-| 40 | `owner(blsAggregator) != aggregator` | O40 unchanged |
-| 41 | `owner(dvtValidator) != aggregator` | O41 unchanged |
-| 42 | `owner(xPNTsFactory) != aggregator` | O42 unchanged |
-| 43 | `owner(paymasterFactory) != aggregator` | O43 unchanged |
-| 44 | `owner(paymasterV4Impl) != aggregator` | O44 unchanged |
-| 45 | `owner(microPaymentChannel) != aggregator` | O45 unchanged |
-| 46 | `owner(x402Facilitator) != aggregator` | O46 unchanged |
-| 47 | `aggregator ETH balance == 0` | O47 unchanged |
-| 48 | `aggregator gToken balance == 0` | O48 unchanged |
-| 49 | `aggregator aPNTs balance == 0` | O49 unchanged |
-| 50 | `aggregator pnts balance == 0` | O50 unchanged |
-| 51 | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` | O51 unchanged |
-| 52 | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` | O52 unchanged |
-| 53 | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` | O53 unchanged |
-| 54 | `owner(superPaymaster) == expected` | O01, O33 — exact owner |
-| 55 | `owner(registry) == expected` | O02, O34 — exact owner |
-| 56 | `owner(staking) == expected` | O03, O35 — exact owner |
-| 57 | `owner(gToken) == expected` | O04, O36 — exact owner |
-| 58 | `owner(xPNTsFactoryV2) == expected` | O05, O37 — exact owner |
-| 59 | `owner(aoaProtocolRegistry) == expected` | O06, O38 — exact owner |
-| 60 | `owner(reputationSystem) == expected` | O07, O39 — exact owner |
-| 61 | `owner(blsAggregator) == expected` | O08, O40 — exact owner |
-| 62 | `owner(dvtValidator) == expected` | O09, O41 — exact owner |
-| 63 | `owner(xPNTsFactory) == expected` | O42 — exact owner |
-| 64 | `owner(paymasterFactory) == expected` | O43 — exact owner |
-| 65 | `owner(paymasterV4Impl) == expected` | O44 — exact owner |
-| 66 | `owner(microPaymentChannel) == expected` | O45 — exact owner |
-| 67 | `owner(x402Facilitator) == expected` | O46 — exact owner |
-| 68 | `owner(aPNTs) == expected` | New — aPNTs ownership |
-| 69 | `pendingOwner(registry) == 0` | New — completed two-step ownership |
-| 70 | `pendingOwner(superPaymaster) == 0` | New — completed two-step ownership |
-| 71 | `pendingOwner(aPNTs) == 0` | New — completed two-step ownership |
-| 72 | `roleConfigs[COMMUNITY].owner == timelock` | O10 — exact role owner |
-| 73 | `deployer.hasRole(COMMUNITY) == false` | New — all deployer registrations removed |
-| 74 | `roleConfigs[ENDUSER].owner == timelock` | O11 — exact role owner |
-| 75 | `deployer.hasRole(ENDUSER) == false` | New — all deployer registrations removed |
-| 76 | `roleConfigs[PAYMASTER_AOA].owner == timelock` | O12 — exact role owner |
-| 77 | `deployer.hasRole(PAYMASTER_AOA) == false` | New — all deployer registrations removed |
-| 78 | `roleConfigs[PAYMASTER_SUPER].owner == timelock` | O13 — exact role owner |
-| 79 | `deployer.hasRole(PAYMASTER_SUPER) == false` | New — all deployer registrations removed |
-| 80 | `roleConfigs[DVT].owner == timelock` | O14 — exact role owner |
-| 81 | `deployer.hasRole(DVT) == false` | New — all deployer registrations removed |
-| 82 | `roleConfigs[ANODE].owner == timelock` | O15 — exact role owner |
-| 83 | `deployer.hasRole(ANODE) == false` | New — all deployer registrations removed |
-| 84 | `roleConfigs[KMS].owner == timelock` | O16 — exact role owner |
-| 85 | `deployer.hasRole(KMS) == false` | New — all deployer registrations removed |
-| 86 | `deployer Registry role list empty` | New — all deployer registrations removed |
-| 87 | `SP.treasury == expected` | O20 — exact authority |
-| 88 | `staking.treasury == expected` | O21 — exact authority |
-| 89 | `MySBT.daoMultisig == expected` | O22 — exact authority |
-| 90 | `aggregator.slashPolicyAdmin == expected` | O23 — exact authority |
-| 91 | `SP.guardian == expected` | O24 — exact authority |
-| 92 | `PolicyRegistry.guardian == expected` | O25 — exact authority |
-| 93 | `PolicyRegistry.timelock == expected` | New — explicit ceremony input / state invariant |
-| 94 | `SP.APNTS_TOKEN == expected` | New — explicit ceremony input / state invariant |
-| 95 | `APNTsCapped.minter == expected` | New — explicit ceremony input / state invariant |
-| 96 | `APNTsCapped.capGuardian == expected` | New — explicit ceremony input / state invariant |
-| 97 | `pmFactory.registry == expected` | New — explicit ceremony input / state invariant |
-| 98 | `TL.minDelay == expected` | O27–O30 — ceremony delay / exact operation history |
-| 99 | `APNTsCapped.cap == expected` | New — explicit ceremony input / state invariant |
-| 100 | `SP.priceStalenessThreshold == expected` | New — explicit ceremony input / state invariant |
-| 101 | `agg.minThreshold == expected` | New — explicit ceremony input / state invariant |
-| 102 | `agg.defaultThreshold == expected` | New — explicit ceremony input / state invariant |
-| 103 | `agg.slashThresholds[0] == input` | New — explicit ceremony input / state invariant |
-| 104 | `agg.slashThresholds[1] == input` | New — explicit ceremony input / state invariant |
-| 105 | `agg.slashThresholds[2] == input` | New — explicit ceremony input / state invariant |
-| 106 | `expectedGuardian nonzero and not deployer` | New — explicit ceremony input / state invariant |
-| 107 | `expectedSPGuardian nonzero and not deployer` | New — explicit ceremony input / state invariant |
-| 108 | `genesisOperator nonzero and not deployer` | New — explicit ceremony input / state invariant |
-| 109 | `Safe nonzero and not deployer` | New — explicit ceremony input / state invariant |
-| 110 | `guardian N == inputs` | New — explicit ceremony input / state invariant |
-| 111 | `guardian[1] registered` | O26 — configured guardian admission |
-| 112 | `guardian[2] registered` | O26 — configured guardian admission |
-| 113 | `genesis operator has COMMUNITY` | New — explicit ceremony input / state invariant |
-| 114 | `genesis operator has PAYMASTER_SUPER` | New — explicit ceremony input / state invariant |
-| 115 | `genesis isConfigured == false` | New — explicit ceremony input / state invariant |
-| 116 | `H runtime non-callable` | New — explicit ceremony input / state invariant |
-| 117 | `TL.DEFAULT_ADMIN_ROLE exact members` | O30 — exact membership / excluded H |
-| 118 | `TL.DEFAULT_ADMIN_ROLE(H) == false` | O30 — exact membership / excluded H |
-| 119 | `TL.DEFAULT_ADMIN_ROLE(safe) == expected` | O30 — exact membership / excluded H |
-| 120 | `TL.PROPOSER_ROLE exact members` | O27 — exact membership / excluded H |
-| 121 | `TL.PROPOSER_ROLE(H) == false` | O27 — exact membership / excluded H |
-| 122 | `TL.PROPOSER_ROLE(safe) == expected` | O27 — exact membership / excluded H |
-| 123 | `TL.EXECUTOR_ROLE exact members` | O28 — exact membership / excluded H |
-| 124 | `TL.EXECUTOR_ROLE(H) == false` | O28 — exact membership / excluded H |
-| 125 | `TL.EXECUTOR_ROLE(safe) == expected` | O28 — exact membership / excluded H |
-| 126 | `TL.CANCELLER_ROLE exact members` | O29 — exact membership / excluded H |
-| 127 | `TL.CANCELLER_ROLE(H) == false` | O29 — exact membership / excluded H |
-| 128 | `TL.CANCELLER_ROLE(safe) == expected` | O29 — exact membership / excluded H |
-| 129 | `TL.DEFAULT_ADMIN_ROLE(timelock) == true` | O30 — exact membership / excluded H |
-| 130 | `config deployer == CLI` | New — explicit ceremony input / state invariant |
-| 131 | `config governanceOwner == CLI` | New — explicit ceremony input / state invariant |
-| 132 | `Safe code excludes delegation` | New — explicit ceremony input / state invariant |
-| 133 | `Safe threshold/owners` | New — explicit ceremony input / state invariant |
-| 134 | `Safe owners exclude deployer` | New 6b — Safe signer exclusion |
-| 135 | `required principals pairwise distinct` | New — explicit ceremony input / state invariant |
-| 136 | `deployer GToken balance == recorded` | New — funding ledger / readback |
-| 137 | `deployer GToken allowance == recorded` | New — funding ledger / readback |
-| 138 | `deployer SBT balance == recorded` | New — explicit ceremony input / state invariant |
-| 139 | `SLASH_POLICY_ADMIN resolved contract` | New — explicit ceremony input / state invariant |
-| 140 | `X402_OWNER resolved contract` | New — explicit ceremony input / state invariant |
-| 141 | `REPUTATION_OWNER resolved contract` | New — explicit ceremony input / state invariant |
-| 142 | `MPC_OWNER resolved contract` | New — explicit ceremony input / state invariant |
-| 143 | `PAYMASTER_FACTORY_OWNER resolved contract` | New — explicit ceremony input / state invariant |
-| 144 | `GToken recipient exact delta` | New — funding ledger / readback |
-| 145 | `GToken mint ledger` | New — funding ledger / readback |
-| 146 | `GToken mint events == ledger` | New — funding ledger / readback |
-| 147 | `GToken totalSupply == mints` | New — funding ledger / readback |
-| 148 | `GToken ticket ledger` | New — funding ledger / readback |
-| 149 | `GToken stake[0]` | New — funding ledger / readback |
-| 150 | `GToken stake[1]` | New — funding ledger / readback |
-| 151 | `GToken stake[2]` | New — funding ledger / readback |
-| 152 | `GToken stake[3]` | New — funding ledger / readback |
-| 153 | `GToken stake[4]` | New — funding ledger / readback |
-| 154 | `GToken conservation` | New — funding conservation / deployer residue (6c three-way accounting) |
-| 155 | `GToken treasury tickets` | O21 — new 6c measured ticket receipts |
-| 156 | `deployer GToken mint rejected` | New — funding ledger / readback |
-| 157 | `TL history exactly H batch executed` | New — explicit ceremony input / state invariant |
-| 158 | `registryImpl isolated` | New — implementation isolation (counted INFO-PASS) |
-| 159 | `spImpl isolated` | New — implementation isolation (counted INFO-PASS) |
+Transactions before H: **86 + 3N + c + a**, where c=1 if minimum threshold <3,
+and a=1 when agent registries are wired. OP defaults to a=0. For N=3, c=1 this is **96**, plus H itself makes 97 broadcasts.
+The explicit a=1 fixture has **97** before H, 98 including H. The agent
+registry call is in Step 5, before Step 8/v5.4 and before CREATE TL. Thus the
+v5.4-relative **+7** and TL-to-H **22** remain valid; default-off and explicit-on N=3 fixtures
+independently count the transactions and both nonce distances. The opt-in local
+forge regression uses the enabled 31337 fixture expectations.
+
+The valid-config checker count is **172 + 2N**: **176 for N=2**, **178 for N=3**.
+Relative to round 6c, there are 17 additional rows: two formerly N/A rows, pending
+SBT burn, four Safe checks, six external-dependency rows, three runtime comparisons,
+and the recipient authority row. N guardian rows and N+3 stake rows vary with N.
+Implementation-isolation INFO-PASS rows count; ordinary INFO and fail-fast input
+errors do not. Failed-set inventory has a separate result.
+
+## Final handover assertions mapped to checker rows
+
+This maps every assertion in `_assertHandover`, its Safe gate and
+`TimelockHandover.assertFinal`. Rows are named rather than numbered so N does not
+change the mapping. Existing negative probes are retained; mapping coverage does
+not claim every require has an isolated mutation test.
+
+| In-script assertion | Independent checker row(s) |
+|---|---|
+| SBT balance zero | deployer SBT balance == recorded (recorded must also be zero) |
+| No pending SBT burn | deployer pending SBT burn == false |
+| PolicyRegistry timelock / guardian | PolicyRegistry.timelock / PolicyRegistry.guardian == expected |
+| TL delay 172800 | TL.minDelay == expected |
+| Three two-step owners / pendingOwner zero | owner(registry/superPaymaster/aPNTs) == expected; pendingOwner(...) == 0 |
+| TL self-admin; Safe P/E/C; no forbidden subject roles | TL role exact members, safe/H/deployer memberships, TL self-admin |
+| Safe code, non-7702, threshold, owners excluding deployer | Safe code excludes delegation; Safe threshold/owners; Safe owners exclude deployer |
+| Safe modules empty / guard zero | Safe modules empty; Safe guard zero |
+| Deployer staking allowance zero | deployer GToken allowance == recorded |
+| H constructor-only runtime | H runtime non-callable (prefix/length check); creation pins bind exact H |
+| Facilitator and ten single-step owners | owner(each contract) == expected |
+| Five gated owners equal Safe and pass threshold/code gate | owner(each contract) == expected; Safe code/threshold/owners rows |
+| Minted supply | GToken mint ledger; GToken mint events == ledger; GToken totalSupply == mints |
+| Each locked stake / ticket treasury | GToken stake[i]; GToken ticket ledger |
+| Locked + tickets + remainder conservation | GToken conservation |
+| Treasury ticket delta | GToken treasury tickets |
+| Deployer GToken zero / recipient delta | deployer GToken balance == recorded; GToken recipient exact delta |
+| Seven Registry role owners / deployer holds none | roleConfigs[role].owner == timelock; deployer.hasRole(role) == false |
+| Empty deployer Registry role list | deployer Registry role list empty |
+| No deployer DVT / reputation-source privilege | DVT.isValidator(deployer) == false; isReputationSource(deployer) == false |
+| GToken owner / MySBT DAO | owner(gToken) == expected; MySBT.daoMultisig == expected |
+| Both treasuries | SP.treasury / staking.treasury == expected |
+| SP guardian / slash admin | SP.guardian / aggregator.slashPolicyAdmin == expected |
+| Minimum/default/slash thresholds | agg.minThreshold / agg.defaultThreshold == expected; agg.slashThresholds[i] == input |
+| Guardian slots | guardian[i] registered |
+| Cap / minter / capGuardian | APNTsCapped.cap / minter / capGuardian == expected |
+| Oracle staleness threshold | SP.priceStalenessThreshold == expected |
+| Genesis registered, not configured | genesis operator has COMMUNITY/PAYMASTER_SUPER; genesis isConfigured == false |
+
+## Remaining acceptance evidence and known gaps
+
+The local Anvil regression is `DEPLOYLIVE_LOCAL_TEST=1 python3 -m unittest discover
+-s script/rehearsal -p 'test_deploylive_local.py'`. It uses deterministic public test
+BLS material, fixture infrastructure and a fixture Safe, then invokes the actual
+DeployLive production/rehearsal path. The checker receives the untouched file
+written by forge. **It could not run in this sandbox: loopback bind was denied.**
+No real-forge-config SUMMARY or live failure-mode inventory is claimed. Execute
+these acceptance steps in the authorized parent session; the current offline
+results do not authorize deployment acceptance.
+
+The checker runtime comparison intentionally covers only Registry implementation,
+SuperPaymaster implementation and TimelockController, masking compiler immutable
+references. The bytecode of every other contract must be evidenced by block-explorer
+source verification in the deployment runbook, with compiler settings, constructor
+arguments, address and verification result recorded. H's exact creation pin remains
+part of preflight; its checker runtime row is a non-callability check.
+
+Registry/SP implementation owners remain recorded and isolated as before; this
+round does not transfer them. Existing artifact, wiring and v5.5 stack checks remain
+in the deployment script; the table above is the final handover assertion mapping,
+not a claim of checker parity for every historical deployment helper.
+
+Listed external-token balances cover prefunding even though Transfer discovery
+starts at deployment. Unlisted tokens received before that block, or tokens without
+Transfer events, remain an inventory limitation. Never call the inventory exhaustive.
+
+Fail-first evidence is specific to named regressions and the three run-level
+mutations. The suite does not establish an exhaustive mutation proof of all
+historical assertions. See DEPLOYLIVE_VALIDATION.md for exact results and logs.
+
+## Round 7b — agent registries default OFF (DSR, 2026-11-18)
+
+OP launch uses a=0: identity and reputation inputs default to ZERO and
+DeployLive does not call setAgentRegistries. The three recorded OP registries are
+130 B EIP-1967 proxies owned by the unattributed EOA
+`0x547289319C3e6aedB179C0b8e8aF0B5ACd062603` (nonce 3).
+One implementation upgrade by that key could make isRegisteredAgent return true
+for anyone. SuperPaymaster calls it in validatePaymasterUserOp for eligibility
+(SuperPaymaster.sol:525/533), giving any account operator-funded sponsorship.
+setAgentRegistries is onlyOwner, so removing or changing SP's pointer takes the
+48 h timelock. The addresses remain recorded, non-binding information in
+external-deps.10.json; expected identity and reputation are ZERO.
+
+Production opt-in requires ENABLE_AGENT_REGISTRIES=1 and both
+AGENT_IDENTITY_REGISTRY and AGENT_REPUTATION_REGISTRY to be nonzero and equal the
+reviewed external-deps.<chainId>.json expectations. Nonzero addresses without
+the switch, a switch with either zero address, invalid switch values, and
+mismatched enabled addresses revert during preflight. OP's reviewed zero
+expectations therefore prevent opt-in without a reviewed dependency-file change.
+The switch and both values are logged; config records enableAgentRegistries and
+the actual agentIdentityRegistry / agentReputationRegistry pointers. The checker
+compares both on-chain getters against the expected file, including ZERO on OP.
+
+**Known testnet exposure:** Sepolia live SP
+`0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9` has
+agentIdentityRegistry = `0x8004A818BFB912233c491871b3d84c89A494BD9e` and
+agentReputationRegistry = `0x8004B663056A597Dffe9eCcC1965A193B7388713`.
+Both are 130 B proxies owned by the same EOA. The rc.8 Sepolia manifest does
+not call setAgentRegistries; the in-place upgrade keeps storage, so both pointers
+stay set after rc.8 on the testnet. These are owner-provided findings; this round
+performed no network verification.

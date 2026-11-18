@@ -8,6 +8,7 @@ import json
 import subprocess
 import sys
 import re
+from pathlib import Path
 
 RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
 results = []
@@ -72,6 +73,30 @@ def check(name, ok, detail):
 A = {k: v for k, v in CFG.items() if isinstance(v, str) and v.startswith("0x") and len(v) == 42}
 agg, dvt, reg, sp, stk = A["blsAggregator"], A["dvtValidator"], A["registry"], A["superPaymaster"], A["staking"]
 TL = A["timelockController"]
+
+# Chain expectations come from reviewed files, never deployment inputs.
+rc, chain_raw = cast("rpc", "eth_chainId")
+try:
+    if rc != 0: raise ValueError("chain unreadable")
+    chain = integer(json.loads(chain_raw))
+    deps = json.loads((Path(__file__).resolve().parents[2] / f"deployments/external-deps.{chain}.json").read_text())
+except (ValueError, TypeError, OSError):
+    print("FAIL external dependencies: missing chain group / unreadable chain")
+    sys.exit(1)
+for key, getter in (("ethUsdFeed", "ETH_USD_PRICE_FEED"), ("entryPoint", "entryPoint"),
+                    ("agentIdentityRegistry", "agentIdentityRegistry"), ("agentReputationRegistry", "agentReputationRegistry")):
+    check("external " + key, call(sp, getter + "()(address)").lower() == deps[key].lower(), deps[key])
+check("external accountFactory", A.get("simpleAccountFactory", "").lower() == deps["accountFactory"].lower(), deps["accountFactory"])
+check("external validation registry recorded", A.get("agentValidationRegistry", "").lower() == deps["agentValidationRegistry"].lower(), deps["agentValidationRegistry"])
+
+from deploylive_runtime import artifact, matches
+for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
+    try:
+        rc, runtime = cast("code", A[key])
+        runtime_ok = rc == 0 and matches(artifact(name), runtime)
+    except (OSError, KeyError, ValueError, TypeError):
+        runtime_ok = False
+    check("runtime " + name, runtime_ok, "release artifact; compiler immutable references masked")
 
 # 1. Owners: no system-internal contract may be owned by the deployer.
 SYSTEM = ["superPaymaster", "registry", "staking", "gToken", "xPNTsFactoryV2", "aoaProtocolRegistry",
@@ -158,8 +183,8 @@ for k, choice in (("x402Facilitator", "X402_OWNER"), ("reputationSystem", "REPUT
                   ("microPaymentChannel", "MPC_OWNER"), ("paymasterFactory", "PAYMASTER_FACTORY_OWNER"),
                   ("paymasterV4Impl", "PAYMASTER_FACTORY_OWNER")):
     EXPECTED_OWNERS[k] = A.get(choice, ZERO)
-print("N/A  AOA Paymaster :: not deployed on production")
-print("N/A  legacy uncapped aPNTs :: not deployed on production")
+check("AOA Paymaster absent", A.get("aPNTsPaymasterV4", "").lower() == ZERO and call(A["paymasterFactory"], "getPaymasterByOperator(address)(address)", DEPLOYER).lower() == ZERO, "no AOA deployment")
+check("legacy uncapped aPNTs absent", A.get("pnts", ZERO).lower() == ZERO, "no legacy token")
 for k, expected in EXPECTED_OWNERS.items():
     actual = call(A[k], "owner()(address)").lower()
     check(f"owner({k}) == expected", actual == expected.lower(), f"expected {expected}; actual {actual}")
@@ -244,12 +269,36 @@ check("Safe code excludes delegation", rc == 0 and safe_code != "0x" and not saf
 owners = []
 try:
     threshold = integer(call(SAFE, "getThreshold()(uint256)").split()[0])
-    owners = re.findall(r"0x[0-9a-fA-F]{40}", call(SAFE, "getOwners()(address[])"))
+    owners_rc, owners_raw = cast("call", SAFE, "getOwners()(address[])")
+    if owners_rc != 0: raise ValueError("Safe owners unreadable")
+    owners = re.findall(r"0x[0-9a-fA-F]{40}", owners_raw)
     valid_safe = threshold >= 2 and len(owners) >= threshold and len(set(x.lower() for x in owners)) == len(owners) and ZERO not in owners
 except (ValueError, IndexError):
     valid_safe = False
 check("Safe threshold/owners", valid_safe, "threshold >= 2, distinct nonzero owners >= threshold")
 check("Safe owners exclude deployer", valid_safe and DEPLOYER not in [a.lower() for a in owners], "getOwners() readback")
+OFFICIAL_SAFE = json.loads((Path(__file__).resolve().parents[2] / "deployments/safe-official.json").read_text())
+
+
+def safe_security(candidate):
+    def storage(slot):
+        rc, raw = cast("storage", candidate, slot)
+        if rc != 0 or not re.fullmatch(r"0x[0-9a-fA-F]{64}", raw): return None
+        return raw.lower()
+    master = storage("0")
+    guard_rc, guard_slot = cast("keccak", "guard_manager.guard.address")
+    handler_rc, handler_slot = cast("keccak", "fallback_manager.handler.address")
+    guard = storage(guard_slot) if guard_rc == 0 else None
+    handler = storage(handler_slot) if handler_rc == 0 else None
+    rc, raw = cast("call", candidate, "getModulesPaginated(address,uint256)(address[],address)", "0x" + "0" * 39 + "1", "10")
+    modules = rc == 0 and re.fullmatch(r"\[\]\s+0x0{39}1", raw) is not None
+    return (master is not None and "0x" + master[-40:] in [a.lower() for a in OFFICIAL_SAFE["singletons"]],
+            modules, guard == "0x" + "0" * 64,
+            handler is not None and "0x" + handler[-40:] in [a.lower() for a in OFFICIAL_SAFE["fallbackHandlers"]])
+
+
+for label, ok in zip(("official singleton", "modules empty", "guard zero", "official fallback handler"), safe_security(SAFE)):
+    check("Safe " + label, ok, "independent storage / module read")
 role_addresses = [(f"Safe owner[{i}]", a) for i, a in enumerate(owners)]
 role_addresses += [(f"guardian[{i}]", a) for i, a in enumerate(guardians)]
 role_addresses += [("SP_GUARDIAN", A["expectedSPGuardian"]), ("GUARDIAN_ADDRESS", A["expectedGuardian"]),
@@ -271,13 +320,32 @@ for label, token, sig, args, key in (
     ("SBT balance", A["sbt"], "balanceOf(address)(uint256)", [DEPLOYER], "deployerSBTBalance")):
     actual = call(token, sig, *args).split()[0]
     expected = CFG[key]
-    check("deployer " + label + " == recorded", actual == str(expected) and (key == "deployerSBTBalance" or expected == 0), f"recorded {expected}; actual {actual}")
+    check("deployer " + label + " == recorded", actual == str(expected) and expected == 0, f"recorded {expected}; actual {actual}")
 
-# Round-six authority inputs and GToken conservation.
-for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"):
+check("deployer pending SBT burn == false", call(reg, "pendingSBTBurn(address)(bool)", DEPLOYER) == "false", "no deferred burn")
+
+# Every independent authority is the final timelock, checked governance Safe,
+# or another Safe subject to the same independent checks.
+def authority(candidate):
+    candidate = candidate.lower()
+    if candidate in (ZERO, DEPLOYER): return False
+    if candidate == TL.lower(): return True
+    if candidate == SAFE: return valid_safe and all(safe_security(candidate))
+    rc, code = cast("code", candidate)
+    if rc != 0 or code == "0x" or code.lower().startswith("0xef0100"): return False
+    try:
+        rc, raw = cast("call", candidate, "getOwners()(address[])")
+        if rc != 0: return False
+        owners = [a.lower() for a in re.findall(r"0x[0-9a-fA-F]{40}", raw)]
+        threshold = integer(call(candidate, "getThreshold()(uint256)").split()[0])
+        return (2 <= threshold <= len(owners) and len(set(owners)) == len(owners)
+                and not {ZERO, DEPLOYER}.intersection(owners) and all(safe_security(candidate)))
+    except (ValueError, IndexError): return False
+
+
+for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "deployerGTokenRecipient"):
     owner = A.get(key, ZERO)
-    rc, code = cast("code", owner)
-    check(key + " resolved contract", owner.lower() not in (ZERO, DEPLOYER) and rc == 0 and code != "0x", owner)
+    check(key + " resolved contract", authority(owner), owner)
 recipient = A.get("deployerGTokenRecipient", ZERO)
 actual = call(A["gToken"], "balanceOf(address)(uint256)", recipient).split()[0]
 check("GToken recipient exact delta", recipient.lower() not in (ZERO, DEPLOYER) and actual == str(CFG["deployerGTokenRecipientBefore"] + CFG["deployerGTokenTransferred"]), actual)
@@ -295,7 +363,7 @@ except (ValueError, KeyError, TypeError, IndexError):
 check("GToken mint events == ledger", mint_history_ok, "all zero-source Transfer events since deployment")
 check("GToken totalSupply == mints", call(A["gToken"], "totalSupply()(uint256)").split()[0] == str(sum(amounts)), str(sum(amounts)))
 accounts, roles, stakes, tickets, treasuries = (CFG.get(k, []) for k in ("stakeAccounts", "stakeRoles", "stakeAmounts", "ticketAmounts", "ticketTreasuries"))
-check("GToken ticket ledger", len(accounts) == len(roles) == len(stakes) == len(tickets) == len(treasuries) and len(accounts) == len(guardians) + 3 and accounts == [DEPLOYER, op, op] + guardians and all(t.lower() == SAFE for t in treasuries), "tickets paid to Safe treasury")
+check("GToken ticket ledger", len(accounts) == len(roles) == len(stakes) == len(tickets) == len(treasuries) and len(accounts) == len(guardians) + 3 and [a.lower() for a in accounts] == [a.lower() for a in [DEPLOYER, op, op] + guardians] and all(t.lower() == SAFE for t in treasuries), "tickets paid to Safe treasury")
 for i, (account, role, amount) in enumerate(zip(accounts, roles, stakes)):
     check(f"GToken stake[{i}]", call(stk, "getLockedStake(address,bytes32)(uint256)", account, role).split()[0] == str(amount), f"{account} {role}: {amount}")
 check("GToken conservation", sum(stakes) + CFG["ticketsToTreasury"] + CFG["deployerRemainderToRecipient"] == sum(amounts) and CFG["deployerRemainderToRecipient"] == CFG["deployerGTokenTransferred"] and call(A["gToken"], "balanceOf(address)(uint256)", stk).split()[0] == str(sum(stakes)), "minted = locked + tickets to treasury + remainder to recipient")

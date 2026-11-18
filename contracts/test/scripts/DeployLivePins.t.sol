@@ -18,23 +18,38 @@ contract PinsHarness is DeployLivePins {
         vm.writeFile(path, vm.serializeBytes32(object, "TimelockHandoverBootstrap", keccak256(type(TimelockHandoverBootstrap).creationCode)));
     }
     function check(string memory path) external view { _assertCreationPins(path); }
+    function checkContents(string memory path) external view { _assertCreationPinContents(path); }
     function artifact(string memory name) external view returns (string memory) { return _defaultArtifact(name); }
 }
 contract DeployLivePinsTest is Test {
+    function test_Round7MissingProductionPinsRejected() public {
+        vm.chainId(987654); PinsHarness h = new PinsHarness();
+        vm.expectRevert(); h.check("deployments/creation-pins.987654.json");
+    }
+    function test_Round7LocalProductionRejectsRehearsalPins() public {
+        vm.chainId(31337); PinsHarness h = new PinsHarness();
+        vm.expectRevert("DeployLive: committed creation pins required");
+        h.check("deployments/creation-pins.rehearsal.json");
+    }
+    function test_Round7ProductionRejectsRehearsalPins() public {
+        vm.chainId(10); PinsHarness h = new PinsHarness();
+        vm.expectRevert("DeployLive: committed creation pins required");
+        h.check("deployments/creation-pins.rehearsal.json");
+    }
     function test_TamperedPinAndArtifactRejectedWithoutNonceConsumption() public {
         PinsHarness h = new PinsHarness();
         vm.createDir("cache/deploylive-tests", true);
         string memory pin = "cache/deploylive-tests/test-pins.json";
         vm.writeFile(pin, vm.readFile("contracts/test/fixtures/deploylive/test-pins.json"));
-        h.check(pin);
+        h.checkContents(pin);
         uint64 nonce = vm.getNonce(tx.origin);
         string memory original = vm.readFile(pin);
         vm.writeJson(vm.toString(bytes32(uint256(1))), pin, ".TimelockController");
-        vm.expectRevert("creation pin mismatch: TimelockController"); h.check(pin);
+        vm.expectRevert("creation pin mismatch: TimelockController"); h.checkContents(pin);
         vm.writeFile(pin, original);
         string memory artifact = "contracts/test/fixtures/deploylive/tampered-timelock.json";
         h.injectArtifact(artifact);
-        vm.expectRevert("creation pin mismatch: TimelockController"); h.check(pin);
+        vm.expectRevert("creation pin mismatch: TimelockController"); h.checkContents(pin);
         assertEq(vm.getNonce(tx.origin), nonce);
     }
 }

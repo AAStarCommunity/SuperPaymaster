@@ -6,6 +6,8 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
 
 import {BLS} from "src/utils/BLS.sol";
 
+interface IDeploymentSafe { function getModulesPaginated(address start, uint256 pageSize) external view returns (address[] memory, address); }
+
 interface IDeploymentAccountFactory { function accountImplementation() external view returns (address); }
 interface IDeploymentAccount { function entryPoint() external view returns (address); }
 
@@ -16,6 +18,7 @@ abstract contract DeployLiveInputs is Script {
     string[5] internal ownerChoices;
     address[5] internal resolvedOwners;
     address internal gtokenRecipient;
+    bool internal recipientIsTimelock;
     function _ownerKey(uint256 i) internal pure returns (string memory) {
         string[5] memory keys = ["SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"];
         return keys[i];
@@ -28,15 +31,21 @@ abstract contract DeployLiveInputs is Script {
             require(bytes(value).length != 0, string.concat("DeployLive: ", _ownerKey(i)));
             if (keccak256(bytes(value)) != keccak256("timelock") && keccak256(bytes(value)) != keccak256("safe")) {
                 address a = vm.parseAddress(value);
-                require(a != address(0) && a != sender && a.code.length > 0, string.concat("DeployLive: ", _ownerKey(i)));
+                require(a != address(0) && a != sender, string.concat("DeployLive: ", _ownerKey(i)));
+                _validateSafeAddress(a, sender);
             }
             ownerChoices[i] = value;
         }
         string memory recipient = _stringInput("DEPLOYER_GTOKEN_RECIPIENT");
+        require(bytes(recipient).length != 0, "DeployLive: DEPLOYER_GTOKEN_RECIPIENT");
+        recipientIsTimelock = keccak256(bytes(recipient)) == keccak256("timelock");
+        if (recipientIsTimelock) return;
         gtokenRecipient = keccak256(bytes(recipient)) == keccak256("safe") ? safeInput : vm.parseAddress(recipient);
         require(gtokenRecipient != address(0) && gtokenRecipient != sender, "DeployLive: DEPLOYER_GTOKEN_RECIPIENT");
+        _validateSafeAddress(gtokenRecipient, sender);
     }
     function _resolveOwnerChoices(address tl) internal {
+        if (recipientIsTimelock) gtokenRecipient = tl;
         for (uint256 i; i < 5; ++i) {
             bytes32 choice = keccak256(bytes(ownerChoices[i]));
             resolvedOwners[i] = choice == keccak256("timelock") ? tl : choice == keccak256("safe") ? safeInput : vm.parseAddress(ownerChoices[i]);
@@ -73,13 +82,20 @@ abstract contract DeployLiveInputs is Script {
         value = _uintInput(key);
         require(value != 0, string.concat("DeployLive: ", key));
     }
-    function _validateSafe(address sender) internal view {
-        bytes memory code = safeInput.code;
+    function _validateSafe(address sender) internal view { _validateSafeAddress(safeInput, sender); }
+    function _validateSafeAddress(address candidate, address sender) internal view {
+        bytes memory code = candidate.code;
         require(code.length > 0 && bytes3(code) != 0xef0100, "DeployLive: Safe code");
-        (bool ok,,) = GovernanceOwnerGate.readMofN(safeInput);
+        (bool ok,,) = GovernanceOwnerGate.readMofN(candidate);
         require(ok, "DeployLive: Safe threshold/owners");
-        address[] memory owners = ISafeCompatibleMofN(safeInput).getOwners();
+        address[] memory owners = ISafeCompatibleMofN(candidate).getOwners();
         for (uint256 i; i < owners.length; ++i) require(owners[i] != sender, "DeployLive: deployer is Safe owner");
+        (address[] memory modules, address next) = IDeploymentSafe(candidate).getModulesPaginated(address(1), 10);
+        require(modules.length == 0 && next == address(1), "DeployLive: Safe modules");
+        require(vm.load(candidate, keccak256("guard_manager.guard.address")) == 0, "DeployLive: Safe guard");
+    }
+    function _externalDependencies() internal view returns (string memory) {
+        return vm.readFile(string.concat("deployments/external-deps.", vm.toString(block.chainid), ".json"));
     }
     function _validateInfrastructure(address ep, address feed, address factory) internal view {
         require(ep == 0x0000000071727De22E5E9d8BAf0edAc6f37da032 && ep.code.length > 0, "DeployLive: EntryPoint v0.7");
@@ -87,8 +103,27 @@ abstract contract DeployLiveInputs is Script {
         require(AggregatorV3Interface(feed).decimals() == 8, "DeployLive: feed decimals");
         (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(feed).latestRoundData();
         require(answer > 0 && updatedAt > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= 4200, "DeployLive: stale/invalid feed");
+        string memory deps = _externalDependencies();
+        require(ep == vm.parseJsonAddress(deps, ".entryPoint") && feed == vm.parseJsonAddress(deps, ".ethUsdFeed")
+            && factory == vm.parseJsonAddress(deps, ".accountFactory"), "DeployLive: external dependencies");
+        _agentRegistryInputs();
         address impl = IDeploymentAccountFactory(factory).accountImplementation();
         require(impl.code.length > 0 && IDeploymentAccount(impl).entryPoint() == ep, "DeployLive: account EntryPoint");
+    }
+    function _agentRegistryInputs() internal view returns (bool enabled, address identity, address reputation) {
+        uint256 flag = _uintInput("ENABLE_AGENT_REGISTRIES");
+        require(flag <= 1, "DeployLive: ENABLE_AGENT_REGISTRIES");
+        enabled = flag == 1;
+        identity = _addressInput("AGENT_IDENTITY_REGISTRY");
+        reputation = _addressInput("AGENT_REPUTATION_REGISTRY");
+        if (!enabled) {
+            require(identity == address(0) && reputation == address(0), "DeployLive: agent registries disabled");
+        } else {
+            require(identity != address(0) && reputation != address(0), "DeployLive: agent registries zero");
+            string memory deps = _externalDependencies();
+            require(identity == vm.parseJsonAddress(deps, ".agentIdentityRegistry")
+                && reputation == vm.parseJsonAddress(deps, ".agentReputationRegistry"), "DeployLive: agent dependencies");
+        }
     }
     function _loadProductionInputs(address sender) internal {
         if (!_production()) return;

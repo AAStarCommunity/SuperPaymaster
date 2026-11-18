@@ -1038,3 +1038,35 @@ unreadable balances and any positive listed-token balance FAIL. Code is checked
 before balanceOf; no symbol() inference is used. Transfer-log discovery remains
 a fallback, but cannot see an unlisted non-standard token that emits no Transfer
 event. The explicit list improves coverage; it is not a proof about all tokens.
+
+## Round 7b — agent registries default OFF (DSR, 2026-11-18)
+
+OP launch uses a=0: identity and reputation inputs default to ZERO and
+DeployLive does not call setAgentRegistries. The three recorded OP registries are
+130 B EIP-1967 proxies owned by the unattributed EOA
+`0x547289319C3e6aedB179C0b8e8aF0B5ACd062603` (nonce 3).
+One implementation upgrade by that key could make isRegisteredAgent return true
+for anyone. SuperPaymaster calls it in validatePaymasterUserOp for eligibility
+(SuperPaymaster.sol:525/533), giving any account operator-funded sponsorship.
+setAgentRegistries is onlyOwner, so removing or changing SP's pointer takes the
+48 h timelock. The addresses remain recorded, non-binding information in
+external-deps.10.json; expected identity and reputation are ZERO.
+
+Production opt-in requires ENABLE_AGENT_REGISTRIES=1 and both
+AGENT_IDENTITY_REGISTRY and AGENT_REPUTATION_REGISTRY to be nonzero and equal the
+reviewed external-deps.<chainId>.json expectations. Nonzero addresses without
+the switch, a switch with either zero address, invalid switch values, and
+mismatched enabled addresses revert during preflight. OP's reviewed zero
+expectations therefore prevent opt-in without a reviewed dependency-file change.
+The switch and both values are logged; config records enableAgentRegistries and
+the actual agentIdentityRegistry / agentReputationRegistry pointers. The checker
+compares both on-chain getters against the expected file, including ZERO on OP.
+
+**Known testnet exposure:** Sepolia live SP
+`0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9` has
+agentIdentityRegistry = `0x8004A818BFB912233c491871b3d84c89A494BD9e` and
+agentReputationRegistry = `0x8004B663056A597Dffe9eCcC1965A193B7388713`.
+Both are 130 B proxies owned by the same EOA. The rc.8 Sepolia manifest does
+not call setAgentRegistries; the in-place upgrade keeps storage, so both pointers
+stay set after rc.8 on the testnet. These are owner-provided findings; this round
+performed no network verification.

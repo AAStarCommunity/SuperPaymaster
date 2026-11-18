@@ -1,0 +1,9 @@
+{
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "ethUsdFeed": "0x0000000000000000000000000000000000000064",
+  "accountFactory": "0x0000000000000000000000000000000000000065",
+  "agentIdentityRegistry": "0x0000000000000000000000000000000000000067",
+  "agentReputationRegistry": "0x0000000000000000000000000000000000000068",
+  "agentValidationRegistry": "0x0000000000000000000000000000000000000069",
+  "source": "Local chain fixture only; install fixture contracts at these addresses before rehearsal"
+}

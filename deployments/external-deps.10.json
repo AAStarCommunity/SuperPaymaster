@@ -1,0 +1,15 @@
+{
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "ethUsdFeed": "0x13e3Ee699D1909E989722E753853AE30b17e08c5",
+  "accountFactory": "0x91E60e0613810449d098b0b5Ec8b51A0FE8c8985",
+  "agentIdentityRegistry": "0x0000000000000000000000000000000000000000",
+  "agentReputationRegistry": "0x0000000000000000000000000000000000000000",
+  "agentValidationRegistry": "0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58",
+  "source": "Owner-provided SP on-chain verification at OP block 159689777 (Alchemy); not re-read in round 7",
+  "recordedAgentRegistries": {
+    "agentIdentityRegistry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    "agentReputationRegistry": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
+    "agentValidationRegistry": "0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58",
+    "comment": "owner 0x547289319C3e6aedB179C0b8e8aF0B5ACd062603 is an EOA, unattributed; upgradeable proxies; setting them lets that key decide sponsorship eligibility; changing SP's pointer takes the 48 h timelock"
+  }
+}

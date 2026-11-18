@@ -4,6 +4,19 @@ import "forge-std/Test.sol";
 import {DeployLiveInputs} from "../../script/v3/DeployLiveInputs.sol";
 
 contract InfrastructureHarness is DeployLiveInputs {
+    uint256 flag;
+    address identity;
+    address reputation;
+    function agents(uint256 f, address i, address r) external { flag = f; identity = i; reputation = r; }
+    function _uintInput(string memory) internal view override returns (uint256) { return flag; }
+    function _addressInput(string memory k) internal view override returns (address) {
+        return keccak256(bytes(k)) == keccak256("AGENT_IDENTITY_REGISTRY") ? identity : reputation;
+    }
+    string overrideKey;
+    function setOverride(string memory key) external { overrideKey = key; }
+    function _inputSet(string memory key) internal view override returns (bool) {
+        return keccak256(bytes(key)) == keccak256(bytes(overrideKey));
+    }
     function validate(address ep, address feed, address factory) external view {
         _validateInfrastructure(ep, feed, factory);
     }
@@ -25,6 +38,39 @@ contract DeployLiveInfrastructureTest is Test {
     }
     function round(int256 price, uint256 timestamp) internal {
         vm.mockCall(feed, abi.encodeWithSignature("latestRoundData()"), abi.encode(uint80(1), price, timestamp, timestamp, uint80(1)));
+    }
+    function test_AgentAddressesRequireSwitch() public {
+        h.agents(0, address(103), address(0));
+        vm.expectRevert("DeployLive: agent registries disabled"); h.validate(ep, feed, factory);
+        h.agents(0, address(0), address(104));
+        vm.expectRevert("DeployLive: agent registries disabled"); h.validate(ep, feed, factory);
+    }
+    function test_AgentSwitchRequiresBothAddresses() public {
+        h.agents(1, address(0), address(104));
+        vm.expectRevert("DeployLive: agent registries zero"); h.validate(ep, feed, factory);
+        h.agents(1, address(103), address(0));
+        vm.expectRevert("DeployLive: agent registries zero"); h.validate(ep, feed, factory);
+    }
+    function test_AgentSwitchMustBeBoolean() public {
+        h.agents(2, address(103), address(104));
+        vm.expectRevert("DeployLive: ENABLE_AGENT_REGISTRIES"); h.validate(ep, feed, factory);
+    }
+    function test_AgentAddressesMustMatchReviewedFile() public {
+        h.agents(1, address(999), address(104));
+        vm.expectRevert("DeployLive: agent dependencies"); h.validate(ep, feed, factory);
+        h.agents(1, address(103), address(999));
+        vm.expectRevert("DeployLive: agent dependencies"); h.validate(ep, feed, factory);
+    }
+    function test_AgentExplicitOptIn() public {
+        h.agents(1, address(103), address(104)); h.validate(ep, feed, factory);
+    }
+    function test_Round7WrongChainDependenciesRejected() public {
+        vm.chainId(10);
+        vm.expectRevert("DeployLive: external dependencies"); h.validate(ep, feed, factory);
+    }
+    function test_Round7MissingChainGroupRejected() public {
+        vm.chainId(987654);
+        vm.expectRevert(); h.validate(ep, feed, factory);
     }
     function test_ValidInfrastructure() public view { h.validate(ep, feed, factory); }
     function test_EachRequiredContractNeedsCode() public {

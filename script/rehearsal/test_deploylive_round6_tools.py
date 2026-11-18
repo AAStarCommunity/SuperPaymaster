@@ -44,3 +44,13 @@ class Round6ToolsTest(unittest.TestCase):
                     r.scan_evidence(Path(tmp), 'https://rpc.example/private/path', [123456789])
             evidence.write_text('PASS receipt redacted')
             r.scan_evidence(Path(tmp), 'https://rpc.example/private/path', [123456789])
+
+    def test_round7_runtime_masks_only_immutable_ranges(self):
+        from deploylive_runtime import matches
+        expected = {'object': '0x01020304', 'immutableReferences': {'7': [{'start': 1, 'length': 2}]}}
+        self.assertTrue(matches(expected, '0x01ffff04'))
+        self.assertFalse(matches(expected, '0x01ffff05'))
+        self.assertFalse(matches(expected, '0x01ffff'))
+        self.assertFalse(matches({'object': '0x'}, '0x'))
+        expected['immutableReferences']['7'][0]['length'] = 9
+        self.assertFalse(matches(expected, '0x01020304'))

@@ -10,8 +10,8 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-FORGE = '/Users/jason/.foundry/bin/forge'
-CAST = '/Users/jason/.foundry/bin/cast'
+FORGE = os.environ.get('FORGE', 'forge')
+CAST = os.environ.get('CAST', 'cast')
 
 
 def creation_bytes(root, name, runs):

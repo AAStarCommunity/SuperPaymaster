@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.26;
+import {PolicyRegistry} from "src/core/PolicyRegistry.sol";
 import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
@@ -566,18 +567,28 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
             erc8004Reputation = 0x8004B663056A597Dffe9eCcC1965A193B7388713;
             erc8004Validation = 0x8004Cb1BF31DAf7788923b405b754f57acEB4272;
         }
-        // Allow env override
+        if (_production()) {
+            string memory deps = _externalDependencies();
+            bool enabled;
+            (enabled, erc8004Identity, erc8004Reputation) = _agentRegistryInputs();
+            console.log("  ENABLE_AGENT_REGISTRIES:", enabled);
+            console.log("  AGENT_IDENTITY_REGISTRY:", erc8004Identity);
+            console.log("  AGENT_REPUTATION_REGISTRY:", erc8004Reputation);
+            erc8004Validation = vm.parseJsonAddress(deps, ".agentValidationRegistry");
+        } else {
+        // Local legacy path only.
         erc8004Identity = vm.envOr("AGENT_IDENTITY_REGISTRY", erc8004Identity);
         erc8004Reputation = vm.envOr("AGENT_REPUTATION_REGISTRY", erc8004Reputation);
         erc8004Validation = vm.envOr("AGENT_VALIDATION_REGISTRY", erc8004Validation);
+        }
         if (erc8004Identity != address(0) && erc8004Reputation != address(0)) {
             superPaymaster.setAgentRegistries(erc8004Identity, erc8004Reputation);
-            console.log("  Agent registries wired (ERC-8004 official)");
+            console.log("  Agent registries wired (explicit production opt-in)");
             console.log("    identity:   ", erc8004Identity);
             console.log("    reputation: ", erc8004Reputation);
             console.log("    validation: ", erc8004Validation, " (recorded, not wired to SP yet)");
         } else {
-            console.log("  WARN: Agent registries not wired (unsupported chain or no override set)");
+            console.log("  Agent registries disabled (a=0)");
         }
 
         // Oracle Init
@@ -817,6 +828,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
     }
 
     function _assertHandover() internal view {
+        require(mysbt.balanceOf(deployer) == 0, "handover: deployer SBT balance");
+        require(!registry.pendingSBTBurn(deployer), "handover: pending SBT burn");
+        require(PolicyRegistry(policyRegistryAddr).timelock() == timelockControllerAddr, "handover: policy timelock");
+        require(PolicyRegistry(policyRegistryAddr).guardian() == guardianInput, "handover: policy guardian");
         TimelockHandover.assertFinal(TimelockController(payable(timelockControllerAddr)), _twoStepTargets(), safeInput, _handoverSubjects());
         _validateSafe(deployer);
         require(gtoken.allowance(deployer, address(staking)) == 0, "handover: deployer allowance");
@@ -897,6 +912,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         vm.serializeUint(jsonObj, "stakeAmounts", stakeAmounts);
         vm.serializeUint(jsonObj, "ticketAmounts", ticketAmounts);
         vm.serializeAddress(jsonObj, "ticketTreasuries", ticketTreasuries);
+        if (_production()) vm.serializeBytes32(jsonObj, "creationPinsSha256", sha256(bytes(vm.readFile(vm.envString("CREATION_PINS")))));
         vm.serializeUint(jsonObj, "deployerGTokenBalance", gtoken.balanceOf(deployer));
         vm.serializeUint(jsonObj, "deployerGTokenAllowance", gtoken.allowance(deployer, address(staking)));
         vm.serializeUint(jsonObj, "deployerSBTBalance", mysbt.balanceOf(deployer));
@@ -950,7 +966,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         // _orchestrateRolesJason is a deployed contract too — record it so CheckDefaultArtifacts
         // verifies it (same key TestAccountPrepare writes).
         vm.serializeAddress(jsonObj, "aPNTsPaymasterV4", pmFactory.getPaymasterByOperator(deployer));
-        // ERC-8004 agent registry addresses (official CREATE2 constants per chain).
+        // Record the production opt-in and the actual SP pointers.
+        vm.serializeBool(jsonObj, "enableAgentRegistries", _production()
+            ? _uintInput("ENABLE_AGENT_REGISTRIES") == 1
+            : superPaymaster.agentIdentityRegistry() != address(0));
         // identity + reputation are wired into SuperPaymaster; validation is recorded for future use.
         vm.serializeAddress(
             jsonObj, "agentIdentityRegistry", SuperPaymaster(payable(address(superPaymaster))).agentIdentityRegistry()

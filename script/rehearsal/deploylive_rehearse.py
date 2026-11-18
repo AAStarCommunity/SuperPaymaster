@@ -238,8 +238,18 @@ def governance(rpc, cfg, safe):
 
 
 def main():
-    require(len(sys.argv) in (6, 7), 'usage: MODE RPC CONFIG DEPLOYER SAFE [OPERATOR]')
-    mode, url, config, deployer, safe = sys.argv[1:6]
+    args = sys.argv[1:]
+    external_tokens = None
+    if '--external-tokens' in args:
+        index = args.index('--external-tokens')
+        require(index + 1 < len(args), '--external-tokens requires a file')
+        token_path = Path(args[index + 1]).resolve()
+        require(token_path.is_relative_to(ROOT), 'external tokens must be inside worktree')
+        external_tokens = json.loads(token_path.read_text())
+        del args[index:index + 2]
+    argv = [sys.argv[0], *args]
+    require(len(argv) in (6, 7), 'usage: MODE RPC CONFIG DEPLOYER SAFE [OPERATOR]')
+    mode, url, config, deployer, safe = argv[1:6]
     require(mode in ('hook', 'guard', 'prepare', 'happy', 'failure', 'governance'), 'unknown mode')
     guard_bls_verbosity([], os.environ, tomllib.loads((ROOT/'foundry.toml').read_text())['profile']['default'].get('verbosity', 0))
     path = Path(config).resolve()
@@ -260,6 +270,7 @@ def main():
             if mode == 'failure':
                 fail_bootstrap(rpc, cfg, deployer)
                 cfg['deploymentStatus'] = 'ABANDONED'
+                if external_tokens is not None: cfg['externalTokens'] = external_tokens
                 path.write_text(json.dumps(cfg, indent=2) + '\n')
                 from deploylive_failed_set_check import inventory
                 lines = []
@@ -272,9 +283,9 @@ def main():
         elif mode == 'governance':
             governance(rpc, cfg, safe)
         elif mode == 'prepare':
-            prepare_operator(rpc, cfg, safe, sys.argv[6] if len(sys.argv) == 7 else cfg['genesisOperator'])
+            prepare_operator(rpc, cfg, safe, argv[6] if len(argv) == 7 else cfg['genesisOperator'])
         elif mode == 'hook':
-            hook(rpc, cfg, sys.argv[6] if len(sys.argv) == 7 else cfg['genesisOperator'])
+            hook(rpc, cfg, argv[6] if len(argv) == 7 else cfg['genesisOperator'])
     finally:
         scan_evidence(evidence, source_rpc, scalars)
     print('PASS ' + mode)

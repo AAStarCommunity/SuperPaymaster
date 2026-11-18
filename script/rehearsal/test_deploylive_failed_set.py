@@ -16,6 +16,7 @@ class FailedSetTest(unittest.TestCase):
                 if method == 'eth_getCode': return '0x00'
                 if method == 'eth_getBalance': return hex(self.eth)
                 if method == 'eth_getLogs':
+                    assert args[0]['fromBlock'] == '0x1', 'must start at deployment block'
                     if args[0].get('address'): return []
                     return [{'address': '0x'+'99'*20}]
                 raise AssertionError(method)

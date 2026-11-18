@@ -1,0 +1,16 @@
+{
+  "singletons": [
+    "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552",
+    "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762"
+  ],
+  "fallbackHandlers": [
+    "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4",
+    "0xfd0732dc9e303f09fcef3a7388ad10a83459ec99"
+  ],
+  "sources": {
+    "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552": "standards/permit2/test/integration/GnosisSafe.t.sol: singleton (v1.3.0)",
+    "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4": "standards/permit2/test/integration/GnosisSafe.t.sol: compatibilityFallbackHandler (v1.3.0)",
+    "0xfd0732dc9e303f09fcef3a7388ad10a83459ec99": "script/upgrade/old_owner_isolation.py: FALLBACK_HANDLER; script/upgrade/OLD_OWNER_ISOLATION.md",
+    "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762": "docs/design/aoa-balance-mode/data/rams-a/fork-A1-trace-11974465.log:60,66: SafeL2 v1.4.1 singleton receiving getThreshold/getOwners delegatecalls"
+  }
+}
