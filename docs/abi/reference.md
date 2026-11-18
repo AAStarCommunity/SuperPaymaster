@@ -16486,8 +16486,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `fields` | `bytes1` |  |
-| `domainName` | `string` |  |
-| `domainVersion` | `string` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
 | `chainId` | `uint256` |  |
 | `verifyingContract` | `address` |  |
 | `salt` | `bytes32` |  |
@@ -17866,8 +17866,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `fields` | `bytes1` |  |
-| `domainName` | `string` |  |
-| `domainVersion` | `string` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
 | `chainId` | `uint256` |  |
 | `verifyingContract` | `address` |  |
 | `salt` | `bytes32` |  |
@@ -19063,8 +19063,8 @@ Authoritative, auto-generated reference for every external/public function, even
 | returns | type | description |
 |---|---|---|
 | `fields` | `bytes1` |  |
-| `domainName` | `string` |  |
-| `domainVersion` | `string` |  |
+| `name` | `string` |  |
+| `version` | `string` |  |
 | `chainId` | `uint256` |  |
 | `verifyingContract` | `address` |  |
 | `salt` | `bytes32` |  |
