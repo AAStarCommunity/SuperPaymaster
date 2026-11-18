@@ -1,106 +1,180 @@
-# DeployLive implementation and offline validation
+# DeployLive round 6c validation
 
-Implemented production input validation, H-only initial timelock authority, exact
-handover/history checker, namespaced mutation fixtures and updated ceremony docs.
-contracts/src is untouched. No network/RPC, environment file or keystore access,
-formatter, or git write was performed. The two initially untracked recovery shell
-runners were deleted, and recovery code/tests were removed from the retained helper.
+Built on the supplied uncommitted rounds 6/6b tree. No formatter, network, RPC,
+keystore, .env or git writes; no edits to contracts/src or TimelockHandoverBootstrap.
+All generated evidence and the starting snapshot are inside ignored
+`cache/deploylive-tests/round6c/`. The previous validation report is preserved in
+that snapshot; round 6b's evidence remains in its existing cache directory.
 
-One interpretation remains explicit: scripted genesis/DVT Registry registration
-is retained as required setup; the no-registration-before-PASS rule applies to
-additional operational registrations. A failed set may already have scripted
-registrations, so its no-funds/no-registrations abandonment condition cannot be
-assumed. This is documented and was raised for clarification.
+## Treasury and accounting
 
-H runtime: **16 bytes**, measured by the successful constructor deployment test.
-Checker: **139 + N checks**, including two INFO-PASS implementation checks;
-**141 for two guardians**. All original 53 checks are mapped in DEPLOYLIVE_HANDOFF.md.
-No live deployment/fork/PoP execution was performed.
+Production sets staking treasury immediately after deployment and SP treasury
+immediately after proxy deployment. Both setters were removed from handover;
+there is no duplicate transaction. The v5.4-relative TL prediction changes from
++9 to +7 (three v5.4 transactions plus four handover transactions). The recorded
+transaction walk independently derives the pre-H count and TL-to-H distance;
+it does not assume a fixed total transaction count.
 
-## Verbatim validation summaries
+N=3 measured accounting (GToken, 18 decimals):
 
-Build (`/Users/jason/.foundry/bin/forge build --offline`, exit 0):
+| Quantity | Amount |
+|---|---:|
+| Minted / totalSupply | 2199 |
+| Staked | 140 |
+| ticketsToTreasury | 74 |
+| deployerRemainderToRecipient | 1985 |
+| Deployer final balance / allowance | 0 / 0 |
+
+`_assertHandover` and the checker enforce minted = staked + treasury tickets +
+recipient remainder = totalSupply. Config records both measured amounts, the
+pre-registration treasury balance, and the pre-transfer recipient balance. When
+recipient is Safe, the final balance is 2059; the 74 tickets are excluded from the
+1985 remainder. With a separate recipient, Safe holds 74 and the recipient 1985.
+Both scenarios have independent output paths: the distinct-recipient test writes
+under `cache/deploylive-tests/separate/`. They run as separate tests to stay within
+the per-test gas limit. Each test records the two measured config fields.
+
+## External tokens
+
+`inputs/external-tokens.json` contains all seven requested OP entries and all
+three Sepolia entries with explicit labels, addresses and decimals. The rehearsal
+inputs select that file through EXTERNAL_TOKENS_FILE; the inventory also accepts
+config.externalTokens for local mock groups. eth_chainId selects the group.
+Every listed token must have code, then return exactly one ABI uint256 balance
+for every contract in the failed set. No code means FAIL and no balance call;
+unknown chain, empty group, unreadable balance and positive balance all FAIL.
+The tests use distinct addresses for all 27 inventory entries and assert every
+listed-token/holder pair was read. The positive fixture deliberately emits no
+Transfer log. Existing log-discovered-token and ETH failure tests remain.
+
+The log scan cannot see an unlisted non-standard token that emits no Transfer
+event. Both handoff and security disclosures retain this limit. No on-chain
+verification or claim of an exhaustive inventory of all possible tokens is made.
+
+## Red evidence
+
+Before implementation changes, the distinct-recipient regression failed against
+round 6b:
 
 ```text
-Compiling 3 files with Solc 0.8.33
-Compiling 3 files with Solc 0.8.33
-Solc 0.8.33 finished in 5.75s
-Solc 0.8.33 finished in 16.15s
+[FAIL: round6: treasury tickets] test_TicketsReachSafeWithSeparateRecipient() (gas: 318535166)
+```
+
+This named scenario is retained as its own production test. The five new
+external-token behavior tests were also run first against the unchanged code:
+
+```text
+Ran 6 tests in 0.035s
+FAILED (failures=5)
+```
+
+All-zero fails there because the original implementation never reads the listed
+token. The other failures are positive-without-Transfer, unreadable, no-code and
+unknown chain. The four metadata/empty-group tests were first executed against
+the saved unchanged module (after implementation editing), then the final module:
+
+```text
+Ran 4 tests in 0.003s
+FAILED (failures=4)
+```
+
+The updated accounting checker fixture and negative cases ran before checker
+changes; the unchanged checker rejected the valid three-way accounting and lacked
+the new treasury checks and integer input validation:
+
+```text
+Ran 21 tests in 1.068s
+FAILED (failures=10)
+```
+
+Logs: red-treasury.log, red-external.log, red-external-metadata.log and
+red-checker.log. Existing handover negative probes still cover every ticket-ledger
+entry and conservation. When Safe is the recipient, corrupting its final balance
+now reaches `handover: treasury tickets` before the recipient-delta assertion;
+the separate-recipient scenario still independently reaches the latter.
+
+## Final commands and verbatim result excerpts
+
+`forge build --offline` (exit 0; complete warnings in build-final.log):
+
+```text
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 10.80s
 Compiler run successful with warnings:
 Warning (4591): There are more than 256 warnings. Ignoring the rest.
 ```
 
-Forge (`--offline --match-path contracts/test/scripts/DeployLive*.t.sol`, exit 0):
+`forge test --offline --match-path 'contracts/test/scripts/DeployLive*.t.sol'` (exit 0):
 
 ```text
-Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 10.06ms (265.12µs CPU time)
-Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 15.66ms (31.68ms CPU time)
-Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 24.55ms (37.16ms CPU time)
-Ran 3 test suites in 36.96ms (50.27ms CPU time): 35 tests passed, 0 failed, 0 skipped (35 total tests)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 577.42µs (289.42µs CPU time)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 13.14ms (13.85ms CPU time)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 14.31ms (3.05ms CPU time)
+Suite result: ok. 29 passed; 0 failed; 0 skipped; finished in 15.42ms (42.88ms CPU time)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 273.68ms (272.87ms CPU time)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.74s (3.46s CPU time)
+Ran 6 test suites in 1.75s (2.05s CPU time): 47 tests passed, 0 failed, 0 skipped (47 total tests)
 ```
 
-Python (`python3 -m unittest discover -s script/rehearsal -p test_deploylive*.py`, exit 0):
+`python3 -m unittest discover -s script/rehearsal -p 'test_deploylive*.py'` (exit 0):
 
 ```text
-................
+..........................................
 ----------------------------------------------------------------------
-Ran 16 tests in 0.613s
+Ran 42 tests in 1.143s
 
 OK
-SUMMARY 141 passed, 0 failed, 141 total
+SUMMARY 159 passed, 0 failed, 159 total
 ```
+
+`python3 -m unittest discover -s script/rehearsal -p 'test_creation_pins.py'` (exit 0):
 
 ```text
-bash -n: 1 scripts passed
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.004s
+
+OK
 ```
 
-`git diff --check` exited 0 with no output.
+Production fixture measurements (each recipient scenario):
 
-## Three-commit review plan (no commits made)
+```text
+pre-H zero-value transactions: 96
+TL-to-H observed distance: 22
+ticketsToTreasury: 74000000000000000000
+deployerRemainderToRecipient: 1985000000000000000000
+```
 
-Counts below are final changes versus HEAD a65762de, including pre-existing
-uncommitted work and retained initially untracked files. New files count as all
-added lines. Deleted recovery runners were untracked at the start, so are not in
-git numstat. Logic/tests/helpers total 845 added+deleted lines; docs are separate.
+The checker SUMMARY is from mocked read-only calls, N=2, not a live RPC run.
+The count formula is **155 + 2N**: **159 at N=2**, **161 at N=3**. Round six's
+153 + 2N gains the 6b Safe-owner exclusion and the 6c treasury-ticket assertion.
+The handoff contains all 159 concrete N=2 rows mapped to the original 53, with
+instructions for the extra guardian/stake rows at N=3. The external-token audit
+is separate from this post-deployment count; INFO and N/A lines do not count,
+except the two explicitly counted implementation-isolation INFO-PASS rows.
 
-1. Input validation/Safe: DeployLiveInputs.sol plus the DeployLive.s.sol input
-   resolution, preflight and initial-price hunks. Include input-related test hunks
-   from group 3 when validating this commit independently.
-2. Handover/bootstrap: remaining DeployLive.s.sol hunks and TimelockHandoverBootstrap.sol.
-3. Checker/tests/docs: all remaining files; retained rehearsal helpers have no recovery paths.
+`git diff --stat bfb9cc45 -- contracts/script/v3/TimelockHandoverBootstrap.sol`
+produced no output. `git diff -- contracts/src` and `git diff --check` also
+produced no output. Existing build warnings remain in build-final.log.
 
-To avoid double counting, the full DeployLive.s.sol file diff is counted in group 2
-below, although its input-validation hunks belong in commit 1. Tests are counted
-in group 3, matching the requested review split.
+## Per-file round-6c delta
 
-### Group 1
-
-| File | Added | Deleted |
-|---|---:|---:|
-| `contracts/script/v3/DeployLiveInputs.sol` | 36 | 1 |
-| **Total** | **36** | **1** |
-
-### Group 2
-
-| File | Added | Deleted |
-|---|---:|---:|
-| `contracts/script/v3/DeployLive.s.sol` | 50 | 17 |
-| `contracts/script/v3/TimelockHandoverBootstrap.sol` | 14 | 10 |
-| **Total** | **64** | **27** |
-
-### Group 3
+Added/deleted lines versus the starting round-6b worktree snapshot, using
+`git diff --no-index --numstat`; not versus HEAD. Generated logs, caches and
+compiler artifacts are excluded. The new external-token file is counted from empty.
 
 | File | Added | Deleted |
 |---|---:|---:|
-| `contracts/test/scripts/DeployLiveHandover.t.sol` | 120 | 14 |
-| `docs/security/rc8-daybreak-fixes.md` | 37 | 0 |
-| `script/rehearsal/DEPLOYLIVE_HANDOFF.md` | 194 | 138 |
-| `script/rehearsal/deploylive_postdeploy_check.py` | 95 | 2 |
-| `script/rehearsal/test_deploylive_postdeploy_check.py` | 132 | 10 |
-| `contracts/test/scripts/DeployLiveInfrastructure.t.sol` | 61 | 0 |
-| `script/rehearsal/deploylive_fork_deploy.py` | 39 | 0 |
-| `script/rehearsal/deploylive_hook_check.sh` | 3 | 0 |
-| `script/rehearsal/deploylive_rehearse.py` | 164 | 0 |
-| `script/rehearsal/test_deploylive_rehearse.py` | 77 | 0 |
-| `script/rehearsal/DEPLOYLIVE_VALIDATION.md` | 106 | 0 |
-| **Total** | **1028** | **164** |
+| `contracts/script/v3/DeployLive.s.sol` | 18 | 6 |
+| `contracts/test/scripts/DeployLiveNonce.t.sol` | 2 | 2 |
+| `contracts/test/scripts/DeployLiveProduction.t.sol` | 28 | 12 |
+| `docs/security/rc8-daybreak-fixes.md` | 13 | 2 |
+| `script/rehearsal/DEPLOYLIVE_HANDOFF.md` | 199 | 9 |
+| `script/rehearsal/DEPLOYLIVE_VALIDATION.md` | 140 | 186 |
+| `script/rehearsal/deploylive_failed_set_check.py` | 44 | 5 |
+| `script/rehearsal/deploylive_postdeploy_check.py` | 4 | 3 |
+| `script/rehearsal/inputs/deploylive-rehearsal.inputs` | 3 | 0 |
+| `script/rehearsal/test_deploylive_failed_set.py` | 50 | 0 |
+| `script/rehearsal/test_deploylive_postdeploy_check.py` | 16 | 3 |
+| `script/rehearsal/inputs/external-tokens.json` | 56 | 0 |

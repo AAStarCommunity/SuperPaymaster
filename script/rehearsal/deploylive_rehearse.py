@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Anvil-fork-only exit-hook tools. No keys; impersonated senders only."""
 import json
+import os
+import re
+import tomllib
 from pathlib import Path
 import subprocess
 import sys
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +21,38 @@ def require(ok, message):
         raise RuntimeError(message)
 
 
+def guard_bls_verbosity(args, env, default=3):
+    verbosity = int(env.get('FOUNDRY_VERBOSITY', default))
+    short = sum(len(a) - 1 for a in args if re.fullmatch(r'-v+', a))
+    if short:
+        verbosity = short
+    for i, arg in enumerate(args):
+        if arg == '--verbosity':
+            verbosity = int(args[i + 1])
+        elif arg.startswith('--verbosity='):
+            verbosity = int(arg.split('=', 1)[1])
+    require(verbosity < 3, 'BLS rehearsal refuses forge verbosity >= 3')
+
+
+def scan_evidence(directory, rpc_url, scalars):
+    directory = Path(directory).resolve()
+    require(directory.is_relative_to(ROOT) and directory.is_dir(), 'evidence directory must exist inside worktree')
+    url = urlsplit(rpc_url)
+    needles = {rpc_url, url.hostname or ''}
+    needles.update(fragment for fragment in unquote(url.path).split('/') if fragment)
+    needles.update(fragment for fragment in re.split(r'[=&]', unquote(url.query)) if fragment)
+    for scalar in scalars:
+        n = int(str(scalar), 16 if str(scalar).startswith('0x') else 10)
+        require(n > 0, 'invalid rehearsal scalar')
+        needles.update((str(n), f'{n:064x}', hex(n)))
+    encoded = [n.encode().lower() for n in needles if n]
+    for path in directory.rglob('*'):
+        require(not path.is_symlink(), 'evidence symlinks refused')
+        if path.is_file():
+            content = path.read_bytes().lower()
+            require(not any(n in content for n in encoded), 'evidence contains sensitive material (details redacted)')
+
+
 def local_endpoint(url):
     p = urlsplit(url)
     require(p.scheme == 'http' and p.hostname in ('127.0.0.1', '::1', 'localhost')
@@ -27,6 +62,10 @@ def local_endpoint(url):
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         raise RuntimeError('RPC redirect refused')
+
+
+class RPCRevert(RuntimeError):
+    pass
 
 
 class RPC:
@@ -42,15 +81,21 @@ class RPC:
         try:
             with self.opener.open(Request(self.url, payload, {'Content-Type': 'application/json'}), timeout=30) as r:
                 result = json.load(r)
-            require('error' not in result, 'RPC failed')
+            if 'error' in result:
+                data = result['error'].get('data', '')
+                if isinstance(data, str) and re.fullmatch(r'0x[0-9a-fA-F]+', data):
+                    raise RPCRevert(data)
+                raise RuntimeError('RPC failed')
             return result['result']
+        except RPCRevert:
+            raise
         except Exception:
             raise RuntimeError('RPC failed (details redacted)') from None
 
     def call(self, target, signature, *args):
         return self('eth_call', {'to': target, 'data': cast('calldata', signature, *args)}, 'latest')
 
-    def send(self, sender, data='0x', to=None, nonce=None):
+    def send(self, sender, data='0x', to=None, nonce=None, expected_status=1):
         tx = {'from': sender, 'data': data, 'gas': hex(12_000_000)}
         if to is not None:
             tx['to'] = to
@@ -60,7 +105,7 @@ class RPC:
         for _ in range(120):
             receipt = self('eth_getTransactionReceipt', txhash)
             if receipt:
-                require(int(receipt['status'], 16) == 1, 'transaction reverted')
+                require(int(receipt['status'], 16) == expected_status, 'unexpected transaction status')
                 return receipt
             time.sleep(0.25)
         raise RuntimeError('receipt timeout')
@@ -141,18 +186,97 @@ def prepare_operator(rpc, cfg, safe, op):
         impersonate(rpc, op, deposit)
 
 
+def fail_bootstrap(rpc, cfg, deployer):
+    nonce = int(cfg['handoverBootstrapNonce'])
+    require(int(rpc('eth_getTransactionCount', deployer, 'latest'), 16) == nonce, 'bootstrap nonce drift')
+    slot = '0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00'
+    rpc('anvil_setStorageAt', cfg['registry'], slot, ZERO)
+    require(int(rpc('eth_getTransactionCount', deployer, 'latest'), 16) == nonce, 'storage write consumed nonce')
+    impersonate(rpc, deployer, lambda: rpc.send(deployer, cfg['handoverCreationCode'], nonce=nonce, expected_status=0))
+    require(rpc('eth_getCode', cfg['handoverBootstrap'], 'latest') == '0x', 'failed H has code')
+    tl, h = cfg['timelockController'], cfg['handoverBootstrap'].lower()
+    grants = cast('keccak', 'RoleGranted(bytes32,address,address)')
+    revokes = cast('keccak', 'RoleRevoked(bytes32,address,address)')
+    history = rpc('eth_getLogs', {'address': tl, 'fromBlock': hex(int(cfg['deploymentStartBlock'])), 'toBlock': 'latest'})
+    members = {}
+    for event in sorted(history, key=lambda e: (int(e['blockNumber'], 16), int(e['logIndex'], 16))):
+        topics = event['topics']
+        if topics[0] not in (grants, revokes): continue
+        bucket = members.setdefault(topics[1], set())
+        account = '0x' + topics[2][-40:].lower()
+        if topics[0] == grants: bucket.add(account)
+        else: bucket.discard(account)
+    for role in ('DEFAULT_ADMIN_ROLE', *ROLES):
+        rid = rpc.call(tl, role + '()')
+        expected = {tl.lower()} if role == 'DEFAULT_ADMIN_ROLE' else {h}
+        require(members.get(rid, set()) == expected, 'failed TL role membership mismatch')
+        for member in expected:
+            require(words(rpc.call(tl, 'hasRole(bytes32,address)', rid, member)) == [1], 'failed TL role readback mismatch')
+
+
+
+def governance(rpc, cfg, safe):
+    tl = cfg['timelockController']
+    delay = words(rpc.call(tl, 'getMinDelay()'))[0]
+    require(delay == 172800, 'unexpected initial delay')
+    data = cast('calldata', 'updateDelay(uint256)', delay + 1)
+    salt = cast('keccak', 'round6 governance rehearsal')
+    schedule = cast('calldata', 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)', tl, 0, data, ZERO, salt, delay)
+    execute = cast('calldata', 'execute(address,uint256,bytes,bytes32,bytes32)', tl, 0, data, ZERO, salt)
+    def action():
+        rpc.send(safe, schedule, tl)
+        try:
+            rpc('eth_call', {'from': safe, 'to': tl, 'data': execute}, 'latest')
+        except RPCRevert as error:
+            require(str(error).startswith(cast('sig', 'TimelockUnexpectedOperationState(bytes32,bytes32)')), 'wrong early-execution revert')
+        else:
+            raise RuntimeError('execution before delay succeeded')
+        rpc('evm_increaseTime', delay); rpc('evm_mine')
+        rpc.send(safe, execute, tl)
+        require(words(rpc.call(tl, 'getMinDelay()')) == [delay + 1], 'governance readback failed')
+    impersonate(rpc, safe, action)
+
+
 def main():
     require(len(sys.argv) in (6, 7), 'usage: MODE RPC CONFIG DEPLOYER SAFE [OPERATOR]')
     mode, url, config, deployer, safe = sys.argv[1:6]
-    require(mode in ('hook', 'guard', 'prepare'), 'unknown mode')
+    require(mode in ('hook', 'guard', 'prepare', 'happy', 'failure', 'governance'), 'unknown mode')
+    guard_bls_verbosity([], os.environ, tomllib.loads((ROOT/'foundry.toml').read_text())['profile']['default'].get('verbosity', 0))
     path = Path(config).resolve()
     require(path.is_relative_to(ROOT), 'config must be inside worktree')
     rpc = RPC(url)  # All mutation paths share this mandatory guard.
-    cfg = json.loads(path.read_text())
-    if mode == 'prepare':
-        prepare_operator(rpc, cfg, safe, sys.argv[6] if len(sys.argv) == 7 else cfg['genesisOperator'])
-    elif mode == 'hook':
-        hook(rpc, cfg, sys.argv[6] if len(sys.argv) == 7 else cfg['genesisOperator'])
+    cfg = {} if mode in ('happy', 'failure') else json.loads(path.read_text())
+    evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR'])
+    require(evidence.resolve().is_relative_to(ROOT) and evidence.is_dir(), 'evidence directory required inside worktree')
+    scalars = json.loads(os.environ['REHEARSAL_BLS_SCALARS'])
+    source_rpc = os.environ['REHEARSAL_SOURCE_RPC']
+    try:
+        if mode in ('happy', 'failure'):
+            command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), url, deployer]
+            if mode == 'failure': command.append('--stop')
+            result = subprocess.run(command, capture_output=True, text=True)
+            require(result.returncode == 0, 'deployment failed')
+            cfg = json.loads(path.read_text())
+            if mode == 'failure':
+                fail_bootstrap(rpc, cfg, deployer)
+                cfg['deploymentStatus'] = 'ABANDONED'
+                path.write_text(json.dumps(cfg, indent=2) + '\n')
+                from deploylive_failed_set_check import inventory
+                lines = []
+                inventory_ok = inventory(rpc, cfg, lines.append)
+                (evidence/'failed-set.log').write_text('\n'.join(lines) + '\n')
+                require(inventory_ok, 'failed set holds external value or inventory is incomplete')
+            result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, safe], capture_output=True, text=True)
+            require(result.returncode == (1 if mode == 'failure' else 0), 'unexpected checker result')
+            (evidence/'checker.log').write_text(result.stdout)
+        elif mode == 'governance':
+            governance(rpc, cfg, safe)
+        elif mode == 'prepare':
+            prepare_operator(rpc, cfg, safe, sys.argv[6] if len(sys.argv) == 7 else cfg['genesisOperator'])
+        elif mode == 'hook':
+            hook(rpc, cfg, sys.argv[6] if len(sys.argv) == 7 else cfg['genesisOperator'])
+    finally:
+        scan_evidence(evidence, source_rpc, scalars)
     print('PASS ' + mode)
 
 

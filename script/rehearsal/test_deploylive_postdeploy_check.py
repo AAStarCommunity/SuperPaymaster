@@ -23,10 +23,20 @@ class CheckerTest(unittest.TestCase):
     def run_checker(self, mutation=None, safe_recovery=False):
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         cfg = {k: addr(i + 1) for i, k in enumerate(keys)}
-        cfg.update(deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
+        cfg.update(deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
                    slashThreshold0=2, slashThreshold1=2, slashThreshold2=2, guardians=[addr(101), addr(102)])
         safe, deployer, tl, h = addr(200), addr(201), cfg["timelockController"], cfg["handoverBootstrap"]
-        cfg.update(deployer=deployer, governanceOwner=safe)
+        cfg.update(deployer=deployer, governanceOwner=safe, SLASH_POLICY_ADMIN=tl, X402_OWNER=safe, REPUTATION_OWNER=tl, MPC_OWNER=tl, PAYMASTER_FACTORY_OWNER=tl)
+        cfg.update(deployerGTokenRecipient=safe, deployerGTokenTransferred=1985, deployerGTokenRecipientBefore=71,
+                   ticketsToTreasury=71, treasuryGTokenBefore=0, deployerRemainderToRecipient=1985,
+                   gTokenMintCount=2, gTokenMintRecipients=[deployer, deployer], gTokenMintAmounts=[2000, 166], gTokenTotalSupply=2166,
+                   stakeAccounts=[deployer, cfg['genesisOperator'], cfg['genesisOperator'], *cfg['guardians']], stakeRoles=[digest('COMMUNITY'), digest('COMMUNITY'), digest('PAYMASTER_SUPER'), digest('DVT'), digest('DVT')], stakeAmounts=[0, 0, 50, 30, 30], ticketAmounts=[30, 30, 5, 3, 3], ticketTreasuries=[safe]*5,
+                   registryImplOwner=deployer, spImplOwner=deployer)
+        if isinstance(mutation, tuple) and len(mutation) == 3 and mutation[0] == "config": cfg[mutation[1]] = mutation[2]
+        if mutation == "nonzero_recorded_balance": cfg["deployerGTokenBalance"] = 1
+        if mutation == "recipient_delta": cfg['deployerGTokenTransferred'] = 2058
+        if mutation == "mint_sum": cfg['gTokenMintAmounts'] = [2000, 198]
+        if mutation == "ticket_treasury": cfg['ticketTreasuries'] = [safe]
         if mutation in ("hex_numbers", "decimal_strings"): cfg["expectedCap"] = 2**200
         if mutation == "hex_numbers":
             cfg = {k: hex(v) if type(v) is int else v for k, v in cfg.items()}
@@ -34,6 +44,8 @@ class CheckerTest(unittest.TestCase):
             cfg = {k: str(v) if type(v) is int else v for k, v in cfg.items()}
         if mutation == "wrong_deployer": cfg["deployer"] = addr(999)
         if mutation == "wrong_safe": cfg["governanceOwner"] = addr(999)
+        if mutation == "bad_observed_nonce": cfg["observedBootstrapNonce"] = "1_0"
+        if mutation == "malformed_number": cfg["expectedCap"] = "1_000"
         role_names = ("DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "EXECUTOR_ROLE", "CANCELLER_ROLE")
         roles = {r: ("0x" + "0" * 64 if r == "DEFAULT_ADMIN_ROLE" else digest(r)) for r in role_names}
         membership = {roles[r]: {tl} if r == "DEFAULT_ADMIN_ROLE" else {safe} for r in role_names}
@@ -62,6 +74,7 @@ class CheckerTest(unittest.TestCase):
                         error = "UUPSUnauthorizedCallContext()" if q["data"] == digest("|".join(["upgradeToAndCall(address,bytes)", q["to"], "0x"])) else "InvalidInitialization()"
                         rc, out = 1, digest(error)
                         if mutation == "implementation_unlocked": rc, out = 0, "0x"
+                    elif q["to"] == cfg["gToken"]: rc, out = (0, "0x") if mutation == "mint_allowed" else (1, digest("OwnableUnauthorizedAccount(address)"))
                     elif q["to"] in (cfg["registry"], cfg["superPaymaster"]): rc, out = 1, digest("OwnableUnauthorizedAccount(address)")
                     else: rc, out = 1, digest("|".join(["ForbiddenGenericSelector(bytes4)", digest("slashByDVT(address,bytes32,uint256,string)")]))
                     # Each generic request embeds a different denied selector.
@@ -73,6 +86,10 @@ class CheckerTest(unittest.TestCase):
                 else:
                     self.assertEqual(args[0], "eth_getLogs")
                     self.assertEqual(json.loads(args[1])["fromBlock"], "0x1")
+                    if json.loads(args[1])["address"] == cfg['gToken']:
+                        events = [dict(topics=[digest('Transfer(address,address,uint256)'), '0x'+'00'*32, '0x'+deployer[2:].zfill(64)], data=hex(n)) for n in [2000, 166]]
+                        if mutation == "mint_event": events[1]['data'] = hex(167)
+                        return SimpleNamespace(returncode=0, stdout=json.dumps(events), stderr='')
                     logs = []
                     for rid, accounts in membership.items():
                         for a in sorted(accounts):
@@ -100,11 +117,11 @@ class CheckerTest(unittest.TestCase):
             elif kind == "call":
                 target, sig, *params = args
                 if sig == "getThreshold()(uint256)": out = "1" if mutation == "threshold_one" else "2"
-                elif sig == "getOwners()(address[])": out = "[" + addr(301) + ", " + addr(302) + "]"
+                elif sig == "getOwners()(address[])": out = "[" + (deployer if mutation == "deployer_safe_owner" else cfg["guardians"][0] if mutation == "overlap" else addr(301)) + ", " + addr(302) + "]"
                 elif sig.startswith("hashOperationBatch"): out = digest("operation")
                 elif sig == "isOperationDone(bytes32)(bool)": out = "true"
                 elif sig == "allowance(address,address)(uint256)": out = "0"
-                elif sig == "owner()(address)": out = deployer if target in (cfg["registryImpl"], cfg["spImpl"]) else safe if target == cfg["gToken"] else tl
+                elif sig == "owner()(address)": out = deployer if target in (cfg["registryImpl"], cfg["spImpl"]) else safe if target in [cfg[k] for k in ("gToken", "blsAggregator", "dvtValidator", "xPNTsFactory", "xPNTsFactoryV2", "aoaProtocolRegistry", "x402Facilitator")] else tl
                 elif sig == "pendingOwner()(address)": out = tl if mutation == "pending" else ZERO
                 elif sig == "getRoleConfig(bytes32)": out = "0x" + "0" * (64 * 11) + tl[2:].zfill(64) + "0" * 64
                 elif sig == "isReputationSource(address)(bool)": out = str(params[0] in (cfg["blsAggregator"], cfg["reputationSystem"])).lower()
@@ -126,10 +143,13 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "getUserRoles(address)(bytes32[])": out = "[]"
                 elif sig == "authorizedSlashers(address)(bool)": out = "false"
                 elif sig == "fraudProofVerifier()(address)": out = ZERO
-                elif sig == "balanceOf(address)(uint256)": out = "0"
+                elif sig == "balanceOf(address)(uint256)": out = "2056" if target == cfg['gToken'] and params[0] == safe else "110" if target == cfg['gToken'] and params[0] == cfg['staking'] else "0"
+                elif sig == "totalSupply()(uint256)": out = "2166"
+                elif sig == "getLockedStake(address,bytes32)(uint256)": out = "50" if params[1] == digest("PAYMASTER_SUPER") else "30" if params[1] == digest("DVT") else "0"
                 elif sig == "version()(string)": out = '"fixture"'
                 else: self.fail(f"Unhandled {sig}")
-                if isinstance(mutation, tuple):
+                if mutation == "nonzero_recorded_balance" and target == cfg["gToken"] and sig == "balanceOf(address)(uint256)" and params[0] == deployer: out = "1"
+                if isinstance(mutation, tuple) and len(mutation) == 4:
                     key, changed_sig, changed_params, replacement = mutation
                     if target == cfg[key] and sig == changed_sig and params[:-2] == changed_params:
                         out = replacement
@@ -143,10 +163,89 @@ class CheckerTest(unittest.TestCase):
         self.assertNotIn("private-token", output.getvalue())
         return caught.exception.code, output.getvalue()
 
+    def test_round6c_accounting(self):
+        for mutation, label in [
+            (("config", "ticketsToTreasury", 70), "GToken treasury tickets"),
+            (("config", "treasuryGTokenBefore", 1), "GToken treasury tickets"),
+            (("gToken", "balanceOf(address)(uint256)", [addr(200)], "2055"), "GToken treasury tickets"),
+            (("config", "deployerRemainderToRecipient", 1984), "GToken conservation"),
+            (("config", "ticketTreasuries", [addr(201)]*5), "GToken ticket ledger")]:
+            with self.subTest(mutation=mutation):
+                rc, out = self.run_checker(mutation)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("FAIL  " + label, out)
+
+    def test_round6b_each_added_checker_assertion(self):
+        cases = []
+        for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"):
+            cases.append((("config", key, ZERO), key + " resolved contract"))
+        cases += [(("gToken", "totalSupply()(uint256)", [], "1"), "GToken totalSupply == mints"),
+                  (("gToken", "balanceOf(address)(uint256)", [addr(3)], "1"), "GToken conservation"),
+                  (("config", "registryImplOwner", addr(999)), "registryImpl isolated"),
+                  (("config", "spImplOwner", addr(999)), "spImpl isolated"),
+                  ("recipient_delta", "GToken recipient exact delta"), ("mint_sum", "GToken mint ledger"),
+                  ("ticket_treasury", "GToken ticket ledger"), ("mint_event", "GToken mint events == ledger"),
+                  ("mint_allowed", "deployer GToken mint rejected"),
+                  ("nonzero_recorded_balance", "deployer GToken balance == recorded")]
+        accounts = [addr(201), addr(21), addr(21), addr(101), addr(102)]
+        roles = ["COMMUNITY", "COMMUNITY", "PAYMASTER_SUPER", "DVT", "DVT"]
+        for i, (account, role) in enumerate(zip(accounts, roles)):
+            cases.append((("staking", "getLockedStake(address,bytes32)(uint256)", [account, digest(role)], "1"), f"GToken stake[{i}]"))
+        for mutation, label in cases:
+            with self.subTest(label=label):
+                rc, out = self.run_checker(mutation)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("FAIL  " + label, out)
+
+    def test_round6b_new_numeric_inputs(self):
+        for key in ("observedBootstrapNonce", "deployerGTokenTransferred", "deployerGTokenRecipientBefore", "gTokenMintCount", "gTokenTotalSupply", "ticketsToTreasury", "treasuryGTokenBefore", "deployerRemainderToRecipient"):
+            with self.subTest(key=key):
+                rc, out = self.run_checker(("config", key, "1_000"))
+                self.assertEqual(rc, 1)
+                self.assertIn("FAIL missing/invalid config integer: " + key, out)
+
+    def test_round6b_integer_array_validation(self):
+        for key in ("gTokenMintAmounts", "stakeAmounts", "ticketAmounts"):
+            for value in ("1", ["1_000"], [True], [-1]):
+                with self.subTest(key=key, value=value):
+                    rc, out = self.run_checker(("config", key, value))
+                    self.assertEqual(rc, 1)
+                    self.assertIn("FAIL missing/invalid config integer array: " + key, out)
+
+    def test_round6b_deployer_safe_owner(self):
+        rc, out = self.run_checker("deployer_safe_owner")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FAIL  Safe owners exclude deployer", out)
+
+    def test_round6b_overlap_info(self):
+        rc, out = self.run_checker("overlap")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("INFO  role overlap :: " + addr(101) + " :: Safe owner[0], guardian[0]", out)
+        self.assertIn("GOVERNANCE_OWNER", out)
+        self.assertIn("DEPLOYER_GTOKEN_RECIPIENT", out)
+
     def test_complete_end_state(self):
         rc, out = self.run_checker()
         self.assertEqual(rc, 0, out)
         print(out.splitlines()[-1])
+
+    def test_round6_accounting_mutations(self):
+        for mutation in ("recipient_delta", "mint_sum", "ticket_treasury", "mint_event"):
+            with self.subTest(mutation=mutation):
+                self.assertEqual(self.run_checker(mutation)[0], 1)
+
+    def test_round6_observed_nonce_numeric(self):
+        self.assertEqual(self.run_checker("bad_observed_nonce")[0], 1)
+
+    def test_round6_malformed_number(self):
+        rc, out = self.run_checker("malformed_number")
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL missing/invalid config integer: expectedCap", out)
+
+    def test_round6_absent_contracts_na(self):
+        rc, out = self.run_checker()
+        self.assertIn("N/A  AOA Paymaster", out)
+        self.assertIn("N/A  legacy uncapped aPNTs", out)
 
     def test_cancelled_recovery_rejected(self):
         self.assertEqual(self.run_checker(safe_recovery=True)[0], 1)

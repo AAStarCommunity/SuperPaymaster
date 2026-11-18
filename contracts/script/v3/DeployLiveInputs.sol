@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 import "forge-std/Script.sol";
-import {GovernanceOwnerGate} from "../checks/GovernanceOwnerGate.sol";
+import {GovernanceOwnerGate, ISafeCompatibleMofN} from "../checks/GovernanceOwnerGate.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 import {BLS} from "src/utils/BLS.sol";
@@ -13,6 +13,35 @@ abstract contract DeployLiveInputs is Script {
     struct GuardianInput { address account; BLS.G1Point key; BLS.G2Point pop; }
     address internal safeInput;
     address internal governorInput;
+    string[5] internal ownerChoices;
+    address[5] internal resolvedOwners;
+    address internal gtokenRecipient;
+    function _ownerKey(uint256 i) internal pure returns (string memory) {
+        string[5] memory keys = ["SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"];
+        return keys[i];
+    }
+    function _loadOwnerChoices(address sender) internal {
+        require(!_inputSet("GOVERNOR_ADDRESS"),
+            "DeployLive: GOVERNOR_ADDRESS deleted; use X402_OWNER");
+        for (uint256 i; i < 5; ++i) {
+            string memory value = _stringInput(_ownerKey(i));
+            require(bytes(value).length != 0, string.concat("DeployLive: ", _ownerKey(i)));
+            if (keccak256(bytes(value)) != keccak256("timelock") && keccak256(bytes(value)) != keccak256("safe")) {
+                address a = vm.parseAddress(value);
+                require(a != address(0) && a != sender && a.code.length > 0, string.concat("DeployLive: ", _ownerKey(i)));
+            }
+            ownerChoices[i] = value;
+        }
+        string memory recipient = _stringInput("DEPLOYER_GTOKEN_RECIPIENT");
+        gtokenRecipient = keccak256(bytes(recipient)) == keccak256("safe") ? safeInput : vm.parseAddress(recipient);
+        require(gtokenRecipient != address(0) && gtokenRecipient != sender, "DeployLive: DEPLOYER_GTOKEN_RECIPIENT");
+    }
+    function _resolveOwnerChoices(address tl) internal {
+        for (uint256 i; i < 5; ++i) {
+            bytes32 choice = keccak256(bytes(ownerChoices[i]));
+            resolvedOwners[i] = choice == keccak256("timelock") ? tl : choice == keccak256("safe") ? safeInput : vm.parseAddress(ownerChoices[i]);
+        }
+    }
     address internal guardianInput;
     address internal spGuardianInput;
     address internal genesisInput;
@@ -31,6 +60,8 @@ abstract contract DeployLiveInputs is Script {
         require(flag == 0 || (block.chainid == 31337 && _production()), "stop: rehearsal chain only");
         return flag == 1;
     }
+    function _inputSet(string memory key) internal view virtual returns (bool) { return vm.envExists(key); }
+    function _stringInput(string memory key) internal view virtual returns (string memory) { return vm.envOr(key, string("")); }
     function _addressInput(string memory key) internal view virtual returns (address) { return vm.envOr(key, address(0)); }
     function _uintInput(string memory key) internal view virtual returns (uint256) { return vm.envOr(key, uint256(0)); }
     function _guardiansInput() internal view virtual returns (bytes memory) { return vm.envOr("GUARDIANS", bytes("")); }
@@ -42,11 +73,13 @@ abstract contract DeployLiveInputs is Script {
         value = _uintInput(key);
         require(value != 0, string.concat("DeployLive: ", key));
     }
-    function _validateSafe() internal view {
+    function _validateSafe(address sender) internal view {
         bytes memory code = safeInput.code;
         require(code.length > 0 && bytes3(code) != 0xef0100, "DeployLive: Safe code");
         (bool ok,,) = GovernanceOwnerGate.readMofN(safeInput);
         require(ok, "DeployLive: Safe threshold/owners");
+        address[] memory owners = ISafeCompatibleMofN(safeInput).getOwners();
+        for (uint256 i; i < owners.length; ++i) require(owners[i] != sender, "DeployLive: deployer is Safe owner");
     }
     function _validateInfrastructure(address ep, address feed, address factory) internal view {
         require(ep == 0x0000000071727De22E5E9d8BAf0edAc6f37da032 && ep.code.length > 0, "DeployLive: EntryPoint v0.7");
@@ -60,7 +93,7 @@ abstract contract DeployLiveInputs is Script {
     function _loadProductionInputs(address sender) internal {
         if (!_production()) return;
         safeInput = _requiredAddress("GOVERNANCE_OWNER", sender);
-        governorInput = _requiredAddress("GOVERNOR_ADDRESS", sender);
+        _loadOwnerChoices(sender);
         guardianInput = _requiredAddress("GUARDIAN_ADDRESS", sender);
         spGuardianInput = _requiredAddress("SP_GUARDIAN", sender);
         genesisInput = _requiredAddress("GENESIS_AASTAR_OPERATOR", sender);
@@ -86,6 +119,6 @@ abstract contract DeployLiveInputs is Script {
         for (uint256 i; i < gs.length; ++i) distinct[i + 5] = gs[i].account;
         for (uint256 i; i < distinct.length; ++i) for (uint256 j; j < i; ++j)
             require(distinct[i] != distinct[j], "DeployLive: principals must differ");
-        _validateSafe();
+        _validateSafe(sender);
     }
 }

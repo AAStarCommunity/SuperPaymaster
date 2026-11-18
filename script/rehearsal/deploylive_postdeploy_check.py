@@ -18,16 +18,27 @@ if sys.argv[5:]:
 
 def integer(value):
     if isinstance(value, bool): raise ValueError("boolean is not an integer")
-    return int(str(value), 16 if str(value).lower().startswith("0x") else 10)
+    if not re.fullmatch(r"(?:[0-9]+|0x[0-9a-fA-F]+)", str(value)):
+        raise ValueError("expected unsigned integer or decimal string")
+    return int(str(value), 16 if str(value).startswith("0x") else 10)
 
 
-for key in ("deploymentStartBlock", "handoverBootstrapNonce", "expectedCap", "guardianN", "minThreshold", "defaultThreshold",
-            "slashThreshold0", "slashThreshold1", "slashThreshold2", "deployerGTokenBalance", "deployerGTokenAllowance", "deployerSBTBalance"):
+for key in ("deploymentStartBlock", "handoverBootstrapNonce", "observedBootstrapNonce", "expectedCap", "guardianN", "minThreshold", "defaultThreshold",
+            "slashThreshold0", "slashThreshold1", "slashThreshold2", "deployerGTokenBalance", "deployerGTokenAllowance", "deployerSBTBalance",
+            "deployerGTokenTransferred", "deployerGTokenRecipientBefore", "gTokenMintCount", "gTokenTotalSupply", "ticketsToTreasury", "treasuryGTokenBefore", "deployerRemainderToRecipient"):
     try:
         CFG[key] = integer(CFG[key])
         assert CFG[key] >= (1 if key == "deploymentStartBlock" else 0)
     except (KeyError, ValueError, TypeError, AssertionError):
         print("FAIL missing/invalid config integer: " + key)
+        sys.exit(1)
+
+for key in ("gTokenMintAmounts", "stakeAmounts", "ticketAmounts"):
+    try:
+        if not isinstance(CFG[key], list): raise ValueError("expected list")
+        CFG[key] = [integer(v) for v in CFG[key]]
+    except (KeyError, ValueError, TypeError):
+        print("FAIL missing/invalid config integer array: " + key)
         sys.exit(1)
 
 
@@ -141,7 +152,14 @@ for sig, args in (("batchUpdateGlobalReputation(uint256,address[],uint256[],uint
 ZERO = "0x" + "0" * 40
 H = A.get("handoverBootstrap", ZERO)
 EXPECTED_OWNERS = {k: TL for k in SYSTEM + LEGACY + ["aPNTs"]}
-EXPECTED_OWNERS["gToken"] = SAFE
+for k in ("gToken", "blsAggregator", "dvtValidator", "xPNTsFactory", "xPNTsFactoryV2", "aoaProtocolRegistry"):
+    EXPECTED_OWNERS[k] = SAFE
+for k, choice in (("x402Facilitator", "X402_OWNER"), ("reputationSystem", "REPUTATION_OWNER"),
+                  ("microPaymentChannel", "MPC_OWNER"), ("paymasterFactory", "PAYMASTER_FACTORY_OWNER"),
+                  ("paymasterV4Impl", "PAYMASTER_FACTORY_OWNER")):
+    EXPECTED_OWNERS[k] = A.get(choice, ZERO)
+print("N/A  AOA Paymaster :: not deployed on production")
+print("N/A  legacy uncapped aPNTs :: not deployed on production")
 for k, expected in EXPECTED_OWNERS.items():
     actual = call(A[k], "owner()(address)").lower()
     check(f"owner({k}) == expected", actual == expected.lower(), f"expected {expected}; actual {actual}")
@@ -158,7 +176,7 @@ for name, addr, sig, expected in (
     ("SP.treasury", sp, "treasury()(address)", SAFE),
     ("staking.treasury", stk, "treasury()(address)", SAFE),
     ("MySBT.daoMultisig", A["sbt"], "daoMultisig()(address)", SAFE),
-    ("aggregator.slashPolicyAdmin", agg, "slashPolicyAdmin()(address)", TL),
+    ("aggregator.slashPolicyAdmin", agg, "slashPolicyAdmin()(address)", A.get("SLASH_POLICY_ADMIN", ZERO)),
     ("SP.guardian", sp, "guardian()(address)", A.get("expectedSPGuardian", ZERO)),
     ("PolicyRegistry.guardian", A["policyRegistry"], "guardian()(address)", A.get("expectedGuardian", ZERO)),
     ("PolicyRegistry.timelock", A["policyRegistry"], "timelock()(address)", TL),
@@ -177,7 +195,7 @@ for name, addr, sig, expected in (
 for level in range(3):
     expected = CFG.get(f"slashThreshold{level}", 0)
     check(f"agg.slashThresholds[{level}] == input", expected >= 2 and call(agg, "slashThresholds(uint8)(uint8)", level) == str(expected), str(expected))
-for key in ("expectedGovernor", "expectedGuardian", "expectedSPGuardian", "genesisOperator"):
+for key in ("expectedGuardian", "expectedSPGuardian", "genesisOperator"):
     check(key + " nonzero and not deployer", A.get(key, ZERO).lower() not in (ZERO, DEPLOYER), "required address")
 check("Safe nonzero and not deployer", SAFE not in (ZERO, DEPLOYER), SAFE)
 guardians = CFG.get("guardians", [])
@@ -223,6 +241,7 @@ check("config deployer == CLI", A.get("deployer", ZERO).lower() == DEPLOYER, DEP
 check("config governanceOwner == CLI", A.get("governanceOwner", ZERO).lower() == SAFE, SAFE)
 rc, safe_code = cast("code", SAFE)
 check("Safe code excludes delegation", rc == 0 and safe_code != "0x" and not safe_code.lower().startswith("0xef0100"), "contract, not EIP-7702")
+owners = []
 try:
     threshold = integer(call(SAFE, "getThreshold()(uint256)").split()[0])
     owners = re.findall(r"0x[0-9a-fA-F]{40}", call(SAFE, "getOwners()(address[])"))
@@ -230,6 +249,20 @@ try:
 except (ValueError, IndexError):
     valid_safe = False
 check("Safe threshold/owners", valid_safe, "threshold >= 2, distinct nonzero owners >= threshold")
+check("Safe owners exclude deployer", valid_safe and DEPLOYER not in [a.lower() for a in owners], "getOwners() readback")
+role_addresses = [(f"Safe owner[{i}]", a) for i, a in enumerate(owners)]
+role_addresses += [(f"guardian[{i}]", a) for i, a in enumerate(guardians)]
+role_addresses += [("SP_GUARDIAN", A["expectedSPGuardian"]), ("GUARDIAN_ADDRESS", A["expectedGuardian"]),
+                   ("GENESIS_AASTAR_OPERATOR", op), ("deployer", DEPLOYER),
+                   ("DEPLOYER_GTOKEN_RECIPIENT", A.get("deployerGTokenRecipient", ZERO)), ("GOVERNANCE_OWNER", SAFE)]
+role_addresses += [(key, A.get(key, ZERO)) for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER")]
+roles_by_address = {}
+for role, address in role_addresses:
+    roles_by_address.setdefault(address.lower(), []).append(role)
+print("INFO  role overlap table :: address :: roles")
+for address, names in sorted(roles_by_address.items()):
+    if len(names) > 1:
+        print(f"INFO  role overlap :: {address} :: {', '.join(names)}")
 principals = [SAFE, DEPLOYER, A["expectedSPGuardian"].lower(), A["expectedGuardian"].lower(), op.lower()] + [g.lower() for g in guardians]
 check("required principals pairwise distinct", len(set(principals)) == len(principals) and ZERO not in principals, "Safe, guardians, genesis, deployer")
 for label, token, sig, args, key in (
@@ -238,7 +271,37 @@ for label, token, sig, args, key in (
     ("SBT balance", A["sbt"], "balanceOf(address)(uint256)", [DEPLOYER], "deployerSBTBalance")):
     actual = call(token, sig, *args).split()[0]
     expected = CFG[key]
-    check("deployer " + label + " == recorded", actual == str(expected) and (key != "deployerGTokenAllowance" or expected == 0), f"recorded {expected}; actual {actual}")
+    check("deployer " + label + " == recorded", actual == str(expected) and (key == "deployerSBTBalance" or expected == 0), f"recorded {expected}; actual {actual}")
+
+# Round-six authority inputs and GToken conservation.
+for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"):
+    owner = A.get(key, ZERO)
+    rc, code = cast("code", owner)
+    check(key + " resolved contract", owner.lower() not in (ZERO, DEPLOYER) and rc == 0 and code != "0x", owner)
+recipient = A.get("deployerGTokenRecipient", ZERO)
+actual = call(A["gToken"], "balanceOf(address)(uint256)", recipient).split()[0]
+check("GToken recipient exact delta", recipient.lower() not in (ZERO, DEPLOYER) and actual == str(CFG["deployerGTokenRecipientBefore"] + CFG["deployerGTokenTransferred"]), actual)
+amounts = CFG["gTokenMintAmounts"]
+recipients = CFG.get("gTokenMintRecipients", [])
+check("GToken mint ledger", len(amounts) == len(recipients) == CFG["gTokenMintCount"] == 2 and all(a.lower() == DEPLOYER for a in recipients) and sum(amounts) == CFG["gTokenTotalSupply"], str(amounts))
+rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": A["gToken"], "fromBlock": hex(CFG["deploymentStartBlock"]), "toBlock": "latest",
+    "topics": [cast("keccak", "Transfer(address,address,uint256)")[1], "0x" + "00" * 32]}))
+try:
+    mint_events = json.loads(raw)
+    actual_mints = [("0x" + e["topics"][2][-40:].lower(), integer(e["data"])) for e in mint_events]
+    mint_history_ok = rc == 0 and actual_mints == [(a.lower(), n) for a, n in zip(recipients, amounts)]
+except (ValueError, KeyError, TypeError, IndexError):
+    mint_history_ok = False
+check("GToken mint events == ledger", mint_history_ok, "all zero-source Transfer events since deployment")
+check("GToken totalSupply == mints", call(A["gToken"], "totalSupply()(uint256)").split()[0] == str(sum(amounts)), str(sum(amounts)))
+accounts, roles, stakes, tickets, treasuries = (CFG.get(k, []) for k in ("stakeAccounts", "stakeRoles", "stakeAmounts", "ticketAmounts", "ticketTreasuries"))
+check("GToken ticket ledger", len(accounts) == len(roles) == len(stakes) == len(tickets) == len(treasuries) and len(accounts) == len(guardians) + 3 and accounts == [DEPLOYER, op, op] + guardians and all(t.lower() == SAFE for t in treasuries), "tickets paid to Safe treasury")
+for i, (account, role, amount) in enumerate(zip(accounts, roles, stakes)):
+    check(f"GToken stake[{i}]", call(stk, "getLockedStake(address,bytes32)(uint256)", account, role).split()[0] == str(amount), f"{account} {role}: {amount}")
+check("GToken conservation", sum(stakes) + CFG["ticketsToTreasury"] + CFG["deployerRemainderToRecipient"] == sum(amounts) and CFG["deployerRemainderToRecipient"] == CFG["deployerGTokenTransferred"] and call(A["gToken"], "balanceOf(address)(uint256)", stk).split()[0] == str(sum(stakes)), "minted = locked + tickets to treasury + remainder to recipient")
+check("GToken treasury tickets", CFG["ticketsToTreasury"] == sum(tickets) and call(A["gToken"], "balanceOf(address)(uint256)", SAFE).split()[0] == str(CFG["treasuryGTokenBefore"] + CFG["ticketsToTreasury"] + (CFG["deployerGTokenTransferred"] if recipient.lower() == SAFE else 0)), "measured treasury delta excluding recipient remainder")
+rc, error = raw_call(DEPLOYER, A["gToken"], cast("calldata", "mint(address,uint256)", DEPLOYER, "1")[1])
+check("deployer GToken mint rejected", rc != 0 and cast("sig", "OwnableUnauthorizedAccount(address)")[1][2:] in error, "OwnableUnauthorizedAccount")
 
 # Only the constructor's ten-call batch may ever have been scheduled/executed.
 try:
@@ -279,6 +342,7 @@ for key, signature, args in (
     ("spImpl", "initialize(address,address,address,uint256)", [DEPLOYER, A["aPNTs"], SAFE, "4200"])):
     impl = A.get(key, ZERO)
     owner = call(impl, "owner()(address)")
+    print(f"INFO  {key}.owner :: {owner}")
     proxy = reg if key == "registryImpl" else sp
     rc_slot, slot = cast("storage", proxy, "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
     init = cast("calldata", signature, *args)[1]
@@ -289,9 +353,14 @@ for key, signature, args in (
     owner_error = cast("sig", "OwnableUnauthorizedAccount(address)")[1][2:]
     init_error = cast("sig", "InvalidInitialization()")[1][2:]
     upgrade_error = cast("sig", "UUPSUnauthorizedCallContext()")[1][2:]
-    ok = rc_slot == 0 and len(slot) == 66 and ("0x" + slot[-40:]).lower() == impl.lower() and owner.lower() != call(proxy, "owner()(address)").lower() and rc_proxy != 0 and owner_error in err_proxy and impl != ZERO and not owner.startswith("<") and rc_init != 0 and init_error in err_init and rc_upgrade != 0 and upgrade_error in err_upgrade
+    ok = owner.lower() == A.get(key + "Owner", ZERO).lower() and rc_slot == 0 and len(slot) == 66 and ("0x" + slot[-40:]).lower() == impl.lower() and owner.lower() != call(proxy, "owner()(address)").lower() and rc_proxy != 0 and owner_error in err_proxy and impl != ZERO and not owner.startswith("<") and rc_init != 0 and init_error in err_init and rc_upgrade != 0 and upgrade_error in err_upgrade
     results.append(ok)
     print(f"{'INFO-PASS' if ok else 'FAIL'}  {key} isolated :: owner {owner}; initializers disabled; upgrades require proxy context")
+
+for key in ("paymasterV4Impl", "spAdminImpl", "xPNTsTokenV1Impl", "xPNTsTokenV2Impl", "xPNTsTokenV2Ext"):
+    if key in A:
+        actual = call(A[key], "owner()(address)")
+        print(f"INFO  {key}.owner :: {actual}; recorded {CFG.get(key + 'Owner', 'missing')}")
 
 print(f"\nSUMMARY {sum(results)} passed, {len(results) - sum(results)} failed, {len(results)} total")
 sys.exit(0 if all(results) else 1)

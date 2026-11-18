@@ -17,6 +17,11 @@ contract SafeInputFixture {
     }
 }
 contract InputsHarness is DeployLiveInputs {
+    mapping(string => string) strings;
+    mapping(string => bool) present;
+    function _inputSet(string memory k) internal view override returns (bool) { return present[k]; }
+    function putString(string memory k, string memory v) external { strings[k] = v; present[k] = true; }
+    function _stringInput(string memory k) internal view override returns (string memory) { return strings[k]; }
     mapping(string => address) addresses;
     mapping(string => uint256) numbers;
     bytes encoded;
@@ -151,6 +156,9 @@ contract DeployLiveHandoverTest is Test {
     }
     function inputs() internal returns (InputsHarness h) {
         h = new InputsHarness();
+        h.putString("SLASH_POLICY_ADMIN", "timelock"); h.putString("X402_OWNER", "safe");
+        h.putString("REPUTATION_OWNER", "timelock"); h.putString("MPC_OWNER", "timelock");
+        h.putString("PAYMASTER_FACTORY_OWNER", "timelock"); h.putString("DEPLOYER_GTOKEN_RECIPIENT", "safe");
         string[5] memory addrKeys = ["GOVERNANCE_OWNER", "GOVERNOR_ADDRESS", "GUARDIAN_ADDRESS", "SP_GUARDIAN", "GENESIS_AASTAR_OPERATOR"];
         for (uint256 i; i < addrKeys.length; ++i) h.putAddress(addrKeys[i], i < 2 ? safe : address(uint160(200 + i)));
         vm.etch(safe, type(SafeInputFixture).runtimeCode);
@@ -176,6 +184,16 @@ contract DeployLiveHandoverTest is Test {
             vm.expectRevert(); h.load(deployer);
         }
     }
+    function test_Round6bSafeOwnerCannotBeDeployer() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        address[] memory owners = new address[](2);
+        owners[0] = deployer; owners[1] = address(92);
+        vm.mockCall(safe, abi.encodeWithSignature("getOwners()"), abi.encode(owners));
+        uint64 nonce = vm.getNonce(deployer);
+        vm.expectRevert("DeployLive: deployer is Safe owner"); h.load(deployer);
+        assertEq(vm.getNonce(deployer), nonce);
+    }
+
     function test_SafeRejectsEOADelegationAndBadThreshold() public {
         vm.chainId(10);
         InputsHarness h = inputs();
@@ -191,7 +209,7 @@ contract DeployLiveHandoverTest is Test {
         vm.expectRevert("DeployLive: GOVERNANCE_OWNER"); h.load(deployer);
     }
     function test_AllRequiredAddressesRejectUnsetZeroAndDeployerOnBothChains() public {
-        string[5] memory keys = ["GOVERNANCE_OWNER", "GOVERNOR_ADDRESS", "GUARDIAN_ADDRESS", "SP_GUARDIAN", "GENESIS_AASTAR_OPERATOR"];
+        string[4] memory keys = ["GOVERNANCE_OWNER", "GUARDIAN_ADDRESS", "SP_GUARDIAN", "GENESIS_AASTAR_OPERATOR"];
         for (uint256 chain; chain < 2; ++chain) {
             vm.chainId(chain == 0 ? 10 : 11155111);
             for (uint256 i; i < keys.length; ++i) for (uint256 bad; bad < 2; ++bad) {
@@ -212,6 +230,40 @@ contract DeployLiveHandoverTest is Test {
     }
     function test_LocalDefaultsDoNotRequireProductionInputs() public {
         vm.chainId(31337); InputsHarness h = new InputsHarness(); h.load(deployer); assertEq(h.count(), 0);
+    }
+    function test_Round6EveryOwnerChoiceRejectsMissingInvalidAndEOA() public {
+        vm.chainId(10);
+        string[5] memory keys = ["SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"];
+        string[5] memory bad = ["", "unknown", "0x0000000000000000000000000000000000000000", vm.toString(deployer), vm.toString(address(777))];
+        for (uint256 i; i < keys.length; ++i) for (uint256 j; j < bad.length; ++j) {
+            InputsHarness h = inputs(); h.putString(keys[i], bad[j]);
+            vm.expectRevert(); h.load(deployer);
+        }
+    }
+    function test_Round6EveryOwnerChoiceAcceptsContractAddress() public {
+        vm.chainId(10);
+        string[5] memory keys = ["SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"];
+        for (uint256 i; i < keys.length; ++i) {
+            InputsHarness h = inputs(); h.putString(keys[i], vm.toString(safe)); h.load(deployer);
+        }
+    }
+    function test_Round6RecipientRequiredAndNotDeployer() public {
+        vm.chainId(10);
+        string[4] memory bad = ["", "unknown", "0x0000000000000000000000000000000000000000", vm.toString(deployer)];
+        for (uint256 i; i < bad.length; ++i) {
+            InputsHarness h = inputs(); h.putString("DEPLOYER_GTOKEN_RECIPIENT", bad[i]); vm.expectRevert(); h.load(deployer);
+        }
+    }
+    function test_Round6GovernorRejected() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        h.putString("GOVERNOR_ADDRESS", "0x000000000000000000000000000000000000CAFE");
+        vm.expectRevert("DeployLive: GOVERNOR_ADDRESS deleted; use X402_OWNER"); h.load(deployer);
+
+    }
+    function test_Round6MissingOwnerInputRejected() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        h.putString("SLASH_POLICY_ADMIN", "");
+        vm.expectRevert("DeployLive: SLASH_POLICY_ADMIN"); h.load(deployer);
     }
     function test_ProductionInputsAccepted() public {
         vm.chainId(10); InputsHarness h = inputs(); h.load(deployer); assertEq(h.count(), 2);

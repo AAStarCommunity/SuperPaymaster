@@ -967,38 +967,74 @@ It needed no new PoP, no `addValidator` and no owner approval. Both halves were 
 - **Measured skew.** On the OP mainnet and Sepolia ETH/USD aggregators, over the last 60 `AnswerUpdated` events each, `updatedAt` equals the block timestamp of the writing transaction: maximum and minimum offset 0 s. The grace therefore rejects no normal round.
 
 
-## DeployLive: trusted ceremony and final governance state
+## DeployLive round six: authority, implementation owners and failed sets (2026-11-18)
 
-During deployment the deployer is trusted; the guarantee is the END state. Any
-independent party can re-run the read-only checker. Only chain 31337 is local;
-all other chains require production validation. Safe M-of-N, distinct principal,
-EntryPoint, fresh 8-decimal feed and account-factory checks precede broadcast.
-Validated governor/guardian inputs flow through without production re-reads.
+The deployer is trusted during the ceremony; acceptance requires the final checker.
+BLSAggregator, DVTValidator, both xPNTs factories and AOAProtocolRegistry are owned
+by the declared Safe (code, no 7702 delegation, threshold >=2). Slash-policy,
+X402, reputation, channel and paymaster-factory/implementation owners are explicit
+required production choices; the DSR choices are respectively TL, Safe, TL, TL, TL.
+GOVERNOR_ADDRESS is forbidden on production. GToken owner is Safe; the entire
+remaining deployer balance goes to the declared recipient before TL CREATE, and
+the deployer retains neither GToken nor a staking allowance.
 
-Timelock initially grants P/E/C only to predicted H, with self-admin and delay 0.
-Safe has no role. H accepts Registry/SP/APNTsCapped ownership, grants Safe P/E/C,
-revokes H P/E/C and raises delay to 172800 in its constructor. Nonce predictions
-are asserted before timelock and before H. All configured subjects are checked
-against all four roles, with the explicit governor=Safe alias handled as Safe.
+A remaining GToken balance leaves the deployer a path back into a protocol role.
+It could re-approve staking and pay the 30 GToken ticket through the permissionless
+`registerRole` to register itself as COMMUNITY again. The handover therefore
+transfers the entire remainder to DEPLOYER_GTOKEN_RECIPIENT.
 
-Deploy-day: no deployer transaction between nominations and H; no additional
-funding or operational operator registration until H is deployed and checker PASS.
-The required scripted genesis/DVT Registry setup remains part of the trusted
-ceremony; genesis SP isConfigured must be false. Production ETH funding is
-deferred. H failure => abandon the whole set after confirming it holds no funds
-and no registrations, redeploy. Scripted registrations in a failed set must be
-inventoried/resolved before claiming that abandonment precondition. Both recovery
-paths are cancelled. Chain-31337 stop-before-H rehearsal must FAIL the checker.
+**Implementation owners, read back in the local production-path fixture.** Registry
+and SuperPaymaster implementation owner() both return the deployer
+`0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38` in this fixture. These are independent
+implementation storage slots: proxy calls execute against proxy storage, whose
+owner is TL. The implementation initializers are disabled; direct implementation
+UUPS upgrades reject the non-proxy context, and the implementation owner cannot
+upgrade the proxy. The checker verifies binding and those rejection paths.
+SuperPaymasterAdmin's direct owner() is zero in the observed fixture; delegated
+administration reads the proxy's owner instead. PaymasterV4 implementation owner()
+is TL after handover. Its clones have their own initialized owner storage; owning
+the template does not confer ownership of existing clones. The v1 xPNTs template,
+v2 template and v2 extension have no owner() getter (reported explicitly as N/A);
+their communityOwner storage is separate from clone storage. None of these direct
+implementation owner slots grants authority over the proxies or clones. Authority
+over future PaymasterFactory implementation selection belongs to its configured
+factory owner and remains a separate trust boundary. Config records actual owner
+readbacks, including the implementation getter's absence.
 
-History begins at recorded deploymentStartBlock. Exact role sets and the sole
-executed ten-call batch are verified. CLI identities bind to config; integer
-readback accepts JSON number, decimal string and hex. Deployer GToken balance,
-zero staking allowance and SBT balance are recorded/asserted; balance destination
-remains pending. Implementation owners and proxy bindings are read, with INFO-PASS
-only after initializer/direct-upgrade/implementation-owner proxy-upgrade rejection.
+TL begins self-administered with P/E/C only for predicted H. H atomically accepts
+Registry/SP/APNTsCapped ownership, grants Safe P/E/C, revokes its own roles and
+raises the delay to 172800. H has a 16-byte reverting runtime. Its nonce is derived
+from the encoded 21-call handover list plus TL CREATE, not a magic +22 constant.
+Creation-bytecode pins are checked before broadcast, including exact selected
+artifact bytes and H's compiled creationCode.
 
-The catalogue has **139 + N checks (141 for N=2)**, including two INFO-PASS checks.
-The full catalogue and original 53 → current-name mapping are in
-[DEPLOYLIVE_HANDOFF.md](../../script/rehearsal/DEPLOYLIVE_HANDOFF.md).
-Namespaced ownership fixtures and per-slot checker mutations cover the final
-handover; no contracts/src files changed. No network or chain rehearsal was run.
+A failed H CREATE leaves scripted genesis/guardian registrations and public BLS
+keys in this set's Registry. Public keys are public and harmless. The code-less H
+alone retains TL's P/E/C, so nobody can propose or execute through TL. The normal
+checker must FAIL; the whole set is marked ABANDONED and never published. The
+failed-set inventory reads ETH and discovered token balances and lists historical
+and current registrations. Transfer-log discovery cannot identify a nonstandard
+token balance change that emits no Transfer event; unrestricted token-absence
+claims require an independently complete token inventory. A replacement set needs
+new predicted aggregator/DVT addresses and freshly generated guardian PoPs: old
+PoPs are void for its new popContext. DVT nodes keep scalars; SP receives only
+public keys and PoPs. No recovery or automatic merge/deployment is authorized.
+
+The N=3 local production-path fixture observed two mints (2000 and 199 GToken),
+140 locked in stakes, 74 received by the Safe treasury during registrations, and
+1985 transferred as the deployer remainder to the designated recipient. Staking
+and SP treasuries are set to Safe immediately after each contract exists; neither
+is reset in handover. The measured conservation is 2199 = 140 + 74 + 1985.
+A distinct recipient receives only the 1985 remainder.
+The final deployer balance and allowance are zero. This fixture mocks infrastructure
+and the BLS verification boundary; it is not evidence of a genuine-PoP fork run.
+See [the handoff](../../script/rehearsal/DEPLOYLIVE_HANDOFF.md) and validation report
+for the check formula, build/runtime evidence and outstanding operational limits.
+
+Round 6c adds direct external-token balances to the failed-set inventory. The
+explicit labeled list is grouped by eth_chainId (OP 10 and Sepolia 11155111); local
+fixtures supply a mock-token group. Unknown chains, code-less listed addresses,
+unreadable balances and any positive listed-token balance FAIL. Code is checked
+before balanceOf; no symbol() inference is used. Transfer-log discovery remains
+a fallback, but cannot see an unlisted non-standard token that emits no Transfer
+event. The explicit list improves coverage; it is not a proof about all tokens.
