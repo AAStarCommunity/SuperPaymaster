@@ -243,6 +243,15 @@ def plan_diff(gated, actual, gas_bounds=None):
     return diff
 
 
+def gas_changes(gated, actual, gas_bounds):
+    """Informational: limits that differ from the gated plan but sit inside the accepted range."""
+    out = []
+    for i, (a, b) in enumerate(zip(gated['transactions'], actual['transactions'])):
+        ga, gb = integer(a['transaction']['gas']), integer(b['transaction']['gas'])
+        if ga != gb: out.append(dict(index=i, gated=ga, broadcast=gb, range=gas_bounds[i]))
+    return out
+
+
 def check_start_nonce(plan, expected, rpc, deployer):
     require(integer(rpc('eth_getTransactionCount', deployer, 'pending')) == integer(expected)
             and integer(plan['transactions'][0]['transaction']['nonce']) == integer(expected), 'predict-time starting nonce mismatch')

@@ -275,6 +275,7 @@ def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100):
         real = integer(calls[i]['gasUsed'])
         emit(f"GAS index={i} contract={tx['contractName']} limit={limit} simulated={simulated} real={real} tolerance={tolerance:g}")
         require(real > 0 and real <= simulated <= real * (1 + tolerance), 'gas mismatch: ' + tx['contractName'])
+    return [integer(c['gasUsed']) for c in calls], block_gas_limit
 
 
 def price_sources(env, production, chain, second, fork):
@@ -292,10 +293,22 @@ def broadcast_gates(env, plan, rpc, second_rpc, emit=print, price_rpcs=None):
     block, _ = price_window(plan, primary, secondary, env['ETH_USD_FEED'], threshold, emit)
     if price_rpcs is not None:
         block = rpc('eth_getBlockByNumber', 'latest', False)['number']
-    gas_crosscheck(plan, rpc, block, float(env.get('DEPLOYLIVE_GAS_TOLERANCE', '0.05')), emit,
+    reals, block_gas_limit = gas_crosscheck(plan, rpc, block, float(env.get('DEPLOYLIVE_GAS_TOLERANCE', '0.05')), emit,
                    multiplier=integer(env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130')))
     price_window(plan, primary, secondary, env['ETH_USD_FEED'], threshold, emit)
-    return [[integer(tx['transaction']['gas'])]*2 for tx in plan['transactions']]
+    return gas_bounds(reals, block_gas_limit)
+
+
+def gas_bounds(reals, block_gas_limit):
+    # DSR 2026-11-19: a broadcast gas limit is accepted inside the gated range, not only when equal.
+    # Low: the real-chain need, raised above 2^24 when the total needs the EIP-8037 reservoir.
+    # High: the block gas limit.
+    bounds = []
+    for real in reals:
+        low = real if real <= TX_GAS_CAP * CAP_FRACTION else max(real, TX_GAS_CAP + 1)
+        require(low <= block_gas_limit, 'gated gas need above block gas limit')
+        bounds.append([low, block_gas_limit])
+    return bounds
 
 
 def source_stamp():

@@ -152,7 +152,7 @@ class Ddf3Test(unittest.TestCase):
         self.assertEqual(fork.call_count,3)
         self.assertTrue(any('corroboration not applicable on a fork' in s for s in lines))
         chain.return_value={'number':'0x123'}
-        with patch.object(d,'gas_crosscheck') as gas:
+        with patch.object(d,'gas_crosscheck',return_value=([],200_000_000)) as gas:
             d.broadcast_gates({'PRICE_STALENESS_THRESHOLD':'4200','ETH_USD_FEED':'feed'},plan(),chain,None,lambda s:None,price_rpcs=(fork,None))
         self.assertIs(gas.call_args.args[1],chain)
         self.assertEqual(gas.call_args.args[2],'0x123')

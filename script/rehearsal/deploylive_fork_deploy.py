@@ -149,7 +149,7 @@ def main():
     build_paths(env)
     binary = verify_build(env, production)
     real, corroborating = gate_sources(env, production, chain)
-    from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success
+    from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success, gas_changes
     verify_manifest(env, evidence)
     approved_env = dict(env)
     env['GUARDIANS'] = (evidence/'guardians.hex').read_text().strip()
@@ -226,6 +226,10 @@ def main():
             diff = ['missing or malformed fresh broadcast record']
         (evidence/'postbroadcast.diff.json').write_text(json.dumps(diff)+'\n')
         require(not diff, 'post-broadcast diff is not empty; deployment NOT successful')
+        changed = gas_changes(plan, json.loads(actual_path.read_text()), gas_bounds)
+        (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
+        print('GAS post-broadcast limits equal to gated plan' if not changed else
+              f'GAS post-broadcast {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
         require(result.returncode == 0, 'deployment failed; config existence is not success')
     finally:
         if not production:

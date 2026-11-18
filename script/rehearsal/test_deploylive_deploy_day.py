@@ -142,7 +142,7 @@ class DeployDayTest(unittest.TestCase):
 
     def test_price_rechecked_after_gas_simulation(self):
         env = {'PRICE_STALENESS_THRESHOLD':'4200', 'ETH_USD_FEED':'feed'}
-        with patch.object(d, 'price_window', side_effect=[('0xc8', 12), RuntimeError('STOP wait for the next feed update')]) as price, patch.object(d, 'gas_crosscheck') as gas:
+        with patch.object(d, 'price_window', side_effect=[('0xc8', 12), RuntimeError('STOP wait for the next feed update')]) as price, patch.object(d, 'gas_crosscheck', return_value=([], 200_000_000)) as gas:
             with self.assertRaisesRegex(RuntimeError, 'wait for the next feed update'):
                 d.broadcast_gates(env, self.plan(), self.rpc(), self.rpc())
             self.assertEqual(price.call_count, 2)
