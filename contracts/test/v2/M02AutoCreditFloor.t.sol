@@ -237,9 +237,16 @@ contract M02AutoCreditFloorTest is Test {
             // Empty schedule: creditFloor reverts and the exact AUTO credit (tier1 - tier1) is 0.
             vm.expectRevert();
             tierSource.creditFloor();
+            _setPolicy(2);
+            _request(user, token.PROTOCOL_CREDIT_CEILING());
+            assertEq(token.effectiveCreditCap(user), 0, "AUTO for reputation 0 must be 0");
             return;
         }
         assertEq(tierSource.creditFloor(), registry.getCreditLimit(user));
+        // End to end: under AUTO a reputation-0 address gets 0 on every valid schedule.
+        _setPolicy(2);
+        _request(user, token.PROTOCOL_CREDIT_CEILING());
+        assertEq(token.effectiveCreditCap(user), 0, "AUTO for reputation 0 must be 0");
     }
 
     function test_Medium1_AUTO_exposure_is_bounded_by_Registry_ledger() public {

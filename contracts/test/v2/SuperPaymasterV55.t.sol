@@ -77,6 +77,7 @@ contract SuperPaymasterV55Test is Test {
     uint8 constant TRACE_AGENT = 1;
     uint8 constant TRACE_CREDIT = 2;
     uint8 constant TRACE_CREDIT_MANUAL = 3;
+    uint8 constant TRACE_CREDIT_EMPTY_SCHEDULE = 4;
 
     function setUp() public {
         accountOwner = vm.addr(OWNER_PK);
@@ -1278,7 +1279,8 @@ contract SuperPaymasterV55Test is Test {
         _assertValidationOpcodes(_op(0, MIN_POST_OP_GAS, 0, ""), TRACE_TOKEN, true);
     }
 
-    /// AUTO credit for a user above the level-1 floor: the 3 M-02 floor frames execute.
+    /// AUTO credit for a user above the level-1 floor: the 5 M-02 floor frames execute
+    /// (creditFloor, levelThresholds and creditTierConfig through the Registry proxy).
     /// forge-config: default.isolate = true
     function test_OP011_validation_trace_credit() public {
         address poor = _productionRegistryCreditUser(false);
@@ -1290,6 +1292,22 @@ contract SuperPaymasterV55Test is Test {
     function test_OP011_validation_trace_credit_manual() public {
         address poor = _productionRegistryCreditUser(true);
         _assertValidationOpcodes(_opFor(poor, 0xB00B, 0, MIN_POST_OP_GAS, 0, ""), TRACE_CREDIT_MANUAL, true);
+    }
+
+    /// Empty threshold schedule on the AUTO route: the out-of-bounds levelThresholds(0) getter
+    /// reverts inside the bounded source call. No banned opcode (in particular no INVALID 0xfe)
+    /// may appear, and validation must answer NO_CREDIT (signature failure), not revert.
+    /// forge-config: default.isolate = true
+    function test_OP011_validation_trace_credit_empty_schedule() public {
+        address poor = _productionRegistryCreditUser(false);
+        vm.prank(owner);
+        productionRegistry.setLevelThresholds(new uint256[](0));
+        assertEq(token.effectiveCreditCap(poor), 0, "empty schedule: AUTO is 0");
+        PackedUserOperation memory op = _opFor(poor, 0xB00B, 0, MIN_POST_OP_GAS, 0, "");
+        _assertValidationOpcodes(op, TRACE_CREDIT_EMPTY_SCHEDULE, false);
+        vm.prank(address(entryPoint));
+        (, uint256 vd) = sp.validatePaymasterUserOp(op, keccak256("m02-empty"), 1e15);
+        assertEq(vd & 1, 1, "no credit: signature failure, not a revert");
     }
 
     /// forge-config: default.isolate = true
@@ -1354,7 +1372,9 @@ contract SuperPaymasterV55Test is Test {
         console.log("credit validation gas MANUAL", gasManual);
         assertGt(gasAuto, gasManual, "AUTO pays for the floor read");
         console.log("credit validation gas delta", gasAuto - gasManual);
-        assertLt(gasAuto - gasManual, 2 * 100_000, "floor read stays within source budgets");
+        // Pinned: the disclosed figure is 8,735 (Cancun/Prague, same user, same level).
+        assertGe(gasAuto - gasManual, 5_000, "floor read delta below the disclosed range");
+        assertLe(gasAuto - gasManual, 15_000, "floor read delta above the disclosed range");
     }
 
     function _creditValidationGas(bool manual) internal returns (uint256 used) {
@@ -1368,7 +1388,8 @@ contract SuperPaymasterV55Test is Test {
         assertEq(abi.decode(ctx, (SuperPaymaster.OpCtx)).mode, 2, "mode CREDIT");
     }
 
-    /// @param manual false: AUTO policy, level 4 (tier 600, floor 100 -> AUTO 500, requested 300).
+    /// @param manual false: AUTO policy, level 4 (tier 600, floor 100 -> AUTO 500, requested 550,
+    ///                      so the floor deduction decides the cap: the old full-tier rule gives 550).
     ///               true: MANUAL policy, same user at level 4 with approvedCap 300.
     function _productionRegistryCreditUser(bool manual) internal returns (address poor) {
         poor = address(accountFactory.createAccount(vm.addr(0xB00B), 0));
@@ -1410,7 +1431,7 @@ contract SuperPaymasterV55Test is Test {
         vm.prank(owner);
         sp.updatePrice();
         vm.prank(poor);
-        IV2Ext(address(token)).requestCredit(300 ether);
+        IV2Ext(address(token)).requestCredit(manual ? 300 ether : 550 ether);
         if (manual) {
             vm.prank(operator);
             IV2Ext(address(token)).approveCredit(poor, 300 ether);
@@ -1418,7 +1439,7 @@ contract SuperPaymasterV55Test is Test {
             assertEq(token.effectiveCreditCap(poor), 300 ether, "MANUAL = min(requested, approved, tier)");
         } else {
             assertEq(productionRegistry.getCreditLimit(poor), 600 ether, "level-4 tier");
-            assertEq(token.effectiveCreditCap(poor), 300 ether, "AUTO = min(requested, tier - level-1 floor)");
+            assertEq(token.effectiveCreditCap(poor), 500 ether, "AUTO = min(requested 550, tier 600 - floor 100)");
         }
     }
 
@@ -1481,7 +1502,8 @@ contract SuperPaymasterV55Test is Test {
         }
         assertEq(
             callCount,
-            route == TRACE_CREDIT ? 15 : (route == TRACE_CREDIT_MANUAL ? 10 : (route == TRACE_AGENT ? 6 : 5)),
+            route == TRACE_CREDIT ? 15 : (route == TRACE_CREDIT_EMPTY_SCHEDULE ? 13
+                : (route == TRACE_CREDIT_MANUAL ? 10 : (route == TRACE_AGENT ? 6 : 5))),
             "validation closure size changed"
         );
         assertEq(bannedCount, 0, "ERC-7562 OP-011/OP-012 opcode in paymaster validation closure");
@@ -1502,16 +1524,16 @@ contract SuperPaymasterV55Test is Test {
         if (j == 2) return (address(token), bytes4(keccak256("exchangeRate()")), 0xf4);
         if (j == 3) return (address(sp), bytes4(keccak256("tryLockForGas(address,bytes32,uint256,bool)")), 0xf1);
         if (j == 4) return (address(token), bytes4(keccak256("tryLockForGas(address,bytes32,uint256,bool)")), 0xf4);
-        if (route == TRACE_CREDIT || route == TRACE_CREDIT_MANUAL) {
+        if (route == TRACE_CREDIT || route == TRACE_CREDIT_MANUAL || route == TRACE_CREDIT_EMPTY_SCHEDULE) {
             if (j == 5) return (address(sp), bytes4(keccak256("tryReserveCredit(address,bytes32,uint256)")), 0xf1);
             if (j == 6) return (address(token), bytes4(keccak256("tryReserveCredit(address,bytes32,uint256)")), 0xf4);
             if (j == 7) return (address(token), bytes4(keccak256("tierOf(address,address)")), 0xfa);
             if (j == 8) return (address(productionTier), bytes4(keccak256("getCreditLimit(address)")), 0xfa);
             if (j == 9) return (address(productionRegistry), bytes4(keccak256("getCreditLimit(address)")), 0xf4);
             // M-02: AUTO reads the reputation-0 floor through the same tier source (same Registry tables).
-            if (route == TRACE_CREDIT && j == 10) return (address(token), bytes4(keccak256("creditFloor()")), 0xfa);
-            if (route == TRACE_CREDIT && j == 11) return (address(productionTier), bytes4(keccak256("levelThresholds(uint256)")), 0xfa);
-            if (route == TRACE_CREDIT && j == 12) return (address(productionRegistry), bytes4(keccak256("levelThresholds(uint256)")), 0xf4);
+            if ((route == TRACE_CREDIT || route == TRACE_CREDIT_EMPTY_SCHEDULE) && j == 10) return (address(token), bytes4(keccak256("creditFloor()")), 0xfa);
+            if ((route == TRACE_CREDIT || route == TRACE_CREDIT_EMPTY_SCHEDULE) && j == 11) return (address(productionTier), bytes4(keccak256("levelThresholds(uint256)")), 0xfa);
+            if ((route == TRACE_CREDIT || route == TRACE_CREDIT_EMPTY_SCHEDULE) && j == 12) return (address(productionRegistry), bytes4(keccak256("levelThresholds(uint256)")), 0xf4);
             if (route == TRACE_CREDIT && j == 13) return (address(productionTier), bytes4(keccak256("creditTierConfig(uint256)")), 0xfa);
             if (route == TRACE_CREDIT && j == 14) return (address(productionRegistry), bytes4(keccak256("creditTierConfig(uint256)")), 0xf4);
         }
