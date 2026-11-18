@@ -2506,21 +2506,21 @@
   ],
   "readAt": {
     "chainId": 11155111,
-    "block": 12158619,
-    "hash": "0x67da8e573a528b46fd5634b599de12498b967f10aff0cc20130a8c8187e70bea",
+    "block": 12158744,
+    "hash": "0x66fcdc6765b01b851973ef64b41a1e77df2f1b135674421ce8eb0d8346d8a20a",
     "endpoints": [
       "Alchemy",
       "Tenderly"
     ],
     "finalizedAtRead": [
-      12158619,
-      12158619
+      12158744,
+      12158744
     ],
     "rule": "every value read on both endpoints at this block and required to be identical"
   },
   "inventory": {
-    "path": "script/evidence/rc8-owner-table/inventory-12158619.json",
-    "sha256": "0037f498bed756c38e50539c4938a28048b33d20fb5c919fd106622a1a67f4f2",
+    "path": "script/evidence/rc8-owner-table/inventory-12158744.json",
+    "sha256": "9e6172fcab27560153d02719449ef031ffc054b3d25bab7d5f402d1dc551542f",
     "configuredOperators": [
       "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
       "0xb5600060e6de5E11D3636731964218E53caadf0E"
@@ -2591,7 +2591,7 @@
       },
       {
         "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
-        "count": 431,
+        "count": 432,
         "firstBlock": 11151035,
         "signature": "PriceUpdated(int256,uint256)",
         "class": "historical",

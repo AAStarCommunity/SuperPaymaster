@@ -11,7 +11,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createPublicClient, http, parseAbi, parseAbiItem, getAddress, keccak256, stringToHex, toFunctionSelector } from "viem";
-import { makeRedactor, assertIndependent, both as both2, verifyPin, requireIdenticalLogs, codeAt } from "./lib/two-endpoint.mjs";
+import { makeRedactor, assertIndependent, both as both2, verifyPin, requireIdenticalLogs, codeAt, classifyRead } from "./lib/two-endpoint.mjs";
 import { inventoryErrors } from "./lib/inventory-accept.mjs";
 
 const [envFile, secondRpc, inventoryPath, tablePath = "docs/security/rc8-owner-table.json"] = process.argv.slice(2);
@@ -85,32 +85,29 @@ async function readRange(address, r) {
 // Class-3 (legacy) evidence: no deployed rc.8 contract returns a legacy subject from any zero-argument
 // address getter of its rc.8 ABI, and no rc.8 role mapping holds it. Every read is classified:
 //   ok          - answered on both endpoints (the value is the evidence);
-//   notInCode   - reverted AND the 4-byte selector does not occur in the deployed runtime: the getter does
-//                 not exist on the deployed (older) version, so it cannot return the subject;
-//   reverted    - reverted although the selector occurs in the code: unexplained, NOT evidence of absence;
+//   notInCode   - reverted AND the 4-byte selector occurs in no reachable runtime (the address, its EIP-1967
+//                 implementation, its EXTENSION()): the getter does not exist on the deployed version;
+//   reverted    - reverted and absence could not be established (selector present, or a slot/code read
+//                 failed, or a beacon): NOT evidence of absence;
 //   failed      - transport/provider failure: NOT evidence of absence.
 // The generator keeps every class-3 row PENDING while any read is reverted or failed.
 async function legacyProbe(lp) {
     const subjects = [...new Set(lp.subjects.map((k) => getAddress(resolve(k))))];
     const hit = (v) => [v].flat().filter((x) => typeof x === "string" && /^0x[0-9a-fA-F]{40}$/.test(x)).map((x) => getAddress(x)).filter((x) => subjects.includes(x));
-    const codes = {};
-    const runtime = async (target) => {
-        if (!(target in codes)) {
-            const r = await both((c) => c.getCode({ address: resolve(target), blockNumber: block }));
-            if (!r.ok) throw new Error(`getCode(${target}) failed: ${r.error}`);
-            codes[target] = (r.value ?? "0x").toLowerCase();
+    // Code holders beyond the address itself: an EXTENSION() the target delegates to (when it has one).
+    const extras = {};
+    const extraOf = async (target) => {
+        if (!(target in extras)) {
+            const r = await readCall(resolve(target), { fn: "function EXTENSION() view returns (address)" });
+            // A revert means the target has no EXTENSION(); any other failure leaves the holder set unknown,
+            // which classifyRead must treat as "absence not established" (null -> reverted).
+            extras[target] = r.ok ? (r.value !== "0x0000000000000000000000000000000000000000" ? [r.value] : [])
+                : r.revert ? [] : null;
         }
-        return codes[target];
+        return extras[target];
     };
-    const classify = async (target, fn, res) => {
-        if (res.ok) return "ok";
-        if (!res.revert) return "failed";
-        const selector = toFunctionSelector(fn).slice(2);
-        // PUSH4 <selector>, or PUSH3 when the selector's first byte is 0x00 (the optimizer drops it).
-        const code = await runtime(target);
-        const present = code.includes("63" + selector) || (selector.startsWith("00") && code.includes("62" + selector.slice(2)));
-        return present ? "reverted" : "notInCode";
-    };
+    const classify = async (target, fn, res) => classifyRead(clients, { address: resolve(target), blockNumber: block,
+        selector: toFunctionSelector(fn), res, extra: res.ok ? [] : await extraOf(target) }, redact);
     const getters = [], hits = [];
     for (const [target, spec] of Object.entries(lp.getterTargets)) {
         const abiJson = spec.abi ? JSON.parse(readFileSync(new URL("../../" + spec.abi, import.meta.url), "utf8")) : [];

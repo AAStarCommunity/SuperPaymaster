@@ -2,7 +2,7 @@
   "schema": "sp-inventory/2",
   "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
   "chainId": 11155111,
-  "at": "2026-11-18T03:00:58.648Z",
+  "at": "2026-11-18T03:30:15.264Z",
   "endpoints": [
     {
       "label": "archive(Alchemy)",
@@ -15,8 +15,8 @@
   ],
   "crossCheck": {
     "allLogs": {
-      "archive": 499,
-      "second": 499,
+      "archive": 500,
+      "second": 500,
       "removed": 0,
       "duplicates": 0,
       "identical": true
@@ -101,11 +101,11 @@
     "pendingDebts": []
   },
   "pinnedBlock": {
-    "number": 12158619,
-    "hash": "0x67da8e573a528b46fd5634b599de12498b967f10aff0cc20130a8c8187e70bea",
+    "number": 12158744,
+    "hash": "0x66fcdc6765b01b851973ef64b41a1e77df2f1b135674421ce8eb0d8346d8a20a",
     "finalized": [
-      12158619,
-      12158619
+      12158744,
+      12158744
     ]
   },
   "deployBlock": {
@@ -114,7 +114,7 @@
   },
   "range": {
     "from": 11151016,
-    "to": 12158619
+    "to": 12158744
   },
   "events": {
     "unclassified": 0,
@@ -181,7 +181,7 @@
     },
     {
       "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
-      "count": 431,
+      "count": 432,
       "firstBlock": 11151035,
       "signature": "PriceUpdated(int256,uint256)",
       "class": "historical",

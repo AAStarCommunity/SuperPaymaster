@@ -19,7 +19,7 @@
 
 ## inventory.mjs changes (correcting #639)
 - Uses the shared module. Its own redactor, host check and log fingerprint are removed.
-- Rejects identical endpoints by normalized hostname, and the same provider or the same registrable domain.
+- Rejects identical endpoints by normalized hostname (and two endpoints of the same named provider).
 - Verifies `eth_chainId == 11155111` on both endpoints.
 - Labels endpoints by a provider name from a fixed host map. It no longer writes the second endpoint's host into the output.
 - Log agreement covers the full payload: address, topics, data, blockHash, logIndex, transactionHash, transactionIndex, removed. It rejects `removed: true` and duplicate log identities. It fails before deriving anything from logs that differ.
@@ -39,11 +39,10 @@ The old run is `inventory-12158083.json` (3b9d83fb, old code); the new one is `i
 
 ## Known limitations
 - Trust root: the two endpoints are operator-configured and assumed to be two different honest providers. The work does not defend against an operator who crafts malicious inputs.
-- Registrable-domain comparison uses the last two labels. There is no public-suffix list.
 - The legacy probe covers the zero-argument address getters of the rc.8 ABIs and a fixed list of role mappings on deployed rc.8 contracts. It cannot see an address held in a mapping or struct it does not query.
   - Known instance: `operators(ANNI).xPNTsToken` still names the v1 pNTs token; it is disclosed in the table.
   - Undeployed rc.8 contracts (A7, AOAProtocolRegistry, xPNTsFactoryV2, the new implementations) are covered only by the source scan, and are read back at step 13.
-- A getter whose selector is not in the deployed runtime counts as "cannot return the subject". Selector detection looks for PUSH4, or PUSH3 when the first byte is zero. Any other form would show as "reverted" and keep the rows PENDING.
+- A getter whose selector is in no reachable deployed runtime (the address, its EIP-1967 implementation, its EXTENSION()) counts as "cannot return the subject". Selector detection looks for PUSH4, or PUSH3 when the first byte is zero. Any other form would show as "reverted" and keep the rows PENDING.
 - The DVTValidator 0.6.0 bytecode match is against a local build of 41784173 with that commit's default profile. The build uses `bytecode_hash none`, so the CBOR tail carries no metadata hash (only the solc version). The tail is compared byte for byte.
 - Many required steps are missing from `script/upgrade/manifest_exec.py` on main. They are listed as GAP or PENDING in the table's open items:
   - treasury, role-owner, staking, GToken, MySBT and ReputationSystem handovers;
@@ -52,3 +51,15 @@ The old run is `inventory-12158083.json` (3b9d83fb, old code); the new one is `i
   - the old PaymasterFactory disable step;
   - A7.dvt.
 - The manifest still pins stale versions (`BLSAggregator-4.12.0`, `Registry-5.9.0`) and the old DVTValidator (`fixed_dvt`, :637).
+
+## Round 4 (after the last review)
+- **The round-4 changes were made after the last DSR-arranged review (Codex APPROVED at 491eff87) and were not re-reviewed by it.**
+- `notInCode` is now proxy-aware (`classifyRead` in `lib/two-endpoint.mjs`). The selector must be absent from:
+  - the address's own runtime;
+  - its EIP-1967 implementation's runtime (the implementation slot is read on both endpoints at the pin, and both must agree);
+  - its `EXTENSION()` when it has one.
+
+  A beacon, or any slot/code read that fails or disagrees, keeps the read `reverted`, so the row stays PENDING. The real re-read at the round-4 pin changed no row's class: `SP.EXTENSION()`, `SP.guardian()`, `SP.pendingOwner()` and `REGISTRY.pendingOwner()` are still `notInCode`, now established against the implementations. `script/evidence/owner-table-impl-selector-check.mjs` is a positive control: `owner()`, `xpntsFactory()` and `blsAggregator()` are found in the implementation code and not in the proxy code.
+- Redaction registers both the raw percent-encoded and the decoded form of every query value.
+- The registrable-domain rejection is removed. Under the trust root only equal normalized hostnames are rejected.
+- Main-session addition after round 4 (also not re-reviewed): an `EXTENSION()` read that fails in transport (not a revert) now leaves the extra code holders unknown, so the row stays `reverted` (PENDING) instead of being searched without the extension. The real read had `gettersFailed = 0`, so the committed table is unchanged by this.

@@ -32,9 +32,6 @@ export function hostOf(url) {
     return h.toLowerCase().replace(/\.+$/, "");
 }
 
-// Registrable domain, approximated by the last two labels (no public-suffix list).
-export const registrableDomain = (host) => host.split(".").slice(-2).join(".");
-
 export function providerOf(url) {
     const host = hostOf(url);
     const hit = PROVIDERS.find(([suffix]) => host === suffix || host.endsWith("." + suffix));
@@ -54,7 +51,11 @@ export function makeRedactor(urls) {
             if (x.search.length > 1) secrets.push(x.search);
             // Each path segment and each query value on its own, so a credential echoed in pieces is still caught.
             for (const seg of x.pathname.split("/")) if (seg) secrets.push(seg, decodeURIComponent(seg));
-            for (const [k, v] of x.searchParams) secrets.push(v, k + "=" + v);
+            for (const [k, v] of x.searchParams) secrets.push(v, k + "=" + v); // decoded form
+            for (const pair of x.search.replace(/^\?/, "").split("&")) {      // raw percent-encoded form
+                const i = pair.indexOf("=");
+                if (i >= 0) secrets.push(pair, pair.slice(i + 1));
+            }
             if (x.username) secrets.push(x.username);
             if (x.password) secrets.push(x.password);
         } catch { /* malformed: the raw string is still redacted */ }
@@ -67,16 +68,14 @@ export function makeRedactor(urls) {
     };
 }
 
-// The two endpoints must be different hosts and different providers: two named providers must differ,
-// and an unlisted host must not share its registrable domain with the other. Hosts are compared, never printed.
+// The two endpoints must be different normalized hostnames, and two named providers must differ.
+// Trust root: both endpoints are operator-configured honest providers, so no registrable-domain heuristic.
+// Hosts are compared, never printed.
 export function assertIndependent(urlA, urlB) {
     const [ha, hb] = [hostOf(urlA), hostOf(urlB)];
     if (ha === hb) throw new Error("the two endpoints must be different hosts (identical host)");
     const [a, b] = [providerOf(urlA), providerOf(urlB)];
     if (a === b && a !== "unlisted") throw new Error(`the two endpoints must be different providers (both ${a})`);
-    if ((a === "unlisted" || b === "unlisted") && registrableDomain(ha) === registrableDomain(hb)) {
-        throw new Error("the two endpoints must be different providers (same registrable domain)");
-    }
     return [a, b];
 }
 
@@ -157,4 +156,52 @@ export async function codeAt(clients, address, blockNumber, redact) {
     const r = await both(clients, (c) => c.getCode({ address, blockNumber }), redact);
     if (!r.ok) return { ok: false, error: "getCode failed: " + r.error };
     return { ok: true, value: typeof r.value === "string" && r.value !== "0x" ? "has code" : "no code" };
+}
+
+// ---- probe classification ------------------------------------------------------------------------
+export const IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+export const BEACON_SLOT = "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50";
+const ZERO_WORD = "0x" + "00".repeat(32);
+
+const hasSelector = (code, selector) => code.includes("63" + selector) || (selector.startsWith("00") && code.includes("62" + selector.slice(2)));
+
+// Classify a probe read that did not succeed. "notInCode" is returned ONLY when it is established on both
+// endpoints that no code reachable from `address` carries the selector: the address's own runtime, and, for
+// an EIP-1967 proxy, the implementation's runtime (both slot reads must agree and the implementation code
+// must be readable). Anything that cannot be established stays "reverted" (PENDING), never "notInCode".
+//   res: the { ok, revert } result of the read.  extra: further code holders to search (e.g. an extension).
+export async function classifyRead(clients, { address, blockNumber, selector, res, extra = [] }, redact = String) {
+    if (res.ok) return "ok";
+    if (!res.revert) return "failed";
+    if (extra === null) return "reverted"; // the caller could not establish the extra code holders
+    const sel = selector.replace(/^0x/, "").toLowerCase();
+    const codeOf = async (a) => {
+        const r = await both(clients, (c) => c.getCode({ address: a, blockNumber }), redact);
+        return r.ok && typeof r.value === "string" && r.value !== "0x" ? r.value.toLowerCase() : null;
+    };
+    const slot = async (s) => {
+        const r = await both(clients, (c) => c.getStorageAt({ address, slot: s, blockNumber }), redact);
+        return r.ok && typeof r.value === "string" ? r.value.toLowerCase() : null;
+    };
+    try {
+        const own = await codeOf(address);
+        if (own === null) return "reverted";
+        const holders = [own];
+        const impl = await slot(IMPL_SLOT), beacon = await slot(BEACON_SLOT);
+        if (impl === null || beacon === null) return "reverted";
+        if (beacon !== ZERO_WORD) return "reverted"; // beacon indirection: not followed
+        if (impl !== ZERO_WORD) {
+            const implCode = await codeOf("0x" + impl.slice(26));
+            if (implCode === null) return "reverted";
+            holders.push(implCode);
+        }
+        for (const a of extra) {
+            const c = await codeOf(a);
+            if (c === null) return "reverted";
+            holders.push(c);
+        }
+        return holders.some((c) => hasSelector(c, sel)) ? "reverted" : "notInCode";
+    } catch {
+        return "reverted"; // endpoints disagree or a read threw: absence not established
+    }
 }

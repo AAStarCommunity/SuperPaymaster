@@ -250,7 +250,7 @@ export function render(t, ctx) {
     p("## Legacy (class 3) evidence", "",
         `Probes at the pinned block, both endpoints: ${res.gettersRead} zero-argument address getters of the rc.8 ABIs on ${Object.keys(lp.getterTargets).join(", ")}; ` +
         `${res.memberReads} role/mapping reads (${lp.memberProbes.map((m) => `${m.target}.${m.label}`).join(", ")}) for each subject. ` +
-        `Getters whose selector is not in the deployed (older) runtime, so they cannot return a subject: ${res.gettersNotInCode.join(", ") || "none"}. ` +
+        `Getters whose selector is in no reachable deployed runtime (the address, its EIP-1967 implementation, its EXTENSION()), so they cannot return a subject: ${res.gettersNotInCode.join(", ") || "none"}. ` +
         `Reads that did not answer (keep every class-3 row PENDING): reverted although present ${res.gettersReverted.join(", ") || "none"}; ` +
         `transport failures ${res.gettersFailed.join(", ") || "none"}; member probes ${res.memberAbsent.join(", ") || "none"}. ` +
         `Source scan (address, case-insensitive): ${lp.sourceScan.join(", ")}. ${esc(lp.note)}`, "",

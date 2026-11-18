@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { mkdtempSync, mkdirSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertIndependent, providerOf, makeRedactor, both, compareLogs, requireIdenticalLogs, verifyPin, pinFinalized, codeAt, writeAtomic } from "./two-endpoint.mjs";
+import { assertIndependent, providerOf, makeRedactor, both, compareLogs, requireIdenticalLogs, verifyPin, pinFinalized, codeAt, writeAtomic, classifyRead, IMPL_SLOT } from "./two-endpoint.mjs";
 import { inventoryErrors, INVENTORY_SCHEMA, REQUIRED_CONTROLS } from "./inventory-accept.mjs";
 
 const A = "https://fake-a.alchemy.com/v2/SECRETKEY123", B = "https://fake-b.tenderly.co/SECRET456";
@@ -107,11 +107,13 @@ test("H2: removed logs, transactionIndex and duplicate identities", () => {
     assert.equal(compareLogs([l, { ...l }], [l, { ...l }]).identical, false);
 });
 
-test("H1: hostnames are normalized (case, trailing dot, port); unlisted hosts need different registrable domains", () => {
+test("H1: hostnames are normalized (case, trailing dot, port); equal normalized hostnames are rejected", () => {
     assert.throws(() => assertIndependent("https://host/key1", "https://host./key2"), /identical host/);
     assert.throws(() => assertIndependent("https://x.example:8545", "https://x.example:443"), /identical host/);
     assert.throws(() => assertIndependent("https://RPC.Example.org/a", "https://rpc.example.org./b"), /identical host/);
-    assert.throws(() => assertIndependent("https://a.example.org/k", "https://b.example.org/k"), /registrable domain/);
+    // Round 4: no registrable-domain rule; distinct hosts under one suffix are accepted.
+    assert.deepEqual(assertIndependent("https://rpc.alpha.co.uk/k", "https://rpc.beta.co.uk/k"), ["unlisted", "unlisted"]);
+    assert.deepEqual(assertIndependent("https://a.example.org/k", "https://b.example.org/k"), ["unlisted", "unlisted"]);
     assert.deepEqual(assertIndependent("https://a.example.org/k", "https://fake-a.alchemy.com/k"), ["unlisted", "Alchemy"]);
     assert.equal(providerOf("https://FAKE-A.Alchemy.com./v2/k"), "Alchemy");
     assert.equal(providerOf("https://fake-b.tenderly.co:8443/k"), "Tenderly");
@@ -123,6 +125,37 @@ test("L7: a credential echoed in pieces is still redacted", () => {
     const r = makeRedactor([u1, u2]);
     const out = r("auth failed for abc123key in project proj987xyz, token sek42val; second key zzKEY9");
     for (const piece of ["abc123key", "proj987xyz", "sek42val", "zzKEY9"]) assert.ok(!out.includes(piece), piece);
+});
+
+test("L7 (round 4): raw percent-encoded and decoded query values are both redacted", () => {
+    const r = makeRedactor(["https://x.example.org/v1?token=abc%2Fsecret&k=plain", "https://y.example.net/z"]);
+    assert.equal(r("bad request: token=abc%2Fsecret"), "bad request: <redacted>");
+    assert.ok(!r("value abc%2Fsecret").includes("abc%2Fsecret"));
+    assert.ok(!r("value abc/secret").includes("abc/secret"));
+});
+
+test("round 4: notInCode needs absence in the proxy's EIP-1967 implementation too", async () => {
+    const PROXY = "0x" + "11".repeat(20), IMPL = "0x" + "22".repeat(20), SEL = "0x12345678";
+    const proxyCode = "0x363d3d37f4", implCode = "0x6080" + "63" + "12345678" + "00";
+    const mk = (over = {}) => ({
+        getCode: async ({ address }) => (address === PROXY ? proxyCode : address === IMPL ? (over.implCode ?? implCode) : undefined),
+        getStorageAt: async ({ slot }) => {
+            if (over.slotError) throw new Error("timeout");
+            return slot === IMPL_SLOT ? "0x" + "00".repeat(12) + IMPL.slice(2) : "0x" + "00".repeat(32);
+        },
+    });
+    const res = { ok: false, revert: true };
+    const at = (clients, address = PROXY) => classifyRead(clients, { address, blockNumber: 1n, selector: SEL, res });
+    assert.equal(await at([mk(), mk()]), "reverted");                                  // selector lives in the implementation
+    assert.equal(await at([mk({ slotError: true }), mk({ slotError: true })]), "reverted"); // slot unreadable: not established
+    assert.equal(await at([mk({ implCode: undefined }), mk({ implCode: undefined })]), "reverted"); // implementation code unavailable
+    assert.equal(await at([mk({ implCode: "0x6080" }), mk({ implCode: "0x6080" })]), "notInCode"); // established absent
+    assert.equal(await at([mk(), mk({ implCode: "0x6080" })]), "reverted");            // endpoints disagree
+    assert.equal(await classifyRead([mk(), mk()], { address: PROXY, blockNumber: 1n, selector: SEL, res: { ok: false, revert: false } }), "failed");
+    // Extra code holders that the caller could not establish (EXTENSION() read failed in transport): never notInCode.
+    const absent = [mk({ implCode: "0x6080" }), mk({ implCode: "0x6080" })];
+    assert.equal(await classifyRead(absent, { address: PROXY, blockNumber: 1n, selector: SEL, res, extra: null }), "reverted");
+    assert.equal(await classifyRead(absent, { address: PROXY, blockNumber: 1n, selector: SEL, res, extra: [] }), "notInCode");
 });
 
 test("L6: writeAtomic renames into place and leaves no temp file on failure", () => {
@@ -152,4 +185,6 @@ test("structure: one shared implementation; inventory reads both endpoints and w
     assert.match(reader, /inventoryErrors\(inv/);
     assert.match(reader, /verifyPin\(clients, CHAIN_ID/);
     assert.doesNotMatch(reader, /"Alchemy"|"Tenderly"/);
+    // An EXTENSION() read that fails in transport must leave the holders unknown (null), not "no extension".
+    assert.match(reader, /r\.revert \? \[\] : null/);
 });
