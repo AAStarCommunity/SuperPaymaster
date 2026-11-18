@@ -122,6 +122,19 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    python3 script/rehearsal/deploylive_fork_deploy.py archive --inputs "$INPUTS" --to "$ARCHIVE_DIR"
    ```
 
+   **Then, by hand (until `archive` covers them):** copy the deployed config
+   `deployments/live/config.$ENV.json` and forge's broadcast receipts
+   `broadcast/DeployLive.s.sol/<chainId>/run-latest.json` into `$ARCHIVE_DIR`, and append
+   their sha256 lines to `$ARCHIVE_DIR/SHA256SUMS`. The deployment transaction hashes that the
+   paper cites live in those receipts; do not lose them on the Sepolia rehearsal day.
+
+   The endpoint goes to cast through the environment, never as a command-line argument.
+
+   ```sh
+   cp "deployments/live/config.$ENV.json" "broadcast/DeployLive.s.sol/$(ETH_RPC_URL="$DEPLOYLIVE_RPC" cast chain-id)/run-latest.json" "$ARCHIVE_DIR/"
+   (cd "$ARCHIVE_DIR" && shasum -a 256 "config.$ENV.json" run-latest.json >> SHA256SUMS && shasum -a 256 -c SHA256SUMS)
+   ```
+
 The gas gate remains single-endpoint on the real chain (`DEPLOYLIVE_SOURCE_RPC`),
 independent of fork-price mode. It retains fees, full-sequence simulation and the
 5% maximum tolerance. Price threshold remains 4200 seconds. Production uses the
