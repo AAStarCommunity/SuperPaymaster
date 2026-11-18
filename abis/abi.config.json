@@ -1,8 +1,8 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-11-17T23:11:27Z",
-  "totalHash": "941435b9673a4787d3d3a96b638275e45b39ccac6c299033a21567e65e8bb4fb",
+  "buildTime": "2026-11-18T00:02:10Z",
+  "totalHash": "89bfb3318ed48d9a4e922a9ca744dfedfc3d21577fc480f69e750fc81c5e13e5",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
@@ -13,7 +13,7 @@
     { "name": "GlobalTierSource.json", "hash": "11b22ae116e85e774525d2b95788bbca2deac91a4843546633dfba6512e3b5dc" },
     { "name": "GToken.json", "hash": "7cf4d406163244cc95a8867c81f8a7979cfec16d0f2b2b354b94f91e4168ad14" },
     { "name": "GTokenAuthorization.json", "hash": "3494156cf697b2ab8e2fd5c4041790854c1219ae44671dc64dc434dcbe80ef54" },
-    { "name": "GTokenStaking.json", "hash": "cacf1e0eef323e6e898eb2e38085cda21a65083fd2980004bafcd16e46eb6959" },
+    { "name": "GTokenStaking.json", "hash": "a062262392fbe678aae03b03344353309c81ae5815e7f0c9b780b26a4fb53f86" },
     { "name": "LivenessRegistry.json", "hash": "544270e08ae8c44698da692d48f8a54cf323d1fc6a867f7115929f9fa4cd83d0" },
     { "name": "MicroPaymentChannel.json", "hash": "98bf2b4a9285588b5ec80dfbe0a8fed4e46d3b06e92fd465d9790ef1b9e2c642" },
     { "name": "MySBT.json", "hash": "93b0027febd39b67b1fe38887bf968a7c0f578ca2bf1d8b18b6cd3002a62b946" },
