@@ -1,0 +1,13 @@
+# REHEARSAL ONLY - never use for deploy day
+# Explicit rehearsal choices; production has no defaults for these inputs.
+SLASH_POLICY_ADMIN=timelock
+X402_OWNER=safe
+REPUTATION_OWNER=timelock
+MPC_OWNER=timelock
+PAYMASTER_FACTORY_OWNER=timelock
+DEPLOYER_GTOKEN_RECIPIENT=safe
+FOUNDRY_VERBOSITY=2
+DEFAULT_ARTIFACTS_OUT=out-cancun
+DEPLOYLIVE_EVM_VERSION=prague
+# Supply CREATION_PINS, public GUARDIANS, infrastructure and distinct principals separately.
+# GOVERNOR_ADDRESS must be absent.
