@@ -154,6 +154,11 @@ export function validate(t, ctx) {
         if (![1, 2, 3].includes(r.class)) { err(`row ${r.id}: class must be 1, 2 or 3`); continue; }
         if (!r.classReason) err(`row ${r.id}: class reason missing`);
         if (r.class === 1) {
+            // Every expected entry must be an identity key or a full address: a typo (TL84, 0xZZ) would
+            // otherwise resolve to no member and pass the check below vacuously.
+            for (const v of [r.expected].flat()) {
+                if (typeof v !== "string" || !(Object.hasOwn(t.identities, v) || HEX40.test(v))) err(`row ${r.id}: class 1 expected ${JSON.stringify(v)} is neither an identity nor an address`);
+            }
             const ok = new Set([...GOVERNANCE, ...(t.protocolContracts ?? [])].map((k) => resolveId(t, k)));
             if (!exp.every((a) => ok.has(a))) err(`row ${r.id}: class 1 expects only TL48 / SAFE / no holder / rc.8 protocol contracts`);
         }
@@ -169,15 +174,25 @@ export function validate(t, ctx) {
     return errors;
 }
 
+function sameMembers(t, current, expected) {
+    if (!current || !("value" in current)) return false;
+    const a = members(t, current.value).map((x) => x.toLowerCase()).sort(), b = members(t, expected).map((x) => x.toLowerCase()).sort();
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export function status(t, ctx, r) {
     if (r.kind !== "authority") return "-";
     if (r.class === null) return "**PENDING (author decision)**";
-    if (r.class === 1) return /^MISSING/.test(r.step) || /: MISSING/.test(r.step) ? "**GAP (step missing)**" : "handed over";
+    if (r.class === 1) {
+        if (/^MISSING/.test(r.step) || /: MISSING/.test(r.step)) return "**GAP (step missing)**";
+        // "handed over" is measured, not planned: only when Current already equals Expected at the pin.
+        return sameMembers(t, r.current, r.expected) ? "handed over" : `**planned: ${r.step} (not executed at the pin)**`;
+    }
     if (r.class === 2) return `operator-owned (${r.operatorOwner})`;
     const hits = (r.class3.subjects ?? []).flatMap((s) => legacyHits(t, ctx, s));
     const reqs = r.class3.requires ?? [], gaps = probeGaps(t);
     if (hits.length || reqs.length || gaps.length) return `**PENDING (legacy once cleared: ${[...hits, ...gaps, ...reqs].join("; ")})**`;
-    return r.class3.authorDecision ? "legacy (author decision)" : "legacy (verified at pin)";
+    return r.class3.authorDecision ? "legacy (author decision)" : "legacy (no rc.8 reference found at the pin)";
 }
 
 export function flags(t, r) {
@@ -214,8 +229,9 @@ export function render(t, ctx) {
         "an actual run of `script/rehearsal/inventory.mjs` whose controls are all true and which is bound to this chain, SP and Registry.", "",
         "Regenerate: `node script/rehearsal/inventory.mjs <env> <secondRpc> <out.json>`, `node script/rehearsal/owner-table-read.mjs <env> <secondRpc> <inventory.json>` (network, read-only), then " +
         "`node scripts/gen-rc8-owner-table.mjs`; check: `node scripts/gen-rc8-owner-table.mjs --check`.", "",
-        "**Expected** is the post-rc.8 value. **Class**: (1) handed over to TL48 / the community Safe (or no holder); (2) operator-owned by design; " +
-        "(3) legacy: not referenced or trusted by any rc.8 contract (mechanical evidence in the legacy probe section), shown PENDING until every reference is cleared. " +
+        "**Expected** is the post-rc.8 value: for a class-1 row it is the value AFTER rc.8, not the value at the pin. " +
+        "**Status** is measured at the pin: `handed over` only when Current already equals Expected; otherwise `planned: <step>` (not executed at the pin, listed in Open items) or `GAP` when no step exists. **Class**: (1) handover: Expected (after rc.8) is TL48 / the community Safe (or no holder); (2) operator-owned by design; " +
+        "(3) legacy: no reference from a deployed rc.8 contract found by the probes, the non-legacy rows or the source scan at the pin (see the legacy probe section), shown PENDING until every reference is cleared and every probe read answered. " +
         "**D is both the deployer EOA and the AAStar operator**: a class-2 row owned by D is a privilege the deployer EOA keeps. " +
         "**Agg** = no aggregator may hold an owner/admin/proposer/executor/ProxyAdmin/role slot (wiring that must point at the aggregator is allow-listed).", "");
     p("## Identities", "", "| Name | Address |", "|---|---|");
@@ -234,7 +250,7 @@ export function render(t, ctx) {
         "| Id | Contract | Slot | Current (Sepolia) | Expected post-rc.8 | Set by | Readback | Class | Status | Agg | Reason / notes |", "|---|---|---|---|---|---|---|---|---|---|---|");
     for (const r of auth) {
         const st = status(t, ctx, r), ag = flags(t, r);
-        for (const x of [st, ag]) if (/GAP|PENDING|VIOLATION/.test(x)) issues.push(`- \`${r.id}\`: ${x.replace(/\*/g, "")}`);
+        for (const x of [st, ag]) if (/GAP|PENDING|VIOLATION|planned/.test(x)) issues.push(`- \`${r.id}\`: ${x.replace(/\*/g, "")}`);
         const reason = [r.class === null ? r.pending : r.classReason, r.notes].filter(Boolean).map(esc).join(" ");
         p(`| ${r.id} | ${esc(r.contract)}${where(t, r)} | ${esc(r.slot)} | ${showCurrent(t, r.current)} | ${show(t, r.expected)} | ${esc(r.step)} | ${esc(r.readback)} | ${r.class ?? "-"} | ${st} | ${ag} | ${reason} |`);
     }

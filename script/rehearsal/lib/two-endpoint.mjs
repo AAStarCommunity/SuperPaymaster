@@ -49,12 +49,15 @@ export function makeRedactor(urls) {
             secrets.push(x.href, x.host, x.hostname);
             if (x.pathname.length > 1) secrets.push(x.pathname, x.pathname.replace(/\/+$/, ""));
             if (x.search.length > 1) secrets.push(x.search);
-            // Each path segment and each query value on its own, so a credential echoed in pieces is still caught.
-            for (const seg of x.pathname.split("/")) if (seg) secrets.push(seg, decodeURIComponent(seg));
-            for (const [k, v] of x.searchParams) secrets.push(v, k + "=" + v); // decoded form
-            for (const pair of x.search.replace(/^\?/, "").split("&")) {      // raw percent-encoded form
+            // Each path segment and each query value on its own, raw and decoded, so a credential echoed in
+            // pieces is still caught. Each decode has its own try: one malformed %-escape must not stop the rest.
+            const decoded = (v) => { try { return decodeURIComponent(v.replace(/\+/g, " ")); } catch { return v; } };
+            for (const seg of x.pathname.split("/")) if (seg) secrets.push(seg, decoded(seg));
+            for (const pair of x.search.replace(/^\?/, "").split("&")) {
                 const i = pair.indexOf("=");
-                if (i >= 0) secrets.push(pair, pair.slice(i + 1));
+                if (i < 0) { if (pair) secrets.push(pair, decoded(pair)); continue; }
+                const k = pair.slice(0, i), v = pair.slice(i + 1);
+                secrets.push(pair, v, decoded(v), decoded(k) + "=" + decoded(v));
             }
             if (x.username) secrets.push(x.username);
             if (x.password) secrets.push(x.password);
@@ -82,7 +85,17 @@ export function assertIndependent(urlA, urlB) {
 const json = (v) => JSON.stringify(v ?? null, (_, y) => (typeof y === "bigint" ? y.toString() : y));
 
 // A JSON-RPC revert (the call executed and reverted) vs anything else (transport, timeout, provider error).
-export const isRevert = (e) => /revert/i.test(`${e?.name ?? ""} ${e?.shortMessage ?? ""} ${e?.message ?? ""} ${e?.cause?.name ?? ""}`);
+// Decided from structured fields of the error and its `cause` chain, never from message text:
+// a viem ContractFunctionRevertedError / ExecutionRevertedError, or a JSON-RPC error with code 3 and data.
+// Any transport error in the chain (HTTP, timeout, socket) means it is NOT a revert.
+const TRANSPORT_ERRORS = new Set(["HttpRequestError", "TimeoutError", "WebSocketRequestError", "SocketClosedError", "UrlRequiredError"]);
+const REVERT_ERRORS = new Set(["ContractFunctionRevertedError", "ExecutionRevertedError"]);
+export function isRevert(e) {
+    const chain = [];
+    for (let x = e, i = 0; x && typeof x === "object" && i < 16; x = x.cause, i++) chain.push(x);
+    if (chain.some((x) => TRANSPORT_ERRORS.has(x.name))) return false;
+    return chain.some((x) => REVERT_ERRORS.has(x.name) || (x.code === 3 && x.data !== undefined));
+}
 
 // Read on both endpoints and require identical results (both succeed with the same value, or both fail).
 // Result: { ok: true, value } or { ok: false, error, revert } -- the discriminant is `ok`, never the error text.
@@ -164,44 +177,64 @@ export const BEACON_SLOT = "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6c
 const ZERO_WORD = "0x" + "00".repeat(32);
 
 const hasSelector = (code, selector) => code.includes("63" + selector) || (selector.startsWith("00") && code.includes("62" + selector.slice(2)));
+const EIP1167_PREFIX = "363d3d373d3d3d363d73";
 
-// Classify a probe read that did not succeed. "notInCode" is returned ONLY when it is established on both
-// endpoints that no code reachable from `address` carries the selector: the address's own runtime, and, for
-// an EIP-1967 proxy, the implementation's runtime (both slot reads must agree and the implementation code
-// must be readable). Anything that cannot be established stays "reverted" (PENDING), never "notInCode".
-//   res: the { ok, revert } result of the read.  extra: further code holders to search (e.g. an extension).
+// True if the runtime executes a DELEGATECALL (0xf4) opcode; PUSH immediates are skipped.
+export function hasDelegatecall(codeHex) {
+    const c = codeHex.replace(/^0x/, "");
+    for (let i = 0; i < c.length; i += 2) {
+        const op = parseInt(c.slice(i, i + 2), 16);
+        if (op === 0xf4) return true;
+        if (op >= 0x60 && op <= 0x7f) i += (op - 0x5f) * 2;
+    }
+    return false;
+}
+
+// Classify a probe read that did not succeed. "notInCode" is returned for exactly ONE shape, established on
+// both endpoints: a plain runtime (not an EIP-1167 clone, no DELEGATECALL unless it is an EIP-1967 proxy),
+// optionally an EIP-1967 implementation (slot read on both endpoints, must agree, code readable), optionally
+// the given extra code holders (e.g. an EXTENSION()), no beacon, a selector whose first two bytes are not
+// both zero, and the selector in none of those runtimes. Every other shape, and every read that cannot be
+// established, returns "reverted" (PENDING), never "notInCode".
+//   res: the { ok, revert } result of the read (revert only when BOTH endpoints reverted, see both()).
+//   extra: further code holders to search; null = the caller could not establish them.
 export async function classifyRead(clients, { address, blockNumber, selector, res, extra = [] }, redact = String) {
     if (res.ok) return "ok";
     if (!res.revert) return "failed";
     if (extra === null) return "reverted"; // the caller could not establish the extra code holders
     const sel = selector.replace(/^0x/, "").toLowerCase();
+    if (sel.startsWith("0000")) return "reverted"; // PUSH2/PUSH3 forms not searched: absence not established
+    // Each read returns null when it fails or the endpoints disagree; no outer catch, so a missing branch is visible.
     const codeOf = async (a) => {
-        const r = await both(clients, (c) => c.getCode({ address: a, blockNumber }), redact);
-        return r.ok && typeof r.value === "string" && r.value !== "0x" ? r.value.toLowerCase() : null;
+        try {
+            const r = await both(clients, (c) => c.getCode({ address: a, blockNumber }), redact);
+            return r.ok && typeof r.value === "string" && r.value !== "0x" ? r.value.toLowerCase() : null;
+        } catch { return null; }
     };
     const slot = async (s) => {
-        const r = await both(clients, (c) => c.getStorageAt({ address, slot: s, blockNumber }), redact);
-        return r.ok && typeof r.value === "string" ? r.value.toLowerCase() : null;
+        try {
+            const r = await both(clients, (c) => c.getStorageAt({ address, slot: s, blockNumber }), redact);
+            return r.ok && typeof r.value === "string" ? r.value.toLowerCase() : null;
+        } catch { return null; }
     };
-    try {
-        const own = await codeOf(address);
-        if (own === null) return "reverted";
-        const holders = [own];
-        const impl = await slot(IMPL_SLOT), beacon = await slot(BEACON_SLOT);
-        if (impl === null || beacon === null) return "reverted";
-        if (beacon !== ZERO_WORD) return "reverted"; // beacon indirection: not followed
-        if (impl !== ZERO_WORD) {
-            const implCode = await codeOf("0x" + impl.slice(26));
-            if (implCode === null) return "reverted";
-            holders.push(implCode);
-        }
-        for (const a of extra) {
-            const c = await codeOf(a);
-            if (c === null) return "reverted";
-            holders.push(c);
-        }
-        return holders.some((c) => hasSelector(c, sel)) ? "reverted" : "notInCode";
-    } catch {
-        return "reverted"; // endpoints disagree or a read threw: absence not established
+    const own = await codeOf(address);
+    if (own === null) return "reverted";
+    if (own.replace(/^0x/, "").startsWith(EIP1167_PREFIX)) return "reverted"; // EIP-1167 clone: implementation not followed
+    const holders = [own];
+    const impl = await slot(IMPL_SLOT), beacon = await slot(BEACON_SLOT);
+    if (impl === null || beacon === null) return "reverted";
+    if (beacon !== ZERO_WORD) return "reverted"; // beacon indirection: not followed
+    if (impl !== ZERO_WORD) {
+        const implCode = await codeOf("0x" + impl.slice(26));
+        if (implCode === null) return "reverted";
+        holders.push(implCode);
+    } else if (hasDelegatecall(own)) {
+        return "reverted"; // delegates somewhere without an EIP-1967 slot: target unknown
     }
+    for (const a of extra ?? []) { // null is handled above
+        const c = await codeOf(a);
+        if (c === null) return "reverted";
+        holders.push(c);
+    }
+    return holders.some((c) => hasSelector(c, sel)) ? "reverted" : "notInCode";
 }

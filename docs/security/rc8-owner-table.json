@@ -1854,8 +1854,8 @@
       "read": {
         "fn": "function owner() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "TL48",
+      "step": "MISSING: (i)-series manifest step \"old PaymasterFactory disable + transferOwnership(TL48)\" (sentinel implementation + upgradeImplementation + setRegistry, then transferOwnership(TL48)); not in script/upgrade/manifest_exec.py yet",
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
@@ -1863,17 +1863,8 @@
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
       },
-      "class": 3,
-      "classReason": "legacy only AFTER the rc.8 disable step for the old factory (sentinel implementation + upgradeImplementation + setRegistry away from the rc.8 Registry). That step is MISSING: no step in script/upgrade/manifest_exec.py on main (no PaymasterFactory call in manifest_exec.py); until it exists and reads back, the old factory still trusts the rc.8 Registry.",
-      "class3": {
-        "subjects": [
-          "PM_FACTORY"
-        ],
-        "requires": [
-          "MISSING: old PaymasterFactory disable step (sentinel + upgradeImplementation + setRegistry)"
-        ],
-        "authorDecision": false
-      }
+      "class": 1,
+      "classReason": "handover by DSR ruling (2026-11-18): the owner is handed to TL48 together with the rc.8 disable step; this ruling takes precedence over the earlier legacy (class 3) classification."
     },
     {
       "id": "pmv4Impl.owner",
@@ -1883,8 +1874,8 @@
       "read": {
         "fn": "function owner() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "TL48",
+      "step": "MISSING: (i)-series manifest step \"old PaymasterFactory disable + transferOwnership(TL48)\" (sentinel implementation + upgradeImplementation + setRegistry, then transferOwnership(TL48)); not in script/upgrade/manifest_exec.py yet",
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
@@ -1892,17 +1883,8 @@
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
       },
-      "class": 3,
-      "classReason": "legacy: implementation behind the old factory only; EIP-1167 clones keep their own owner storage. Same dependency as pmFactory.owner.",
-      "class3": {
-        "subjects": [
-          "PMV4_IMPL"
-        ],
-        "requires": [
-          "MISSING: old PaymasterFactory disable step (sentinel + upgradeImplementation + setRegistry)"
-        ],
-        "authorDecision": false
-      }
+      "class": 1,
+      "classReason": "handover by DSR ruling (2026-11-18): the owner is handed to TL48 together with the rc.8 disable step; this ruling takes precedence over the earlier legacy (class 3) classification. The PaymasterV4 implementation behind the old factory follows the same rule."
     },
     {
       "id": "apntsPmv4.owner",
@@ -2072,7 +2054,7 @@
         "value": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
       },
       "class": 3,
-      "classReason": "legacy: no rc.8 contract reads PolicyRegistry. Source: only core/PolicyRegistry.sol and interfaces/v3/IPolicyRegistry.sol mention it under contracts/src (source scan); deployed: no rc.8 getter or role mapping returns it (legacyProbe).",
+      "classReason": "legacy: no rc.8 contract reads PolicyRegistry. Source: under contracts/src only core/PolicyRegistry.sol and interfaces/v3/IPolicyRegistry.sol reference it in code; core/LivenessRegistry.sol:13 mentions it in a doc comment only (source scan); deployed: no rc.8 getter or role mapping returns it (legacyProbe).",
       "class3": {
         "subjects": [
           "POLICY_REGISTRY"
@@ -2099,7 +2081,7 @@
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
       },
       "class": 3,
-      "classReason": "legacy: no rc.8 contract reads PolicyRegistry. Source: only core/PolicyRegistry.sol and interfaces/v3/IPolicyRegistry.sol mention it under contracts/src (source scan); deployed: no rc.8 getter or role mapping returns it (legacyProbe).",
+      "classReason": "legacy: no rc.8 contract reads PolicyRegistry. Source: under contracts/src only core/PolicyRegistry.sol and interfaces/v3/IPolicyRegistry.sol reference it in code; core/LivenessRegistry.sol:13 mentions it in a doc comment only (source scan); deployed: no rc.8 getter or role mapping returns it (legacyProbe).",
       "class3": {
         "subjects": [
           "POLICY_REGISTRY"
@@ -2506,21 +2488,21 @@
   ],
   "readAt": {
     "chainId": 11155111,
-    "block": 12158744,
-    "hash": "0x66fcdc6765b01b851973ef64b41a1e77df2f1b135674421ce8eb0d8346d8a20a",
+    "block": 12158965,
+    "hash": "0xe6d2127e7c340bcb6ead0071af9a6e84ed653a2f54d03aad78f5ce63fe0ec687",
     "endpoints": [
       "Alchemy",
       "Tenderly"
     ],
     "finalizedAtRead": [
-      12158744,
-      12158744
+      12158965,
+      12158965
     ],
     "rule": "every value read on both endpoints at this block and required to be identical"
   },
   "inventory": {
-    "path": "script/evidence/rc8-owner-table/inventory-12158744.json",
-    "sha256": "9e6172fcab27560153d02719449ef031ffc054b3d25bab7d5f402d1dc551542f",
+    "path": "script/evidence/rc8-owner-table/inventory-12158965.json",
+    "sha256": "621a1a2574b9df53fbeea5b4454474dfba25fdc63946928fddca9e31114c0a5c",
     "configuredOperators": [
       "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
       "0xb5600060e6de5E11D3636731964218E53caadf0E"

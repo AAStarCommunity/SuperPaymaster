@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { mkdtempSync, mkdirSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertIndependent, providerOf, makeRedactor, both, compareLogs, requireIdenticalLogs, verifyPin, pinFinalized, codeAt, writeAtomic, classifyRead, IMPL_SLOT } from "./two-endpoint.mjs";
+import { assertIndependent, providerOf, makeRedactor, both, compareLogs, requireIdenticalLogs, verifyPin, pinFinalized, codeAt, writeAtomic, classifyRead, IMPL_SLOT, BEACON_SLOT, isRevert, hasDelegatecall } from "./two-endpoint.mjs";
 import { inventoryErrors, INVENTORY_SCHEMA, REQUIRED_CONTROLS } from "./inventory-accept.mjs";
 
 const A = "https://fake-a.alchemy.com/v2/SECRETKEY123", B = "https://fake-b.tenderly.co/SECRET456";
@@ -183,8 +183,71 @@ test("structure: one shared implementation; inventory reads both endpoints and w
     assert.doesNotMatch(inv, /writeFileSync\(/); // only writeAtomic writes
     assert.match(inv, /writeAtomic\(outPath/);
     assert.match(reader, /inventoryErrors\(inv/);
+    assert.doesNotMatch(reader, /writeFileSync\(/); // round 5: the tracked JSON is written with writeAtomic
+    assert.match(reader, /writeAtomic\(tablePath/);
     assert.match(reader, /verifyPin\(clients, CHAIN_ID/);
     assert.doesNotMatch(reader, /"Alchemy"|"Tenderly"/);
     // An EXTENSION() read that fails in transport must leave the holders unknown (null), not "no extension".
     assert.match(reader, /r\.revert \? \[\] : null/);
+});
+
+// ---- round 5 (clestons) -------------------------------------------------------------------------
+const ADDR = "0x" + "33".repeat(20), IMPL2 = "0x" + "44".repeat(20), EXT = "0x" + "55".repeat(20);
+const REV = { ok: false, revert: true };
+function shape({ code = "0x6080604052", impl = null, implCode = "0x6080", beacon = null, extCode = "0x6080" } = {}) {
+    return {
+        getCode: async ({ address }) => (address === ADDR ? code : address === IMPL2 ? implCode : address === EXT ? extCode : undefined),
+        getStorageAt: async ({ slot }) => (slot === IMPL_SLOT && impl ? "0x" + "00".repeat(12) + impl.slice(2)
+            : slot === BEACON_SLOT && beacon ? "0x" + "00".repeat(12) + beacon.slice(2) : "0x" + "00".repeat(32)),
+    };
+}
+const cls = (o, extra = [], selector = "0x12345678", res = REV) =>
+    classifyRead([shape(o), shape(o)], { address: ADDR, blockNumber: 1n, selector, res, extra });
+
+test("round 5: notInCode only for plain runtime + EIP-1967 implementation (+ extension), no beacon", async () => {
+    assert.equal(await cls({}), "notInCode");                                                   // control: plain runtime
+    assert.equal(await cls({ impl: IMPL2 }), "notInCode");                                      // control: 1967 proxy, absent in impl
+    assert.equal(await cls({ impl: IMPL2 }, [EXT]), "notInCode");                               // control: + extension
+    assert.equal(await cls({ code: "0x363d3d373d3d3d363d73" + "44".repeat(20) + "5af43d82803e903d91602b57fd5bf3" }), "reverted"); // EIP-1167 clone
+    assert.equal(await cls({ code: "0x6080f400" }), "reverted");                                // DELEGATECALL without an EIP-1967 slot
+    assert.equal(await cls({ code: "0x60f400" }), "notInCode");                                 // 0xf4 inside PUSH1 data is not an opcode
+    assert.equal(await cls({}, [], "0x0000abcd"), "reverted");                                  // first two selector bytes zero
+});
+
+test("round 5: fail-closed branches -- beacon, unreadable implementation code, extra === null", async () => {
+    assert.equal(await cls({ beacon: IMPL2 }), "reverted");                                     // beacon != 0
+    assert.equal(await cls({ impl: IMPL2, implCode: null }), "reverted");                  // implementation code unreadable
+    assert.equal(await cls({}, null), "reverted");                                              // extra holders not established
+    assert.equal(await cls({ impl: IMPL2 }, [EXT]), "notInCode");                               // same shapes, established: notInCode
+    assert.equal(await cls({ impl: IMPL2, extCode: null }, [EXT]), "reverted");            // extension code unreadable
+});
+
+test("round 5: notInCode needs BOTH endpoints to revert", async () => {
+    const revertErr = Object.assign(new Error("x"), { name: "ContractFunctionRevertedError" });
+    const transportErr = Object.assign(new Error("execution reverted (proxy said)"), { name: "HttpRequestError" });
+    const mixed = await both([{ e: revertErr }, { e: transportErr }], async (c) => { throw c.e; });
+    assert.equal(mixed.ok, false);
+    assert.equal(mixed.revert, false);
+    assert.equal(await cls({}, [], "0x12345678", mixed), "failed");
+    await assert.rejects(both([{ e: revertErr }, {}], async (c) => { if (c.e) throw c.e; return 1; }), /disagree/); // revert + success
+    const bothRev = await both([{}, {}], async () => { throw revertErr; });
+    assert.equal(bothRev.revert, true);
+});
+
+test("round 5: isRevert reads structured error fields, not message text", () => {
+    assert.equal(isRevert(new Error("execution reverted")), false);                             // text only
+    assert.equal(isRevert(Object.assign(new Error("revert"), { name: "HttpRequestError" })), false);
+    const viemLike = { name: "ContractFunctionExecutionError", cause: { name: "ContractFunctionRevertedError", cause: { name: "CallExecutionError" } } };
+    assert.equal(isRevert(viemLike), true);
+    assert.equal(isRevert({ name: "RpcRequestError", code: 3, data: "0x" }), true);
+    assert.equal(isRevert({ name: "RpcRequestError", code: 3 }), false);                         // code 3 without data
+    const wrappedTransport = { name: "ContractFunctionExecutionError", cause: { name: "ContractFunctionRevertedError", cause: { name: "HttpRequestError" } } };
+    assert.equal(isRevert(wrappedTransport), false);
+    assert.equal(hasDelegatecall("0x7f" + "f4".repeat(32) + "00"), false);
+});
+
+test("round 5: a malformed %-escape does not stop later values from being registered", () => {
+    const r = makeRedactor(["https://x.example.org/%ZZ/s3cretPath99?token=secretTok99&b=%E0%A4%A", "https://u:passWord77@y.example.net/z"]);
+    const out = r("bad: s3cretPath99 secretTok99 passWord77");
+    for (const piece of ["s3cretPath99", "secretTok99", "passWord77"]) assert.ok(!out.includes(piece), piece);
 });

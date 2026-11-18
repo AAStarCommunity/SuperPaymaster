@@ -8,10 +8,10 @@
 //   the host (lib/two-endpoint.mjs PROVIDERS), with the verified chain id and finalized heights.
 //   The inventory is refused unless all its controls are true and it is bound to this chain, SP and Registry.
 // After a read, regenerate the doc: node scripts/gen-rc8-owner-table.mjs
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createPublicClient, http, parseAbi, parseAbiItem, getAddress, keccak256, stringToHex, toFunctionSelector } from "viem";
-import { makeRedactor, assertIndependent, both as both2, verifyPin, requireIdenticalLogs, codeAt, classifyRead } from "./lib/two-endpoint.mjs";
+import { makeRedactor, assertIndependent, both as both2, verifyPin, requireIdenticalLogs, codeAt, classifyRead, writeAtomic } from "./lib/two-endpoint.mjs";
 import { inventoryErrors } from "./lib/inventory-accept.mjs";
 
 const [envFile, secondRpc, inventoryPath, tablePath = "docs/security/rc8-owner-table.json"] = process.argv.slice(2);
@@ -212,7 +212,7 @@ async function main() {
         superRoleHolders: inv.state.superHolders.fromStorage, everRegisteredSuper: inv.state.superHolders.everRegistered,
         registryDeployBlock: inv.state.superHolders.registryDeployBlock, topic0Table: inv.topic0Table,
     };
-    writeFileSync(tablePath, JSON.stringify(table, null, 2) + "\n");
+    writeAtomic(tablePath, JSON.stringify(table, null, 2) + "\n"); // tracked file: never half-written
 }
 
 main().catch((e) => { console.error("OWNER TABLE READ FAILED: " + redact(e?.stack ?? e)); process.exit(1); });

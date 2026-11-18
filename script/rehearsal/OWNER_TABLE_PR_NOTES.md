@@ -42,7 +42,14 @@ The old run is `inventory-12158083.json` (3b9d83fb, old code); the new one is `i
 - The legacy probe covers the zero-argument address getters of the rc.8 ABIs and a fixed list of role mappings on deployed rc.8 contracts. It cannot see an address held in a mapping or struct it does not query.
   - Known instance: `operators(ANNI).xPNTsToken` still names the v1 pNTs token; it is disclosed in the table.
   - Undeployed rc.8 contracts (A7, AOAProtocolRegistry, xPNTsFactoryV2, the new implementations) are covered only by the source scan, and are read back at step 13.
-- A getter whose selector is in no reachable deployed runtime (the address, its EIP-1967 implementation, its EXTENSION()) counts as "cannot return the subject". Selector detection looks for PUSH4, or PUSH3 when the first byte is zero. Any other form would show as "reverted" and keep the rows PENDING.
+- `notInCode` ("cannot return the subject") is returned for exactly one shape, established on both endpoints:
+  - a plain runtime (no EIP-1167 prefix, and no DELEGATECALL opcode unless the EIP-1967 implementation slot is set);
+  - an optional EIP-1967 implementation and an optional `EXTENSION()`, all readable;
+  - a zero beacon slot;
+  - a selector whose first two bytes are not both zero;
+  - the selector found as neither PUSH4 nor (first byte 0) PUSH3 in any of those runtimes.
+
+  Every other shape returns `reverted` and keeps the rows PENDING: an EIP-1167 clone, a delegating runtime without an EIP-1967 slot, a beacon, an unreadable slot or code, a selector starting `0000`, or a read that did not revert on both endpoints. Remaining limit: a selector that the compiler encodes in some other form (for example split across instructions) would be reported absent.
 - The DVTValidator 0.6.0 bytecode match is against a local build of 41784173 with that commit's default profile. The build uses `bytecode_hash none`, so the CBOR tail carries no metadata hash (only the solc version). The tail is compared byte for byte.
 - Many required steps are missing from `script/upgrade/manifest_exec.py` on main. They are listed as GAP or PENDING in the table's open items:
   - treasury, role-owner, staking, GToken, MySBT and ReputationSystem handovers;
@@ -63,3 +70,18 @@ The old run is `inventory-12158083.json` (3b9d83fb, old code); the new one is `i
 - Redaction registers both the raw percent-encoded and the decoded form of every query value.
 - The registrable-domain rejection is removed. Under the trust root only equal normalized hostnames are rejected.
 - Main-session addition after round 4 (also not re-reviewed): an `EXTENSION()` read that fails in transport (not a revert) now leaves the extra code holders unknown, so the row stays `reverted` (PENDING) instead of being searched without the extension. The real read had `gettersFailed = 0`, so the committed table is unchanged by this.
+
+## Round 5 (clestons)
+- **B1:** `docs/security/rc8-owner-table.json` and `.md` name the old timelock on purpose: it is a class-3 holder. They are added to `script/upgrade/legacy_timelock_allowlist.json` with one-line reasons, so `test_no_legacy_timelock.py` passes. No string was split. The whole offline `a3a-executor` suite was run locally (results in the PR body).
+- **Status column:** it now shows measured state. A class-1 row reads `handed over` only when Current equals Expected at the pin (13 rows). Otherwise it reads `planned: <step> (not executed at the pin)` and is listed in Open items: 6 rows still held by D, and 4 whose contract is not deployed. A row with no step still reads `GAP`. Open items went from 23 to 33. The header states that a class-1 Expected is the value after rc.8.
+- **`validate()`:** rejects a class-1 Expected entry that is neither an identity key nor a 40-hex address (`TL84`, `0xZZ`).
+- **`classifyRead`:**
+  - fails closed for EIP-1167 clones, for DELEGATECALL without an EIP-1967 slot, and for selectors starting `0000`;
+  - its reads no longer sit in one outer try, so each fail-closed branch has a test that goes red when the branch is removed: beacon, unreadable implementation code, `extra === null`, and both-endpoints-revert.
+- **Redactor:** every decode has its own try; a malformed `%` escape no longer drops later values.
+- **`isRevert`:** decides from the error's structured `name` / `code` / `data` along the `cause` chain (viem `ContractFunctionRevertedError` / `ExecutionRevertedError`, or JSON-RPC code 3 with data). Any transport error in the chain means not a revert, whatever the text says. The real Sepolia reverts used by the probes come back as `ContractFunctionRevertedError > ... > RpcRequestError(code 3)[data]` on both providers.
+- **`owner-table-read.mjs`:** writes the tracked JSON with `writeAtomic`.
+- **Wording:** a verified class-3 row reads `legacy (no rc.8 reference found at the pin)`. The policy rows cite the `core/LivenessRegistry.sol:13` doc-comment mention.
+- The real two-endpoint reads were re-run because classification and `isRevert` changed. No row's class or current value changed.
+- DSR ruling 2026-11-18, which takes precedence over the earlier legacy classification: `pmFactory.owner` and `pmv4Impl.owner` are now class 1. Their Expected is TL48, set by the not-yet-existing (i)-series step "old PaymasterFactory disable + transferOwnership(TL48)". They render `GAP (step missing)`, because the generator shows `planned` only for an existing manifest step. Open items stay at 33; class counts are 40 / 4 / 19.
+- **These round-5 changes have not been reviewed by clestons yet.**

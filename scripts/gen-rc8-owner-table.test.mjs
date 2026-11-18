@@ -142,11 +142,18 @@ test("M6: a legacy row stays PENDING while a non-legacy row or probe still refer
     t.legacyProbe.results.hits = t.legacyProbe.results.hits.filter((h) => h.subject !== t.identities.AGG_4_1_B);
     assert.match(status(t, CTX, row(t, "agg_4_1_b.owner")), /PENDING.*row staking\.slashers/); // the row alone keeps it pending
     row(t, "staking.slashers").current.value = [t.identities.AGG_4_11];
-    assert.equal(status(t, CTX, row(t, "agg_4_1_b.owner")), "legacy (verified at pin)");
+    assert.equal(status(t, CTX, row(t, "agg_4_1_b.owner")), "legacy (no rc.8 reference found at the pin)");
     // A source hit also keeps it pending; a declared requirement too.
     const ctx = { ...CTX, sourceScan: { ...CTX.sourceScan, [t.identities.AGG_4_1_B]: ["contracts/src/x.sol"] } };
     assert.match(status(t, ctx, row(t, "agg_4_1_b.owner")), /PENDING.*source contracts\/src\/x\.sol/);
-    assert.match(status(T0, CTX, row(T0, "pmFactory.owner")), /PENDING.*disable step/);
+    // DSR 2026-11-18: the old PaymasterFactory (and the PMV4 implementation) are handed to TL48 with the disable
+    // step, which is not in the manifest yet -> class 1, GAP (step missing).
+    for (const id of ["pmFactory.owner", "pmv4Impl.owner"]) {
+        assert.equal(row(T0, id).class, 1);
+        assert.equal(row(T0, id).expected, "TL48");
+        assert.equal(row(T0, id).class3, undefined);
+        assert.equal(status(T0, CTX, row(T0, id)), "**GAP (step missing)**");
+    }
     assert.equal(status(T0, CTX, row(T0, "mpc.owner")), "legacy (author decision)");
 });
 
@@ -182,7 +189,7 @@ test("M6 (round 3): the reviewer's case stays PENDING: probe hit removed, probe 
     assert.match(status(b, CTX, row(b, "liveness.owner")), /PENDING.*getter read failed: SP\.owner\(\)/);
     b.legacyProbe.results.gettersFailed = [];
     assert.deepEqual(probeGaps(b), []);
-    assert.equal(status(b, CTX, row(b, "agg_4_1_b.owner")), "legacy (verified at pin)");
+    assert.equal(status(b, CTX, row(b, "agg_4_1_b.owner")), "legacy (no rc.8 reference found at the pin)");
 });
 
 test("item 9: isValidator[D] on the old DVTValidator is PENDING on the A7.dvt readbacks", () => {
@@ -199,4 +206,31 @@ test("item 10: a class-2 row owned by D must say the operator identity is the de
     row(t, "apntsPmv4.owner").notes = null;
     assert.ok(validate(t, CTX).some((e) => e.includes("deployer EOA")));
     assert.match(render(T0, CTX), /D is both the deployer EOA and the AAStar operator/);
+});
+
+test("round 5: class-1 Expected typos are rejected", () => {
+    for (const bad of ["TL84", "0xZZ", ["SAFE", "SAEF"]]) {
+        const t = clone();
+        row(t, "sp.owner").expected = bad;
+        assert.ok(validate(t, CTX).some((e) => e.includes("neither an identity nor an address")), JSON.stringify(bad));
+    }
+});
+
+test("round 5: Status is measured: 'handed over' only when Current equals Expected; otherwise planned + Open item", () => {
+    assert.match(status(T0, CTX, row(T0, "sp.owner")), /^\*\*planned: manifest A17 .*not executed at the pin/);
+    assert.match(status(T0, CTX, row(T0, "a7.owner")), /planned: manifest D\.aggregator\.transfer/);
+    assert.equal(status(T0, CTX, row(T0, "capped.owner")), "handed over");
+    const handed = T0.rows.filter((r) => r.kind === "authority" && status(T0, CTX, r) === "handed over").map((r) => r.id);
+    assert.equal(handed.length, 13, handed.join(","));
+    const md = render(T0, CTX);
+    assert.ok(md.includes("- `sp.owner`: planned: manifest A17"));
+    assert.match(md, /for a class-1 row it is the value AFTER rc\.8/);
+});
+
+test("pinned counts: classes, handed-over rows and Open items", () => {
+    const auth = T0.rows.filter((r) => r.kind === "authority");
+    const count = (c) => auth.filter((r) => r.class === c).length;
+    assert.deepEqual({ c1: count(1), c2: count(2), c3: count(3), pending: count(null) }, { c1: 40, c2: 4, c3: 19, pending: 0 });
+    assert.equal(auth.filter((r) => status(T0, CTX, r) === "handed over").length, 13);
+    assert.match(render(T0, CTX), /## Open items \(33\)/);
 });

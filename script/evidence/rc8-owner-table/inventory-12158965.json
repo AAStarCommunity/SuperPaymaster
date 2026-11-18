@@ -2,7 +2,7 @@
   "schema": "sp-inventory/2",
   "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
   "chainId": 11155111,
-  "at": "2026-11-18T03:30:15.264Z",
+  "at": "2026-11-18T04:13:15.847Z",
   "endpoints": [
     {
       "label": "archive(Alchemy)",
@@ -101,11 +101,11 @@
     "pendingDebts": []
   },
   "pinnedBlock": {
-    "number": 12158744,
-    "hash": "0x66fcdc6765b01b851973ef64b41a1e77df2f1b135674421ce8eb0d8346d8a20a",
+    "number": 12158965,
+    "hash": "0xe6d2127e7c340bcb6ead0071af9a6e84ed653a2f54d03aad78f5ce63fe0ec687",
     "finalized": [
-      12158744,
-      12158744
+      12158965,
+      12158965
     ]
   },
   "deployBlock": {
@@ -114,7 +114,7 @@
   },
   "range": {
     "from": 11151016,
-    "to": 12158744
+    "to": 12158965
   },
   "events": {
     "unclassified": 0,
