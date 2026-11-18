@@ -129,7 +129,7 @@ class Ddf5Test(unittest.TestCase):
                 c.deployment_rule(env,self.root,lambda url: url,chain)
                 check.assert_called_once_with('a','b',self.root)
 
-    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None):
+    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None):
         import sys
         from types import SimpleNamespace
         plan=json.loads(FIX.read_text()); evidence=self.root
@@ -143,19 +143,24 @@ class Ddf5Test(unittest.TestCase):
         dry=evidence/f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
         actual=dry.parent.parent/'run-latest.json'
         calls=[]
+        self.script_envs=[]
         def run(argv,**kwargs):
             self.assertFalse(any('primary' in x or 'secondary' in x for x in argv))
             calls.append(argv)
             if 'script' in argv:
+                self.script_envs.append(dict(kwargs['env']))
                 obj=copy.deepcopy(plan)
+                if kwargs['env']['DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP'] == '1':
+                    obj['transactions'] = obj['transactions'][:-1]
+                    if stopped_mutate: stopped_mutate(obj)
                 if mutate: mutate(obj,len(calls))
                 target=actual if '--broadcast' in argv else dry
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
-                return SimpleNamespace(returncode=0,stdout='',stderr='')
+                return SimpleNamespace(returncode=0,stdout=output(argv) if output else '',stderr='')
             return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 189 passed, 0 failed, 189 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
             return hex(chain) if method=='eth_chainId' else '0x27'
-        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',['driver','--production',self.env['DEPLOYER_ADDRESS']]), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
+        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver','primary',self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
             try: f.main()
             finally: self.calls=calls; self.rule=rule
 

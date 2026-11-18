@@ -140,13 +140,16 @@ same build/predict/deploy commands with `--production` and approved production i
 never run cap-control there. Archive evidence includes hardfork/control JSON, request,
 DVT export, build identity, simulation reads, Forge logs and checker output.
 
+These hashes are drift checks against operator mistakes and stale files. The trust
+root is the operator's machine.
+
 The build stamps bind clean HEAD and the SHA256 of `foundry.toml`. Deploy verifies
 both before planning and before broadcast. The artefacts themselves are checked
 byte by byte against the creation pins (hashing all creation bytes) in DeployLive’s
 preflight before broadcast; no separate artefact manifest is used.
 Deploy re-runs the dual-provider hardfork rule check before generating its plan.
 Immediately before broadcast it simulates again and compares count, order, sender,
-consecutive nonces, transactionType, envelope type, destination, calldata, value and
+consecutive nonces, transactionType, destination, calldata, value and
 chainId with the gated plan, then checks the
 pending deployer nonce against the prediction. The post-broadcast comparison also
 requires each gas limit inside [real-chain need, block gas limit], with the lower
@@ -158,8 +161,16 @@ bind the canonical gated-plan SHA256. Success requires checker PASS and an empty
 Remaining window: chain-head movement between the final simulation and broadcast
 can change gas estimates. The 1.3× margin plus the post-broadcast comparison cover
 it: a changed gas limit makes the run NOT successful even if transactions were sent.
-Forge and checker receive RPC URLs through `ETH_RPC_URL`, never process arguments;
-raw output is scanned in memory before any log write.
+Forge receives RPC URLs through `DEPLOYLIVE_FORGE_RPC_URL` and the `deploylive`
+alias; the checker uses `ETH_RPC_URL`. URLs never appear in process arguments.
+Before broadcast, sensitive output is refused. After broadcast, affected log streams
+are replaced with REDACTED text and `REDACTED_AFTER_BROADCAST` is written; the
+post-broadcast diff still runs and its evidence is written.
+
+In stop mode the gates still evaluate the full STOP=0 plan. An additional STOP=1
+simulation must equal its prefix, with the omitted tail starting at the H CREATE.
+Broadcast is compared with that stop plan and the corresponding gated gas bounds.
+`stop-plan.json` and `stop.diff.json` preserve that comparison. PREPARED is not PASS.
 
 ### Change an input after predict: offline refusal cell
 

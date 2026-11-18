@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import re
 import shlex
-import shutil
 import time
 import stat
 from deploylive_deploy_day import ROOT, require, integer, redact_error
@@ -165,7 +164,7 @@ def cap_control(rpc, evidence, production=False, sleep=time.sleep):
     return record
 
 
-def archive(source, destination, copy=shutil.copytree):
+def archive(source, destination, copy=None):
     source, destination = Path(source).resolve(), Path(destination).resolve()
     require(source.is_dir() and not destination.exists(), 'archive source missing or destination exists')
     require(not destination.is_relative_to(source) and not source.is_relative_to(destination), 'archive overlaps evidence')
@@ -174,10 +173,18 @@ def archive(source, destination, copy=shutil.copytree):
     require(not any(p.is_symlink() for p in source.rglob('*')), 'evidence symlinks refused')
     require(all('\n' not in str(p.relative_to(source)) and '\\' not in str(p.relative_to(source)) for p in files), 'unsafe archive filename')
     require(not (source/'SHA256SUMS').exists(), 'reserved SHA256SUMS in evidence')
-    sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(source).as_posix()+'\n' for p in files)
-    copy(source,destination)
-    for p in files:
-        require((destination/p.relative_to(source)).read_bytes() == p.read_bytes(), 'archive verification failed')
+    snapshots = {p.relative_to(source): p.read_bytes() for p in files}
+    sums=''.join(hashlib.sha256(data).hexdigest()+'  '+name.as_posix()+'\n' for name, data in snapshots.items())
+    if copy is not None:
+        copy(source,destination)
+    else:
+        destination.mkdir()
+        for name, data in snapshots.items():
+            target = destination/name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+    for name, data in snapshots.items():
+        require((destination/name).read_bytes() == data, 'archive verification failed')
     (destination/'SHA256SUMS').write_text(sums)
     print('ARCHIVE PASS')
 
@@ -214,7 +221,8 @@ def verify_manifest(env, evidence, request=None):
 
 
 def write_conversion(evidence, export, request, guardians):
-    # Keep the exact approved bytes alongside their manifest-bound hashes.
+    # Hashes are drift checks against operator mistakes and stale files.
+    # The trust root is the operator's machine. Keep the exact approved bytes.
     digest = manifest_digest(evidence)
     (evidence/'dvt-export.json').write_bytes(export)
     (evidence/'guardians.hex').write_bytes(guardians)
@@ -229,10 +237,12 @@ def verify_conversion(env, evidence):
     try:
         record = json.loads((evidence/'conversion.json').read_text())
         require(record.get('manifest') == digest, 'conversion manifest mismatch')
+        contents = {}
         for key, name in (('export', 'dvt-export.json'), ('request', 'pop-request.json'), ('guardians', 'guardians.hex')):
-            require(record.get(key+'Sha256') == hashlib.sha256((evidence/name).read_bytes()).hexdigest(),
+            contents[key] = (evidence/name).read_bytes()
+            require(record.get(key+'Sha256') == hashlib.sha256(contents[key]).hexdigest(),
                     'conversion digest mismatch: '+name)
-        return (evidence/'guardians.hex').read_text().strip()
+        return contents['guardians'].decode().strip()
     except (OSError, ValueError, TypeError, AttributeError):
         raise RuntimeError('conversion record missing or malformed') from None
 
@@ -255,15 +265,28 @@ def forge_endpoint(command, env):
     return [*command, '--rpc-url', FORGE_RPC_ALIAS], forge_env
 
 
-def safe_logs(evidence, prefix, result, env):
+def safe_logs(evidence, prefix, result, env, after_broadcast=False):
     from deploylive_rehearse import scan_content
+    logs = []
+    redacted = False
     for content in (result.stdout, result.stderr):
-        require(redact_error(content) == content, 'raw output contains credentials; refusing write')
-        for key in URL_KEYS:
-            scan_content(content.encode(), env.get(key, ''), json.loads(env.get('REHEARSAL_BLS_SCALARS', '[]')))
-        if env.get('PRIVATE_KEY_ANNI'):
-            require(env['PRIVATE_KEY_ANNI'].lower() not in content.lower(), 'raw output contains secret; refusing write')
-    for suffix, content in (('stdout', result.stdout), ('stderr', result.stderr)):
+        try:
+            require(redact_error(content) == content and not re.search(r'(?i)(?:https?|wss?)://', content), 'raw output contains credentials; refusing write')
+            for key in URL_KEYS:
+                scan_content(content.encode(), env.get(key, ''), json.loads(env.get('REHEARSAL_BLS_SCALARS', '[]')))
+            if env.get('PRIVATE_KEY_ANNI'):
+                require(env['PRIVATE_KEY_ANNI'].lower() not in content.lower(), 'raw output contains secret; refusing write')
+        except (RuntimeError, ValueError, TypeError):
+            if not after_broadcast:
+                raise
+            # Once transactions may have been sent, preserve evidence and continue the diff.
+            # Redact the entire affected stream, including endpoint fragments and scalar encodings.
+            content = 'REDACTED: sensitive output after broadcast\n'
+            redacted = True
+        logs.append(content)
+    if redacted:
+        (evidence/'REDACTED_AFTER_BROADCAST').write_text(prefix+'\n')
+    for suffix, content in zip(('stdout', 'stderr'), logs):
         (evidence/(prefix+'.'+suffix+'.log')).write_text(content)
 
 
@@ -331,6 +354,12 @@ def archive_records(source):
     for key, name in (('config', 'config.'+record['env']+'.json'), ('broadcast', 'run-latest.json')):
         path = Path(record[key])
         require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(ROOT), 'missing deployment record')
-        require(hashlib.sha256(path.read_bytes()).hexdigest() == record[key+'Sha256'], 'deployment record changed since PASS')
+        data = path.read_bytes()
+        require(hashlib.sha256(data).hexdigest() == record[key+'Sha256'], 'deployment record changed since PASS')
         require(Path(name).name == name, 'unsafe archive record name')
-        shutil.copyfile(path, source/name)
+        destination = source/name
+        try:
+            require(not stat.S_ISLNK(destination.lstat().st_mode), 'evidence destination symlink refused')
+        except FileNotFoundError:
+            pass
+        destination.write_bytes(data)

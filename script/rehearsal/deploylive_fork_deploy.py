@@ -216,6 +216,22 @@ def main():
         diff = plan_diff(plan, final_plan)
         (evidence/'prebroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), diff=diff))+'\n')
         require(not diff, 'final simulation differs from gated plan')
+        broadcast_plan = plan
+        if stop:
+            plan_path.unlink(missing_ok=True)
+            stopped = subprocess.run(command, cwd=ROOT, env=forge_env, capture_output=True, text=True)
+            safe_logs(evidence, 'forge.stop', stopped, env)
+            require(stopped.returncode == 0 and plan_path.is_file(), 'stop simulation failed')
+            broadcast_plan = json.loads(plan_path.read_text())
+            count = len(broadcast_plan['transactions'])
+            tail = plan['transactions'][count:]
+            require(count > 0 and tail and tail[0].get('transactionType') == 'CREATE'
+                    and tail[0].get('contractName', '').split('.')[0] == 'TimelockHandoverBootstrap',
+                    'stop simulation must omit the bootstrap tail')
+            diff = plan_diff(dict(plan, transactions=plan['transactions'][:count]), broadcast_plan)
+            (evidence/'stop-plan.json').write_text(json.dumps(broadcast_plan)+'\n')
+            (evidence/'stop.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), diff=diff))+'\n')
+            require(not diff, 'stop simulation differs from gated prefix')
         check_start_nonce(final_plan, request['pin']['senders']['deployer']['nonce'], rpc, deployer)
         verify_manifest(approved_env, evidence)
         require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
@@ -225,14 +241,14 @@ def main():
         print_command([binary, *command[1:], '--broadcast'])
         require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
         result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=forge_env, capture_output=True, text=True)
-        safe_logs(evidence, 'forge', result, env)
+        safe_logs(evidence, 'forge', result, env, after_broadcast=True)
         try:
-            diff = plan_diff(plan, json.loads(actual_path.read_text()), gas_bounds)
+            diff = plan_diff(broadcast_plan, json.loads(actual_path.read_text()), gas_bounds)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
-        (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), diff=diff))+'\n')
+        (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), broadcastPlanSha256=plan_digest(broadcast_plan), diff=diff))+'\n')
         require(not diff, 'post-broadcast diff is not empty; deployment NOT successful')
-        changed = gas_changes(plan, json.loads(actual_path.read_text()), gas_bounds)
+        changed = gas_changes(broadcast_plan, json.loads(actual_path.read_text()), gas_bounds)
         (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
         print('GAS post-broadcast limits equal to gated plan' if not changed else
               f'GAS post-broadcast {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
@@ -244,10 +260,11 @@ def main():
         print('PREPARED stopped before H; deployment is not successful')
         return
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=env, capture_output=True, text=True)
-    safe_logs(evidence, 'checker', result, env)
-    (evidence/'checker.log').write_text(result.stdout)
+    safe_logs(evidence, 'checker', result, env, after_broadcast=True)
+    (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())
     checker_pass(result)
-    print(result.stdout, end='' if result.stdout.endswith('\n') else '\n')
+    checker_output = (evidence/'checker.stdout.log').read_text()
+    print(checker_output, end='' if checker_output.endswith('\n') else '\n')
     write_success(evidence, env, path, actual_path, plan)
     print('PASS full deployment; post-deploy checker PASS')
 
