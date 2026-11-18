@@ -9,7 +9,8 @@ import { ERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/ERC20.sol";
 
 /**
  * D5 gate G1 — F1 investigation fixtures (docs/design/aoa-balance-mode/b-layer/F1-investigation.md).
- * Local nodes only; nothing here is deployed outside a local anvil.
+ * F1TestToken and F1Oracle: RQ3 comparator fixtures permitted on chainId 10 and 11155111
+ * (DSR 2026-11-18), not protocol contracts. Other fixtures remain local-node only.
  */
 
 interface IXPNTsEscrowView {

@@ -165,3 +165,35 @@ test('Foundry adapter serializes a verifiable EIP-1559 transaction offline', asy
   const serialized = await signer.signTransaction(tx);
   assert.equal(await recoverTransactionAddress({ serializedTransaction: serialized }), account.address);
 });
+
+test('frozen runtime sends exact pending nonce on both endpoints and refuses a jump',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'a6-frozen-'));
+ const c=config(), signers={};
+ for(const [i,role] of ['owner','bundler','verifyingSigner'].entries()) {
+  signers[role]=privateKeyToAccount(`0x${String(i+1).repeat(64)}`);
+  c.accounts[role].address=signers[role].address;
+ }
+ const calls=[];let nonce='0x4';
+ try {
+  for(const e of ['a','b']) writeFileSync(join(dir,e),`https://${e}.invalid/secret`);
+  const runtime=await formalRuntime({config:c,frozenPlan:true,rpcAFile:join(dir,'a'),rpcBFile:join(dir,'b'),outPath:join(dir,'run'),
+   resolver:async h=>[{address:h.startsWith('a')?'8.8.8.8':'1.1.1.1'}],createSigner:(_account,role)=>signers[role],
+   fetchImpl:async (url,{body})=>{
+    const r=JSON.parse(body);calls.push({url,...r});
+    const results={eth_chainId:'0x7a69',eth_blockNumber:'0x2a',eth_getTransactionCount:nonce,eth_sendRawTransaction:hash,
+      eth_getBlockByNumber:{number:'0x2a',hash,baseFeePerGas:'0x1',timestamp:'0x1',transactions:[]}};
+    assert.ok(r.method in results);
+    return new Response(JSON.stringify({jsonrpc:'2.0',id:r.id,result:results[r.method]}));
+   }});
+  const args={address:address(1),abi:parseAbi(['function go()']),functionName:'go'};
+  for(const n of [4,5]) {
+   nonce='0x'+n.toString(16);await runtime.writeContract(args);
+   assert.equal(parseTransaction(calls.filter(r=>r.method==='eth_sendRawTransaction').at(-1).params[0]).nonce,n);
+  }
+  nonce='0x8';await assert.rejects(runtime.writeContract(args),/PENDING_NONCE_CHANGED/);
+  const reads=calls.filter(r=>r.method==='eth_getTransactionCount');
+  assert.equal(reads.length,8);assert.ok(reads.every(r=>r.params[1]==='pending'));
+  assert.equal(new Set(reads.map(r=>r.url)).size,2);
+  assert.equal(calls.filter(r=>r.method==='eth_sendRawTransaction').length,2);
+ } finally {rmSync(dir,{recursive:true,force:true});}
+});

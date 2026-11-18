@@ -1260,7 +1260,7 @@ PC_PRICE_DECIMALS = 8             # d
 PC_RATE = 10**18                  # e: X exchange rate
 PC_BETA = 5                       # beta_A / extra_EP_j / beta_X / beta_Q = 5x per-attempt maxima
 PC_BUNDLER_BETA = 2*10**17        # beta_B
-PC_SP_POSTOP = 480000             # initial pp_SP; SP_RENEW is never set
+PC_SP_POSTOP = 480000             # Legacy Sepolia fixed initial postOp limit
 PC_AMAX_CAP = 5000*10**18
 PC_XPNTS_TX_LIMIT = 5000*10**18   # xPNTsTokenV2.initialize default maxSingleTxLimit
 PC_CAP_L = 50000*10**18           # L: autoAllowance and userTotal cap, no renewal
@@ -1291,9 +1291,11 @@ F1_SOURCE = 'contracts/test/bundler/F1Fixtures.sol'
 VPM_CONSTRUCTOR = 'c(address,address)'
 TPM_CONSTRUCTOR = ('c(address,address,address,address,(uint256,uint128,uint48,uint48),'
                    '(uint48,uint48,address,address,bool,bool,bool,uint256),(uint256,uint24,uint8),address)')
-F1_SCOPE_NOTE = ('F1Fixtures.sol header says "local nodes only"; DSR 2026-11-02 permits F1TestToken (separate '
+SEPOLIA_F1_SCOPE_NOTE = ('F1Fixtures.sol header says "local nodes only"; DSR 2026-11-02 permits F1TestToken (separate '
                  'T and Q instances) and F1Oracle on Sepolia for this gas experiment without source changes. '
                  'The local Anvil deployment recipe (deploy-baselines.mjs) is not used.')
+F1_SCOPE_NOTE = ('DSR 2026-11-18 permits F1TestToken (T/Q) and F1Oracle on chainId 10 and '
+                 '11155111 as RQ3 comparator fixtures, not protocol contracts; local fixtures also permitted.')
 
 
 @lru_cache(maxsize=8)
@@ -1400,7 +1402,6 @@ def validate_phase_c_inputs(c):
         r['evidence']['path'], r['evidence']['sha256'], 'phase_c_rehearsal_evidence_bytes').strip()), True)
     a.exact_keys('phase_c_arms', r['arms'], ARMS)
     for arm in ARMS:
-        # pp_SP is the fixed initial 480000; an SP postOp measurement cannot replace it.
         fields = tuple(f for f in ARM_FIELDS if not (arm == 'SP' and f == 'postOp'))
         a.exact_keys('phase_c_arm_fields_'+arm, r['arms'][arm], fields)
         for field in fields:
@@ -1422,13 +1423,15 @@ def addr_call(rpc, target, sig, *args, block='latest'):
     return u.addr_word(a.word(rpc, target, sig, *args, block=block))
 
 
-def account_status(rpc, account, mysbt, block='latest'):
-    return [a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('ENDUSER'), account, block=block),
-            a.word(rpc, mysbt, 'verifyCommunityMembership(address,address)', account, u.DEPLOYER, block=block),
-            a.word(rpc, u.SP, 'sbtHolders(address)', account, block=block)]
+def account_status(rpc, account, mysbt, block='latest', context=None):
+    context = context or dict(operator=u.DEPLOYER, SP=u.SP, safe=u.SAFE, registry=u.REG, accountFactory=ACCOUNT_FACTORY)
+    return [a.word(rpc, context['registry'], 'hasRole(bytes32,address)', role_id('ENDUSER'), account, block=block),
+            a.word(rpc, mysbt, 'verifyCommunityMembership(address,address)', account, context['operator'], block=block),
+            a.word(rpc, context['SP'], 'sbtHolders(address)', account, block=block)]
 
 
-def collect_phase_c(rpc, block, inputs, pin):
+def collect_phase_c(rpc, block, inputs, pin, context=None):
+    context = context or dict(operator=u.DEPLOYER, SP=u.SP, safe=u.SAFE, registry=u.REG, accountFactory=ACCOUNT_FACTORY)
     """Public pin reads for Phase C; the builder re-checks every gate from these values."""
     c = inputs['data']['phaseC']
     out = {}
@@ -1442,27 +1445,27 @@ def collect_phase_c(rpc, block, inputs, pin):
     out['capped'] = dict(cap=a.word(rpc, capped, 'cap()', block=block),
         totalSupply=a.word(rpc, capped, 'totalSupply()', block=block),
         minter=a.address(rpc, capped, 'minter()', block),
-        deployerBalance=a.word(rpc, capped, 'balanceOf(address)', u.DEPLOYER, block=block))
-    out['sp'] = dict(aPNTsPriceUSD=a.word(rpc, u.SP, 'aPNTsPriceUSD()', block=block),
-        protocolFeeBPS=a.word(rpc, u.SP, 'protocolFeeBPS()', block=block),
-        cachedPrice=u.uints(a.call(rpc, u.SP, 'cachedPrice()', block=block)),
-        deployerOperator=u.uints(a.call(rpc, u.SP, 'operators(address)', u.DEPLOYER, block=block)))
-    out['roles'] = {name: a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id(name), u.DEPLOYER, block=block)
+        deployerBalance=a.word(rpc, capped, 'balanceOf(address)', context['operator'], block=block))
+    out['sp'] = dict(aPNTsPriceUSD=a.word(rpc, context['SP'], 'aPNTsPriceUSD()', block=block),
+        protocolFeeBPS=a.word(rpc, context['SP'], 'protocolFeeBPS()', block=block),
+        cachedPrice=u.uints(a.call(rpc, context['SP'], 'cachedPrice()', block=block)),
+        deployerOperator=u.uints(a.call(rpc, context['SP'], 'operators(address)', context['operator'], block=block)))
+    out['roles'] = {name: a.word(rpc, context['registry'], 'hasRole(bytes32,address)', role_id(name), context['operator'], block=block)
                     for name in ('COMMUNITY', 'PAYMASTER_SUPER')}
-    staking = a.address(rpc, u.REG, 'GTOKEN_STAKING()', block)
+    staking = a.address(rpc, context['registry'], 'GTOKEN_STAKING()', block)
     gtoken = a.address(rpc, staking, 'GTOKEN()', block)
-    mysbt = a.address(rpc, u.REG, 'MYSBT()', block)
-    out['endUser'] = dict(roleConfig=a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER'), block=block),
+    mysbt = a.address(rpc, context['registry'], 'MYSBT()', block)
+    out['endUser'] = dict(roleConfig=a.call(rpc, context['registry'], 'getRoleConfig(bytes32)', role_id('ENDUSER'), block=block),
         staking=staking, gtoken=gtoken, mysbt=mysbt,
-        deployerGToken=a.word(rpc, gtoken, 'balanceOf(address)', u.DEPLOYER, block=block))
-    impl = addr_call(rpc, ACCOUNT_FACTORY, 'accountImplementation()', block=block)
+        deployerGToken=a.word(rpc, gtoken, 'balanceOf(address)', context['operator'], block=block))
+    impl = addr_call(rpc, context['accountFactory'], 'accountImplementation()', block=block)
     account = c['account']
     code = u.code(rpc, account, block)
-    out['account'] = dict(factoryCodeHash=a.keccak(u.code(rpc, ACCOUNT_FACTORY, block)), implementation=impl,
+    out['account'] = dict(factoryCodeHash=a.keccak(u.code(rpc, context['accountFactory'], block)), implementation=impl,
         implementationCodeHash=a.keccak(u.code(rpc, impl, block)),
         implementationEntryPoint=addr_call(rpc, impl, 'entryPoint()', block=block),
-        counterfactual=addr_call(rpc, ACCOUNT_FACTORY, 'getAddress(address,uint256)', c['accountOwner'], c['salt'], block=block),
-        codeHash=a.keccak(code), status=account_status(rpc, account, mysbt, block))
+        counterfactual=addr_call(rpc, context['accountFactory'], 'getAddress(address,uint256)', c['accountOwner'], c['salt'], block=block),
+        codeHash=a.keccak(code), status=account_status(rpc, account, mysbt, block, context=context))
     if code != '0x':
         out['account'].update(owner=addr_call(rpc, account, 'owner()', block=block),
             entryPoint=addr_call(rpc, account, 'entryPoint()', block=block),
@@ -1470,14 +1473,15 @@ def collect_phase_c(rpc, block, inputs, pin):
     return out
 
 
-def phase_c_pin_gates(pin, c):
+def phase_c_pin_gates(pin, c, context=None):
+    context = context or dict(operator=u.DEPLOYER, SP=u.SP, safe=u.SAFE, registry=u.REG, accountFactory=ACCOUNT_FACTORY)
     """Chain preconditions for Phase C, evaluated offline from the archived pin reads."""
     p = pin['phaseC']
     a.exact_keys('phase_c_pin', p, ('owner', 'bundler', 'verifyingSigner', 'capped', 'sp', 'roles', 'endUser', 'account'))
     for label, key in (('owner', 'accountOwner'), ('bundler', 'bundler'), ('verifyingSigner', 'verifyingSigner')):
         a.need('phase_c_pin_identity_'+label, p[label]['address'], c[key])
         a.need('phase_c_eoa_'+label, p[label]['code'], '0x')
-    a.need('C1_minter_pin', p['capped']['minter'], u.SAFE)
+    a.need('C1_minter_pin', p['capped']['minter'], context['safe'])
     price = p['sp']['cachedPrice']
     a.need('C_price_shape', len(price), 4)
     # A pin price alone does not bound future reservations: P* bounds funding, and the
@@ -1504,7 +1508,7 @@ def phase_c_pin_gates(pin, c):
     return dict(accountExists=exists, member=acct['status'] == [1, 1, 1], minStake=cfg['minStake'], ticketPrice=cfg['ticketPrice'])
 
 
-def phase_c_worksheet(pin, c, sp_deposit_before):
+def phase_c_worksheet(pin, c, sp_deposit_before, policy='legacy'):
     """§3 funding worksheet with integer rounding exactly as written in the design."""
     p, r = pin['phaseC'], c['rehearsal']
     facts = phase_c_pin_gates(pin, c)
@@ -1513,7 +1517,11 @@ def phase_c_worksheet(pin, c, sp_deposit_before):
     for arm in ARMS:
         b = {k: pre_pilot(v) for k, v in r['arms'][arm].items()}
         if arm == 'SP':
-            b['postOp'] = PC_SP_POSTOP
+            if policy == 'legacy':
+                b['postOp'] = PC_SP_POSTOP
+            else:
+                # Fresh path, DSR ruling (b): never below SP's minimum postOp gas.
+                b['postOp'] = max(b['postOp'], u.GAS[0])
         bounds[arm] = b
         gas = sum(b[k] for k in ARM_FIELDS if k != 'outer')        # v0.7 sum, no v0.6 multiplier
         maxima[arm] = gas*PC_FEE                                    # M_j
@@ -1546,7 +1554,7 @@ def phase_c_worksheet(pin, c, sp_deposit_before):
     a.need('C6_gtoken_balance_worksheet', p['endUser']['deployerGToken'] >= stake_cost, True)
     return dict(attempts=n, feeCap=PC_FEE, priorityCap=PC_PRIORITY, priceCap=PC_PRICE_CAP, priceDecimals=PC_PRICE_DECIMALS,
         exchangeRate=PC_RATE, betaMultiplier=PC_BETA, bundlerBeta=PC_BUNDLER_BETA, allowanceCap=PC_CAP_L,
-        spRenew=False, spPostOp=PC_SP_POSTOP, bounds=bounds, maxPrefund=maxima, outerBound=outer,
+        spRenew=False, spPostOp=bounds['SP']['postOp'], bounds=bounds, maxPrefund=maxima, outerBound=outer,
         aPNTsPriceUSD=price_a, protocolFeeBPS=fee_b, A0=a0, Amax=amax, operatorTarget=target_a,
         operatorTopUp=delta_a, cappedMint=delta_m, cappedSupplyBefore=supply, Xmax=xmax, userTarget=target_x,
         entryPointTargets=deposits, entryPointBefore=before,
@@ -1558,7 +1566,7 @@ def phase_c_worksheet(pin, c, sp_deposit_before):
         endUserStake=facts['minStake'], endUserTicket=facts['ticketPrice'],
         accountExists=facts['accountExists'], accountMember=facts['member'],
         token=dict(zip(('name', 'symbol', 'communityName', 'communityENS'), PC_TOKEN)), treasury=PC_TREASURY,
-        recipient=DEAD, f1Provenance=F1_SCOPE_NOTE)
+        recipient=DEAD, f1Provenance=SEPOLIA_F1_SCOPE_NOTE)
 
 
 # keccak256 of the canonical Safe event signatures (checked offline in tests).
@@ -2113,6 +2121,193 @@ def stage_pin(pin, stage):
     return {k: v for k, v in pin.items() if k != 'phaseC'}
 
 
+def build_phase_c(*, pin, inputs, context, chain_id, commit, factory, tier, ep, addresses,
+                  counters, safe_n, steps, add, sp_deposit_before, sp_stake,
+                  worksheet=None, baselines=None, policy='legacy', task_recipients=()):
+    """Build Phase C independently; all deployment identities are supplied by the caller."""
+    phase_c = {}
+    # Phase C (§3): after 6d and B4, before Phase D, on the same sender/Safe counters.
+    c, p = inputs, pin['phaseC']
+    # DSR 2026-11-02: D is the only sampled operator; N stays paused and unfunded. Enforced for every stage by
+    # validate_external's sampled_deployer_only (DSR 2026-11-05, F-01).
+    ws = worksheet if worksheet is not None else phase_c_worksheet(pin, c, sp_deposit_before, policy=policy)
+    phase_c.update(ws)
+    if policy == 'fresh':
+        phase_c.update(spBranch='balance', creditPolicy=0, settlementEvents={
+            'balance': 'LockSettled(address,bytes32,uint256,uint256)',
+            'credit': 'CreditSettled(address,bytes32,uint256)'})
+    base = baselines if baselines is not None else rebuild_baselines(commit)
+    a.need('C12_constructor_abi', base['VerifyingPaymaster']['constructor'], VPM_CONSTRUCTOR)
+    a.need('C14_constructor_abi', base['TokenPaymaster']['constructor'], TPM_CONSTRUCTOR)
+    for name in ('F1TestToken', 'F1Oracle', 'VerifyingPaymaster', 'TokenPaymaster'):
+        a.need('C_baseline_commit_'+name, base[name]['commit'], commit)
+    phase_c['artifacts'] = {name: {k: v for k, v in base[name].items() if k not in ('bytecode', 'runtimeIdentity')}
+                            | dict(creationKeccak=a.keccak(base[name]['bytecode'])) for name in sorted(base)}
+    E = context.get('experiment', context['operator'])
+    fresh = context.get('fresh', False)
+    D, S, O, capped = context['operator'], c['account'], c['accountOwner'], pin['capped']
+    X = a.create_address(factory, 1)   # first Clones.clone CREATE of the A4 factory
+    staking, gtoken, mysbt = (p['endUser'][k] for k in ('staking', 'gtoken', 'mysbt'))
+    words = list(p['sp']['deployerOperator'])
+    def c_add(sid, target, data, checks, **kw):
+        step = add(sid, target, data, checks, phase='C', **kw)
+        a.need('C_chain_binding', a.qty(step['tx']['chainId']), chain_id)
+        if 'safeNonce' in step:
+            step['safeNonce'] = safe_n
+        return step
+    def c_call(sid, target, sig, args, checks, **kw):
+        return c_add(sid, target, a.calldata(sig, *args), checks, **kw)
+    def c_deploy(sid, key, art, signature, args, checks):
+        if key in context.get('comparators', {}):
+            return context['comparators'][key]
+        target = a.create_address(E, counters['deployer'])
+        code = (dict(kind='code', target=target, expected=runtime_bytes(art, {'MINTER': int(E, 16)}))
+                if 'runtimeIdentity' in art else dict(kind='codeHash', target=target, expected=c['runtimeKeccak'][key]))
+        c_add(sid, None, art['bytecode']+a.cast('abi-encode', signature, *args)[2:], [code]+checks(target), creates=target,
+              constructor=dict(signature=signature, bytecode=art['bytecode']))
+        return target
+    def account_exec(target, inner):
+        return a.calldata('execute(address,uint256,bytes)', target, 0, inner)
+    phase_c['addresses'] = dict(X=X, S=S, R=DEAD)
+    delta_m, delta_a = ws['cappedMint'], ws['operatorTopUp']
+    held = p['capped']['deployerBalance']+delta_m
+    if delta_m and not fresh:
+        inner = a.calldata('mint(address,uint256)', D, delta_m)
+        h = safe_hash(inner, safe_n, capped)
+        c_add('C1_approve', context['safe'], a.calldata('approveHash(bytes32)', h),
+            [word_pred(context['safe'], 'approvedHashes(address,bytes32)', 1, context['approver'], h)],
+            sender='approver', safeHash=h, inner=inner, safeTarget=capped)
+        c_add('C1_exec', context['safe'], safe_payload(inner, capped),
+            [word_pred(capped, 'balanceOf(address)', held, D),
+             word_pred(capped, 'totalSupply()', ws['cappedSupplyBefore']+delta_m),
+             word_pred(capped, 'cap()', p['capped']['cap']), address_pred(capped, 'minter()', context['safe'])],
+            sender='executor', safeHash=h, inner=inner, safeTarget=capped)
+        safe_n += 1
+    if delta_a:
+        c_call('C2.approve', capped, 'approve(address,uint256)', (context['SP'], delta_a),
+            [word_pred(capped, 'allowance(address,address)', delta_a, D, context['SP'])])
+        c_call('C2.deposit', context['SP'], 'deposit(uint256)', (delta_a,),
+            [word_pred(context['SP'], 'operators(address)', ws['operatorTarget'], D, index=OP['aPNTsBalance']),
+             word_pred(context['SP'], 'totalTrackedBalance()', context.get('trackedBefore', BUFFER)+delta_a), word_pred(context['SP'], 'protocolRevenue()', context.get('revenueBefore', BUFFER)),
+             word_pred(capped, 'balanceOf(address)', context.get('backingBefore', BUFFER)+delta_a, context['SP']),
+             word_pred(capped, 'balanceOf(address)', held-delta_a, D),
+             word_pred(capped, 'allowance(address,address)', 0, D, context['SP'])])
+    before = words[:]
+    before[OP['aPNTsBalance']], before[OP['isPaused']] = ws['operatorTarget'], 0
+    phase_c['operatorBefore'] = before
+    string = lambda value: a.cast('abi-encode', 'c(string)', value)
+    c_call('C3.deploy', factory, 'deployxPNTsToken(string,string,string,string,uint256,address)', (*PC_TOKEN, PC_RATE, a.ZERO),
+        [address_pred(factory, 'getTokenAddress(address)', X, D), word_pred(factory, 'isXPNTs(address)', 1, X),
+         word_pred(factory, 'getDeployedCount()', 1),
+         dict(kind='code', target=X, expected='0x363d3d373d3d3d363d73'+addresses['xPNTsTokenV2'][2:]+'5af43d82803e903d91602b57fd5bf3'),
+         address_pred(X, 'FACTORY()', factory), address_pred(X, 'communityOwner()', D), address_pred(X, 'community()', D),
+         word_pred(X, 'exchangeRate()', PC_RATE), address_pred(X, 'SUPERPAYMASTER_ADDRESS()', context['SP']),
+         address_pred(X, 'creditTierSource()', tier), word_pred(X, 'creditPolicy()', 0), word_pred(X, 'pendingPolicyEta()', 0),
+         word_pred(X, 'maxSingleTxLimit()', PC_XPNTS_TX_LIMIT), word_pred(X, 'BALANCE_MODE_VERSION()', 1),
+         predicate(X, 'name()', (), string(PC_TOKEN[0])), predicate(X, 'symbol()', (), string(PC_TOKEN[1])),
+         predicate(X, 'communityName()', (), string(PC_TOKEN[2])), predicate(X, 'communityENS()', (), string(PC_TOKEN[3])),
+         predicate(context['SP'], 'operators(address)', (D,), before)])
+    after = before[:]
+    after[OP['isConfigured']], after[OP['xPNTsToken']], after[OP['treasury']] = 1, int(X, 16), int(context['treasury'], 16)
+    phase_c['operatorAfter'] = after
+    c_call('C3.configure', context['SP'], 'configureOperator(address,address)', (X, context['treasury']),
+        [predicate(context['SP'], 'operators(address)', (D,), after), word_pred(X, 'creditPolicy()', 0),
+         word_pred(X, 'pendingPolicyEta()', 0), word_pred(X, 'maxSingleTxLimit()', PC_XPNTS_TX_LIMIT)])
+    if not ws['accountExists']:
+        c_call('C5', context['accountFactory'], 'createAccount(address,uint256)', (O, c['salt']),
+            [dict(kind='codeHash', target=S, expected=c['runtimeKeccak']['account']),
+             dict(kind='storage', target=S, slot=u.IMPL_SLOT, expected=int(c['accountImplementation'], 16)),
+             address_pred(S, 'owner()', O), address_pred(S, 'entryPoint()', ep)])
+    ticket = ws['endUserStake']+ws['endUserTicket']
+    if not ws['accountMember']:
+        c_call('C6', gtoken, 'approve(address,uint256)', (staking, ticket),
+            [word_pred(gtoken, 'allowance(address,address)', ticket, D, staking)])
+        c_call('C7', context['registry'], 'safeMintForRole(bytes32,address,bytes)',
+            (role_id('ENDUSER'), S, a.cast('abi-encode', 'c(address,uint256)', D, ws['endUserStake'])),
+            [word_pred(context['registry'], 'hasRole(bytes32,address)', 1, role_id('ENDUSER'), S),
+             word_pred(mysbt, 'verifyCommunityMembership(address,address)', 1, S, D),
+             word_pred(context['SP'], 'sbtHolders(address)', 1, S), word_pred(context['SP'], 'isEligibleForSponsorship(address)', 1, S),
+             word_pred(context['registry'], 'getRoleStake(bytes32,address)', ws['endUserStake'], role_id('ENDUSER'), S),
+             word_pred(gtoken, 'allowance(address,address)', 0, D, staking),
+             word_pred(gtoken, 'balanceOf(address)', p['endUser']['deployerGToken']-ticket, D)])
+    c_call('C8', X, 'mint(address,uint256)', (S, ws['userTarget']),
+        [word_pred(X, 'balanceOf(address)', ws['userTarget'], S), word_pred(X, 'totalSupply()', context.get('xSupplyBefore', 0)+ws['userTarget']),
+         word_pred(X, 'debts(address)', 0, S), word_pred(X, 'creditPolicy()', 0), word_pred(X, 'pendingPolicyEta()', 0)])
+    if ws['ownerTopUp']:
+        c_add('C20', O, '0x', [dict(kind='balance', target=O, expected=p['owner']['balance']+ws['ownerTopUp'])],
+              value=ws['ownerTopUp'])
+    owner_steps = [('C9.allowance', 'setAutoAllowance(address,uint256)', (context['SP'], PC_CAP_L)),
+                   ('C9.total', 'setUserTotalCap(uint256)', (PC_CAP_L,)), ('C9.mode', 'setRenewalMode(uint8)', (0,))]
+    checks = []
+    for sid, sig, args in owner_steps:
+        checks = checks + {'C9.allowance': [predicate(X, 'autoAllowance(address,address)', (S, context['SP']), [PC_CAP_L, 0])],
+                           'C9.total': [predicate(X, 'userTotal(address)', (S,), [PC_CAP_L, 0])],
+                           'C9.mode': [word_pred(X, 'renewalMode(address)', 0, S), word_pred(X, 'autoRenewUsed(address)', 0, S),
+                                       word_pred(X, 'creditPolicy()', 0)]}[sid]
+        c_add(sid, S, account_exec(X, a.calldata(sig, *args)), list(checks), sender='owner',
+              gasBound=ws['ownerPreparation'][sid])
+    f1 = lambda target: [address_pred(target, 'MINTER()', E), word_pred(target, 'decimals()', 18), word_pred(target, 'totalSupply()', 0)]
+    task = c_deploy('C10', 'T', base['F1TestToken'], 'c()', (), f1)
+    if policy == 'fresh':
+        a.need('C_task_token_distinct', task.lower() != X.lower(), True)
+        phase_c['balanceLock'] = dict(taskToken=task, gasToken=X, transfer=PC_TASK_UNIT,
+                                      reason='Task transfers a different token; xPNTs reservation cannot lock T')
+    transfer = a.calldata('transfer(address,uint256)', DEAD, PC_TASK_UNIT)
+    phase_c['taskCallData'] = account_exec(task, transfer)
+    phase_c['callDataHash'] = a.keccak(phase_c['taskCallData'])
+    for sid, who, amount in (('C11.S', S, ws['taskSender']), ('C11.R', DEAD, PC_TASK_UNIT)):
+        c_call(sid, task, 'mint(address,uint256)', (who, amount), [word_pred(task, 'balanceOf(address)', amount, who)])
+    if policy == 'fresh':
+        for i, entry in enumerate(task_recipients):
+            who, amount = entry['address'], entry['amount']
+            c_call('C11.extra.'+str(i), task, 'mint(address,uint256)', (who, amount),
+                   [word_pred(task, 'balanceOf(address)', amount, who)])
+    vpm = c_deploy('C12', 'VerifyingPaymaster', base['VerifyingPaymaster'], VPM_CONSTRUCTOR, (ep, c['verifyingSigner']),
+        lambda t: [address_pred(t, 'owner()', E), address_pred(t, 'entryPoint()', ep),
+                   address_pred(t, 'verifyingSigner()', c['verifyingSigner'])])
+    fee = c_deploy('C13.token', 'Q', base['F1TestToken'], 'c()', (), f1)
+    oracle = c_deploy('C13.oracle', 'oracle', base['F1Oracle'], 'c()', (),
+        lambda t: [word_pred(t, 'decimals()', 8), word_pred(t, 'latestRoundData()', 10**8, index=1)])
+    config = (PC_TPM_MARKUP, 0, PC_TPM_REFUND, PC_TPM_AGE)
+    tpm = c_deploy('C14', 'TokenPaymaster', base['TokenPaymaster'], TPM_CONSTRUCTOR,
+        (fee, ep, DEAD, DEAD, '(%d,%d,%d,%d)' % config,
+         '(%d,%d,%s,%s,true,false,false,%d)' % (PC_TPM_AGE, PC_TPM_AGE, oracle, a.ZERO, PC_TPM_THRESHOLD),
+         '(1,3000,5)', E),
+        lambda t: [address_pred(t, 'owner()', E), address_pred(t, 'entryPoint()', ep), address_pred(t, 'token()', fee),
+                   address_pred(t, 'wrappedNative()', DEAD), address_pred(t, 'uniswap()', DEAD),
+                   predicate(t, 'tokenPaymasterConfig()', (), list(config))])
+    c_call('C15', tpm, 'updateCachedPrice(bool)', ('true',),
+        [word_pred(tpm, 'cachedPrice()', PC_TPM_MARKUP), dict(kind='eta', target=tpm, signature='cachedPriceTimestamp()', delay=0)])
+    targets = dict(SP=context['SP'], VPM=vpm, TPM=tpm)
+    for arm in ('VPM', 'TPM'):
+        c_call('C16.'+arm.lower(), targets[arm], 'addStake(uint32)', (context.get('stakeDelay', DAY),),
+            [predicate(ep, 'getDepositInfo(address)', (targets[arm],), [0, 1, context.get('stakeWei', PC_STAKE), context.get('stakeDelay', DAY), 0])], value=context.get('stakeWei', PC_STAKE))
+    stakes = dict(SP=sp_stake, VPM=context.get('stakeWei', PC_STAKE), TPM=context.get('stakeWei', PC_STAKE))
+    for arm in ARMS:
+        top = ws['entryPointTopUps'][arm]
+        if top:
+            c_call('C17.'+arm.lower(), ep, 'depositTo(address)', (targets[arm],),
+                [word_pred(ep, 'balanceOf(address)', ws['entryPointBefore'][arm]+top, targets[arm]),
+                 word_pred(ep, 'getDepositInfo(address)', stakes[arm], targets[arm], index=2)], value=top)
+    c_call('C18.mint', fee, 'mint(address,uint256)', (S, ws['feeTokenTarget']),
+        [word_pred(fee, 'balanceOf(address)', ws['feeTokenTarget'], S)])
+    c_add('C18.approve', S, account_exec(fee, a.calldata('approve(address,uint256)', tpm, ws['feeTokenTarget'])),
+        [word_pred(fee, 'allowance(address,address)', ws['feeTokenTarget'], S, tpm)], sender='owner',
+        gasBound=ws['ownerPreparation']['C18.approve'])
+    if ws['bundlerTopUp']:
+        c_add('C19', c['bundler'], '0x', [dict(kind='balance', target=c['bundler'],
+              expected=p['bundler']['balance']+ws['bundlerTopUp'])], value=ws['bundlerTopUp'])
+    phase_c['addresses'].update(T=task, Q=fee, oracle=oracle, VPM=vpm, TPM=tpm)
+    phase_c['steps'] = [s['id'] for s in steps if s.get('phase') == 'C']
+    values = sum(a.qty(s['tx']['value']) for s in steps if s['sender'] == 'deployer')
+    # Values alone (stakes, deposits, B/O funding) must fit D before gas is even measured.
+    report = dict(balanceWei=pin['senders']['deployer']['balance'], requiredWei=values,
+                  shortfallWei=positive(values-pin['senders']['deployer']['balance']))
+    a.need('budget_deployer_values', report, dict(report, shortfallWei=0))
+    phase_c['deployerValueWei'] = values
+    return phase_c, safe_n
+
+
 def build_plan(pin, inputs=None, stage='full', stage_sources=None):
     a.need('manifest_inputs_required', inputs is not None, True)
     required(inputs, ('sha256', 'data'), 'external_binding')
@@ -2353,164 +2548,12 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
         placeholder=dict(b4['tx'], to=u.DEPLOYER, value='0x0', data='0x'))
     if stage == 'b4':
         return finish()
-    # Phase C (§3): after 6d and B4, before Phase D, on the same sender/Safe counters.
-    c, p = d['phaseC'], pin['phaseC']
-    # DSR 2026-11-02: D is the only sampled operator; N stays paused and unfunded. Enforced for every stage by
-    # validate_external's sampled_deployer_only (DSR 2026-11-05, F-01).
-    ws = phase_c_worksheet(pin, c, pin['entryPointDeposit']+deposit)
-    phase_c.update(ws)
-    base = rebuild_baselines(arts['commit'])
-    a.need('C12_constructor_abi', base['VerifyingPaymaster']['constructor'], VPM_CONSTRUCTOR)
-    a.need('C14_constructor_abi', base['TokenPaymaster']['constructor'], TPM_CONSTRUCTOR)
-    for name in ('F1TestToken', 'F1Oracle', 'VerifyingPaymaster', 'TokenPaymaster'):
-        a.need('C_baseline_commit_'+name, base[name]['commit'], arts['commit'])
-    phase_c['artifacts'] = {name: {k: v for k, v in base[name].items() if k not in ('bytecode', 'runtimeIdentity')}
-                            | dict(creationKeccak=a.keccak(base[name]['bytecode'])) for name in sorted(base)}
-    D, S, O, capped = u.DEPLOYER, c['account'], c['accountOwner'], pin['capped']
-    X = a.create_address(factory, 1)   # first Clones.clone CREATE of the A4 factory
-    staking, gtoken, mysbt = (p['endUser'][k] for k in ('staking', 'gtoken', 'mysbt'))
-    words = list(p['sp']['deployerOperator'])
-    def c_add(sid, target, data, checks, **kw):
-        return add(sid, target, data, checks, phase='C', **kw)
-    def c_call(sid, target, sig, args, checks, **kw):
-        return c_add(sid, target, a.calldata(sig, *args), checks, **kw)
-    def c_deploy(sid, key, art, signature, args, checks):
-        target = a.create_address(D, counters['deployer'])
-        code = (dict(kind='code', target=target, expected=runtime_bytes(art, {'MINTER': int(D, 16)}))
-                if 'runtimeIdentity' in art else dict(kind='codeHash', target=target, expected=c['runtimeKeccak'][key]))
-        c_add(sid, None, art['bytecode']+a.cast('abi-encode', signature, *args)[2:], [code]+checks(target), creates=target,
-              constructor=dict(signature=signature, bytecode=art['bytecode']))
-        return target
-    def account_exec(target, inner):
-        return a.calldata('execute(address,uint256,bytes)', target, 0, inner)
-    phase_c['addresses'] = dict(X=X, S=S, R=DEAD)
-    delta_m, delta_a = ws['cappedMint'], ws['operatorTopUp']
-    held = p['capped']['deployerBalance']+delta_m
-    if delta_m:
-        inner = a.calldata('mint(address,uint256)', D, delta_m)
-        h = safe_hash(inner, safe_n, capped)
-        c_add('C1_approve', u.SAFE, a.calldata('approveHash(bytes32)', h),
-            [word_pred(u.SAFE, 'approvedHashes(address,bytes32)', 1, a.APPROVER, h)],
-            sender='approver', safeHash=h, inner=inner, safeTarget=capped)
-        c_add('C1_exec', u.SAFE, safe_payload(inner, capped),
-            [word_pred(capped, 'balanceOf(address)', held, D),
-             word_pred(capped, 'totalSupply()', ws['cappedSupplyBefore']+delta_m),
-             word_pred(capped, 'cap()', p['capped']['cap']), address_pred(capped, 'minter()', u.SAFE)],
-            sender='executor', safeHash=h, inner=inner, safeTarget=capped)
-        safe_n += 1
-    if delta_a:
-        c_call('C2.approve', capped, 'approve(address,uint256)', (u.SP, delta_a),
-            [word_pred(capped, 'allowance(address,address)', delta_a, D, u.SP)])
-        c_call('C2.deposit', u.SP, 'deposit(uint256)', (delta_a,),
-            [word_pred(u.SP, 'operators(address)', ws['operatorTarget'], D, index=OP['aPNTsBalance']),
-             word_pred(u.SP, 'totalTrackedBalance()', BUFFER+delta_a), word_pred(u.SP, 'protocolRevenue()', BUFFER),
-             word_pred(capped, 'balanceOf(address)', BUFFER+delta_a, u.SP),
-             word_pred(capped, 'balanceOf(address)', held-delta_a, D),
-             word_pred(capped, 'allowance(address,address)', 0, D, u.SP)])
-    before = words[:]
-    before[OP['aPNTsBalance']], before[OP['isPaused']] = ws['operatorTarget'], 0
-    phase_c['operatorBefore'] = before
-    string = lambda value: a.cast('abi-encode', 'c(string)', value)
-    c_call('C3.deploy', factory, 'deployxPNTsToken(string,string,string,string,uint256,address)', (*PC_TOKEN, PC_RATE, a.ZERO),
-        [address_pred(factory, 'getTokenAddress(address)', X, D), word_pred(factory, 'isXPNTs(address)', 1, X),
-         word_pred(factory, 'getDeployedCount()', 1),
-         dict(kind='code', target=X, expected='0x363d3d373d3d3d363d73'+addresses['xPNTsTokenV2'][2:]+'5af43d82803e903d91602b57fd5bf3'),
-         address_pred(X, 'FACTORY()', factory), address_pred(X, 'communityOwner()', D), address_pred(X, 'community()', D),
-         word_pred(X, 'exchangeRate()', PC_RATE), address_pred(X, 'SUPERPAYMASTER_ADDRESS()', u.SP),
-         address_pred(X, 'creditTierSource()', tier), word_pred(X, 'creditPolicy()', 0), word_pred(X, 'pendingPolicyEta()', 0),
-         word_pred(X, 'maxSingleTxLimit()', PC_XPNTS_TX_LIMIT), word_pred(X, 'BALANCE_MODE_VERSION()', 1),
-         predicate(X, 'name()', (), string(PC_TOKEN[0])), predicate(X, 'symbol()', (), string(PC_TOKEN[1])),
-         predicate(X, 'communityName()', (), string(PC_TOKEN[2])), predicate(X, 'communityENS()', (), string(PC_TOKEN[3])),
-         predicate(u.SP, 'operators(address)', (D,), before)])
-    after = before[:]
-    after[OP['isConfigured']], after[OP['xPNTsToken']], after[OP['treasury']] = 1, int(X, 16), int(PC_TREASURY, 16)
-    phase_c['operatorAfter'] = after
-    c_call('C3.configure', u.SP, 'configureOperator(address,address)', (X, PC_TREASURY),
-        [predicate(u.SP, 'operators(address)', (D,), after), word_pred(X, 'creditPolicy()', 0),
-         word_pred(X, 'pendingPolicyEta()', 0), word_pred(X, 'maxSingleTxLimit()', PC_XPNTS_TX_LIMIT)])
-    if not ws['accountExists']:
-        c_call('C5', ACCOUNT_FACTORY, 'createAccount(address,uint256)', (O, c['salt']),
-            [dict(kind='codeHash', target=S, expected=c['runtimeKeccak']['account']),
-             dict(kind='storage', target=S, slot=u.IMPL_SLOT, expected=int(c['accountImplementation'], 16)),
-             address_pred(S, 'owner()', O), address_pred(S, 'entryPoint()', ep)])
-    ticket = ws['endUserStake']+ws['endUserTicket']
-    if not ws['accountMember']:
-        c_call('C6', gtoken, 'approve(address,uint256)', (staking, ticket),
-            [word_pred(gtoken, 'allowance(address,address)', ticket, D, staking)])
-        c_call('C7', u.REG, 'safeMintForRole(bytes32,address,bytes)',
-            (role_id('ENDUSER'), S, a.cast('abi-encode', 'c(address,uint256)', D, ws['endUserStake'])),
-            [word_pred(u.REG, 'hasRole(bytes32,address)', 1, role_id('ENDUSER'), S),
-             word_pred(mysbt, 'verifyCommunityMembership(address,address)', 1, S, D),
-             word_pred(u.SP, 'sbtHolders(address)', 1, S), word_pred(u.SP, 'isEligibleForSponsorship(address)', 1, S),
-             word_pred(u.REG, 'getRoleStake(bytes32,address)', ws['endUserStake'], role_id('ENDUSER'), S),
-             word_pred(gtoken, 'allowance(address,address)', 0, D, staking),
-             word_pred(gtoken, 'balanceOf(address)', p['endUser']['deployerGToken']-ticket, D)])
-    c_call('C8', X, 'mint(address,uint256)', (S, ws['userTarget']),
-        [word_pred(X, 'balanceOf(address)', ws['userTarget'], S), word_pred(X, 'totalSupply()', ws['userTarget']),
-         word_pred(X, 'debts(address)', 0, S), word_pred(X, 'creditPolicy()', 0), word_pred(X, 'pendingPolicyEta()', 0)])
-    if ws['ownerTopUp']:
-        c_add('C20', O, '0x', [dict(kind='balance', target=O, expected=p['owner']['balance']+ws['ownerTopUp'])],
-              value=ws['ownerTopUp'])
-    owner_steps = [('C9.allowance', 'setAutoAllowance(address,uint256)', (u.SP, PC_CAP_L)),
-                   ('C9.total', 'setUserTotalCap(uint256)', (PC_CAP_L,)), ('C9.mode', 'setRenewalMode(uint8)', (0,))]
-    checks = []
-    for sid, sig, args in owner_steps:
-        checks = checks + {'C9.allowance': [predicate(X, 'autoAllowance(address,address)', (S, u.SP), [PC_CAP_L, 0])],
-                           'C9.total': [predicate(X, 'userTotal(address)', (S,), [PC_CAP_L, 0])],
-                           'C9.mode': [word_pred(X, 'renewalMode(address)', 0, S), word_pred(X, 'autoRenewUsed(address)', 0, S),
-                                       word_pred(X, 'creditPolicy()', 0)]}[sid]
-        c_add(sid, S, account_exec(X, a.calldata(sig, *args)), list(checks), sender='owner',
-              gasBound=ws['ownerPreparation'][sid])
-    f1 = lambda target: [address_pred(target, 'MINTER()', D), word_pred(target, 'decimals()', 18), word_pred(target, 'totalSupply()', 0)]
-    task = c_deploy('C10', 'T', base['F1TestToken'], 'c()', (), f1)
-    transfer = a.calldata('transfer(address,uint256)', DEAD, PC_TASK_UNIT)
-    phase_c['taskCallData'] = account_exec(task, transfer)
-    phase_c['callDataHash'] = a.keccak(phase_c['taskCallData'])
-    for sid, who, amount in (('C11.S', S, PC_TASK_SENDER), ('C11.R', DEAD, PC_TASK_UNIT)):
-        c_call(sid, task, 'mint(address,uint256)', (who, amount), [word_pred(task, 'balanceOf(address)', amount, who)])
-    vpm = c_deploy('C12', 'VerifyingPaymaster', base['VerifyingPaymaster'], VPM_CONSTRUCTOR, (ep, c['verifyingSigner']),
-        lambda t: [address_pred(t, 'owner()', D), address_pred(t, 'entryPoint()', ep),
-                   address_pred(t, 'verifyingSigner()', c['verifyingSigner'])])
-    fee = c_deploy('C13.token', 'Q', base['F1TestToken'], 'c()', (), f1)
-    oracle = c_deploy('C13.oracle', 'oracle', base['F1Oracle'], 'c()', (),
-        lambda t: [word_pred(t, 'decimals()', 8), word_pred(t, 'latestRoundData()', 10**8, index=1)])
-    config = (PC_TPM_MARKUP, 0, PC_TPM_REFUND, PC_TPM_AGE)
-    tpm = c_deploy('C14', 'TokenPaymaster', base['TokenPaymaster'], TPM_CONSTRUCTOR,
-        (fee, ep, DEAD, DEAD, '(%d,%d,%d,%d)' % config,
-         '(%d,%d,%s,%s,true,false,false,%d)' % (PC_TPM_AGE, PC_TPM_AGE, oracle, a.ZERO, PC_TPM_THRESHOLD),
-         '(1,3000,5)', D),
-        lambda t: [address_pred(t, 'owner()', D), address_pred(t, 'entryPoint()', ep), address_pred(t, 'token()', fee),
-                   address_pred(t, 'wrappedNative()', DEAD), address_pred(t, 'uniswap()', DEAD),
-                   predicate(t, 'tokenPaymasterConfig()', (), list(config))])
-    c_call('C15', tpm, 'updateCachedPrice(bool)', ('true',),
-        [word_pred(tpm, 'cachedPrice()', PC_TPM_MARKUP), dict(kind='eta', target=tpm, signature='cachedPriceTimestamp()', delay=0)])
-    targets = dict(SP=u.SP, VPM=vpm, TPM=tpm)
-    for arm in ('VPM', 'TPM'):
-        c_call('C16.'+arm.lower(), targets[arm], 'addStake(uint32)', (DAY,),
-            [predicate(ep, 'getDepositInfo(address)', (targets[arm],), [0, 1, PC_STAKE, DAY, 0])], value=PC_STAKE)
-    stakes = dict(SP=pin['stake']+stake, VPM=PC_STAKE, TPM=PC_STAKE)
-    for arm in ARMS:
-        top = ws['entryPointTopUps'][arm]
-        if top:
-            c_call('C17.'+arm.lower(), ep, 'depositTo(address)', (targets[arm],),
-                [word_pred(ep, 'balanceOf(address)', ws['entryPointBefore'][arm]+top, targets[arm]),
-                 word_pred(ep, 'getDepositInfo(address)', stakes[arm], targets[arm], index=2)], value=top)
-    c_call('C18.mint', fee, 'mint(address,uint256)', (S, ws['feeTokenTarget']),
-        [word_pred(fee, 'balanceOf(address)', ws['feeTokenTarget'], S)])
-    c_add('C18.approve', S, account_exec(fee, a.calldata('approve(address,uint256)', tpm, ws['feeTokenTarget'])),
-        [word_pred(fee, 'allowance(address,address)', ws['feeTokenTarget'], S, tpm)], sender='owner',
-        gasBound=ws['ownerPreparation']['C18.approve'])
-    if ws['bundlerTopUp']:
-        c_add('C19', c['bundler'], '0x', [dict(kind='balance', target=c['bundler'],
-              expected=p['bundler']['balance']+ws['bundlerTopUp'])], value=ws['bundlerTopUp'])
-    phase_c['addresses'].update(T=task, Q=fee, oracle=oracle, VPM=vpm, TPM=tpm)
-    phase_c['steps'] = [s['id'] for s in steps if s.get('phase') == 'C']
-    values = sum(a.qty(s['tx']['value']) for s in steps if s['sender'] == 'deployer')
-    # Values alone (stakes, deposits, B/O funding) must fit D before gas is even measured.
-    report = dict(balanceWei=pin['senders']['deployer']['balance'], requiredWei=values,
-                  shortfallWei=positive(values-pin['senders']['deployer']['balance']))
-    a.need('budget_deployer_values', report, dict(report, shortfallWei=0))
-    phase_c['deployerValueWei'] = values
+    phase_c, safe_n = build_phase_c(pin=pin, inputs=d['phaseC'],
+        context=dict(operator=u.DEPLOYER, SP=u.SP, safe=u.SAFE, registry=u.REG,
+                     accountFactory=ACCOUNT_FACTORY, treasury=PC_TREASURY, approver=a.APPROVER),
+        chain_id=a.CHAIN, commit=arts['commit'], factory=factory, tier=tier, ep=ep,
+        addresses=addresses, counters=counters, safe_n=safe_n, steps=steps, add=add,
+        sp_deposit_before=pin['entryPointDeposit']+deposit, sp_stake=pin['stake']+stake, policy='legacy')
     if stage == 'c':
         return finish()
     call('D.registry.transfer', u.REG, 'transferOwnership(address)', (u.TL,),
@@ -2944,8 +2987,9 @@ def owner_gas_gate(step):
         a.need('C_owner_gas_bound', a.qty(step['tx']['gas']) <= step['gasBound'], True)
 
 
-def price_gate(rpc, block='latest'):
-    price = u.uints(a.call(rpc, u.SP, 'cachedPrice()', block=block))
+def price_gate(rpc, block='latest', plan=None):
+    target = plan['phaseC']['addresses'].get('SP', u.SP) if plan else u.SP
+    price = u.uints(a.call(rpc, target, 'cachedPrice()', block=block))
     a.need('C_price_decimals', price[3], PC_PRICE_DECIMALS)
     a.need('C_price_bound_exec', 0 < price[0] <= PC_PRICE_CAP, True)
     return price
@@ -2970,40 +3014,42 @@ def phase_c_state(rpc, plan, context):
            [pc['aPNTsPriceUSD'], pc['protocolFeeBPS']])
 
 
-def phase_c_pre_send(rpc, plan, step, context):
-    phase_c_state(rpc, plan, context)
+def phase_c_pre_send(rpc, plan, step, context, deployment=None):
+    if deployment is None:
+        phase_c_state(rpc, plan, context)
+    deployment = deployment or dict(operator=u.DEPLOYER, SP=u.SP, safe=u.SAFE, registry=u.REG, accountFactory=ACCOUNT_FACTORY)
     pc, pin, sid = plan['phaseC'], plan['pin'], step['id']
     p, c = pin['phaseC'], plan['externalInputs']['data']['phaseC']
-    capped, D, S, O = pin['capped'], u.DEPLOYER, c['account'], c['accountOwner']
+    capped, D, S, O = pin['capped'], deployment['operator'], c['account'], c['accountOwner']
     addr = pc['addresses']
     X, factory = addr['X'], plan['addresses']['xPNTsFactoryV2']
     if sid.startswith('C1_'):
-        a.need('C1_minter_exec', a.address(rpc, capped, 'minter()'), u.SAFE)
+        a.need('C1_minter_exec', a.address(rpc, capped, 'minter()'), deployment['safe'])
         a.need('C1_cap_headroom_exec', a.word(rpc, capped, 'totalSupply()')+pc['cappedMint'] <= a.word(rpc, capped, 'cap()'), True)
         a.need('C1_pinned_balance', a.word(rpc, capped, 'balanceOf(address)', D), p['capped']['deployerBalance'])
     if sid == 'C2.approve':
-        a.need('C2_operator_role_exec', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('PAYMASTER_SUPER'), D), 1)
+        a.need('C2_operator_role_exec', a.word(rpc, deployment['registry'], 'hasRole(bytes32,address)', role_id('PAYMASTER_SUPER'), D), 1)
         a.need('C2_token_balance', a.word(rpc, capped, 'balanceOf(address)', D) >= pc['operatorTopUp'], True)
         expected = list(pc['operatorBefore'])
         expected[OP['aPNTsBalance']] = pc['operatorTarget']-pc['operatorTopUp']
-        a.need('C_operator_before_approve', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), expected)
+        a.need('C_operator_before_approve', u.uints(a.call(rpc, deployment['SP'], 'operators(address)', D)), expected)
     if sid == 'C3.deploy':
-        a.need('C3_factory_active', a.address(rpc, u.SP, 'xpntsFactory()'), factory)
-        a.need('C3_community_exec', a.word(rpc, u.REG, 'hasRole(bytes32,address)', role_id('COMMUNITY'), D), 1)
+        a.need('C3_factory_active', a.address(rpc, deployment['SP'], 'xpntsFactory()'), factory)
+        a.need('C3_community_exec', a.word(rpc, deployment['registry'], 'hasRole(bytes32,address)', role_id('COMMUNITY'), D), 1)
         # X is the factory's first CREATE; any earlier clone changes the planned address.
         a.need('C3_factory_fresh', [addr_call(rpc, factory, 'getTokenAddress(address)', D),
                a.word(rpc, factory, 'getDeployedCount()'), u.code(rpc, X, 'latest')], [a.ZERO, 0, '0x'])
     if sid == 'C3.configure':
-        a.need('C_operator_before_configure', u.uints(a.call(rpc, u.SP, 'operators(address)', D)), pc['operatorBefore'])
+        a.need('C_operator_before_configure', u.uints(a.call(rpc, deployment['SP'], 'operators(address)', D)), pc['operatorBefore'])
     if sid == 'C5':
-        a.need('C5_counterfactual_exec', addr_call(rpc, ACCOUNT_FACTORY, 'getAddress(address,uint256)', O, c['salt']), S)
+        a.need('C5_counterfactual_exec', addr_call(rpc, deployment['accountFactory'], 'getAddress(address,uint256)', O, c['salt']), S)
         a.need('C5_absent', u.code(rpc, S, 'latest'), '0x')
     if sid in ('C6', 'C7', 'C8'):
-        cfg = u.config(a.call(rpc, u.REG, 'getRoleConfig(bytes32)', role_id('ENDUSER')))
+        cfg = u.config(a.call(rpc, deployment['registry'], 'getRoleConfig(bytes32)', role_id('ENDUSER')))
         a.need('C7_enduser_active_exec', cfg['isActive'], True)
         a.need('C7_enduser_config', [cfg['minStake'], cfg['ticketPrice']], [pc['endUserStake'], pc['endUserTicket']])
         member = pc['accountMember'] or sid == 'C8'
-        a.need('C_account_status_exec', account_status(rpc, S, p['endUser']['mysbt']), [int(member)]*3)
+        a.need('C_account_status_exec', account_status(rpc, S, p['endUser']['mysbt'], context=deployment), [int(member)]*3)
     if sid == 'C6':
         a.need('C6_gtoken_balance_exec', a.word(rpc, p['endUser']['gtoken'], 'balanceOf(address)', D),
                p['endUser']['deployerGToken'])
@@ -3021,14 +3067,14 @@ def phase_c_pre_send(rpc, plan, step, context):
                         for s in plan['steps'][index:] if s['sender'] == 'owner')
         a.need('C_owner_budget', a.qty(rpc('eth_getBalance', [O, 'latest'])) >= remaining+pc['ownerMaintenanceWei'], True)
     if sid.startswith('C9.'):
-        a.need('C9_counters', [*u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP))[1:],
+        a.need('C9_counters', [*u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, deployment['SP']))[1:],
                *u.uints(a.call(rpc, X, 'userTotal(address)', S))[1:], a.word(rpc, X, 'lockedOf(address)', S),
                a.word(rpc, X, 'creditReservedOf(address)', S)], [0, 0, 0, 0])
     if step['tx']['to'] is None:
         a.need('C_create_unused', u.code(rpc, step['creates'], 'latest'), '0x')
     if sid.startswith('C17.'):
         arm = sid.split('.')[1].upper()
-        target = dict(SP=u.SP, VPM=addr['VPM'], TPM=addr['TPM'])[arm]
+        target = dict(SP=deployment['SP'], VPM=addr['VPM'], TPM=addr['TPM'])[arm]
         a.need('C17_deposit_before', a.word(rpc, plan['pin']['immutables']['entryPoint'], 'balanceOf(address)', target),
                pc['entryPointBefore'][arm])
     if sid == 'C18.mint':
@@ -3052,10 +3098,10 @@ def sp_attempt_precheck(rpc, plan, flags=0):
     # Every read is bound to one block; the record names it.
     head = a.block_data(rpc, 'latest')
     block = head['number']
-    price = price_gate(rpc, block)
+    price = price_gate(rpc, block, plan)
     a.need('precheck_renewal_mode', [a.word(rpc, X, 'renewalMode(address)', S, block=block),
            a.word(rpc, X, 'autoRenewUsed(address)', S, block=block)], [0, 0])
-    allow = u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, u.SP, block=block))
+    allow = u.uints(a.call(rpc, X, 'autoAllowance(address,address)', S, pc['addresses'].get('SP', u.SP), block=block))
     total = u.uints(a.call(rpc, X, 'userTotal(address)', S, block=block))
     # L is frozen in the packet (§3): any cap change, up or down, is STOP before the used test.
     a.need('precheck_allowance_cap', allow[0], PC_CAP_L)
@@ -3072,10 +3118,12 @@ def funding_gate(rpc, plan):
     pc, pin = plan['phaseC'], plan['pin']
     addr, ep = pc['addresses'], pin['immutables']['entryPoint']
     S = addr['S']
+    sp = addr.get('SP', u.SP)
+    operator = plan.get('deploymentContext', {}).get('operator', u.DEPLOYER)
     head = a.block_data(rpc, 'latest')
     block = head['number']
     observed = {}
-    for arm, target in (('SP', u.SP), ('VPM', addr['VPM']), ('TPM', addr['TPM'])):
+    for arm, target in (('SP', sp), ('VPM', addr['VPM']), ('TPM', addr['TPM'])):
         observed['entryPoint'+arm] = a.word(rpc, ep, 'balanceOf(address)', target, block=block)
         a.need('C_funding_entrypoint_'+arm, observed['entryPoint'+arm] >= pc['entryPointTargets'][arm], True)
     for label, who, target in (('bundler', plan['externalInputs']['data']['phaseC']['bundler'], pc['bundlerTarget']),
@@ -3083,7 +3131,7 @@ def funding_gate(rpc, plan):
         observed[label] = a.qty(rpc('eth_getBalance', [who, block]))
         a.need('C_funding_'+label, observed[label] >= target, True)
     # D's operator deposit (AD), the largest single target, sits in SP's own accounting.
-    observed['operator'] = u.uints(a.call(rpc, u.SP, 'operators(address)', u.DEPLOYER, block=block))[OP['aPNTsBalance']]
+    observed['operator'] = u.uints(a.call(rpc, sp, 'operators(address)', operator, block=block))[OP['aPNTsBalance']]
     a.need('C_funding_operator', observed['operator'] >= pc['operatorTarget'], True)
     for label, token, holder, target in (('user', addr['X'], S, pc['userTarget']), ('feeToken', addr['Q'], S, pc['feeTokenTarget']),
                                          ('taskSender', addr['T'], S, pc['taskSender']), ('taskRecipient', addr['T'], DEAD, pc['taskRecipient'])):

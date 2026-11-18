@@ -1,3 +1,5 @@
+import { createFrozenPlan, persistSettlement } from './frozen-plan.mjs';
+import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 import { rehearsalTpmRefresh } from './rehearsal-refresh.mjs';
 import { traceTPM } from './trace-policy.mjs';
 import { revalidateAnchors, requireDecodedPreflight, waitAfterInclusion } from './formal.mjs';
@@ -48,9 +50,9 @@ import {
   keccak256, createPublicClient, http, encodeFunctionData, decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
+import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
-const formal = process.argv.includes('--formal') || rehearsal;
+const formal = process.argv.includes('--formal') || rehearsal || process.argv.includes('--frozen-plan');
 // Do not even load the development key module in formal mode.
 const { clients, send, rpc, ANVIL_KEYS } = formal ? {} : await import('../b-layer/lib.mjs');
 import { checkDepositFloor, opGasLimitSum, depositFloor } from './deposit-guard.mjs';
@@ -103,7 +105,9 @@ const registry = formal ? loadRegistry(argVal('--rpc-registry')) : null;
 const windowPath = dirname(resolve(outPath));
 if (formal && (existsSync(resolve(windowPath, 'raw')) || existsSync(resolve(windowPath, 'index.ndjson')) || existsSync(resolve(windowPath, 'manifest.json')))) die('formal window already exists');
 if (formal) formalInput.factory ??= DEFAULT_FACTORY;
-const frozen = formal ? formalConfig(formalInput, bMax) : null;
+const adapter = argVal('--frozen-plan') ? createFrozenPlan({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),account:formalInput.sender}) : null;
+if (adapter && rehearsal) die('frozen plan requires formal transport');
+const frozen = adapter ? adapter.frozen : formal ? formalConfig(formalInput, bMax) : null;
 const configPath = argVal('--config') ?? resolve(ROOT, 'deployments/config.anvil.json');
 const baselinesPath = argVal('--baselines') ?? resolve(ROOT, 'script/a6-collector/dryrun-output/baselines.anvil.json');
 const expectEp = argVal('--expect-entrypoint') ?? null;
@@ -116,7 +120,22 @@ if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(ex
 }
 const SPA = getAddress(cfg.superPaymaster);
 if (new Set([SPA, baselines.verifyingPaymaster.address, baselines.tokenPaymaster.address].map(a => getAddress(a).toLowerCase())).size !== 3) die('SP/VPM/TPM paymasters must be distinct');
-const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
+if (adapter) adapter.bind(formalInput,cfg,baselines,bMax,maxAttempts);
+if (adapter) {
+  const release=acquireBundlerLock(resolve(ROOT,'cache/3arm/collector-locks'),formalInput.chainId,formalInput.accounts.bundler.address);
+  process.once('exit',release);
+}
+const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
+let frozenArm;
+if (adapter) {
+  const write = runtime.writeContract;
+  runtime.writeContract = async args => {
+    return adapter.send({...runtime,writeContract: async checked => {
+      formalInput.bundlerGasLimit = checked.gas;
+      return write(checked);
+    }},frozenArm,args);
+  };
+}
 const ctx = formal ? { account: { address: getAddress(formalInput.operator) }, pub: runtime.pubA } : clients(rpcA, ANVIL_KEYS[0]);
 const bundler = formal ? { account: runtime.accounts.bundler, wallet: { writeContract: runtime.writeContract } } : clients(rpcA, ANVIL_KEYS[1]);
 const pubA = ctx.pub;
@@ -124,7 +143,7 @@ const pubB = formal ? runtime.pubB : createPublicClient({ transport: http(rpcB, 
 const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
 function collectorHead() {
-  const files = ['collector.mjs', 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
+  const files = ['collector.mjs', ...(adapter ? ['frozen-plan.mjs','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
@@ -547,7 +566,7 @@ let previousInclusion = null;
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
-  const st = { row: { kind: 'attempt', ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
+  const st = { row: { ...(adapter ? adapter.row(arm,tripletIndex) : {}), kind: 'attempt', spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {
@@ -560,6 +579,7 @@ async function attempt(arm, tripletIndex, passportStart) {
   }
 }
 async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
+  frozenArm = arm;
   const GAS = gasFor(arm);
   if (formal && previousInclusion) st.row.priorInclusionHeads = await waitAfterInclusion([pubA,pubB], previousInclusion);
   if (formal) {
@@ -607,6 +627,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     return finish({ sent: false, tx: null, logs: [], verdict: VERDICTS.NOT_SENT, failingCheck: 'deposit_floor', exclusion: 'NOT_SENT:DEPOSIT_FLOOR' });
   }
   if (formal) {
+    if (adapter) await adapter.beforeSend(runtime);
     const pause = feePause(await runtime.refreshPin(), GAS.maxFeePerGas);
     if (pause) return finish(pause);
   }
@@ -618,6 +639,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
 
   const headBefore = await pubA.getBlockNumber({ cacheTime: 0 });
   if (formal) {
+    if (adapter) await adapter.beforeSend(runtime);
     const pause = feePause(await runtime.refreshPin(), GAS.maxFeePerGas);
     if (pause) return finish(pause);
   }
@@ -656,6 +678,19 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   row.observedUserOpEvent = observedUoe ? {...observedUoe.args, logIndex:observedUoe.logIndex, txHash:rcA.logs.find(l => l.logIndex === observedUoe.logIndex)?.transactionHash} : null;
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [], prefundTooLow: cls.prefundTooLow ?? [] });
+  if (adapter) {
+    try {
+      persistSettlement(row,rcA,{arm,token:spToken,user:sender,hash:expectedHash,planned:adapter.plan.phaseC.spBranch},()=>{});
+    } catch { throw new Stop('SP_BRANCH_MISMATCH',22,{branch:row.spBranch}); }
+  } else if (arm === 'SP') {
+    try {
+      row.spBranch = settlementBranch(logs, {token:spToken, user:sender, hash:expectedHash,
+        planned:'balance', topics:Object.fromEntries(Object.entries(settlementSignatures).map(([k,v])=>[k,keccak256(toHex(v))]))});
+    } catch (error) {
+      row.spBranch = error.branch;
+      throw new Stop('SP_BRANCH_MISMATCH', 22, {branch:row.spBranch});
+    }
+  } else row.spBranch = null;
   if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle));
   if (traceEnabled) {
     try {
