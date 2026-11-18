@@ -11,6 +11,24 @@ import re
 
 RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
 results = []
+if sys.argv[5:]:
+    print("FAIL unknown checker option")
+    sys.exit(1)
+
+
+def integer(value):
+    if isinstance(value, bool): raise ValueError("boolean is not an integer")
+    return int(str(value), 16 if str(value).lower().startswith("0x") else 10)
+
+
+for key in ("deploymentStartBlock", "handoverBootstrapNonce", "expectedCap", "guardianN", "minThreshold", "defaultThreshold",
+            "slashThreshold0", "slashThreshold1", "slashThreshold2", "deployerGTokenBalance", "deployerGTokenAllowance", "deployerSBTBalance"):
+    try:
+        CFG[key] = integer(CFG[key])
+        assert CFG[key] >= (1 if key == "deploymentStartBlock" else 0)
+    except (KeyError, ValueError, TypeError, AssertionError):
+        print("FAIL missing/invalid config integer: " + key)
+        sys.exit(1)
 
 
 LOCAL = {"keccak", "calldata", "sig", "abi-encode"}
@@ -170,12 +188,12 @@ op = A.get("genesisOperator", ZERO)
 for role in ("COMMUNITY", "PAYMASTER_SUPER"):
     check(f"genesis operator has {role}", op != ZERO and call(reg, "hasRole(bytes32,address)(bool)", cast("keccak", role)[1], op) == "true", op)
 rc, raw = cast("call", sp, "operators(address)", op)
-check("genesis minTxInterval == 0", rc == 0 and len(raw) >= 2 + 64 * 6 and int(raw[2 + 64 * 5:2 + 64 * 6], 16) == 0, "0")
+check("genesis isConfigured == false", CFG.get("genesisIsConfigured") is False and rc == 0 and len(raw) == 2 + 64 * 9 and int(raw[66:130], 16) == 0, "registered; operator configuration deferred")
 rc, code = cast("code", H)
 # Solidity constructor-only runtime: PUSH0/PUSH1 DUP1 REVERT (metadata disabled).
 check("H runtime non-callable", H != ZERO and rc == 0 and len(code) <= 130 and code.lower().startswith(("0x5f80fd", "0x60806040525f80fd", "0x6080604052600080fd")), "constructor-only revert runtime")
 # Rebuild membership from the complete address-filtered history, then confirm every member.
-rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": TL, "fromBlock": "0x0", "toBlock": "latest"}))
+rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": TL, "fromBlock": hex(CFG["deploymentStartBlock"]), "toBlock": "latest"}))
 try:
     logs = json.loads(raw) if rc == 0 else None
     assert isinstance(logs, list)
@@ -200,5 +218,80 @@ for role in ("DEFAULT_ADMIN_ROLE", "PROPOSER_ROLE", "EXECUTOR_ROLE", "CANCELLER_
     check(f"TL.{role}(H) == false", H != ZERO and call(TL, "hasRole(bytes32,address)(bool)", rid, H) == "false", "false")
     check(f"TL.{role}(safe) == expected", call(TL, "hasRole(bytes32,address)(bool)", rid, SAFE) == ("false" if role == "DEFAULT_ADMIN_ROLE" else "true"), "false" if role == "DEFAULT_ADMIN_ROLE" else "true")
 check("TL.DEFAULT_ADMIN_ROLE(timelock) == true", call(TL, "hasRole(bytes32,address)(bool)", call(TL, "DEFAULT_ADMIN_ROLE()(bytes32)"), TL) == "true", "true")
+# Input identity and deployment residue are bound to the ceremony's recorded config.
+check("config deployer == CLI", A.get("deployer", ZERO).lower() == DEPLOYER, DEPLOYER)
+check("config governanceOwner == CLI", A.get("governanceOwner", ZERO).lower() == SAFE, SAFE)
+rc, safe_code = cast("code", SAFE)
+check("Safe code excludes delegation", rc == 0 and safe_code != "0x" and not safe_code.lower().startswith("0xef0100"), "contract, not EIP-7702")
+try:
+    threshold = integer(call(SAFE, "getThreshold()(uint256)").split()[0])
+    owners = re.findall(r"0x[0-9a-fA-F]{40}", call(SAFE, "getOwners()(address[])"))
+    valid_safe = threshold >= 2 and len(owners) >= threshold and len(set(x.lower() for x in owners)) == len(owners) and ZERO not in owners
+except (ValueError, IndexError):
+    valid_safe = False
+check("Safe threshold/owners", valid_safe, "threshold >= 2, distinct nonzero owners >= threshold")
+principals = [SAFE, DEPLOYER, A["expectedSPGuardian"].lower(), A["expectedGuardian"].lower(), op.lower()] + [g.lower() for g in guardians]
+check("required principals pairwise distinct", len(set(principals)) == len(principals) and ZERO not in principals, "Safe, guardians, genesis, deployer")
+for label, token, sig, args, key in (
+    ("GToken balance", A["gToken"], "balanceOf(address)(uint256)", [DEPLOYER], "deployerGTokenBalance"),
+    ("GToken allowance", A["gToken"], "allowance(address,address)(uint256)", [DEPLOYER, stk], "deployerGTokenAllowance"),
+    ("SBT balance", A["sbt"], "balanceOf(address)(uint256)", [DEPLOYER], "deployerSBTBalance")):
+    actual = call(token, sig, *args).split()[0]
+    expected = CFG[key]
+    check("deployer " + label + " == recorded", actual == str(expected) and (key != "deployerGTokenAllowance" or expected == 0), f"recorded {expected}; actual {actual}")
+
+# Only the constructor's ten-call batch may ever have been scheduled/executed.
+try:
+    assert members is not None
+    scheduled_topic = cast("keccak", "CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)")[1].lower()
+    executed_topic = cast("keccak", "CallExecuted(bytes32,uint256,address,uint256,bytes)")[1].lower()
+    role_ids = [call(TL, r + "()(bytes32)") for r in ("PROPOSER_ROLE", "EXECUTOR_ROLE", "CANCELLER_ROLE")]
+    targets = [reg, sp, A["aPNTs"]] + [TL] * 7
+    data = [cast("calldata", "acceptOwnership()")[1]] * 3
+    data += [cast("calldata", "grantRole(bytes32,address)", r, SAFE)[1] for r in role_ids]
+    data += [cast("calldata", "revokeRole(bytes32,address)", r, H)[1] for r in role_ids]
+    data += [cast("calldata", "updateDelay(uint256)", "172800")[1]]
+    arr = lambda xs: "[" + ",".join(xs) + "]"
+    salt = cast("keccak", cast("abi-encode", "f(address,address[])", H, arr(targets[:3]))[1])[1]
+    zero32 = "0x" + "00" * 32
+    operation = call(TL, "hashOperationBatch(address[],uint256[],bytes[],bytes32,bytes32)(bytes32)", arr(targets), arr(["0"] * 10), arr(data), zero32, salt).lower()
+    for topic, scheduled in ((scheduled_topic, True), (executed_topic, False)):
+        events = [e for e in logs if e["topics"][0].lower() == topic]
+        assert len(events) == 10
+        indices = set()
+        for e in events:
+            assert len(e["topics"]) == 3 and e["topics"][1].lower() == operation
+            i = integer(e["topics"][2]); assert 0 <= i < 10 and i not in indices
+            indices.add(i)
+            signature = "f(address,uint256,bytes,bytes32,uint256)" if scheduled else "f(address,uint256,bytes)"
+            args = [targets[i], "0", data[i]] + ([zero32, "0"] if scheduled else [])
+            rc, expected_data = cast("abi-encode", signature, *args)
+            assert rc == 0 and e["data"].lower() == expected_data.lower()
+    assert call(TL, "isOperationDone(bytes32)(bool)", operation) == "true"
+    operations_ok = True
+except (AssertionError, KeyError, ValueError, TypeError, IndexError):
+    operations_ok = False
+check("TL history exactly H batch executed", operations_ok, "one operation; ten scheduled and ten executed calls; exact payloads")
+
+# Direct implementation calls must reject initialization and UUPS upgrades even from their owner.
+for key, signature, args in (
+    ("registryImpl", "initialize(address,address,address)", [DEPLOYER, stk, A["sbt"]]),
+    ("spImpl", "initialize(address,address,address,uint256)", [DEPLOYER, A["aPNTs"], SAFE, "4200"])):
+    impl = A.get(key, ZERO)
+    owner = call(impl, "owner()(address)")
+    proxy = reg if key == "registryImpl" else sp
+    rc_slot, slot = cast("storage", proxy, "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+    init = cast("calldata", signature, *args)[1]
+    upgrade = cast("calldata", "upgradeToAndCall(address,bytes)", impl, "0x")[1]
+    rc_init, err_init = raw_call(owner, impl, init)
+    rc_upgrade, err_upgrade = raw_call(owner, impl, upgrade)
+    rc_proxy, err_proxy = raw_call(owner, proxy, upgrade)
+    owner_error = cast("sig", "OwnableUnauthorizedAccount(address)")[1][2:]
+    init_error = cast("sig", "InvalidInitialization()")[1][2:]
+    upgrade_error = cast("sig", "UUPSUnauthorizedCallContext()")[1][2:]
+    ok = rc_slot == 0 and len(slot) == 66 and ("0x" + slot[-40:]).lower() == impl.lower() and owner.lower() != call(proxy, "owner()(address)").lower() and rc_proxy != 0 and owner_error in err_proxy and impl != ZERO and not owner.startswith("<") and rc_init != 0 and init_error in err_init and rc_upgrade != 0 and upgrade_error in err_upgrade
+    results.append(ok)
+    print(f"{'INFO-PASS' if ok else 'FAIL'}  {key} isolated :: owner {owner}; initializers disabled; upgrades require proxy context")
+
 print(f"\nSUMMARY {sum(results)} passed, {len(results) - sum(results)} failed, {len(results)} total")
 sys.exit(0 if all(results) else 1)

@@ -965,3 +965,40 @@ It needed no new PoP, no `addValidator` and no owner approval. Both halves were 
 - `updatePrice` rejects `updatedAt == 0` and `updatedAt > block.timestamp + 300` with `InvalidOracleTimestamp(updatedAt, nowTs)`. A round within the 300 s grace is cached as `block.timestamp`, so the cache never holds a future timestamp.
 - `_isChainlinkStale` and `updatePriceDVT` compare before subtracting: zero and future rounds count as not fresh and cannot underflow.
 - **Measured skew.** On the OP mainnet and Sepolia ETH/USD aggregators, over the last 60 `AnswerUpdated` events each, `updatedAt` equals the block timestamp of the writing transaction: maximum and minimum offset 0 s. The grace therefore rejects no normal round.
+
+
+## DeployLive: trusted ceremony and final governance state
+
+During deployment the deployer is trusted; the guarantee is the END state. Any
+independent party can re-run the read-only checker. Only chain 31337 is local;
+all other chains require production validation. Safe M-of-N, distinct principal,
+EntryPoint, fresh 8-decimal feed and account-factory checks precede broadcast.
+Validated governor/guardian inputs flow through without production re-reads.
+
+Timelock initially grants P/E/C only to predicted H, with self-admin and delay 0.
+Safe has no role. H accepts Registry/SP/APNTsCapped ownership, grants Safe P/E/C,
+revokes H P/E/C and raises delay to 172800 in its constructor. Nonce predictions
+are asserted before timelock and before H. All configured subjects are checked
+against all four roles, with the explicit governor=Safe alias handled as Safe.
+
+Deploy-day: no deployer transaction between nominations and H; no additional
+funding or operational operator registration until H is deployed and checker PASS.
+The required scripted genesis/DVT Registry setup remains part of the trusted
+ceremony; genesis SP isConfigured must be false. Production ETH funding is
+deferred. H failure => abandon the whole set after confirming it holds no funds
+and no registrations, redeploy. Scripted registrations in a failed set must be
+inventoried/resolved before claiming that abandonment precondition. Both recovery
+paths are cancelled. Chain-31337 stop-before-H rehearsal must FAIL the checker.
+
+History begins at recorded deploymentStartBlock. Exact role sets and the sole
+executed ten-call batch are verified. CLI identities bind to config; integer
+readback accepts JSON number, decimal string and hex. Deployer GToken balance,
+zero staking allowance and SBT balance are recorded/asserted; balance destination
+remains pending. Implementation owners and proxy bindings are read, with INFO-PASS
+only after initializer/direct-upgrade/implementation-owner proxy-upgrade rejection.
+
+The catalogue has **139 + N checks (141 for N=2)**, including two INFO-PASS checks.
+The full catalogue and original 53 → current-name mapping are in
+[DEPLOYLIVE_HANDOFF.md](../../script/rehearsal/DEPLOYLIVE_HANDOFF.md).
+Namespaced ownership fixtures and per-slot checker mutations cover the final
+handover; no contracts/src files changed. No network or chain rehearsal was run.

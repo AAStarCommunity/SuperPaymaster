@@ -1,76 +1,115 @@
-# DeployLive rc.8 handoff (partial: size-limit stop)
+# DeployLive governance ceremony
 
-No deployment or RPC was executed. The checker test fixture is not chain evidence.
+The deployer is trusted during deployment; the guarantee is the END state.
+Any independent party can re-run the read-only checker against the recorded config.
+Offline fixture tests are not chain evidence. No contracts/src files were changed.
 
-## Scope and remaining work
+Only chain ID 31337 is local. Every other chain uses production validation.
+DEPLOYLIVE_REHEARSAL=1 selects the same production path on 31337.
+Required inputs are GOVERNANCE_OWNER, GOVERNOR_ADDRESS, GUARDIAN_ADDRESS,
+SP_GUARDIAN, GENESIS_AASTAR_OPERATOR, APNTS_CAP, GUARDIAN_N,
+GUARDIAN_MIN_THRESHOLD, GUARDIAN_DEFAULT_THRESHOLD,
+GUARDIAN_SLASH_THRESHOLD_0/1/2, and GUARDIANS (ABI-encoded GuardianInput[], with
+address, BLS key and proof of possession). Thresholds satisfy
+2 <= min <= default <= N <= 64, with each slash threshold in [2,N].
 
-Implemented production input validation, guardian registration then threshold setting,
-owner/privilege handover, and the constructor-only timelock bootstrap. Integrated
-APNTsCapped because it is one of the three mandatory two-step handover subjects.
-Factory Registry binding, price staleness and end-state assertions are included.
-The original local deployment branch remains in place; production skips the legacy
-Anni/mint bootstrap because capped minting belongs to the Safe.
+Safe, SP guardian, PolicyRegistry guardian, genesis operator, each DVT guardian
+and deployer must be pairwise distinct. GOVERNOR_ADDRESS may equal Safe.
+There is no keeper input. Production uses the validated governor/guardian inputs,
+without re-reading them from the environment. Deployer resolution uses one read.
 
-Stopped at the requested approximately 500-line logic budget. Still required:
+GOVERNANCE_OWNER must have code, exclude any 0xef0100 delegation prefix, and
+answer getThreshold/getOwners with threshold >= 2 and enough distinct nonzero
+owners. The gate validates canonical ABI encoding. This proves Safe-compatible
+M-of-N configuration, not a canonical Safe codehash/factory attestation. The
+checker repeats code and threshold/owners readback; no production EOA bypass exists.
 
-- The two anvil-only recovery runners: unchanged-nonce H redeployment and Safe-proposed fallback batch.
-- The anvil-only Registry.exitRole / SP pause-hook runner with a same-transaction assertion.
-- Orchestrator-run OP fork rehearsal, real guardian PoP registration and complete end-to-end DeployLive verification.
+ENTRY_POINT, ETH_USD_FEED and SIMPLE_ACCOUNT_FACTORY must have code. EntryPoint
+must be v0.7 at 0x0000000071727De22E5E9d8BAf0edAc6f37da032. Feed decimals must
+be 8 and answer positive, with nonzero updatedAt no later than now and at most
+4200 seconds old (the configured staleness). The factory's accountImplementation
+must have code and return that EntryPoint. Initial production updatePrice failure
+aborts deployment instead of being swallowed.
 
-The genesis input receives COMMUNITY and PAYMASTER_SUPER roles. It is not impersonated:
-its v2 token issuance, operator configuration and funding remain operator actions.
-The checker accepts its default minTxInterval of zero and does not assert isConfigured.
-Recovery runners and the exit-hook check have not been substituted with weaker checks.
+## Bootstrap sequence and final state
 
-## Required production inputs
+The v5.4 facilitator CREATE, its transfer to the predicted timelock, and
+PolicyRegistry CREATE consume three transactions. Five privilege transfers follow.
+Timelock is predicted at the starting nonce + 8. H is predicted at timelock nonce
++ 22: CREATE timelock, seven role-owner configs, slash-policy-admin transfer,
+ten single-step ownership transfers, three nominations, then CREATE H.
+Nonce/address boundaries are asserted before timelock and again before H.
 
-Production means chain ID 10 or 11155111. Chain 31337 retains the original default branch.
+Timelock starts at delay 0, proposers=[H], executors=[H], admin=address(0).
+Timelock itself holds DEFAULT_ADMIN; H gets CANCELLER via construction.
+Safe holds NO timelock role before H. H accepts the validated Safe constructor
+argument and schedules/executes this exact ten-call batch:
 
-- `GOVERNANCE_OWNER`: Safe; proposer, executor and canceller of the timelock, but never admin.
-- `GOVERNOR_ADDRESS`, `GUARDIAN_ADDRESS`, `SP_GUARDIAN`, `GENESIS_AASTAR_OPERATOR`: required nonzero addresses distinct from deployer.
-- `APNTS_CAP`: required positive integer in token base units; no production cap default.
-- `GUARDIAN_N`, `GUARDIAN_MIN_THRESHOLD`, `GUARDIAN_DEFAULT_THRESHOLD`.
-- `GUARDIAN_SLASH_THRESHOLD_0`, `_1`, `_2` (slash levels 0, 1, 2).
-- `GUARDIANS`: hex ABI encoding of `GuardianInput[]`, each entry
-  `(address,(bytes32,bytes32,bytes32,bytes32),(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))`.
-  G1/G2 field order follows `contracts/src/utils/BLS.sol`. Entries occupy slots 1..N.
-  PoPs must bind the guardian address and the new aggregator's domain; they cannot be
-  copied from another deployment. No private keys are consumed by the new input path.
+1. acceptOwnership on Registry, SuperPaymaster, APNTsCapped, in that order.
+2. grant PROPOSER, EXECUTOR, CANCELLER to Safe, in that order.
+3. revoke PROPOSER, EXECUTOR, CANCELLER from H, in that order.
+4. updateDelay(172800).
 
-Threshold constraints: `2 <= min <= default <= N <= 64`; each slash threshold is 2..N.
-`GOVERNOR_ADDRESS` is validated and recorded; final contract ownership and timelock
-roles follow the decided Timelock/Safe targets, not this separate governor address.
+H has no runtime entry points; missing P/E raises BootstrapRolesMissing.
+Final assertions check all four roles for deployer, H, governorInput,
+guardianInput, spGuardianInput, genesisInput, every guardian and address(0).
+A governor equal to Safe is checked as Safe, as explicitly allowed. Safe holds
+exactly P/E/C; timelock holds exactly DEFAULT_ADMIN.
 
-## Bootstrap sequence
+Deploy-day: no deployer transaction between nominations and H; no additional
+funding or operational operator registration until H is deployed and checker PASS.
+The required scripted genesis/DVT Registry setup remains within the trusted
+ceremony. Genesis SP isConfigured must be false: Registry role registration does
+not configure an SP operator. Its token issuance, configuration and funding are
+post-PASS operator actions. minTxInterval==0 is not evidence of configuration.
+Production no longer deposits/stakes ETH into EntryPoint during wiring.
 
-At nonce n the script creates a zero-delay self-administered timelock with Safe and
-predicted H as proposer/executor (both also receive canceller). It then emits exactly
-21 transactions: seven role configurations, slash-policy-admin transfer, ten one-step
-ownership transfers, and three two-step nominations. H is CREATE at nonce n+22.
-The script checks the starting nonce, timelock address, H nonce and H address.
-H accepts Registry, SuperPaymaster and APNTsCapped, removes its three roles and
-sets the delay to 172800 in one batch. The script then verifies the final state.
+H failure => abandon the whole set after confirming it holds no funds and no
+registrations, redeploy. Both recovery runners and their Python implementations
+are removed; there is no Safe fallback. Scripted registrations can already exist
+in a failed set: inventory and resolve them before claiming the abandonment
+precondition. Do not fund or operate the failed set.
 
-H compiled runtime: **16 bytes**, `0x5f80fdfea164736f6c6343000821000a`.
-The executed runtime begins PUSH0/DUP1/REVERT; the remainder is compiler metadata.
-Creation bytecode in the isolated default-profile test build: **2045 bytes**, excluding arguments.
+Before handover the deployer's GToken allowance to staking is set to zero.
+Remaining GToken balance stays in place; its destination awaits a separate
+governance decision. Config records deployerGTokenBalance, deployerGTokenAllowance
+and deployerSBTBalance, and checker prints/asserts each. Other slot recipients
+remain unchanged.
 
-## Checker
+## Checker and rehearsal
 
-`python3 script/rehearsal/deploylive_postdeploy_check.py <rpc> <config.json> <deployer> <safe>`
+`python3 script/rehearsal/deploylive_postdeploy_check.py RPC CONFIG DEPLOYER SAFE`
 
-Uses only read operations: eth_call plus balance/code/log readback required by the
-checks. It does not send transactions. RPC errors are redacted; no URL is printed.
-Log reconstruction starts at block zero, filtered to the timelock, and fails closed
-if the RPC rejects the history request. Reconstructed members are confirmed with
-hasRole. Zero delay, retained bootstrap roles and pending owners all produce FAIL.
-Expected inputs and bootstrap address/nonce are included in the deployment config.
+CLI deployer/Safe must match config.deployer/governanceOwner. Integer fields accept
+JSON numbers, decimal strings and hex strings. All timelock logs start at recorded
+deploymentStartBlock, never block 0. Each of four role sets is reconstructed from
+RoleGranted/RoleRevoked, confirmed with hasRole, and compared to the exact expected
+set. CallScheduled/CallExecuted must contain only H's executed batch, including
+all ten indices, exact payloads and hashOperationBatch ID. RPC errors fail closed.
 
-There are **128 + N checks**: the original 53 plus 75 fixed checks and one per guardian.
-For N=2 the offline fixture gives 130 checks; for N=3 the orchestrator should see 131.
-The full expected-owner list is printed by the `owner(...) == expected` checks below.
+Registry and SP implementation isolation reports INFO-PASS, counted in status.
+The checker reads implementation owners and ERC-1967 bindings; direct initialize
+must return InvalidInitialization, direct upgrade UUPSUnauthorizedCallContext,
+and proxy upgrade from the implementation owner OwnableUnauthorizedAccount.
+These are eth_call simulations, not transactions.
 
-## Complete check catalog
+DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP=1 is honored only in production rehearsal on
+chain 31337; it is refused before broadcast elsewhere. The stopped config must
+FAIL the checker. For a separately authorized disposable Anvil-fork session,
+deploylive_fork_deploy.py RPC DEPLOYER [--stop] checks loopback, Anvil metadata,
+fork presence and chain 31337. Reset/discard a stopped rehearsal; never recover H.
+The retained hook runner and prepare helper are disposable post-PASS fixture tools.
+No RPC/deployment/impersonation was performed in this implementation session.
+
+Validation commands: forge build --offline; forge test --offline --match-path
+'contracts/test/scripts/DeployLive*.t.sol'; python3 -m unittest discover -s
+script/rehearsal -p 'test_deploylive*.py'; bash -n on shell scripts.
+Use /Users/jason/.foundry/bin/forge. No formatter or git write was run.
+
+## Check catalogue
+
+**139 + N checks**, including two INFO-PASS assertions: **141 for N=2**, 142 for N=3.
+Guardian rows below show N=2.
 
 | Check name | Expected value |
 |---|---|
@@ -185,10 +224,11 @@ The full expected-owner list is printed by the `owner(...) == expected` checks b
 | `genesisOperator nonzero and not deployer` | Nonzero and not deployer |
 | `Safe nonzero and not deployer` | Nonzero and not deployer |
 | `guardian N == inputs` | GUARDIAN_N, 2..64, matching distinct guardian input count |
-| `guardian[i] registered (i = 1..N)` | Input guardian at slot i; DVT validator true; not zero/deployer |
+| `guardian[1] registered` | Input guardian at slot i; DVT validator true |
+| `guardian[2] registered` | Input guardian at slot i; DVT validator true |
 | `genesis operator has COMMUNITY` | true |
 | `genesis operator has PAYMASTER_SUPER` | true |
-| `genesis minTxInterval == 0` | 0 |
+| `genesis isConfigured == false` | false: operator configuration deferred |
 | `H runtime non-callable` | At most 64 bytes, unconditional revert prefix (built H: 16 bytes) |
 | `TL.DEFAULT_ADMIN_ROLE exact members` | {timelock} |
 | `TL.DEFAULT_ADMIN_ROLE(H) == false` | false |
@@ -203,66 +243,82 @@ The full expected-owner list is printed by the `owner(...) == expected` checks b
 | `TL.CANCELLER_ROLE(H) == false` | false |
 | `TL.CANCELLER_ROLE(safe) == expected` | true |
 | `TL.DEFAULT_ADMIN_ROLE(timelock) == true` | true |
+| `config deployer == CLI` | Required end-state assertion; see ceremony above |
+| `config governanceOwner == CLI` | Required end-state assertion; see ceremony above |
+| `Safe code excludes delegation` | Required end-state assertion; see ceremony above |
+| `Safe threshold/owners` | Required end-state assertion; see ceremony above |
+| `required principals pairwise distinct` | Required end-state assertion; see ceremony above |
+| `deployer GToken balance == recorded` | Recorded config value; allowance must additionally be zero |
+| `deployer GToken allowance == recorded` | Recorded config value; allowance must additionally be zero |
+| `deployer SBT balance == recorded` | Recorded config value; allowance must additionally be zero |
+| `TL history exactly H batch executed` | Required end-state assertion; see ceremony above |
+| `registryImpl isolated` | INFO-PASS: bound implementation, disabled initializer, direct and implementation-owner proxy upgrades rejected |
+| `spImpl isolated` | INFO-PASS: bound implementation, disabled initializer, direct and implementation-owner proxy upgrades rejected |
 
-## Validation results (verbatim)
+## Original 53 checks → current names
 
-Commands used the specified Forge binary with `--offline`, invoked through `nice -n 10`.
-The sandbox reported `nice: setpriority: Operation not permitted`; Forge continued
-and exited successfully. No formatter, network/RPC call, git mutation or source-contract edit was performed.
+All original checks remain; exact-target companion checks strengthen negative ownership checks.
 
-Final `forge build --offline` (exit 0):
+| Original # | Original check | Current name |
+|---|---|---|
+| 1 | `owner(superPaymaster) != deployer` | `owner(superPaymaster) != deployer` |
+| 2 | `owner(registry) != deployer` | `owner(registry) != deployer` |
+| 3 | `owner(staking) != deployer` | `owner(staking) != deployer` |
+| 4 | `owner(gToken) != deployer` | `owner(gToken) != deployer` |
+| 5 | `owner(xPNTsFactoryV2) != deployer` | `owner(xPNTsFactoryV2) != deployer` |
+| 6 | `owner(aoaProtocolRegistry) != deployer` | `owner(aoaProtocolRegistry) != deployer` |
+| 7 | `owner(reputationSystem) != deployer` | `owner(reputationSystem) != deployer` |
+| 8 | `owner(blsAggregator) != deployer` | `owner(blsAggregator) != deployer` |
+| 9 | `owner(dvtValidator) != deployer` | `owner(dvtValidator) != deployer` |
+| 10 | `roleConfigs[COMMUNITY].owner != deployer` | `roleConfigs[COMMUNITY].owner != deployer` |
+| 11 | `roleConfigs[ENDUSER].owner != deployer` | `roleConfigs[ENDUSER].owner != deployer` |
+| 12 | `roleConfigs[PAYMASTER_AOA].owner != deployer` | `roleConfigs[PAYMASTER_AOA].owner != deployer` |
+| 13 | `roleConfigs[PAYMASTER_SUPER].owner != deployer` | `roleConfigs[PAYMASTER_SUPER].owner != deployer` |
+| 14 | `roleConfigs[DVT].owner != deployer` | `roleConfigs[DVT].owner != deployer` |
+| 15 | `roleConfigs[ANODE].owner != deployer` | `roleConfigs[ANODE].owner != deployer` |
+| 16 | `roleConfigs[KMS].owner != deployer` | `roleConfigs[KMS].owner != deployer` |
+| 17 | `isReputationSource(repSystem)` | `isReputationSource(repSystem)` |
+| 18 | `isReputationSource(aggregator)` | `isReputationSource(aggregator)` |
+| 19 | `isReputationSource(deployer) == false` | `isReputationSource(deployer) == false` |
+| 20 | `SP.treasury != deployer` | `SP.treasury != deployer` |
+| 21 | `staking.treasury != deployer` | `staking.treasury != deployer` |
+| 22 | `MySBT.daoMultisig != deployer` | `MySBT.daoMultisig != deployer` |
+| 23 | `aggregator.slashPolicyAdmin != deployer` | `aggregator.slashPolicyAdmin != deployer` |
+| 24 | `SP.guardian != deployer` | `SP.guardian != deployer` |
+| 25 | `PolicyRegistry.guardian != deployer` | `PolicyRegistry.guardian != deployer` |
+| 26 | `DVT.isValidator(deployer) == false` | `DVT.isValidator(deployer) == false` |
+| 27 | `TL.PROPOSER_ROLE(deployer) == false` | `TL.PROPOSER_ROLE(deployer) == false` |
+| 28 | `TL.EXECUTOR_ROLE(deployer) == false` | `TL.EXECUTOR_ROLE(deployer) == false` |
+| 29 | `TL.CANCELLER_ROLE(deployer) == false` | `TL.CANCELLER_ROLE(deployer) == false` |
+| 30 | `TL.DEFAULT_ADMIN_ROLE(deployer) == false` | `TL.DEFAULT_ADMIN_ROLE(deployer) == false` |
+| 31 | `authorizedSlashers(aggregator) == false` | `authorizedSlashers(aggregator) == false` |
+| 32 | `fraudProofVerifier == 0` | `fraudProofVerifier == 0` |
+| 33 | `owner(superPaymaster) != aggregator` | `owner(superPaymaster) != aggregator` |
+| 34 | `owner(registry) != aggregator` | `owner(registry) != aggregator` |
+| 35 | `owner(staking) != aggregator` | `owner(staking) != aggregator` |
+| 36 | `owner(gToken) != aggregator` | `owner(gToken) != aggregator` |
+| 37 | `owner(xPNTsFactoryV2) != aggregator` | `owner(xPNTsFactoryV2) != aggregator` |
+| 38 | `owner(aoaProtocolRegistry) != aggregator` | `owner(aoaProtocolRegistry) != aggregator` |
+| 39 | `owner(reputationSystem) != aggregator` | `owner(reputationSystem) != aggregator` |
+| 40 | `owner(blsAggregator) != aggregator` | `owner(blsAggregator) != aggregator` |
+| 41 | `owner(dvtValidator) != aggregator` | `owner(dvtValidator) != aggregator` |
+| 42 | `owner(xPNTsFactory) != aggregator` | `owner(xPNTsFactory) != aggregator` |
+| 43 | `owner(paymasterFactory) != aggregator` | `owner(paymasterFactory) != aggregator` |
+| 44 | `owner(paymasterV4Impl) != aggregator` | `owner(paymasterV4Impl) != aggregator` |
+| 45 | `owner(microPaymentChannel) != aggregator` | `owner(microPaymentChannel) != aggregator` |
+| 46 | `owner(x402Facilitator) != aggregator` | `owner(x402Facilitator) != aggregator` |
+| 47 | `aggregator ETH balance == 0` | `aggregator ETH balance == 0` |
+| 48 | `aggregator gToken balance == 0` | `aggregator gToken balance == 0` |
+| 49 | `aggregator aPNTs balance == 0` | `aggregator aPNTs balance == 0` |
+| 50 | `aggregator pnts balance == 0` | `aggregator pnts balance == 0` |
+| 51 | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` |
+| 52 | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` |
+| 53 | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` |
 
-```text
-Solc 0.8.33 finished in 5.13s
-Solc 0.8.33 finished in 26.47s
-Compiler run successful with warnings:
-```
+## Review split
 
-Final `forge test --offline --match-path 'contracts/test/scripts/DeployLive*.t.sol'` (exit 0):
+1. DeployLiveInputs.sol and DeployLiveInfrastructure.t.sol, plus DeployLive input/oracle hunks.
+2. TimelockHandoverBootstrap.sol, remaining DeployLive handover/config hunks and DeployLiveHandover.t.sol.
+3. Checker, Python tests, rehearsal helpers, recovery deletions and docs.
 
-```text
-Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 8.36ms (27.65ms CPU time)
-Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 15.05ms (16.56ms CPU time)
-Ran 2 test suites in 18.15ms (23.41ms CPU time): 20 tests passed, 0 failed, 0 skipped (20 total tests)
-```
-
-Offline Python checker tests (exit 0; mocked read operations, not a fork):
-
-```text
-Ran 2 tests in 0.058s
-
-OK
-SUMMARY 130 passed, 0 failed, 130 total
-```
-
-The checker suite includes zero delay, pending ownership, retained H roles,
-unexpected admin membership, grant/revoke log replay, and RPC-error redaction.
-The Solidity suite covers every required address/numeric input, local-default input
-loading, threshold bounds, guardian shape/count, successful constructor handover,
-missing constructor roles, and each omitted revoke/delay operation.
-It does not execute the entire production DeployLive flow or validate real BLS PoPs.
-When `pnts` is the zero address, the retained aggregator-pnts-balance check reports zero
-because no such asset is configured; it does not prove a genesis v2 token exists.
-
-## Changed files and line counts
-
-Counts are relative to Git HEAD and include the supplied partial attempt. The existing
-20-line governance test addition was preserved. Source/checker logic totals **494
-added/deleted lines**, counting even comments/blank lines and the promoted checker.
-Generated ignored Forge artifacts/caches are excluded. Isolated test artifacts were removed.
-
-| File | Added | Deleted |
-|---|---:|---:|
-| `contracts/script/v3/DefaultArtifacts.sol` | 1 | 0 |
-| `contracts/script/v3/DeployLive.s.sol` | 157 | 12 |
-| `contracts/script/v3/DeployLiveInputs.sol` | 56 | 0 |
-| `contracts/script/v3/TimelockHandoverBootstrap.sol` | 64 | 0 |
-| `contracts/test/scripts/DeployLiveGovernance.t.sol` (supplied addition) | 20 | 0 |
-| `contracts/test/scripts/DeployLiveHandover.t.sol` | 143 | 0 |
-| `script/rehearsal/deploylive_postdeploy_check.py` | 204 | 0 |
-| `script/rehearsal/test_deploylive_postdeploy_check.py` | 108 | 0 |
-| `script/rehearsal/DEPLOYLIVE_HANDOFF.md` | 268 | 0 |
-
-Ignored validation logs retained in the worktree: `deploylive-build.log`,
-`deploylive-build-final.log`, `deploylive-handover-tests.log`,
-`deploylive-tests-final.log`, and `deploylive-checker-tests.log`.
+No commits were made. Worktree validation logs: deploylive-build.log, deploylive-forge.log, deploylive-python.log.

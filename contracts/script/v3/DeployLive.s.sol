@@ -101,17 +101,16 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         // Resolve Deployer Address
         // 1. Try DEPLOYER_ADDRESS (if set by wrapper script)
         // 2. Fallback to msg.sender (only for Anvil/Private Key mode)
-        if (vm.envOr("DEPLOYER_ADDRESS", address(0)) != address(0)) {
-            deployer = vm.envAddress("DEPLOYER_ADDRESS");
-        } else {
-            deployer = msg.sender;
-        }
+        deployer = vm.envOr("DEPLOYER_ADDRESS", address(0));
+        if (deployer == address(0)) deployer = msg.sender;
     }
 
     function run() external {
+        _stopBeforeBootstrap(); // Validate the rehearsal flag before any broadcast.
         // Use the configured account from CLI (--account or --private-key)
         deploymentStartBlock = block.number;
         _loadProductionInputs(deployer);
+        if (_production()) _validateInfrastructure(entryPointAddr, priceFeedAddr, simpleAccountFactory);
         vm.startBroadcast();
 
         console.log("Deployer:", deployer);
@@ -220,7 +219,13 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         }
 
         console.log("=== Step 8: v5.4 god-split (X402Facilitator + Timelock + PolicyRegistry) ===");
+        gtoken.approve(address(staking), 0);
         _deployV54Stack();
+        if (_stopBeforeBootstrap()) {
+            vm.stopBroadcast();
+            _generateConfig();
+            return;
+        }
 
         console.log("=== Wiring Integrity Check (D-H4) ===");
         _assertWiring();
@@ -394,8 +399,14 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
     ///      aPNTs clone is new-bytecode so the cap-setter wiring succeeds; community
     ///      operator tokens (Anni's PNTs) are skipped+logged and wired by prepare-test.
     function _deployV54Stack() internal {
-        (address governor, address guardian) = _resolveGovernance(deployer);
-        address timelock = _production() ? _handoverProduction() : _deployPhase1Timelock(governor, guardian);
+        address governor = governorInput;
+        address guardian = guardianInput;
+        if (!_production()) (governor, guardian) = _resolveGovernance(deployer);
+        // Production v5.4 is complete BEFORE the interruptible handover region.
+        // Three v5.4 transactions, then five privilege transfers precede CREATE TL.
+        uint64 beforeV54 = vm.getNonce(deployer);
+        address timelock = _production() ? vm.computeCreateAddress(deployer, beforeV54 + 8)
+            : _deployPhase1Timelock(governor, guardian);
         V54Addresses memory v54 = _deployV54Contracts(
             address(registry),
             address(superPaymaster),
@@ -408,7 +419,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         policyRegistryAddr = v54.policyRegistry;
         timelockControllerAddr = v54.timelock;
 
-        _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
+        if (_production()) {
+            require(vm.getNonce(deployer) == beforeV54 + 3, "handover: v54 nonce");
+            require(_handoverProduction() == timelock, "handover: predicted timelock");
+        } else _wireFacilitator(address(xpntsFactory), x402FacilitatorAddr, deployer);
     }
 
     /// @notice Asserts every critical contract wiring link is intact.
@@ -545,7 +559,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         }
 
         // Oracle Init
-        try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (
+        if (_production()) superPaymaster.updatePrice();
+        else try AggregatorV3Interface(priceFeedAddr).latestRoundData() returns (
             uint80, int256 price, uint256, uint256, uint80
         ) {
             try SuperPaymasterAdmin(address(superPaymaster)).updatePriceDVT(price, block.timestamp, "", 0) { // D5b: extension function
@@ -556,8 +571,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         } catch {}
 
         // Step 24 & 25: 0.1 ETH
-        superPaymaster.deposit{value: 0.1 ether}();
-        superPaymaster.addStake{value: 0.1 ether}(1 days);
+        if (!_production()) {
+            superPaymaster.deposit{value: 0.1 ether}();
+            superPaymaster.addStake{value: 0.1 ether}(1 days);
+        }
     }
 
     function _orchestrateRolesJason() internal {
@@ -712,8 +729,9 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         bootstrapAddr = vm.computeCreateAddress(deployer, bootstrapNonce);
         require(vm.getNonce(deployer) == startNonce, "handover: initial nonce");
         require(vm.getNonce(deployer) == tlNonce, "handover: timelock nonce");
-        address[] memory principals = new address[](2);
-        principals[0] = safeInput; principals[1] = bootstrapAddr;
+        address[] memory principals = new address[](1);
+        principals[0] = bootstrapAddr;
+        require(vm.computeCreateAddress(deployer, tlNonce + 22) == bootstrapAddr, "handover: predicted bootstrap");
         TimelockController t = TimelockController(payable(_deployDefault(
             "TimelockController", abi.encode(uint256(0), principals, principals, address(0)))));
         require(address(t) == tl, "handover: timelock address");
@@ -728,13 +746,22 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         superPaymaster.transferOwnership(tl);
         APNTsCapped(address(apnts)).transferOwnership(tl);
         require(vm.getNonce(deployer) == bootstrapNonce, "handover: bootstrap nonce");
-        require(address(new TimelockHandoverBootstrap(t, _twoStepTargets())) == bootstrapAddr, "handover: bootstrap address");
+        require(vm.computeCreateAddress(deployer, vm.getNonce(deployer)) == bootstrapAddr, "handover: predicted H before CREATE");
+        if (!_stopBeforeBootstrap()) {
+            require(address(new TimelockHandoverBootstrap(t, _twoStepTargets(), safeInput)) == bootstrapAddr, "handover: bootstrap address");
+        }
         timelockControllerAddr = tl;
         return tl;
     }
 
     function _assertHandover() internal view {
-        TimelockHandover.assertFinal(TimelockController(payable(timelockControllerAddr)), _twoStepTargets(), safeInput, deployer, bootstrapAddr);
+        address[] memory subjects = new address[](guardiansInput.length + 7);
+        subjects[0] = deployer; subjects[1] = bootstrapAddr; subjects[2] = governorInput;
+        subjects[3] = guardianInput; subjects[4] = spGuardianInput; subjects[5] = genesisInput;
+        for (uint256 i; i < guardiansInput.length; ++i) subjects[i + 7] = guardiansInput[i].account;
+        TimelockHandover.assertFinal(TimelockController(payable(timelockControllerAddr)), _twoStepTargets(), safeInput, subjects);
+        _validateSafe();
+        require(gtoken.allowance(deployer, address(staking)) == 0, "handover: deployer allowance");
         require(bootstrapAddr.codehash == keccak256(type(TimelockHandoverBootstrap).runtimeCode), "handover: callable bootstrap");
         require(Ownable(x402FacilitatorAddr).owner() == timelockControllerAddr, "handover: facilitator owner");
         address[10] memory singles = _singleStepTargets();
@@ -756,8 +783,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         require(APNTsCapped(address(apnts)).cap() == capInput, "handover: cap");
         require(APNTsCapped(address(apnts)).minter() == safeInput && APNTsCapped(address(apnts)).capGuardian() == safeInput, "handover: cap roles");
         require(superPaymaster.priceStalenessThreshold() == 4200, "handover: staleness");
-        (,,,,, uint48 interval,,,) = superPaymaster.operators(genesisInput);
-        require(interval == 0 && registry.hasRole(ROLE_PAYMASTER_SUPER, genesisInput) && registry.hasRole(ROLE_COMMUNITY, genesisInput), "handover: genesis operator");
+        (, bool configured,,,,,,,) = superPaymaster.operators(genesisInput);
+        require(!configured && registry.hasRole(ROLE_PAYMASTER_SUPER, genesisInput) && registry.hasRole(ROLE_COMMUNITY, genesisInput), "handover: genesis operator");
     }
 
     function _generateConfig() internal {
@@ -765,6 +792,12 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
         string memory finalPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory jsonObj = "json";
         vm.serializeUint(jsonObj, "deploymentStartBlock", deploymentStartBlock);
+        vm.serializeAddress(jsonObj, "deployer", deployer);
+        vm.serializeAddress(jsonObj, "governanceOwner", safeInput);
+        vm.serializeUint(jsonObj, "deployerGTokenBalance", gtoken.balanceOf(deployer));
+        vm.serializeUint(jsonObj, "deployerGTokenAllowance", gtoken.allowance(deployer, address(staking)));
+        vm.serializeUint(jsonObj, "deployerSBTBalance", mysbt.balanceOf(deployer));
+        vm.serializeBool(jsonObj, "genesisIsConfigured", false);
         vm.serializeAddress(jsonObj, "expectedGovernor", governorInput);
         vm.serializeAddress(jsonObj, "expectedGuardian", guardianInput);
         vm.serializeAddress(jsonObj, "expectedSPGuardian", spGuardianInput);
