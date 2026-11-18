@@ -247,6 +247,16 @@ def governance(rpc, cfg, safe):
 
 def main():
     args = sys.argv[1:]
+    inputs = None
+    if '--inputs' in args:
+        from deploylive_controls import load_inputs
+        index = args.index('--inputs')
+        require(index + 1 < len(args), '--inputs requires a file')
+        inputs = args[index + 1]
+        approved = load_inputs(inputs)
+        os.environ.clear()
+        os.environ.update(approved)
+        del args[index:index + 2]
     external_tokens = None
     if '--external-tokens' in args:
         index = args.index('--external-tokens')
@@ -274,6 +284,8 @@ def main():
     try:
         if mode in ('happy', 'failure'):
             command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), url, deployer]
+            if inputs is not None:
+                command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), 'deploy', '--inputs', inputs]
             if mode == 'failure': command.append('--stop')
             result = subprocess.run(command, env=deploy_env, capture_output=True, text=True)
             for line in getattr(result, 'stdout', '').splitlines():
@@ -311,6 +323,7 @@ def main():
 
 if __name__ == '__main__':
     try:
+        require('--inputs' in sys.argv, 'every rehearsal mode requires --inputs')
         main()
     except Exception:
         print('FAIL rehearsal (endpoint/inputs/preconditions/transaction/check failed; details redacted)')

@@ -1,81 +1,126 @@
-# Round 3 copy-paste sequence (Sepolia)
+# Deploy-day rehearsal: copy-paste sequence (Sepolia, three guardians)
 
-Load the approved, fixed deployment inputs first, including absolute pinned `FORGE`,
-`DEPLOYER_ADDRESS`, `ENV`, and the RPC variables described below. Set
-`CAST_1_7_1` to the absolute path of cast 1.7.1 (Foundry 1.7.1, the CI engine).
-The converter ABI output is engine-independent, but its cast version is pinned anyway. Put the approved
-DVT export at `$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json` after setup. Do not change inputs or send a deployer transaction
-between prediction and deployment. Changes require new prediction and PoPs.
-The source must be committed and clean before prediction/deployment.
+Prerequisites: reviewed clean HEAD, pinned `FORGE` and matching Anvil binary,
+cast 1.7.1 (`CAST_1_7_1`), approved principals, and two distinct real-chain RPCs.
+Provision the **loopback forward proxy** on port 18545 separately; its implementation
+is a follow-up outside this change. No upstream URL goes on Anvil's command line.
+Obtain the approved DVT export after prediction; PoPs bind this request and nonce.
+Do not send deployer transactions or change approved inputs between prediction and deploy.
 
-Common setup (evidence lives outside the directories cleaned by build):
+Prepare the ignored input file once, fill every required value from the approved
+manifest, and leave optional keys present but empty. This is the explicit load step
+(run from the worktree root in bash/zsh; the file contains literal assignments only):
 
 ```sh
-export DEFAULT_ARTIFACTS_OUT=out DEFAULT_CACHE_PATH=cache
-export FOUNDRY_OUT=cache/deploylive-rehearsal-out FOUNDRY_CACHE_PATH=cache/deploylive-rehearsal-cache
-export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200 DEPLOYLIVE_HARDFORK=amsterdam
-export CREATION_PINS=deployments/creation-pins.11155111.json
-export DEPLOYLIVE_EVIDENCE_DIR="$PWD/deployments/live/deploy-day-evidence"
+mkdir -p deployments/live
+cp -n script/rehearsal/inputs.template.env deployments/live/inputs.sepolia.env
+export INPUTS="$PWD/deployments/live/inputs.sepolia.env"
+"${EDITOR:-vi}" "$INPUTS"
+APPROVED_EXPORTS="$(python3 -c 'import os,shlex,sys; sys.path.insert(0,"script/rehearsal"); from deploylive_controls import load_inputs; print("\n".join("export "+k+"="+shlex.quote(v) for k,v in load_inputs(os.environ["INPUTS"]).items()))')" || exit 1
+eval "$APPROVED_EXPORTS"
+unset APPROVED_EXPORTS
 export PATH="$(dirname "$FORGE"):$PATH"
 "$CAST_1_7_1" --version | head -1 | grep -Eq '^cast Version: 1\.7\.1(-|$)' || { echo 'STOP converter requires cast 1.7.1'; exit 1; }
-mkdir -p "$DEPLOYLIVE_EVIDENCE_DIR"
-python3 script/rehearsal/deploylive_fork_deploy.py build
+printf '%s\n' 'INPUTS LOADED'
 ```
 
-Rehearsal needs a loopback forward proxy because anvil cannot read the fork URL
-from env or a file; a formal launcher is a tracked follow-up, outside this PR.
-With the separately provisioned proxy listening on port 18545, start the fork
-in another terminal (the loopback URL contains no upstream credentials):
+Expected: `INPUTS LOADED`. Each driver subcommand independently reloads `--inputs`,
+rejects missing/extra/duplicate keys, and derives `SP_COMMIT` from clean HEAD.
+Do not put `SP_COMMIT` in the file; an inherited mismatch is refused. Empty optional
+keys are omitted from child environments. `GUARDIANS` is generated in step 6.
+The template lists the driver and DeployLive inputs; internal execution flags and
+the request output path are set by the driver. `DEPLOYLIVE_PRICE_SOURCE=fork` is
+rehearsal-only; production requires `chain` and `DEPLOYER_ACCOUNT`.
 
-```sh
-anvil --fork-url http://127.0.0.1:18545 --port 8545 --chain-id 11155111 --hardfork amsterdam
-```
+Evidence **must be inside this worktree**, outside all four build output/cache
+directories. The default is `deployments/live/deploy-day-evidence`. Build cleans
+its output/cache directories. Only the final archive copy goes outside the worktree.
+Set `ARCHIVE_DIR` to a new external archive directory in the final step.
 
-Rehearsal continuation:
+## Rehearsal commands
 
-```sh
-export DEPLOYLIVE_RPC=http://127.0.0.1:8545 DEPLOYLIVE_PRICE_SOURCE=fork
-python3 script/rehearsal/deploylive_fork_deploy.py predict --evidence "$DEPLOYLIVE_EVIDENCE_DIR"
-PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
-export GUARDIANS="$(cat "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex")"
-unset DEPLOYLIVE_POP_REQUEST_OUT
-python3 script/rehearsal/deploylive_fork_deploy.py deploy "$DEPLOYLIVE_RPC" "$DEPLOYER_ADDRESS"
-python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
-```
+1. Verify the hardfork and pin A's latest block minus two confirmations. Sepolia
+   requires forkId `0x6c1d9423`, activationTime `1791294816`; both endpoints must
+   agree on the pinned block hash, `blockAccessListHash` and `slotNumber`.
+   B's `eth_config` -32601 is recorded, not a failure. Expectations live in
+   `deployments/hardfork-expectations.json`; OP uses the documented unsupported
+   `eth_config` / unpopulated-header-field rule and stops on unknown supported configs.
+   Expected: `HARDFORK PASS pinned block <number>`.
 
-Production continuation instead (retain the approved production `DEPLOYLIVE_RPC`):
+   ```sh
+   python3 script/rehearsal/deploylive_fork_deploy.py hardfork-check --inputs "$INPUTS"
+   ```
 
-```sh
-export DEPLOYLIVE_PRICE_SOURCE=chain
-python3 script/rehearsal/deploylive_fork_deploy.py predict --production --evidence "$DEPLOYLIVE_EVIDENCE_DIR"
-PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
-export GUARDIANS="$(cat "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex")"
-unset DEPLOYLIVE_POP_REQUEST_OUT
-python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
-python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
-```
+2. Start the pinned fork through the provisioned proxy in a second terminal;
+   keep it running. Run the same input load block there first.
+   Expected: Anvil's `Listening on 127.0.0.1:8545`.
 
-`DEPLOYLIVE_PRICE_SOURCE` defaults to `chain`; `fork` selects the fork head/feed
-only for the price gate and is refused in production. Fork price uses exactly ONE
-endpoint (`DEPLOYLIVE_RPC`); it prints that corroboration is not applicable on a fork.
-Chain price uses `DEPLOYLIVE_SOURCE_RPC` and a distinct `DEPLOYLIVE_SECOND_RPC`.
-The gas gate is **single-endpoint**, always using the REAL chain via
-`DEPLOYLIVE_SOURCE_RPC`, independently of `DEPLOYLIVE_PRICE_SOURCE`. It never uses
-the fork: the recorded anvil run fails at index 3 with `-38013 GasFloorMoreThanGasLimit`,
-even with fees. The real Alchemy diagnostic reports 97 successful calls.
-Tenderly HTTP 429 receives three retries after 1, 2 and 4 seconds; exhaustion
-STOPs with HTTP 429 and its message. RPC STOPs retain codes/messages with URLs
-and credentials redacted. There is no gas corroboration or endpoint failover.
+   ```sh
+   PINNED_BLOCK="$(python3 -c 'import json,os; print(json.load(open(os.path.join(os.environ["DEPLOYLIVE_EVIDENCE_DIR"], "hardfork-check.json")))["blockNumber"])')"
+   "$(dirname "$FORGE")/anvil" --fork-url http://127.0.0.1:18545 --fork-block-number "$PINNED_BLOCK" --port 8545 --chain-id 11155111 --hardfork amsterdam
+   ```
 
-Every simulation call retains planned `maxFeePerGas` and `maxPriorityFeePerGas`.
-A missing priority fee defaults to 1 gwei; a missing max fee is twice the fixed
-head's `baseFeePerGas` plus that priority fee. Both fees are recorded per call in
-`prebroadcast.log` and requests, and `validation: true` remains mandatory.
+3. Run the snapshot-isolated EIP-7825 control on the fork. It sends a 20,000,000-gas
+   CREATE of `0x5b600056`, requires status 0 / gasUsed 16,777,216, and reverts.
+   `--production` refuses this command before constructing the fork transport.
+   Expected: `CONTROL PASS`.
 
-`deploy` never rebuilds: it verifies both build stamps and refuses a missing or
-mismatched stamp. Run `build` once before prediction. Build, prediction and deploy
-all enforce the committed forge pin in rehearsal and production. Build empties all four configured artifact/cache
-directories; keep inputs and evidence outside them.
+   ```sh
+   python3 script/rehearsal/deploylive_fork_deploy.py cap-control --inputs "$INPUTS"
+   ```
+
+4. Build Cancun release and Prague execution artifacts using the same pinned engine.
+   Expected final line: `BUILD PASS`.
+
+   ```sh
+   python3 script/rehearsal/deploylive_fork_deploy.py build --inputs "$INPUTS"
+   ```
+
+5. Predict. The driver writes `cache/deploylive-prediction/pop-request.json` and
+   copies it to `$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json`.
+   Expected final line: `PREDICT PASS` (preceded by the request SHA256).
+
+   ```sh
+   python3 script/rehearsal/deploylive_fork_deploy.py predict --inputs "$INPUTS"
+   ```
+
+6. Have the approved DVT signing workflow place its address-bound export at
+   `$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json`, then convert it. Signing is an
+   external prerequisite, not an improvised local helper. Expected: `CONVERT PASS`.
+
+   ```sh
+   test -s "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" && PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex" && echo 'CONVERT PASS'
+   ```
+
+7. Deploy and run the integrated checker. The driver reads generated `guardians.hex`;
+   it never rebuilds. Expected: `SUMMARY 189 passed, 0 failed, 189 total` for N=3,
+   then `PASS full deployment; post-deploy checker PASS`. N=2 has 187 rows.
+   A config file or successful Forge exit alone is not acceptance.
+
+   ```sh
+   python3 script/rehearsal/deploylive_fork_deploy.py deploy --inputs "$INPUTS"
+   ```
+
+8. Copy evidence to a new external archive, including verified file copies and
+   `SHA256SUMS`. Enter the full destination path when prompted; existing destinations
+   and symlinks are refused. Expected: `ARCHIVE PASS`.
+
+   ```sh
+   printf 'New external archive directory: '; read -r ARCHIVE_DIR
+   python3 script/rehearsal/deploylive_fork_deploy.py archive --inputs "$INPUTS" --to "$ARCHIVE_DIR"
+   ```
+
+The gas gate remains single-endpoint on the real chain (`DEPLOYLIVE_SOURCE_RPC`),
+independent of fork-price mode. It retains fees, full-sequence simulation and the
+5% maximum tolerance. Price threshold remains 4200 seconds. Production uses the
+same build/predict/deploy commands with `--production` and approved production inputs;
+never run cap-control there. Archive evidence includes hardfork/control JSON, request,
+DVT export, build identity, simulation reads, Forge logs and checker output.
+
+## Historical design and acceptance notes
+
+The notes below explain earlier rounds. The numbered sequence above supersedes
+their invocation examples; use the approved `--inputs` interface for current runs.
 
 # Deploy-day corrections (2026-11-19; required before rc.8)
 
@@ -157,7 +202,7 @@ dry-run JSON and the real simulation result in evidence.
 ## Fixed pre-broadcast and fork rehearsal gates
 
 - **Fix ALL inputs before generating the PoP request.** Write the request inside
-  the worktree, e.g. `cache/ddf/pop-request.json` (Forge `fs_permissions`), then
+  the worktree, e.g. `cache/deploylive-prediction/pop-request.json` (Forge `fs_permissions`), then
   copy it to evidence. Fixing an input or changing the deployer nonce afterwards
   requires a fresh request and fresh PoPs.
 - Verify the active hardfork at the pinned head. In the rehearsal, `eth_config`
@@ -265,7 +310,7 @@ can only come from a 7702 authorization signed by the deployer key itself, which
 trusted-deployer premise covers. After the run, the checker detects it: it reads back
 `deployerCodeLength` and asserts the predicted TL/H addresses. The checks are not three live
 on-chain gates.
-`DEPLOYLIVE_EVIDENCE_DIR` may be an existing directory outside the worktree.
+`DEPLOYLIVE_EVIDENCE_DIR` must be inside the worktree; use `archive --to` for the external copy.
 Forge stdout/stderr are written as `forge.stdout.log` and `forge.stderr.log`,
 including failed Forge runs; the outer driver scans those files before returning.
 
@@ -778,7 +823,7 @@ before RPC access and derive `SP_COMMIT` from HEAD themselves.
 
 1. Fix ALL inputs before generating the PoP request; freeze the final SP head and deployment inputs. At the selected pin block,
    simulate DeployLive with `SP_COMMIT="$(git rev-parse HEAD)"` and
-   `DEPLOYLIVE_POP_REQUEST_OUT=cache/ddf/pop-request.json`. Keep the same deployer and nonce
+   `DEPLOYLIVE_POP_REQUEST_OUT=cache/deploylive-prediction/pop-request.json`. Keep the same deployer and nonce
    for the subsequent deployment. `GUARDIANS` may be absent in this mode; all
    other production preflight inputs remain required. The script actually
    deploys through DVTValidator and BLSAggregator in simulation, writes their
@@ -787,7 +832,7 @@ before RPC access and derive `SP_COMMIT` from HEAD themselves.
    `pin.block` and `pin.blockHash` name the same block: the PARENT of the simulated block, because EVM BLOCKHASH cannot read the current block. `pin.senders.deployer.nonce` is the deployer nonce at entry to `run()`. If the deployer sent a transaction in the latest block, a nonce read at `pin.block` differs and DVT refuses (fail-closed), so the operator re-runs the simulation. DVT can check `getBlock(pin.block).hash == pin.blockHash` directly.
 
    ```sh
-   python3 script/rehearsal/dvt_pop_to_guardians.py dvt-export.json request.json --sp-root . > guardians.hex
+   python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
    ```
 
    The converter prints both input SHA256 values to stderr and emits only
@@ -800,7 +845,7 @@ before RPC access and derive `SP_COMMIT` from HEAD themselves.
    `GUARDIANS=$(cat guardians.hex)`, the same deployment inputs and artifacts,
    and **no intervening deployer transaction**. If the nonce or inputs move,
    discard the request and PoPs and repeat from step 1.
-6. Record `sha256sum request.json dvt-export.json guardians.hex` (or
+6. Record `sha256sum "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"` (or
    `shasum -a 256 ...`) with the final head, deployment inputs and evidence.
 
 Prediction rejects Foundry `vm.isContext(ScriptBroadcast)` and

@@ -16,13 +16,17 @@ from deploylive_rehearse import RPC, ROOT, require, guard_bls_verbosity, NoRedir
 from deploylive_deploy_day import build, verify_build, config_path, checker_pass, broadcast_gates, price_sources, print_command, redact_error, build_paths
 
 
+REQUEST_PATH = 'cache/deploylive-prediction/pop-request.json'
+REQUEST_NAME = 'pop-request.json'
+
+
 class ReadOnlyRPC:
     def __init__(self, url):
         self.url = url
         self.opener = build_opener(ProxyHandler({}), NoRedirect())
 
     def __call__(self, method, *params):
-        require(method in ('eth_chainId', 'eth_getBlockByNumber', 'eth_call', 'eth_simulateV1'), 'read-only RPC method required')
+        require(method in ('eth_chainId', 'eth_blockNumber', 'eth_config', 'eth_getBlockByNumber', 'eth_call', 'eth_simulateV1'), 'read-only RPC method required')
         payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
         for attempt in range(4):
             try:
@@ -88,7 +92,7 @@ def stage(action, argv):
     env.update(SP_COMMIT=clean_source_commit(), DEPLOYLIVE_REHEARSAL='0' if args.production else '1',
                DEPLOYLIVE_EVM_VERSION='prague', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
     binary = verify_build(env, True)
-    request = ROOT / 'cache/deploylive-prediction/pop-request.json'
+    request = ROOT / REQUEST_PATH
     request.parent.mkdir(parents=True, exist_ok=True)
     request.unlink(missing_ok=True)
     config_path(env).parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +107,7 @@ def stage(action, argv):
     result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True)
     require(result.returncode == 0 and request.is_file(), 'prediction failed or no fresh request')
     evidence.mkdir(parents=True, exist_ok=True)
-    destination = evidence / 'pop-request.json'
+    destination = evidence / REQUEST_NAME
     if destination != request:
         shutil.copyfile(request, destination)
     print('SHA256 ' + hashlib.sha256(destination.read_bytes()).hexdigest() + ' ' + str(destination))
@@ -132,7 +136,7 @@ def main():
     require(chain == 31337 if stop else chain in (10, 31337, 11155111), 'unsupported deployment chain')
     require(not production or chain in (10, 11155111), 'production chain required')
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
-    require(evidence.is_dir(), 'evidence directory required')
+    require(evidence.is_dir() and evidence.is_relative_to(ROOT), 'evidence directory required inside worktree')
     env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='0' if production else '1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
     env.setdefault('FOUNDRY_OUT', 'cache/deploylive-rehearsal-out')
     env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
@@ -200,12 +204,59 @@ def main():
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=env, capture_output=True, text=True)
     (evidence/'checker.log').write_text(result.stdout)
     checker_pass(result)
+    print(result.stdout, end='' if result.stdout.endswith('\n') else '\n')
     print('PASS full deployment; post-deploy checker PASS')
+
+
+def cli(argv=None):
+    """Public entry point: every command requires the complete approved input file."""
+    from deploylive_controls import load_inputs, evidence_dir, hardfork_check, cap_control, archive
+    argv = list(sys.argv[1:] if argv is None else argv)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('action', choices=('build','predict','deploy','hardfork-check','cap-control','archive'))
+    parser.add_argument('--inputs', required=True)
+    parser.add_argument('--production', action='store_true')
+    parser.add_argument('--to')
+    parser.add_argument('--stop', action='store_true')
+    args = parser.parse_args(argv)
+    require(not args.stop or (args.action == 'deploy' and not args.production), '--stop requires rehearsal deploy')
+    env = load_inputs(args.inputs)
+    evidence = evidence_dir(env)
+    evidence.mkdir(parents=True, exist_ok=True)
+    if args.action == 'hardfork-check':
+        require(env['DEPLOYLIVE_SOURCE_RPC'] != env['DEPLOYLIVE_SECOND_RPC'], 'distinct endpoints required')
+        return hardfork_check(ReadOnlyRPC(env['DEPLOYLIVE_SOURCE_RPC']), ReadOnlyRPC(env['DEPLOYLIVE_SECOND_RPC']), evidence)
+    if args.action == 'cap-control':
+        require(not args.production, 'cap-control refused in production')
+        return cap_control(RPC(env['DEPLOYLIVE_RPC']), evidence)
+    if args.action == 'archive':
+        require(bool(args.to), 'archive requires --to')
+        return archive(evidence,args.to)
+    previous = dict(os.environ)
+    previous_argv = sys.argv[:]
+    try:
+        os.environ.clear()
+        os.environ.update(env)
+        if args.action in ('build','predict'):
+            flags = ['--production'] if args.production else []
+            if args.action == 'predict': flags += ['--evidence', str(evidence)]
+            stage(args.action,flags)
+            print(args.action.upper() + ' PASS')
+        else:
+            # GUARDIANS is generated from the approved DVT export after prediction.
+            os.environ['GUARDIANS'] = (evidence/'guardians.hex').read_text().strip()
+            sys.argv = [sys.argv[0], 'deploy'] + (['--production', env['DEPLOYER_ADDRESS']] if args.production else [env['DEPLOYLIVE_RPC'], env['DEPLOYER_ADDRESS']])
+            if args.stop: sys.argv.append('--stop')
+            main()
+    finally:
+        os.environ.clear()
+        os.environ.update(previous)
+        sys.argv = previous_argv
 
 
 if __name__ == '__main__':
     try:
-        main()
+        cli()
     except Exception as error:
         # Preserve diagnostics while removing endpoint URLs and credentials.
         print('STOP deployment: ' + redact_error(error))

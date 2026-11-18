@@ -1,0 +1,14 @@
+{
+  "11155111": {
+    "chain": "Sepolia", "hardfork": "amsterdam",
+    "current": {"forkId": "0x6c1d9423", "activationTime": 1791294816},
+    "allowUnsupportedA": false,
+    "headerFields": {"blockAccessListHash": true, "slotNumber": true},
+    "basis": "Deploy-day rehearsal eth_config and corroborated headers, 2026-11-19"
+  },
+  "10": {
+    "chain": "OP", "current": null, "allowUnsupportedA": true,
+    "headerFields": {"blockAccessListHash": false, "slotNumber": false},
+    "basis": "eth_config unsupported → header-field rule: neither Amsterdam field is populated; both endpoints must agree at the pinned block. A supported eth_config requires separately approved current fork values."
+  }
+}
