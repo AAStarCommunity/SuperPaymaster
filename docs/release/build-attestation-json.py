@@ -15,7 +15,7 @@ VERSION = {
     'xPNTsTokenV2Ext': None,  # extension of xPNTsTokenV2; token.version() covers it
     'xPNTsFactoryV2': 'xPNTsFactory-3.0.0-v2',
     'AOAProtocolRegistry': 'AOAProtocolRegistry-1.0.0',
-    'GlobalTierSource': 'GlobalTierSource-1.0.1',
+    'GlobalTierSource': 'GlobalTierSource-1.0.0',
     'APNTsCapped': 'APNTsCapped-1.0.0',
 }
 for r in rows:
