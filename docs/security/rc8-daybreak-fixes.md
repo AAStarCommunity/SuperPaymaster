@@ -973,14 +973,19 @@ repayment. Zero net issuance remains allowed even when supply already exceeds a 
 settlement, debt repayment and burns remain available. This cap is a community self-constraint:
 `setIssuanceCap` is `onlyCommunityOwner` with no delay, so the owner can raise it and mint in one
 transaction. The economic guard remains `isOverIssued`'s value model. A cap of `0` means unlimited,
-and new clones default to `0`.
+and new clones default to `0`. The cap bounds circulating supply (`totalSupply`), not cumulative
+issuance: a burn frees room that a later mint can use again
+(`test_I_01_issuance_cap_exact_boundary_and_burn_reopens_room`).
 
 **C2-02.** The EIP-712 domain changes from
 `{name: "", version: "1", chainId, verifyingContract: clone}` to
 `{name: token.name(), version: "1", chainId, verifyingContract: clone}`.
 `DOMAIN_SEPARATOR()` and `eip712Domain()` are computed per call. Both ERC-2612 `permit` and
 `executeBySig` / `actionDigest` (`V2Action`) are affected. The implementation itself retains name
-`""`; the factory rejects an empty token name with `InvalidParameters()` for new clones.
+`""`. New clones cannot have an empty name: the factory rejects it with `InvalidParameters()`, and
+`initialize` itself rejects it with `InvalidParam()`, so the rule also holds for a clone initialized
+outside the factory. `eip712Domain()` keeps the EIP-5267 output names `name` and `version`, so clients
+that read the result by name keep working.
 Existing 4.0.1 clones keep name `""` forever: these are EIP-1167 clones, not upgradeable contracts.
 `deployments/config.sepolia.json` contains no v2 clones (configuration evidence, not a chain scan).
 The SDK must read `eip712Domain()` per clone and must not hard-code the name. Deploy the new

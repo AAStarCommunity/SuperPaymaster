@@ -252,8 +252,8 @@ abstract contract xPNTsV2Base is Initializable, ERC20, ERC20Permit {
         override
         returns (
             bytes1 fields,
-            string memory domainName,
-            string memory domainVersion,
+            string memory name,
+            string memory version,
             uint256 chainId,
             address verifyingContract,
             bytes32 salt,

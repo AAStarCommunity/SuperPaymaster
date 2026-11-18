@@ -124,7 +124,8 @@ contract xPNTsTokenV2Test is Test {
         assertEq(t.nonces(signer), 1);
     }
 
-    /// @dev Regression control: OZ already isolated clone and chain domains before C2-02.
+    /// @dev Regression control, NOT C2-02 evidence: this test also passes on the pre-fix code (name ""),
+    ///      because OZ already bound the domain to the clone address and chain id before C2-02.
     function test_regression_permit_rejects_cross_chain_and_cross_clone_replay() public {
         uint256 value = 7 ether;
         uint256 deadline = block.timestamp + 1 hours;
@@ -263,7 +264,8 @@ contract xPNTsTokenV2Test is Test {
         assertEq(token.debts(user), 0);
     }
 
-    /// @dev Regression control: OZ already isolated clone and chain domains before C2-02.
+    /// @dev Regression control, NOT C2-02 evidence: this test also passes on the pre-fix code (name ""),
+    ///      because OZ already bound the domain to the clone address and chain id before C2-02.
     function test_regression_executeBySig_rejects_cross_clone_and_cross_chain_replay() public {
         vm.prank(address(0xC2));
         xPNTsTokenV2 other = xPNTsTokenV2(
@@ -327,6 +329,15 @@ contract xPNTsTokenV2Test is Test {
         vm.expectRevert(xPNTsFactoryV2.InvalidParameters.selector);
         factory.deployxPNTsToken("", "xC2", "Comm2", "comm2.eth", 1 ether, address(0));
         assertEq(factory.communityToToken(address(0xC2)), address(0));
+    }
+
+    function test_initialize_rejects_empty_token_name_outside_the_factory() public {
+        xPNTsTokenV2 c = xPNTsTokenV2(Clones.clone(address(impl)));
+        vm.expectRevert(xPNTsV2Base.InvalidParam.selector);
+        c.initialize(xPNTsTokenV2.InitConfig("", "s", address(this), address(this), "c", "e", 1 ether, sp, address(0), address(0)));
+        assertEq(c.FACTORY(), address(0), "clone stays uninitialized");
+        c.initialize(xPNTsTokenV2.InitConfig("n", "s", address(this), address(this), "c", "e", 1 ether, sp, address(0), address(0)));
+        assertEq(c.name(), "n");
     }
 
     function test_implementation_domain_is_empty_and_differs_from_clone() public view {
