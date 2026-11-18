@@ -120,7 +120,10 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     p=pin['phaseC']; facts=m.phase_c_pin_gates(pin,c,context=ctx)
     bounds={arm:{k:scale(v,gas_factor) for k,v in cal['arms'][arm].items()} for arm in m.ARMS}
     a.need('rq3_gas_fields',all(set(b)==set(m.ARM_FIELDS) for b in bounds.values()),True)
-    a.need('rq3_gas_bounds',all(0<=v<2**128 for b in bounds.values() for v in b.values()) and gas_tuple[0]>0,True)
+    # VerifyingPaymaster has no postOp (empty context; EntryPoint never calls it): its measured postOp
+    # is structurally zero and must stay exactly zero. Every other bound must be positive.
+    a.need('rq3_structural_zero',cal['arms']['VPM']['postOp'],0)
+    a.need('rq3_gas_bounds',all((0<v or (arm,k)==('VPM','postOp')) and v<2**128 for arm,b in bounds.items() for k,v in b.items()) and gas_tuple[0]>0,True)
     bounds['SP']['postOp'],postop_rule=sp_postop_limit(cal['arms']['SP']['postOp'],gas_factor,gas_tuple[0])
     maxima={arm:sum(b[k] for k in m.ARM_FIELDS if k!='outer')*fee for arm,b in bounds.items()}
     price_a,fee_b=p['sp']['aPNTsPriceUSD'],p['sp']['protocolFeeBPS']
@@ -155,6 +158,7 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
 
 
 def build(cfg,inputs,rpc,checker,cal,baselines):
+    # Pure assembly layer; generate() authenticates files, checker and deployment before calling.
     check_inputs(cfg,inputs,checker)
     for i in range(len(inputs['taskRecipients'])):
         value=cal.get('setup',{}).get('C11.extra.'+str(i))
@@ -174,8 +178,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
     a.need('rq3_priority_history',len(rewards),rule['blocks'])
     priority=rewards[(len(rewards)-1)//2]
     a.need('rq3_priority_zero',priority>0,True)
-    # Node estimates differ between endpoints by design: record each, never require agreement.
-    node_estimate=[a.qty(c('eth_maxPriorityFeePerGas',[])) for c in getattr(rpc,'clients',[rpc])]
+    # Nonhistorical node estimates are excluded so historical reconstruction is deterministic.
     requested_fee=scale(a.qty(head['baseFeePerGas']),inputs['feeFactor'])+priority
     fee=min(requested_fee,inputs['feeCeiling'])
     # Cap the base-fee rule; reject a cap that cannot cover the pinned base fee and priority.
@@ -261,9 +264,9 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         pc['feeRule']=dict(baseFee=a.qty(head['baseFeePerGas']),factor=inputs['feeFactor'],ceiling=inputs['feeCeiling'],block=head,
                           priority=dict(rule='eth_feeHistory median of per-block percentile',blocks=rule['blocks'],
                                         percentile=rule['percentile'],newestBlock=block,oldestBlock=history.get('oldestBlock'),
-                                        rewards=rewards,value=priority,nodeEstimate=node_estimate))
-        plan=dict(taskRecipients=copy.deepcopy(inputs['taskRecipients']),schema='rq3-deploylive-1',deploymentContext=ctx,chainId=chain,commit=cfg['commit'],configSha256=digest(cfg),
-                  checker=checker,pin=pin,phaseC=pc,steps=local_steps,addresses=cfg,
+                                        rewards=rewards,value=priority))
+        plan=dict(planIndex=i,taskRecipients=copy.deepcopy(inputs['taskRecipients']),schema='rq3-deploylive-1',deploymentContext=ctx,chainId=chain,commit=cfg['commit'],configSha256=digest(cfg),
+                  checker=structured_checker(checker),pin=pin,phaseC=pc,steps=local_steps,addresses=address_table(cfg),
                   externalInputs={'sha256':digest(inputs),'data':{'phaseC':c,'sampled':[ctx['operator']]}},
                   gasPolicy=dict(factor=inputs['gasFactor'],frozen=True,source=cal['source']))
         plans[c['account']]=plan
@@ -275,7 +278,11 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
     targets='['+target+']'; values='['+str(inputs['stakeWei'])+']'; datas='['+data+']'
     encoded=a.cast('abi-encode','c(address[],uint256[],bytes[],bytes32,bytes32)',targets,values,datas,a.ZERO32,salt)
     op=dict(targets=[target],values=[inputs['stakeWei']],data=[data],predecessor=a.ZERO32,salt=salt,id=a.keccak(encoded),delay=delay)
-    def safe(sid,to,data,value=0): return dict(id=sid,**{'from':ctx['safe']},to=to,data=data,value=hex(value),requiredSignatures=threshold)
+    def safe(sid,to,data,value=0):
+        limit=scale(cal['safeTransactions'][sid],inputs['gasFactor'])
+        a.need('rq3_safe_gas',limit>0,True)
+        return dict(id=sid,**{'from':ctx['safe']},to=to,data=data,value=hex(value),
+                    gas=hex(limit),maxFeePerGas=hex(fee),maxPriorityFeePerGas=hex(priority),requiredSignatures=threshold)
     safe_txs=[safe('C1',cfg['aPNTs'],a.calldata('mint(address,uint256)',ctx['operator'],mint)),
               safe('GToken.transfer',cfg['gToken'],a.calldata('transfer(address,uint256)',ctx['operator'],transfer)),
               safe('SP.stake.schedule',cfg['timelockController'],a.calldata('scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',targets,values,datas,a.ZERO32,salt,delay)),
@@ -290,9 +297,10 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
            len({pc['taskCallData'] for pc in pcs})==1,True)
     shared=dict(T=pcs[0]['addresses']['T'],R=m.DEAD,SP=ctx['SP'],chainId=chain,
                 commit=cfg['commit'],configSha256=digest(cfg),taskCallData=pcs[0]['taskCallData'],
-                taskRecipients=copy.deepcopy(inputs['taskRecipients']))
+                taskRecipients=copy.deepcopy(inputs['taskRecipients']),experiment=inputs['experiment'])
+    funding=funding_table(all_steps,safe_txs,rpc,block,pcs,mint,transfer,cfg)
     return dict(shared=shared,plans=plans,steps=all_steps,safeTransactions=safe_txs,timelockOperation=op,
-                configSha256=digest(cfg),commit=cfg['commit'],chainId=chain,checker=checker)
+                configSha256=digest(cfg),commit=cfg['commit'],chainId=chain,checker=structured_checker(checker),funding=funding)
 
 
 def pre_send(rpc,plan):
@@ -356,16 +364,154 @@ def http_transport(url,opener=None):
     return rpc
 
 
+def address_table(cfg):
+    return {key:cfg[key].lower() for key in CONFIG_ADDRESSES}
+
+
+def structured_checker(checker):
+    fields=('result','exitCode','passed','failed','total','summary','configSha256','commit','chainId','stdoutSha256','checkerSha256')
+    result={k:checker[k] for k in fields if k in checker}
+    if 'stdout' in checker:
+        result['stdoutSha256']=hashlib.sha256(checker['stdout'].encode()).hexdigest()
+    return result
+
+
+def output_bytes(value, secrets=(), patterns=()):
+    raw=(json.dumps(value,indent=2,sort_keys=True)+'\n').encode()
+    text=raw.decode()
+    forbidden=(r'(?i)(?:https?|wss?|ftp)://', r'(?i)Bearer\s+[a-z0-9._~-]+',
+               r'-----BEGIN [A-Z ]*PRIVATE KEY-----',
+               r'(?i)"(?:api[_-]?key|private[_-]?key|password|secret|access[_-]?token)"\s*:',
+               r'(?i)(?:api[_-]?key|password|secret|access[_-]?token)\s*[=:]\s*[^\s,}]+',
+               r'\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\b')
+    a.need('rq3_output_credentials',not any(re.search(p,text) for p in (*forbidden,*patterns)) and
+           not any(secret and secret in text for secret in secrets),True)
+    return raw
+
+
+def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=None):
+    import subprocess
+    sys.path.insert(0,str(ROOT/'script/rehearsal'))
+    from deploylive_runtime import clean_source_commit
+    a.need('rq3_source_commit',cfg['commit'],(commit_reader or clean_source_commit)())
+    checker=ROOT/'script/rehearsal/deploylive_postdeploy_check.py'
+    executable=[str(ROOT/'script/rq3op/checker_runner.py'),block] if block else [str(checker)]
+    result=(runner or subprocess.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
+        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT)
+    matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
+    expected=182+2*int(cfg['guardianN'])
+    a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
+        tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
+    return dict(result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
+        summary=f'SUMMARY {expected} passed, 0 failed, {expected} total',
+        stdoutSha256=hashlib.sha256(result.stdout.encode()).hexdigest(),
+        checkerSha256=hashlib.sha256(checker.read_bytes()).hexdigest(),
+        configSha256=digest(cfg),commit=cfg['commit'],chainId=chain)
+
+
+SYSTEM_SOURCES={
+    'entryPoint':None,'superPaymaster':'paymasters/superpaymaster/v3/SuperPaymaster.sol',
+    'registry':'core/Registry.sol','xPNTsFactoryV2':'tokens/v2/xPNTsFactoryV2.sol',
+    'simpleAccountFactory':None,'staking':'core/GTokenStaking.sol',
+    'gToken':'tokens/GTokenAuthorization.sol','aPNTs':'tokens/APNTsCapped.sol',
+    'governanceOwner':None,'timelockController':None}
+
+
+def verify_system(cfg,rpc,block):
+    for key,source in SYSTEM_SOURCES.items():
+        address=cfg[key]
+        code=rpc('eth_getCode',[address,block])
+        a.need('rq3_system_code',isinstance(code,str) and bool(re.fullmatch(r'0x(?:[0-9a-fA-F]{2})+',code)),True)
+        if source:
+            text=inside(ROOT/'contracts/src'/source).read_text()
+            match=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)
+            if not match and 'SPReleaseVersion' in text:
+                release=inside(ROOT/'contracts/script/v3/SPReleaseVersion.sol').read_text()
+                match=re.search(r'constant\s+SP\s*=\s*"([^"]+)"',release)
+            if match:
+                raw=bytes.fromhex(a.call(rpc,address,'version()',block=block)[2:])
+                offset=int.from_bytes(raw[:32],'big');size=int.from_bytes(raw[offset:offset+32],'big')
+                actual=raw[offset+32:offset+32+size].decode()
+                a.need('rq3_system_version',actual,match[1])
+            else:
+                a.need('rq3_version_source','function version' not in text,True)
+
+
+def verify_calibration(cfg,cal,chain,rpc):
+    source=cal['source'];raw=inside(source['evidenceFile']).read_bytes()
+    a.need('rq3_calibration_hash',hashlib.sha256(raw).hexdigest(),source['evidenceSha256'])
+    evidence=json.loads(raw)
+    a.need('rq3_calibration_identity',[evidence.get(k) for k in ('chainId','superPaymaster','commit')],
+           [chain,cfg['superPaymaster'],cfg['commit']])
+    block=rpc('eth_getBlockByNumber',[evidence['blockNumber'],False])
+    a.need('rq3_calibration_block',[block['number'],block['hash'],source['blockHash']],
+           [evidence['blockNumber'],evidence['blockHash'],evidence['blockHash']])
+    for key in ('arms','setup','ownerPreparation','ownerMaintenance','bundlerMaintenance','safeTransactions'):
+        a.need('rq3_calibration_measurements',evidence[key],cal[key])
+    # VPM postOp is structurally zero (checked in worksheet); every other limit must be positive.
+    limits=[v for name,arm in cal['arms'].items() for k,v in arm.items() if (name,k)!=('VPM','postOp')]
+    limits+=list(cal['setup'].values())+list(cal['ownerPreparation'].values())+list(cal['safeTransactions'].values())
+    limits += [v['gas'] for key in ('ownerMaintenance','bundlerMaintenance') for v in cal[key]]
+    a.need('rq3_positive_limits',all(type(v) is int and v>0 for v in limits),True)
+
+
+def funding_table(steps,safe_txs,rpc,block,pcs,mint,transfer,cfg):
+    rows={}
+    for tx in [s['tx'] for s in steps]+safe_txs:
+        who=tx['from'];row=rows.setdefault(who,dict(valueTotal=0,maxGasCost=0))
+        row['valueTotal']+=a.qty(tx['value'])
+        if 'gas' in tx:row['maxGasCost']+=a.qty(tx['gas'])*a.qty(tx['maxFeePerGas'])
+    for who,row in rows.items():
+        row['totalRequired']=row['valueTotal']+row['maxGasCost']
+        row['currentBalance']=a.qty(rpc('eth_getBalance',[who,block]))
+        row['incomingFunding']=sum(a.qty(s['tx']['value']) for s in steps if s['tx']['to']==who)
+        row['shortfall']=max(0,row['totalRequired']-row['currentBalance']-row['incomingFunding'])
+        row['gasScope']='emitted transactions' if who!=cfg['governanceOwner'] else 'calibrated Safe transaction allowance; executor also needs its own signing gas'
+    tokens={cfg['aPNTs']:mint,cfg['gToken']:transfer}
+    for pc in pcs:
+        for label,field in [('X','userTarget'),('Q','feeTokenTarget')]:
+            address=pc['addresses'][label];tokens[address]=tokens.get(address,0)+pc[field]
+    # Count every mint, including task recipients, directly from emitted calldata.
+    mint_selector=a.calldata('mint(address,uint256)',a.ZERO,0)[:10]
+    for step in steps:
+        tx=step['tx']
+        if tx['to']==pcs[0]['addresses']['T'] and tx['data'].startswith(mint_selector):
+            tokens[tx['to']]=tokens.get(tx['to'],0)+int(tx['data'][-64:],16)
+    return dict(senders=rows,eth=dict(valueTotal=sum(r['valueTotal'] for r in rows.values()),
+        maxGasCost=sum(r['maxGasCost'] for r in rows.values()),totalRequired=sum(r['totalRequired'] for r in rows.values())),tokens=tokens)
+
+
+def generate(config_path,inputs_path,left,right,url,block=None,checker_runner=None,commit_reader=None):
+    cfg=load(config_path);inputs=load(inputs_path)
+    pair=Pair(left,right)
+    if block:
+        pair.head=pair('eth_getBlockByNumber',[block,False])
+    checker=run_checker(config_path,cfg,url,a.qty(pair('eth_chainId',[])),checker_runner,commit_reader,pair.head['number'])
+    verify_system(cfg,pair,pair.head['number'])
+    cal=load(inputs['calibration']);verify_calibration(cfg,cal,checker['chainId'],pair)
+    def frozen(method,params):
+        if method=='eth_getBlockByNumber' and params[0]=='latest':return pair.head
+        if block and method=='eth_getTransactionCount' and params[-1]=='pending':params=[params[0],pair.head['number']]
+        return pair(method,params)
+    # The pure builder consumes the same validated checker schema as its historical fixtures.
+    internal=dict(checker,stdout='PASS verified checker execution\n'+checker['summary'])
+    result=build(cfg,inputs,frozen,internal,cal,load_baselines(cfg,inputs))
+    result['checker']=checker
+    for plan in result['plans'].values():plan['checker']=checker
+    pair.finish()
+    return output_bytes(result,secrets=inputs.get('secrets',()),patterns=inputs.get('secretPatterns',()))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('config'); parser.add_argument('inputs'); parser.add_argument('output')
-    parser.add_argument('--rpc-a-file',required=True); parser.add_argument('--rpc-b-file',required=True)
-    args=parser.parse_args(); cfg=load(args.config); inputs=load(args.inputs)
-    # Transport is instantiated only by this explicit CLI. Tests inject an offline fake.
-    def transport(path): return http_transport(inside(path).read_text().strip())
-    pair=Pair(transport(args.rpc_a_file),transport(args.rpc_b_file))
-    result=build(cfg,inputs,pair,load(inputs['checkerEvidence']),load(inputs['calibration']),load_baselines(cfg,inputs))
-    inside(args.output).write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+    parser.add_argument('config');parser.add_argument('inputs');parser.add_argument('output')
+    parser.add_argument('--rpc-a-file',required=True);parser.add_argument('--rpc-b-file',required=True)
+    parser.add_argument('--block')
+    args=parser.parse_args()
+    urls=[inside(p).read_text().strip() for p in (args.rpc_a_file,args.rpc_b_file)]
+    raw=generate(args.config,args.inputs,http_transport(urls[0]),http_transport(urls[1]),urls[0],args.block)
+    if args.output=='-':sys.stdout.buffer.write(raw)
+    else:inside(args.output).write_bytes(raw)
 
 
 if __name__=='__main__': main()

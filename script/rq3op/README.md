@@ -11,9 +11,9 @@ acceptance has been performed here.
 1. Deploy with the frozen DeployLive script and complete the handoff checker.
    **No funding or registration before checker PASS.** Preserve its full stdout,
    exit status, config and deployment provenance.
-2. The frozen DeployLive writer does **not** write a commit field. The deployment
-   coordinator must record the actual deployment commit as `config.commit` (40
-   lowercase hex digits), then run the checker against that annotated config.
+2. DeployLive records the deployment source commit as `config.commit` (40
+   lowercase hex digits). The planner requires that exact commit at HEAD in a
+   clean worktree and independently runs the checker against the config.
    Never substitute the current checkout HEAD for an unknown deployment commit.
    The planner rejects missing provenance. It hashes the complete config and binds
    the checker evidence, comparator artifacts and all three plans to that commit.
@@ -32,51 +32,48 @@ acceptance has been performed here.
    No default gas estimate exists. Keep calibration evidence under the worktree.
 5. DSR supplies `gasFactor`, `feeFactor`, `priorityRule`, `feeCeiling`, `stakeWei`
    and `unstakeDelay`. Ratios use integer numerator/denominator, rounding up.
-   The gas factor is common to every arm and setup gas limit. The SP postOp floor
-   is an exact chain read used only as a sanity bound: the measured postOp times
-   the common factor must meet it, or planning stops. The TPM's original `refundPostopCost`
+   The gas factor is common to every arm and setup gas limit. SP postOp uses the maximum of
+   the scaled measurement and the on-chain minimum, and records when the floor applies. The TPM's original `refundPostopCost`
    remains a comparator contract configuration value, not a transaction gas limit.
 
 `inputs.example.json` and `calibration.example.json` are **unfilled templates**,
 not measured evidence or executable deployment inputs.
 
-The checker evidence JSON is:
+The tool runs this checkout's DeployLive checker itself. Pasted checker evidence is
+not accepted. Its exit code must be zero and its sole SUMMARY must report zero
+failures and exactly `182 + 2 * guardianN` checks. `config.commit` must equal HEAD
+in a clean worktree. Plans contain only structured checker results and the raw
+stdout SHA256, plus a normalized address table. Output is scanned for URLs and
+credentials before writing.
 
-```json
-{
-  "result": "PASS",
-  "exitCode": 0,
-  "stdout": "<complete checker stdout, including the final summary>",
-  "commit": "<actual deployment commit>",
-  "chainId": 10,
-  "configSha256": "<plan_three_arm.digest(parsed_config)>",
-  "summary": "SUMMARY 187 passed, 0 failed, 187 total"
-}
-```
-
-187 is the current N=3 checker count in HANDOFF, not a value to copy from this
-example without running the checker. The complete checker stdout and exit code are required: any FAIL row, missing
-PASS rows, or a final summary mismatch stops planning. Archive the raw log alongside
-this record. `configSha256` is canonical JSON SHA256 (sorted keys, compact
-separators), not the raw file SHA256. Plans retain the evidence record.
+Calibration `source.evidenceFile` names a worktree-local JSON file; `evidenceSha256`
+hashes its exact bytes. It must contain `chainId`, `superPaymaster`, `commit`,
+`blockNumber`, `blockHash`, and exact copies of `arms`, `setup`, `ownerPreparation`,
+`ownerMaintenance`, `bundlerMaintenance`, and `safeTransactions`. The block hash is
+checked on both endpoints. Every gas limit must be positive, including VPM postOp.
+`safeTransactions` supplies gas measurements for C1, GToken.transfer,
+SP.stake.schedule and SP.stake.execute. Common gas/fee factors apply to these too.
 
 ## Plan and review
 
 In the parent session with network access, from the repository root:
 
 ```sh
-mkdir -p deployments/rq3
+mkdir -p cache/3arm
 python3 -B script/rq3op/plan_three_arm.py \
-  deployments/config.op-rq3.json cache/3arm/inputs.json deployments/rq3/rq3-three-arm.10.json \
+  cache/3arm/config.json cache/3arm/inputs.json cache/3arm/rq3-three-arm.10.json \
   --rpc-a-file cache/3arm/rpc-a.url --rpc-b-file cache/3arm/rpc-b.url
-shasum -a 256 deployments/rq3/rq3-three-arm.10.json
+shasum -a 256 cache/3arm/rq3-three-arm.10.json
 ```
 
 The planner only permits read RPCs. Its two injected clients must agree, state
 reads use EIP-1898 block hashes, and it rechecks the anchor before writing output.
-Paths must resolve inside this worktree. No environment file or keystore is read.
+Paths must resolve inside this worktree. Keep operational config, inputs and outputs
+under ignored `cache/3arm/` so producing evidence does not dirty the source tree.
+No environment file or keystore is read.
 The injected `build(config, inputs, rpc, checker, calibration, baselines)` interface
-is used by offline tests; the CLI loads and verifies the pinned artifacts first.
+is the pure assembly layer used by offline tests. `generate()` authenticates the
+checker, calibration, source commit, code and versions before assembly.
 
 The output includes:
 
@@ -105,9 +102,10 @@ re-estimate an attempt: EntryPoint v0.7's unused-gas penalty would bias costs.
 
 Fees are frozen at plan time with the price keeper's rule. The priority fee is the median, over
 the last `priorityRule.blocks` blocks, of each block's `priorityRule.percentile`-th reward from
-`eth_feeHistory`. Each endpoint's `eth_maxPriorityFeePerGas` is recorded as a control only.
+`eth_feeHistory`. Nonhistorical node estimates are excluded from frozen artifacts
+so setup can reconstruct the same bytes later.
 `maxFeePerGas = min(ceil(baseFee*feeFactor) + priority, feeCeiling)`. The same rule applies to
-all three arms. `phaseC.feeRule` records the block range, the rewards and both values. The ceiling
+all three arms. `phaseC.feeRule` records the block range, rewards, priority and fee cap. The ceiling
 cannot exceed the historical 20 gwei sanity bound. Planning stops if the capped fee cannot cover
 base fee plus priority, or if the priority is zero.
 Before sending, a higher base fee stops execution; it does not revise the plan.
@@ -141,9 +139,9 @@ genesis and three O addresses; exclude the DeployLive deployer.
 For each zero-based queue index in order:
 
 ```sh
-node script/rq3op/setup.mjs deployments/rq3/rq3-three-arm.10.json <reviewed-raw-file-sha256> \
+node script/rq3op/setup.mjs cache/3arm/rq3-three-arm.10.json <reviewed-raw-file-sha256> \
   <queue-index> cache/3arm/signers.json cache/3arm/rpc-a.url cache/3arm/rpc-b.url \
-  cache/3arm/setup.ndjson
+  cache/3arm/setup.ndjson cache/3arm/config.json cache/3arm/inputs.json
 ```
 
 `formal.mjs` supplies endpoint resolution, secret-redacted raw archives and
@@ -297,3 +295,21 @@ SP postOp limit and original output bytes. Fresh SP postOp rejects a scaled
 measurement below minPostOpGas; `sp_postop_limit` isolates this rule from the
 possible alternative `max(scaled, minPostOpGas)`. The gas tuple is re-read before
 send and must still match the pinned tuple.
+
+Setup independently regenerates the complete bundle at its original block using
+config, inputs, calibration and the same planner. Both the exact bytes and the
+DSR-approved SHA256 must match before loading a signer. Archive-capable endpoints
+are required for subsequent steps. The gate worker receives the verified bundle
+in memory and requires a unique plan/step association. All transaction fields are
+compared again after precheck, then pending nonce and chain are read on both
+endpoints immediately before signing.
+
+An exclusive `cache/3arm/locks/<experiment-address>.lock` is held for the whole
+setup invocation. Existing locks, including stale ones, stop execution; investigate
+and remove a stale lock manually only after confirming no signer is active.
+
+`funding.senders` shows value, maximum gas cost, total required, current balance,
+planned incoming funding and shortfall for experiment, genesis, every O and Safe.
+Safe gas is a calibrated allowance for the emitted Safe transactions; the eventual
+executor must also hold signing gas. `funding.eth` and `funding.tokens` aggregate
+ETH obligations and token preparation amounts by token address.

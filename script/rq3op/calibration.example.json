@@ -2,7 +2,8 @@
   "source": {
     "kind": "<estimate or measured>",
     "blockHash": "<calibration block hash>",
-    "evidenceSha256": "<raw calibration evidence SHA256>"
+    "evidenceSha256": "<raw calibration evidence SHA256>",
+    "evidenceFile": "cache/3arm/calibration-evidence.json"
   },
   "arms": {
     "SP": {
@@ -17,7 +18,7 @@
       "call": "<gas units>",
       "verification": "<gas units>",
       "paymasterVerification": "<gas units>",
-      "postOp": "<gas units>",
+      "postOp": 0,
       "preVerification": "<gas units>",
       "outer": "<gas units>"
     },
@@ -68,5 +69,11 @@
     "C18.mint": "<gas units; maximum across senders with source evidence>",
     "C19": "<gas units; maximum across senders with source evidence>",
     "C11.extra.0": "<gas units; maximum across senders with source evidence>"
+  },
+  "safeTransactions": {
+    "C1": "<positive calibrated gas units>",
+    "GToken.transfer": "<positive calibrated gas units>",
+    "SP.stake.schedule": "<positive calibrated gas units>",
+    "SP.stake.execute": "<positive calibrated gas units>"
   }
 }

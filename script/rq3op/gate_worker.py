@@ -10,12 +10,21 @@ def rpc(method,params):
     if 'result' not in response: raise ValueError('archived read failed')
     return response['result']
 
+def associated_plan(bundle, index):
+    step=bundle['steps'][index]; ordinal,sid=step['id'].split('/',1)
+    candidates=[p for p in bundle['plans'].values() if p.get('planIndex')==int(ordinal) and
+                any(s['tx']==step['tx'] and s['id']==sid for s in p['steps'])]
+    if len(candidates)!=1: raise ValueError('ambiguous or missing plan association')
+    plan=candidates[0]
+    local=[s for s in plan['steps'] if s['id']==sid]
+    if len(local)!=1 or local[0]['tx']!=step['tx']: raise ValueError('step association mismatch')
+    return plan,local[0]
+
+
 def main():
-    request=json.loads(sys.stdin.readline()); bundle=q.load(request['bundle'])
-    step=bundle['steps'][request['index']]; index,sid=step['id'].split('/',1)
-    # JSON output is sorted by sender, so locate by the step's owner/step identity instead of map order.
-    plan=next(p for p in bundle['plans'].values() if any(s['tx']==step['tx'] and s['id']==sid for s in p['steps']))
-    local=next(s for s in plan['steps'] if s['id']==sid)
+    request=json.loads(sys.stdin.readline()); bundle=request['bundle']
+    # Receive the verified in-memory bundle; never reopen a mutable caller file.
+    plan,local=associated_plan(bundle,request['index'])
     if request['action']=='precheck':
         q.pre_send(rpc,plan)
         q.m.phase_c_pre_send(rpc,plan,local,{},deployment=plan['deploymentContext'])

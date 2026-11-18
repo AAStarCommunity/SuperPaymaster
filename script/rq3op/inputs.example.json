@@ -18,7 +18,6 @@
   "feeCeiling": "<wei ceiling>",
   "stakeWei": "<bundler required wei>",
   "unstakeDelay": "<bundler required seconds>",
-  "checkerEvidence": "cache/3arm/checker-pass.json",
   "calibration": "cache/3arm/calibration.json",
   "fixturePins": "script/rq3op/fixture-pins.json",
   "baselineSha256": {

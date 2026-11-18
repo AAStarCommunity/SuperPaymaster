@@ -48,6 +48,7 @@ class ThreeArm(unittest.TestCase):
         self.cal = t.phase_c_inputs(lambda *args: {})['rehearsal']
         self.cal['arms']['SP']['postOp']=400000
         self.cal['setup'] = {sid:5000000 for sid in ('C2.approve','C2.deposit','C3.deploy','C3.configure','C5','C6','C7','C8','C20',*m.OWNER_PREPARATION,'C10','C11.S','C11.R','C12','C13.token','C13.oracle','C14','C15','C16.vpm','C16.tpm','C17.sp','C17.vpm','C17.tpm','C18.mint','C19')}
+        self.cal['safeTransactions']={sid:500000 for sid in ('C1','GToken.transfer','SP.stake.schedule','SP.stake.execute')}
         self.cal['source'] = dict(kind='measured', blockHash=self.rpc.head['hash'], evidenceSha256='cd'*32)
         self.evidence = dict(result='PASS', configSha256=q.digest(self.cfg), commit=self.cfg['commit'], chainId=10,
             summary='SUMMARY 187 passed, 0 failed, 187 total',
