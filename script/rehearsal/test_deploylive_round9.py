@@ -13,6 +13,8 @@ import deploylive_runtime as runtime
 
 ROOT = rehearsal.ROOT
 OUTPUT = ROOT/'cache/deploylive-tests/round9'
+# Fresh checkouts have no cache/ tree; the tests must not depend on an earlier run creating it.
+OUTPUT.mkdir(parents=True, exist_ok=True)
 
 class Round9Test(unittest.TestCase):
     def test_artifacts_check_does_not_build(self):
@@ -38,12 +40,13 @@ class Round9Test(unittest.TestCase):
     def run_fork(self, chain, extra=()):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
         env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT)}
-        with patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')) as run:
+        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')) as run:
             fork.main()
         return rpc, run
 
     def test_happy_chain10_clears_delegation_and_logs(self):
         rpc, run = self.run_fork(10)
+        self.assertEqual(run.call_args.kwargs['env']['SP_COMMIT'], 'a' * 40)
         rpc.assert_any_call('anvil_setCode', 'deployer', '0x')
         self.assertEqual((OUTPUT/'forge.stdout.log').read_text(), 'forge stdout')
         self.assertEqual((OUTPUT/'forge.stderr.log').read_text(), 'forge stderr')
@@ -54,7 +57,7 @@ class Round9Test(unittest.TestCase):
                 self.run_fork(31337)
 
     def test_driver_failure_chain10_refused_before_deployment(self):
-        with patch.object(sys, 'argv', ['driver', 'failure', 'http://127.0.0.1:1', str(OUTPUT/'config.json'), 'deployer', 'safe']), patch.dict(os.environ, FOUNDRY_VERBOSITY='2', DEPLOYLIVE_EVIDENCE_DIR=str(OUTPUT), REHEARSAL_BLS_SCALARS='[]', REHEARSAL_SOURCE_RPC='https://unused.invalid/unused'), patch.object(rehearsal, 'RPC', return_value=lambda *a: '0xa'), patch.object(rehearsal.subprocess, 'run', return_value=SimpleNamespace(returncode=1)) as run, patch.object(rehearsal, 'scan_evidence'):
+        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['driver', 'failure', 'http://127.0.0.1:1', str(OUTPUT/'config.json'), 'deployer', 'safe']), patch.dict(os.environ, FOUNDRY_VERBOSITY='2', DEPLOYLIVE_EVIDENCE_DIR=str(OUTPUT), REHEARSAL_BLS_SCALARS='[]', REHEARSAL_SOURCE_RPC='https://unused.invalid/unused'), patch.object(rehearsal, 'clean_source_commit', return_value='a' * 40), patch.object(rehearsal, 'RPC', return_value=lambda *a: '0xa'), patch.object(rehearsal.subprocess, 'run', return_value=SimpleNamespace(returncode=1)) as run, patch.object(rehearsal, 'scan_evidence'):
             with self.assertRaisesRegex(RuntimeError, '31337'):
                 rehearsal.main()
             run.assert_not_called()
@@ -80,7 +83,7 @@ class Round9Test(unittest.TestCase):
 
 class ScanFragmentTests(unittest.TestCase):
     def test_short_path_segment_is_not_a_needle_but_a_long_one_is(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=OUTPUT) as tmp:
             (Path(tmp)/'forge.stdout.log').write_text('compiling v2 artifacts\n')
             rehearsal.scan_evidence(tmp, 'https://rpc.provider.example/v2/abcdef123456', [123456789])
             (Path(tmp)/'leak.log').write_text('key abcdef123456 leaked\n')

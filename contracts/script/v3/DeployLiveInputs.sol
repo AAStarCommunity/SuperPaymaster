@@ -69,6 +69,9 @@ abstract contract DeployLiveInputs is Script {
         require(flag == 0 || (block.chainid == 31337 && _production()), "stop: rehearsal chain only");
         return flag == 1;
     }
+    function _popRequestPath() internal view virtual returns (string memory) {
+        return vm.envOr("DEPLOYLIVE_POP_REQUEST_OUT", string(""));
+    }
     function _inputSet(string memory key) internal view virtual returns (bool) { return vm.envExists(key); }
     function _stringInput(string memory key) internal view virtual returns (string memory) { return vm.envOr(key, string("")); }
     function _addressInput(string memory key) internal view virtual returns (address) { return vm.envOr(key, address(0)); }
@@ -156,10 +159,12 @@ abstract contract DeployLiveInputs is Script {
         for (uint256 i; i < 3; ++i) slashInput[i] = _requiredUint(string.concat("GUARDIAN_SLASH_THRESHOLD_", vm.toString(i)));
         require(nInput <= 64 && minInput >= 2 && minInput <= defaultInput && defaultInput <= nInput, "DeployLive: guardian thresholds");
         for (uint256 i; i < 3; ++i) require(slashInput[i] >= 2 && slashInput[i] <= nInput, "DeployLive: slash threshold");
-        bytes memory encoded = _guardiansInput();
+        // Prediction stops before any guardian use; retain all non-guardian preflight checks.
+        bool predicting = bytes(_popRequestPath()).length != 0;
+        bytes memory encoded = predicting ? abi.encode(new GuardianInput[](0)) : _guardiansInput();
         require(encoded.length != 0, "DeployLive: GUARDIANS");
         GuardianInput[] memory gs = abi.decode(encoded, (GuardianInput[]));
-        require(gs.length == nInput, "DeployLive: GUARDIAN_N mismatch");
+        require(predicting || gs.length == nInput, "DeployLive: GUARDIAN_N mismatch");
         for (uint256 i; i < gs.length; ++i) {
             require(gs[i].account != address(0) && gs[i].account != sender, "DeployLive: guardian account");
             for (uint256 j; j < i; ++j) require(gs[i].account != gs[j].account, "DeployLive: duplicate guardian");

@@ -1,6 +1,6 @@
 # Round 9 acceptance corrections
 
-The checker has **181 + 2N** rows: **185 for N=2**, **187 for N=3**.
+The checker has **182 + 2N** rows: **186 for N=2**, **188 for N=3**.
 The four additions are `deployer has no code`, `artifact directory`,
 `artifact compile settings`, and `release creation pins` (all 25).
 The earlier round counts below are historical.
@@ -71,7 +71,7 @@ a new nonce range and regenerate all address-bound PoPs.
 
 # Round 8 delta handoff (2026-11-18, base 12278ac0)
 
-The current checker count is **177 + 2N**: **181 for N=2**, **183 for N=3**.
+The current checker count is **182 + 2N**: **186 for N=2**, **188 for N=3**.
 The five new rows are the governance Safe proxy codehash, the config pin-file
 SHA256, and three artifact creation-code pins. Authority rows also apply the
 proxy and singleton checks to all five owner inputs and the GToken recipient.
@@ -516,3 +516,74 @@ All original checks remain; exact-target companion checks strengthen negative ow
 | 51 | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` |
 | 52 | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` |
 | 53 | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` |
+
+## Source commit gate (DSR 2026-11-18)
+
+Before every production simulation, PoP request, rehearsal or broadcast, run from
+this repository root:
+
+```sh
+[ -z "$(git status --porcelain)" ] || { echo 'STOP dirty worktree'; exit 1; }
+export SP_COMMIT="$(git rev-parse HEAD)"
+```
+
+Keep `SP_COMMIT` set through the final broadcast. Production requires exactly
+40 lowercase hexadecimal characters and writes them to `config.commit`.
+The checker adds one `source commit` PASS/FAIL row: non-31337 chains require a
+valid commit equal to HEAD and a clean worktree. On 31337, a non-empty commit
+has the same requirements; an empty commit is exempt. Ignored evidence files
+do not make the worktree dirty. Both deployment drivers refuse dirty trees
+before RPC access and derive `SP_COMMIT` from HEAD themselves.
+
+## DeployLive PoP request and DVT export conversion
+
+1. Freeze the final SP head and deployment inputs. At the selected pin block,
+   simulate DeployLive with `SP_COMMIT="$(git rev-parse HEAD)"` and
+   `DEPLOYLIVE_POP_REQUEST_OUT=<request.json>`. Keep the same deployer and nonce
+   for the subsequent deployment. `GUARDIANS` may be absent in this mode; all
+   other production preflight inputs remain required. The script actually
+   deploys through DVTValidator and BLSAggregator in simulation, writes their
+   observed addresses and Registry, then stops before wiring/registration.
+2. Send that request to DVT. It is schema `deploylive-pop-request/1`.
+   `pin.block` and `pin.blockHash` name the same block: the PARENT of the simulated block, because EVM BLOCKHASH cannot read the current block. `pin.senders.deployer.nonce` is the deployer nonce at entry to `run()`. If the deployer sent a transaction in the latest block, a nonce read at `pin.block` differs and DVT refuses (fail-closed), so the operator re-runs the simulation. DVT can check `getBlock(pin.block).hash == pin.blockHash` directly.
+
+   ```sh
+   python3 script/rehearsal/dvt_pop_to_guardians.py dvt-export.json request.json --sp-root . > guardians.hex
+   ```
+
+   The converter prints both input SHA256 values to stderr and emits only
+   `abi.encode(GuardianInput[])` to stdout. Any named `STOP` exits 3. It checks
+   the pinned source blob using read-only `git show`, the local source version,
+   the domain, exact export keys, metadata, canonical calldata, slots and
+   distinct accounts. `popDigests` is count-checked; curve membership and PoP
+   validity are verified by the aggregator on chain, not by this converter.
+5. Repeat the source commit gate above, unset `DEPLOYLIVE_POP_REQUEST_OUT`, and broadcast DeployLive with
+   `GUARDIANS=$(cat guardians.hex)`, the same deployment inputs and artifacts,
+   and **no intervening deployer transaction**. If the nonce or inputs move,
+   discard the request and PoPs and repeat from step 1.
+6. Record `sha256sum request.json dvt-export.json guardians.hex` (or
+   `shasum -a 256 ...`) with the final head, deployment inputs and evidence.
+
+Prediction rejects Foundry `vm.isContext(ScriptBroadcast)` and
+`vm.isContext(ScriptResume)` before `startBroadcast()`. It does not infer a
+live send from `startBroadcast()` itself: Forge dry runs also use that call.
+An empty request path disables prediction. The prediction artifact is not a
+completed deployment config or acceptance evidence.
+
+The synthetic comparison files are in `fixtures/dvt-pop/`. They use only
+GenuineBLS public scalars 1/2/3, never production keys. Regenerate and compare:
+
+```sh
+forge test --offline --evm-version prague --match-contract DeployLivePopSyntheticTest
+python3 script/rehearsal/test_dvt_pop_to_guardians.py --write-synthetic-fixtures
+python3 -m unittest discover -s script/rehearsal -p test_dvt_pop_to_guardians.py
+forge test --offline --match-path 'contracts/test/scripts/DeployLive*.t.sol'
+```
+
+Use separate Forge output/cache directories for Prague fixture generation if
+preserving already-reviewed Cancun artifacts. The prediction test snapshots
+and restores EVM state, then runs the normal production harness from the same
+nonce and compares all three addresses. Its cryptography is mocked by the
+existing orchestration fixture. The separate synthetic test executes the real
+BLS precompiles under Prague and calls DeployLiveLocalBundle for the byte-exact
+GUARDIANS control. No Anvil or RPC is required for these unit tests.

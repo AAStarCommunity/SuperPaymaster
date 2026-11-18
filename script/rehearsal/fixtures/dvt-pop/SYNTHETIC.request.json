@@ -1,0 +1,21 @@
+{
+  "schema": "deploylive-pop-request/1",
+  "chainId": 31337,
+  "spCommit": "a613968980731cbca269a9ca53a5ec157f563c7d",
+  "addresses": {
+    "BLSAggregator": "0x21754f81c145479242dC3f6fD11BBb037D804f03",
+    "Registry": "0xfFC190F56DdE3eC243E684514250a88F4fcC471F",
+    "DVTValidator": "0x57af9eFE5b57d250cCb4bDAB2647669AdaE9bAa5"
+  },
+  "pin": {
+    "block": 123,
+    "blockHash": "0xabababababababababababababababababababababababababababababababab",
+    "senders": {
+      "deployer": {
+        "address": "0x0000000000000000000000000000000000123456",
+        "nonce": 7
+      }
+    }
+  },
+  "guardianCount": 3
+}

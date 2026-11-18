@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from deploylive_runtime import clean_source_commit
 from deploylive_rehearse import RPC, ROOT, require, guard_bls_verbosity
 
 
@@ -13,12 +14,13 @@ def main():
     stop = sys.argv[3:] == ['--stop']
     require(len(sys.argv) == 3 or stop, 'unknown argument')
     guard_bls_verbosity([], os.environ)
+    commit = clean_source_commit()
     rpc = RPC(url)
     chain = int(rpc('eth_chainId'), 16)
     require(chain == 31337 if stop else chain in (10, 31337), 'failure requires chain 31337; happy requires chain 10 or 31337')
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir(), 'evidence directory required')
-    env = dict(os.environ, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
+    env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
     env.setdefault('FOUNDRY_OUT', 'cache/deploylive-rehearsal-out')
     env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
     require((ROOT / env['FOUNDRY_OUT']).resolve() != (ROOT / env.get('DEFAULT_ARTIFACTS_OUT', 'out')).resolve(), 'execution output must differ from release artifacts')

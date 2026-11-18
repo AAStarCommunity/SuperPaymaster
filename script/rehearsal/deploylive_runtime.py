@@ -1,6 +1,8 @@
 """Compare release runtimes, masking only compiler-declared immutable ranges."""
 import json
 import os
+import re
+import subprocess
 from creation_pins import release_names
 from pathlib import Path
 
@@ -60,3 +62,27 @@ def matches(expected, actual):
             if start < 0 or length <= 0 or start + length > len(left): return False
             left[start:start + length] = right[start:start + length] = bytes(length)
     return left == right
+
+
+def clean_source_commit(repo_root=ROOT, git_runner=None):
+    """Return HEAD only when git can prove the worktree is clean."""
+    runner = git_runner or subprocess.run
+    head = runner(['git', '-C', str(repo_root), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    if head.returncode != 0 or not re.fullmatch(r'[0-9a-f]{40}', head.stdout.strip()):
+        raise RuntimeError('invalid git HEAD')
+    status = runner(['git', '-C', str(repo_root), 'status', '--porcelain'], capture_output=True, text=True)
+    if status.returncode != 0 or status.stdout.strip():
+        raise RuntimeError('dirty worktree or unreadable git status')
+    return head.stdout.strip()
+
+
+def check_source_commit(config, chain, repo_root=ROOT, git_runner=None):
+    commit = config.get('commit', '')
+    if chain == 31337 and commit == '':
+        return True
+    if not isinstance(commit, str) or not re.fullmatch(r'[0-9a-f]{40}', commit):
+        return False
+    try:
+        return commit == clean_source_commit(repo_root, git_runner)
+    except (RuntimeError, OSError):
+        return False
