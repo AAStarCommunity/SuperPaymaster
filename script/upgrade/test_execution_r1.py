@@ -93,7 +93,7 @@ class ExecutionSetTests(unittest.TestCase):
             self.assertTrue(frozen['fixture'])
             self.assertEqual(frozen['execution'], {
                 'manifestSha256': hashlib.sha256(manifest.read_bytes()).hexdigest(),
-                'cast': {'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'version': 'frozen-cast'}})
+                'cast': {'path': str(binary.resolve()), 'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'version': 'frozen-cast'}})
 
     def test_packet_digest_refused(self):
         self.assertTrue(hasattr(integrity, 'packet_check'), 'missing frozen execution-set check')
@@ -113,7 +113,7 @@ class SignerTests(unittest.TestCase):
                  patch.object(sender, 'password_file_check', side_effect=AssertionError('password touched')), \
                  patch.object(sender.subprocess, 'run', side_effect=AssertionError('unverified cast executed')):
                 with self.assertRaisesRegex(Exception, 'send_cast_sha256'):
-                    sender.verify_cast({'execution': {'cast': {'sha256': '0'*64, 'version': 'cast-test'}}})
+                    sender.verify_cast({'execution': {'cast': {'path': str(binary.resolve()), 'sha256': '0'*64, 'version': 'cast-test'}}})
 
     def test_cast_missing_refused(self):
         self.assertTrue(hasattr(sender, 'verify_cast'), 'missing pinned cast verification')
@@ -127,7 +127,7 @@ class SignerTests(unittest.TestCase):
             binary = Path(directory) / 'cast'
             binary.write_text('#!/bin/sh\necho cast-test\nexit 1\n')
             binary.chmod(0o700)
-            pin = {'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'version': 'cast-test'}
+            pin = {'path': str(binary.resolve()), 'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'version': 'cast-test'}
             with patch.object(sender, 'CAST', str(binary)):
                 with self.assertRaisesRegex(Exception, 'send_cast_version_exit'):
                     sender.verify_cast({'execution': {'cast': pin}})
@@ -138,7 +138,7 @@ class SignerTests(unittest.TestCase):
             binary = Path(directory) / 'cast'
             binary.write_text('#!/bin/sh\necho cast-test\n')
             binary.chmod(0o700)
-            pin = {'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'version': 'wrong'}
+            pin = {'path': str(binary.resolve()), 'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'version': 'wrong'}
             with patch.object(sender, 'CAST', str(binary)):
                 with self.assertRaisesRegex(Exception, 'send_cast_version'):
                     sender.verify_cast({'execution': {'cast': pin}})

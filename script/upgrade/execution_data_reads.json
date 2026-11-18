@@ -1,0 +1,275 @@
+{
+  "supplementary": [
+    "script/upgrade/gate_name_frozen.json",
+    "script/upgrade/gate_names_replaced_pr2.json",
+    "script/upgrade/gate_renames_pr2.json",
+    "script/upgrade/legacy_timelock_allowlist.json",
+    "script/upgrade/execution_data_reads.json",
+    "docs/release/a3a-precheck-v4/a3a-precheck.json",
+    "docs/release/a3a-precheck-v4/snapshot.json",
+    "script/evidence/a4-conformance-record.template.json"
+  ],
+  "modules": {
+    "script/a3a/a3a_exec.py": {
+      "reads": [
+        "(PACKET.parent / 'snapshot.json').read_text()",
+        "(out / 'plan.json').read_bytes()",
+        "(out / 'plan.json').read_bytes()",
+        "(out / 'relay.log').read_text()",
+        "(out / 'simulate.log').open('a')",
+        "(out / 'simulate.log').open('a')",
+        "(root / path).read_bytes()",
+        "(root / path).read_bytes()",
+        "(tree / 'foundry.toml').read_text()",
+        "PACKET = ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'",
+        "Path(__file__).resolve().parents[1] / 'upgrade'",
+        "Path(plan_path).read_bytes()",
+        "ROOT / 'docs/release/a3a-precheck-v4/a3a-precheck.json'",
+        "ROOT / 'out'",
+        "ROOT / 'out' / (name + '.sol')",
+        "ROOT / 'out/build-info'",
+        "ROOT / 'script/evidence/lib'",
+        "ROOT / 'script/upgrade'",
+        "ROOT = Path(__file__).resolve().parents[2]",
+        "args.rpc_file.read_text()",
+        "args.rpc_file.read_text()",
+        "base = ROOT / 'out' / (name + '.sol')",
+        "committed = committed_bytes(ROOT, path) if source_root is None else (root / path).read_bytes()",
+        "committed_config = tomllib.loads(committed_bytes(ROOT, 'foundry.toml', commit).decode())",
+        "head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)",
+        "head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()",
+        "open(out / 'engine.stderr', 'w')",
+        "open(out / 'relay.log', 'w', buffering=1)",
+        "path.read_bytes()",
+        "path.read_text()",
+        "path.read_text()",
+        "path.read_text()",
+        "path.with_name(path.name + '.sha256').read_text()",
+        "plan_path.read_bytes()",
+        "r = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all', '--', '.', *excludes], cwd=ROOT, capture_output=True, text=True)",
+        "relative = resolved.relative_to(ROOT).as_posix()",
+        "root = ROOT if source_root is None else source_root.resolve()",
+        "root = ROOT if source_root is None else source_root.resolve()",
+        "tarfile.open(fileobj=stream)"
+      ],
+      "targets": [
+        "docs/release/a3a-precheck-v4/a3a-precheck.json",
+        "docs/release/a3a-precheck-v4/snapshot.json",
+        "foundry.toml",
+        "script/a3a/a3a_exec.py"
+      ]
+    },
+    "script/a3a/a3a_send.py": {
+      "reads": [
+        "Path(__file__).resolve().parents[1] / 'upgrade'",
+        "Path(__file__).resolve().parents[1] / 'upgrade'",
+        "args.accounts.read_text()",
+        "args.plan.read_bytes()",
+        "args.rpc_file.read_text()",
+        "open(LOCK_PATH, 'a')",
+        "open(TTY_PATH, 'r')",
+        "open(TTY_PATH, 'w')",
+        "os.open(os.devnull, os.O_WRONLY)",
+        "path.read_bytes()",
+        "path.read_bytes()",
+        "root = Path(__file__).resolve().parents[2]"
+      ],
+      "targets": [
+        "script/a3a/a3a_send.py",
+        "script/upgrade/execution_integrity.py"
+      ]
+    },
+    "script/evidence/lib/rpc_strict.py": {
+      "reads": [],
+      "targets": []
+    },
+    "script/upgrade/execution_integrity.py": {
+      "reads": [
+        "args.plan.read_bytes()",
+        "path.read_bytes()",
+        "path.read_bytes()",
+        "root = Path(__file__).resolve().parents[2]"
+      ],
+      "targets": [
+        "script/a3a/a3a_exec.py",
+        "script/evidence/lib/rpc_strict.py",
+        "script/upgrade/execution_integrity.py",
+        "script/upgrade/execution_set.py"
+      ]
+    },
+    "script/upgrade/execution_reads.py": {
+      "reads": [
+        "Path(__file__).with_name('execution_read_allowlist.json').read_text()",
+        "data = json.loads(Path(__file__).with_name('execution_read_allowlist.json').read_text())"
+      ],
+      "targets": [
+        "script/upgrade/execution_read_allowlist.json",
+        "script/upgrade/execution_reads.py"
+      ]
+    },
+    "script/upgrade/execution_set.py": {
+      "reads": [
+        "(root / p).read_bytes()",
+        "ROOT = Path(__file__).resolve().parents[2]",
+        "args.plan.read_bytes()",
+        "path.read_bytes()",
+        "path.read_text()",
+        "source.read_text()"
+      ],
+      "targets": [
+        "docs/release/a3a-precheck-v4/a3a-precheck.json",
+        "docs/release/a3a-precheck-v4/snapshot.json",
+        "script/a3a/a3a_exec.py",
+        "script/a3a/a3a_send.py",
+        "script/evidence/a4-conformance-record.template.json",
+        "script/upgrade/execution_data_reads.json",
+        "script/upgrade/execution_integrity.py",
+        "script/upgrade/execution_set.py",
+        "script/upgrade/gate_name_frozen.json",
+        "script/upgrade/gate_names_replaced_pr2.json",
+        "script/upgrade/gate_renames_pr2.json",
+        "script/upgrade/legacy_timelock_allowlist.json",
+        "script/upgrade/manifest_exec.py",
+        "script/upgrade/sp_upgrade_exec.py"
+      ]
+    },
+    "script/upgrade/manifest_exec.py": {
+      "reads": [
+        "(tree / 'out/F1Fixtures.sol' / (name + '.json')).read_text()",
+        "(tree / art['source']).read_bytes()",
+        "(tree / path).read_bytes()",
+        "Path(__file__).resolve().parent / 'execution_integrity.py'",
+        "Path(__file__).with_name('fraud-proof-fixture.schema.json').read_text()",
+        "Path(__file__).with_name('fraud-proof-fixture.schema.json').read_text()",
+        "Path(__file__).with_name('release-evidence.schema.json').read_text()",
+        "Path(__file__).with_name('release-evidence.schema.json').read_text()",
+        "Path(path).read_bytes()",
+        "Path(path).read_bytes()",
+        "args.pin.read_bytes()",
+        "args.plan.read_bytes()",
+        "args.rpc_file.read_text()",
+        "args.rpc_file_secondary.read_text()",
+        "path = Path(__file__).resolve().parent / 'execution_integrity.py'",
+        "path.read_bytes()",
+        "path.read_bytes()",
+        "path.read_bytes()",
+        "path.read_text()",
+        "root = Path(__file__).resolve().parents[2]",
+        "schema = json.loads(Path(__file__).with_name('fraud-proof-fixture.schema.json').read_text())",
+        "schema = json.loads(Path(__file__).with_name('fraud-proof-fixture.schema.json').read_text())['properties']['export']",
+        "schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())",
+        "schema = json.loads(Path(__file__).with_name('release-evidence.schema.json').read_text())['oneOf'][0]"
+      ],
+      "targets": [
+        "contracts/test/bundler/F1Fixtures.sol",
+        "script/a6-collector/artifacts/TokenPaymaster.json",
+        "script/a6-collector/artifacts/VerifyingPaymaster.json",
+        "script/upgrade/execution_integrity.py",
+        "script/upgrade/fraud-proof-fixture.schema.json",
+        "script/upgrade/manifest_exec.py",
+        "script/upgrade/release-evidence.schema.json",
+        "scripts/check-sp-layout.py",
+        "scripts/check-xpnts-v2-layout.py"
+      ]
+    },
+    "script/upgrade/old_owner_isolation.py": {
+      "reads": [
+        "Path(__file__).with_name('registry_ast_allowlist.json').read_text()",
+        "Path(__file__).with_name('registry_ast_node_types.json').read_text()",
+        "REGISTRY_AST_ALLOWLIST = json.loads(Path(__file__).with_name('registry_ast_allowlist.json').read_text())",
+        "REGISTRY_AST_NODE_TYPES = json.loads(Path(__file__).with_name('registry_ast_node_types.json').read_text())",
+        "path.read_bytes()",
+        "path.read_text()",
+        "path.read_text()",
+        "path.read_text()"
+      ],
+      "targets": [
+        "contracts/src/core/Registry.sol",
+        "deployments/config.sepolia.json",
+        "script/upgrade/old_owner_isolation.py",
+        "script/upgrade/registry_ast_allowlist.json",
+        "script/upgrade/registry_ast_node_types.json"
+      ]
+    },
+    "script/upgrade/release_evidence.py": {
+      "reads": [
+        "(tree / path).read_text()",
+        "(tree / path).read_text()",
+        "(tree / test_path).read_text()",
+        "args.accepted_findings.read_text()",
+        "candidate.read_bytes()",
+        "config.read_text()",
+        "mapping.read_text()",
+        "p.read_bytes()",
+        "path.read_text()",
+        "raw.read_bytes()",
+        "report.read_text()",
+        "report.read_text()",
+        "unit.read_text()"
+      ],
+      "targets": [
+        "contracts/test/crossrepo/vendor/OverIssueFraudProofVerifier.sol",
+        "contracts/test/v2/SuperPaymasterD5bGov2.t.sol",
+        "package.json",
+        "pnpm-lock.yaml",
+        "script/evidence/a4-conformance-record.template.json",
+        "script/upgrade/manifest_exec.py"
+      ]
+    },
+    "script/upgrade/sp_upgrade_exec.py": {
+      "reads": [
+        "(Path(__file__).resolve().parents[2] / 'abis' / 'SuperPaymaster.full.json').read_text()",
+        "(out / 'plan.json').read_bytes()",
+        "(out / 'simulate.log').open('a')",
+        "Path(__file__).resolve().parents[2] / 'abis'",
+        "Path(__file__).resolve().parents[2] / 'abis' / 'SuperPaymaster.full.json'",
+        "ROOT / 'script/a3a'",
+        "ROOT = Path(__file__).resolve().parents[2]",
+        "a3a_path.read_bytes()",
+        "args.rpc_file.read_text()",
+        "args.rpc_file_secondary.read_text()",
+        "raw = json.loads((Path(__file__).resolve().parents[2] / 'abis' / 'SuperPaymaster.full.json').read_text())"
+      ],
+      "targets": [
+        "abis/SuperPaymaster.full.json",
+        "script/upgrade/sp_upgrade_exec.py"
+      ]
+    },
+    "scripts/check-sp-layout.py": {
+      "reads": [
+        "HERE = os.path.dirname(os.path.abspath(__file__))",
+        "_spec = importlib.util.spec_from_file_location('csl', os.path.join(HERE, 'check_storage_layout.py'))"
+      ],
+      "targets": [
+        "scripts/check-sp-layout.py",
+        "scripts/check_storage_layout.py"
+      ]
+    },
+    "scripts/check-xpnts-v2-layout.py": {
+      "reads": [],
+      "targets": []
+    },
+    "scripts/check_storage_layout.py": {
+      "reads": [
+        "json.load(open(ALLOW_PATH))",
+        "json.load(open(os.path.join(SNAP_DIR, 'Registry.json')))",
+        "json.load(open(os.path.join(SNAP_DIR, 'SuperPaymaster.json')))",
+        "json.load(open(snap_path))",
+        "open(ALLOW_PATH)",
+        "open(os.path.join(SNAP_DIR, 'Registry.json'))",
+        "open(os.path.join(SNAP_DIR, 'SuperPaymaster.json'))",
+        "open(p)",
+        "open(p, 'w')",
+        "open(snap_path)",
+        "open(snap_path, 'rb')",
+        "open(snap_path, 'rb')",
+        "open(snap_path, 'w')"
+      ],
+      "targets": [
+        "contracts/src/core/Registry.sol",
+        "contracts/src/paymasters/superpaymaster/v3/BasePaymasterUpgradeable.sol",
+        "foundry.toml"
+      ]
+    }
+  }
+}

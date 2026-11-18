@@ -62,6 +62,8 @@ jobs:
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_execution_integrity.py
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_execution_calls.py
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_execution_r1.py
+          python3 -B script/upgrade/test_execution_r2.py
+          python3 -B script/upgrade/probe_execution_r2.py
           cd script/upgrade && A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B probe_execution_integrity.py
       - name: Offline manifest Phase C tests
         run: |

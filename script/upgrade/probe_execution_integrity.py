@@ -92,6 +92,20 @@ def call_probes():
     for gate, test in (('execution_head', 'test_head'), ('execution_clean_tree', 'test_first_call')):
         line = next(line for line in source.splitlines() if "a.need('" + gate + "'" in line)
         mutations.append((gate, 'script/upgrade/execution_integrity.py', line, '    pass', test))
+    # Invert success/failure polarity, rather than merely deleting the call.
+    for label, file, old, _, test in list(mutations[:5]):
+        expression = old.strip().removeprefix('return ').removeprefix('evidence = ')
+        success = 'return {}' if old.strip().startswith('return ') else 'evidence = {}'
+        new = ('    try:\n        ' + expression + '\n'
+               '    except Exception:\n        ' + success + '\n'
+               '    else:\n        raise RuntimeError("inverted integrity condition")')
+        mutations.append((label + ' INVERTED', file, old, new, test))
+    for gate, test, expression in (
+            ('execution_head', 'test_head', "git('rev-parse', 'HEAD').decode().strip() != commit"),
+            ('execution_clean_tree', 'test_first_call', "git('status', '--porcelain', '--untracked-files=all').decode() != ''")):
+        old = next(line for line in source.splitlines() if "a.need('" + gate + "'" in line)
+        mutations.append((gate + ' INVERTED', 'script/upgrade/execution_integrity.py', old,
+                          "    a.need('" + gate + "', " + expression + ", True)", test))
     def run(root, test=None):
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(root / p) for p in
                    ('script/upgrade', 'script/a3a')), PYTHONDONTWRITEBYTECODE='1')

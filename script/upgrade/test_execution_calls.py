@@ -42,6 +42,7 @@ from unittest.mock import patch
 import a3a_send as sender
 import manifest_exec as manifest
 import execution_set
+from test_execution_r2 import password_opens
 ROOT = Path.cwd()
 BASE = ROOT.parent
 MODE = MODE_VALUE
@@ -86,7 +87,8 @@ class Boundary(unittest.TestCase):
         if MODE in ('early', 'manifest'):
             (ROOT / 'tracked').write_text('dirty before entry')
         caught = None
-        with patch.object(sender, 'CAST', str(binary)), \\
+        with password_opens(args.password_file) as password_attempts, \\
+             patch.object(sender, 'CAST', str(binary)), \\
              patch.object(sender.ex, 'signing_transaction', return_value={'from': '0x123', 'nonce': '0x0', 'gas': '0x5208', 'maxFeePerGas': '0x2', 'maxPriorityFeePerGas': '0x1', 'value': '0x0', 'to': '0x456', 'data': '0x'}) as tx, \\
              patch.object(sender, 'fee_fits'), \\
              patch.object(sender, 'password_file_check', side_effect=lambda p: calls.append('password')), \\
@@ -100,6 +102,7 @@ class Boundary(unittest.TestCase):
                     sender.run(args, None, 'offline', confirm=confirm)
             except Exception as error:
                 caught = error
+        self.assertEqual(password_attempts, [], 'password path must have zero actual opens')
         self.assertNotIn('mktx', calls, 'signing wrapper must never be called')
         self.assertNotIn('password', calls, 'password must never be touched')
         self.assertNotIn('runner', calls)

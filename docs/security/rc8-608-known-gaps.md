@@ -42,7 +42,9 @@ deploy-day procedure (fresh clone + `shasum -c`, below).
 commit. Obtain the execution-set manifest from the signed freeze packet and confirm its SHA-256
 against `execution.manifestSha256` in the author-confirmed freeze record. From the clone root, run
 `shasum -a 256 -c <execution-set manifest>` with the system shasum. Only after every file passes may
-you run any Python from the repository. Keep the manifest/output packet outside the checkout, or
+you run any Python from the repository. Verify the data files as well as Python: the manifest
+includes schemas, registry AST allowlists/node types, the SuperPaymaster ABI, PR-2 frozen gate
+JSONs, the legacy timelock allowlist, and the reviewed variable-path supplements. Keep the manifest/output packet outside the checkout, or
 in an ignored evidence directory, so the clean-tree check remains meaningful.
 
 PR-3 is **a second line of defence against accidental deviation**. It checks the checkout, helper
@@ -52,7 +54,10 @@ step and reviewed plan digest, before a signed transaction hash exists.
 
 `execution_set.py` computes the entry scripts' transitive repository imports from the AST, including
 imports inside functions, the integrity helper, and itself. Ambiguous module names are included
-conservatively. The manifest uses system `shasum -a 256 -c` syntax. `a3a_exec.plan_command`,
+conservatively. Literal repository data paths are resolved from the AST; `SUPPLEMENTARY` records
+variable-path inputs. `execution_data_reads.json` inventories AST read sites and root joins so a
+new unregistered read fails the offline test. Generated build outputs and caller-supplied files
+remain subject to their existing provenance checks. The manifest uses system `shasum -a 256 -c` syntax. `a3a_exec.plan_command`,
 `sp_upgrade_exec.save_plan`, and `manifest_exec.save_artifact` now write `execution-set.sha256` and
 record its digest in `execution.manifestSha256`. An existing digest is never silently refreshed.
 The final signer pin is added explicitly when preparing the author-reviewed freeze packet:
@@ -62,11 +67,12 @@ python3 -B script/upgrade/execution_set.py --manifest <execution-set manifest> \
   --plan <calibrated plan.json> --packet <frozen plan.json> --cast <reviewed cast executable>
 ```
 
-This freeze command records `execution.cast.sha256` and `execution.cast.version`. Review these and
+This freeze command records `execution.cast.path` (absolute), `execution.cast.sha256`, and
+`execution.cast.version`. Review these and
 the manifest digest, then sign the freeze record and deliver the frozen **plan's** SHA-256 out of
 band as usual. The signing of the author freeze record is an external release procedure, not code
 on this branch. Legacy calibrated plans remain loadable for rehearsal but cannot be sent live
-without both execution pins. Live sending recomputes the manifest digest, resolves the absolute
+without both execution pins. Live sending recomputes the manifest digest, resolves and compares the absolute
 cast executable, compares its bytes before invoking `--version`, and compares that version before
 reading account names or inspecting password-file metadata. `execution.json` records the manifest
 digest and the absolute Git/cast paths, versions and cast digest.

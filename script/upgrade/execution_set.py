@@ -20,6 +20,101 @@ ENTRIES = ('script/a3a/a3a_send.py', 'script/upgrade/manifest_send.py',
            'script/upgrade/execution_set.py')
 
 
+SUPPLEMENTARY = (
+    'script/upgrade/gate_name_frozen.json',
+    'script/upgrade/gate_names_replaced_pr2.json',
+    'script/upgrade/gate_renames_pr2.json',
+    'script/upgrade/legacy_timelock_allowlist.json',
+    'script/upgrade/execution_data_reads.json',
+    'docs/release/a3a-precheck-v4/a3a-precheck.json',
+    'docs/release/a3a-precheck-v4/snapshot.json',
+    'script/evidence/a4-conformance-record.template.json',
+)
+
+
+def static_files(root, source):
+    """Resolve literal Path joins and aliases; also include literal repo filenames."""
+    tree = ast.parse(source.read_text())
+    names = {'ROOT': root, 'HERE': source.parent, '__file__': source}
+
+    def value(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (str, int)):
+            return node.value
+        if isinstance(node, ast.Name):
+            return names.get(node.id)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+            left, right = value(node.left), value(node.right)
+            if isinstance(left, Path) and isinstance(right, str):
+                return left / right
+        if isinstance(node, ast.Attribute):
+            base = value(node.value)
+            if isinstance(base, Path) and node.attr in ('parent', 'parents'):
+                return getattr(base, node.attr)
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute) and node.value.attr == 'parents':
+            base, index = value(node.value.value), value(node.slice)
+            if isinstance(base, Path) and isinstance(index, int) and 0 <= index < len(base.parents):
+                return base.parents[index]
+        if isinstance(node, ast.Call):
+            args = [value(arg) for arg in node.args]
+            if isinstance(node.func, ast.Name) and node.func.id == 'Path' and len(args) == 1 and isinstance(args[0], (str, Path)):
+                return Path(args[0])
+            if isinstance(node.func, ast.Attribute):
+                base = value(node.func.value)
+                if isinstance(base, Path):
+                    if node.func.attr in ('resolve', 'absolute') and not args:
+                        return base
+                    if node.func.attr in ('with_name', 'joinpath') and args and all(isinstance(arg, str) and arg for arg in args):
+                        return getattr(base, node.func.attr)(*args)
+        return None
+
+    assignments = [node for node in ast.walk(tree) if isinstance(node, ast.Assign)]
+    for _ in range(len(assignments) + 1):
+        changed = False
+        for node in assignments:
+            result = value(node.value)
+            for target in node.targets:
+                if isinstance(target, ast.Name) and isinstance(result, Path) and names.get(target.id) != result:
+                    names[target.id] = result
+                    changed = True
+        if not changed:
+            break
+    found = set()
+    for node in ast.walk(tree):
+        result = value(node)
+        candidates = [result] if isinstance(result, Path) else []
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and '\n' not in node.value and 0 < len(node.value) < 240:
+            candidates += [root / node.value, source.parent / node.value]
+        for path in candidates:
+            if path.is_absolute() and path.is_relative_to(root) and path.is_file():
+                found.add(path)
+    return found
+
+
+def data_files(root, modules):
+    found = {root / name for name in SUPPLEMENTARY if (root / name).is_file()}
+    for source in modules:
+        found.update(static_files(root, source))
+    return found
+
+
+def read_sites(source):
+    """Stable AST signatures: new dynamic reads require explicit review too."""
+    sites = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, (ast.BinOp, ast.Assign)) and any(
+                isinstance(part, ast.Name) and part.id in ('ROOT', 'HERE', '__file__')
+                for part in ast.walk(node)):
+            sites.append(ast.unparse(node))
+        if not isinstance(node, ast.Call):
+            continue
+        function = node.func
+        if ((isinstance(function, ast.Name) and function.id == 'open') or
+                (isinstance(function, ast.Attribute) and function.attr in
+                 ('open', 'read_text', 'read_bytes', 'load'))):
+            sites.append(ast.unparse(node))
+    return sorted(sites)
+
+
 def execution_files(root=ROOT):
     # Index all repository Python modules, including modules reached by sys.path
     # adjustments. Ambiguous names are included conservatively, never omitted.
@@ -67,6 +162,9 @@ def execution_files(root=ROOT):
                     continue
                 for part in name.split('.'):
                     pending.extend(index.get(part, ()))
+        # Literal subprocess scripts and file-based imports also carry dependencies.
+        pending.extend(p for p in static_files(root, path) if p.suffix == '.py' and p not in seen)
+    seen.update(data_files(root, seen))
     return sorted(p.relative_to(root).as_posix() for p in seen)
 
 
@@ -75,13 +173,18 @@ def manifest(root=ROOT):
                    for p in execution_files(root))
 
 
-def freeze_manifest(plan, out, root=ROOT):
-    content = manifest(root)
-    digest = hashlib.sha256(content.encode()).hexdigest()
+def pin_manifest(plan, digest):
     execution = plan.setdefault('execution', {})
     if 'manifestSha256' in execution and execution['manifestSha256'] != digest:
         raise RuntimeError('execution_set_sha256')
     execution['manifestSha256'] = digest
+    return execution
+
+
+def freeze_manifest(plan, out, root=ROOT):
+    content = manifest(root)
+    digest = hashlib.sha256(content.encode()).hexdigest()
+    pin_manifest(plan, digest)
     (out / 'execution-set.sha256').write_text(content)
     return digest
 
@@ -106,14 +209,16 @@ def main():
     if any((args.plan, args.packet, args.cast)) and not all((args.plan, args.packet, args.cast)):
         parser.error('--plan, --packet and --cast must be supplied together')
     content = manifest()
-    args.manifest.write_text(content)
     digest = hashlib.sha256(content.encode()).hexdigest()
     if args.packet:
         plan = json.loads(args.plan.read_bytes())
+        execution = pin_manifest(plan, digest)
         signer = cast_identity(args.cast)
-        plan['execution'] = dict(manifestSha256=digest,
-                                 cast={k: signer[k] for k in ('sha256', 'version')})
+        if 'cast' in execution and execution['cast'] != signer:
+            raise RuntimeError('execution_cast_identity')
+        execution['cast'] = signer
         args.packet.write_text(json.dumps(plan, indent=2) + '\n')
+    args.manifest.write_text(content)
     print(digest)
 
 

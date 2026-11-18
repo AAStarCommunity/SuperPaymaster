@@ -90,6 +90,7 @@ def verify_cast(plan):
     ex.need('send_cast_available', binary is not None, True)
     path = Path(binary).resolve()
     pin = plan.get('execution', {}).get('cast', {})
+    ex.need('send_cast_path', str(path), pin.get('path'))
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     ex.need('send_cast_sha256', digest, pin.get('sha256'))
     result = subprocess.run([str(path), '--version'], env=signer_env(), capture_output=True, text=True)
