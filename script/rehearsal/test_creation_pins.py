@@ -13,7 +13,7 @@ class CreationPinsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=OUTPUT) as tmp:
             root = Path(tmp)
             for runs in (200, 500):
-                obj = {'metadata': {'settings': {'optimizer': {'runs': runs}, 'evmVersion': 'cancun', 'compilationTarget': {'C.sol': 'C'}}}, 'bytecode': {'object': '0x' + ('aa' if runs == 500 else 'bb')}}
+                obj = {'metadata': {'settings': {'optimizer': {'runs': runs}, 'evmVersion': 'cancun', 'viaIR': True, 'compilationTarget': {'C.sol': 'C'}}}, 'bytecode': {'object': '0x' + ('aa' if runs == 500 else 'bb')}}
                 (root/f'C.{runs}.json').write_text(json.dumps(obj))
             self.assertEqual(pins.creation_bytes(root, 'C', 500), '0xaa')
             with self.assertRaises(ValueError): pins.check_pins({'C': '0xaa'}, {'C': '0xbb'})

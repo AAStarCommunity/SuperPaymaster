@@ -73,6 +73,6 @@ class ModesTest(unittest.TestCase):
                 return cfg.get('externalTokens') == groups
             argv = ['driver', 'failure', 'http://127.0.0.1:12345', str(config), 'deployer', 'safe', '--external-tokens', str(tokens)]
             env = {'DEPLOYLIVE_EVIDENCE_DIR': str(root), 'REHEARSAL_BLS_SCALARS': '[123456789]', 'REHEARSAL_SOURCE_RPC': 'http://source.invalid/token', 'FOUNDRY_VERBOSITY': '2'}
-            with patch.object(sys, 'argv', argv), patch.dict(os.environ, env), patch.object(r, 'RPC'), patch.object(r, 'fail_bootstrap'), patch.object(r, 'scan_evidence'), patch('deploylive_failed_set_check.inventory', side_effect=inventory), patch.object(r.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=1, stdout='FAIL expected failed H')]):
+            with patch.object(sys, 'argv', argv), patch.dict(os.environ, env), patch.object(r, 'RPC', return_value=lambda *a: '0x7a69'), patch.object(r, 'fail_bootstrap'), patch.object(r, 'scan_evidence'), patch('deploylive_failed_set_check.inventory', side_effect=inventory), patch.object(r.subprocess, 'run', side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=1, stdout='FAIL expected failed H')]):
                 r.main()
             self.assertEqual(captured, [groups])

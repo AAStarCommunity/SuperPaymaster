@@ -176,6 +176,13 @@ contract DeployLiveProductionTest is DeployLiveSafeFixture {
         h.run();
         VmSafe.AccountAccess[] memory records = vm.stopAndReturnStateDiff();
         string memory config = vm.readFile(configPath);
+        assertEq(vm.parseJsonUint(config, ".deployerCodeLength"), 0);
+        assertEq(vm.parseJsonString(config, ".artifactDirectory"), "out");
+        assertEq(vm.parseJsonString(config, ".artifactCompileSettings.Registry.evmVersion"), "cancun");
+        assertTrue(vm.parseJsonBool(config, ".artifactCompileSettings.SuperPaymaster.viaIR"));
+        assertEq(vm.parseJsonUint(config, ".artifactCompileSettings.Registry.optimizerRuns"), 200);
+        assertEq(vm.parseJsonUint(config, ".artifactCompileSettings.TimelockHandoverBootstrap.optimizerRuns"), 200);
+        assertEq(vm.parseJsonUint(config, ".artifactCompileSettings.SuperPaymaster.optimizerRuns"), 500);
         address bootstrap = vm.parseJsonAddress(config, ".handoverBootstrap");
         address tl = vm.parseJsonAddress(config, ".timelockController");
         uint256 v54Distance; bool sawV54;

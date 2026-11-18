@@ -11,6 +11,15 @@ abstract contract DeployLivePins is DefaultArtifacts {
             "X402Facilitator", "PolicyRegistry", "GlobalTierSource", "AOAProtocolRegistry",
             "xPNTsTokenV2Ext", "xPNTsTokenV2", "xPNTsFactoryV2", "SuperPaymasterLens", "xPNTsToken"];
     }
+    function _artifactCompileSettings() internal view returns (string memory result) {
+        string[24] memory names = _pinnedNames();
+        result = "{";
+        for (uint256 i; i < names.length; ++i) {
+            result = string.concat(result, i == 0 ? "" : ",", '"', names[i], '":', _t4Reader.t4CompileSettings(names[i]));
+        }
+        return string.concat(result, ',"TimelockHandoverBootstrap":', _t4Reader.t4CompileSettings("TimelockHandoverBootstrap"), '}');
+    }
+
     function _creationCode(string memory name) internal view virtual returns (bytes memory) {
         return vm.getCode(_defaultArtifact(name));
     }

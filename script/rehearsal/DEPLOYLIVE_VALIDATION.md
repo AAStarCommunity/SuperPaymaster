@@ -1,3 +1,158 @@
+# DeployLive round 9 validation
+
+Completed offline from HEAD a072a37d. No formatter, network/RPC, keystore, .env,
+git writes or Anvil process was used. All reads/writes and evidence stayed in
+this worktree. External evidence-directory support was tested through mocks;
+no external directory was accessed. Live fork acceptance remains for the main
+session.
+
+## Changes and fail-first evidence
+
+Evidence is in `cache/deploylive-tests/round9/`.
+
+- `red-forge.log`: all three delegation tests failed before implementation.
+  The preflight recorded 97 broadcast attempts. Final preflight records zero.
+- `red-h-stop-disabled.log`: corrected the nonce harness to turn the rehearsal
+  stop switch off, then removed only the H guard temporarily. The H constructor
+  was reached and reverted with TimelockUnexpectedOperationState instead of
+  DeployerHasCode. Restored the guard; the final suite passes all three points.
+  The first H red run had the stop switch enabled and is not used as proof of
+  the H boundary.
+- `red-checker.log`: directory drift, metadata runs mismatch, recorded metadata
+  mismatch, delegated live deployer, and nonzero recorded code length all failed
+  against the previous checker.
+- `red-all-pins.log`: altering APNTsCapped creation bytes still passed the prior
+  checker. The new release-wide pin row rejects it.
+- `red-tools.log`: unsupported --artifacts CLI, ignored artifact-directory input,
+  viaIR=false acceptance, chain-10 happy rejection and external evidence-path
+  rejection. Existing failure-31337/unknown-option controls also ran.
+- `red-driver-guards.log`: execution output could overwrite release output.
+  Its initial driver-chain probe lacked evidence environment variables;
+  `red-driver-chain.log` supersedes that probe with complete inputs and shows
+  the driver reaching deployment instead of rejecting chain 10 first.
+- `tools-final.log`: all 10 tool/argument tests pass on final code.
+
+Production checks deployer code at preflight, CREATE TL and CREATE H.
+The config records code length and per-contract metadata. DeployLive, runtime
+reader and checker share DEFAULT_ARTIFACTS_OUT (default out); the checker binds
+the recorded directory and settings and verifies all 25 committed creation pins.
+Registry and H use 200 runs; the other 23 use 500, all Cancun/viaIR.
+The execution hardfork is recorded separately.
+
+The driver clears Anvil deployer code, permits happy mode on chain 10/31337,
+restricts failure mode to 31337, preserves Forge stdout/stderr on failure too,
+and accepts external evidence directories. The committed 31337 token group
+uses inherited OP-fork tokens. Empty local chains still need deployed mock tokens.
+The handoff explains failed two-step ownership, no further abandoned-set
+transactions, and a fresh nonce range for redeploy.
+
+## Verbatim offline results
+
+`FOUNDRY_OFFLINE=true forge build` — exit 0; verbatim compiler result excerpt (full lint warnings in `build.log`):
+
+```text
+Compiling 10 files with Solc 0.8.33
+Compiling 9 files with Solc 0.8.33
+Solc 0.8.33 finished in 30.86s
+Solc 0.8.33 finished in 70.25s
+Compiler run successful with warnings:
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+```
+
+`forge test --offline --match-path 'contracts/test/scripts/DeployLive*.t.sol' -vv`
+— exit 0; full output: `forge-tests.log`.
+
+```text
+Ran 7 test suites in 2.75s (6.85s CPU time): 78 tests passed, 0 failed, 0 skipped (78 total tests)
+```
+
+The shared artifact resolver's existing suites also pass:
+`forge test --offline --match-path 'contracts/test/scripts/*DefaultArtifacts*.t.sol' -vv`
+(`artifact-tests.log`).
+
+```text
+Ran 2 test suites in 87.60ms (105.65ms CPU time): 22 tests passed, 0 failed, 0 skipped (22 total tests)
+```
+
+The production tests also read back the actual serialized directory, zero deployer
+code length, Cancun, viaIR and the Registry/H/SuperPaymaster optimizer runs.
+
+`python3 -m unittest discover -s script/rehearsal -p 'test_*.py'`
+— exit 0; full output: `python-tests.log`.
+
+```text
+Ran 83 tests in 43.640s
+OK (skipped=2)
+```
+
+The two skips are existing opt-in tests; no Anvil was started. The final driver
+test-input refinement was separately rerun with the 10 passing tool tests.
+
+Mock checker (31337 fixtures, N=2), a=0 and a=1 respectively:
+
+```text
+SUMMARY 185 passed, 0 failed, 185 total
+SUMMARY 185 passed, 0 failed, 185 total
+```
+
+Full outputs: `mock-checker-a0.log`, `mock-checker-a1.log`. These are mock
+results, not a live chain acceptance claim.
+
+Check-count formula: **181 + 2N** = prior **177 + 2N** + four fixed rows
+(deployer code, artifact directory, compile settings, all-release creation pins).
+At N=2: 185; at N=3: 187. N guardian rows and N+3 stake rows remain variable;
+the three fixed stake rows are included in 181. INFO-PASS rows count.
+
+`python3 script/rehearsal/creation_pins.py --check deployments/creation-pins.10.json --artifacts out`
+— exit 0, stdout/stderr empty (`artifact-pins.log`). This checked actual
+local creation hashes using cast; it did not perform a clean rebuild.
+The two committed chain pin files are byte-identical.
+`mapping.log` verifies all 53 restored mapping rows are distinct and present
+in checker output; legacy pnts maps to `config legacy pnts == zero`.
+
+## Scope checks
+
+`git diff --stat bfb9cc45 -- contracts/script/v3/TimelockHandoverBootstrap.sol`
+
+Verbatim output (empty):
+
+```text
+```
+
+`bootstrap-diff-stat.log` is zero bytes. `git diff -- contracts/src` is empty
+(`src-diff.log`). `git diff --check` passes.
+
+## Per-file line counts
+
+Whole-file counts for every changed/new task file; ignored evidence excluded.
+
+| File | Lines |
+|---|---:|
+| `contracts/script/v3/DefaultArtifacts.sol` | 433 |
+| `contracts/script/v3/DeployLive.s.sol` | 1020 |
+| `contracts/script/v3/DeployLivePins.sol` | 42 |
+| `contracts/test/scripts/DeployLiveNonce.t.sol` | 104 |
+| `contracts/test/scripts/DeployLiveProduction.t.sol` | 254 |
+| `contracts/test/scripts/DeployLiveRun.t.sol` | 64 |
+| `script/rehearsal/DEPLOYLIVE_HANDOFF.md` | 508 |
+| `script/rehearsal/DEPLOYLIVE_VALIDATION.md` | 581 |
+| `script/rehearsal/creation_pins.py` | 80 |
+| `script/rehearsal/deploylive_fork_deploy.py` | 50 |
+| `script/rehearsal/deploylive_postdeploy_check.py` | 491 |
+| `script/rehearsal/deploylive_rehearse.py` | 301 |
+| `script/rehearsal/deploylive_runtime.py` | 62 |
+| `script/rehearsal/inputs/deploylive-rehearsal.inputs` | 16 |
+| `script/rehearsal/inputs/external-tokens.json` | 93 |
+| `script/rehearsal/test_creation_pins.py` | 23 |
+| `script/rehearsal/test_deploylive_modes.py` | 78 |
+| `script/rehearsal/test_deploylive_postdeploy_check.py` | 556 |
+| `script/rehearsal/test_deploylive_round9.py` | 78 |
+
+---
+
+Earlier validation rounds follow; the round 9 results above supersede their counts.
+
 # DeployLive round 8 validation
 
 Base HEAD: `12278ac0`. No formatter, network, RPC, keystore, Anvil, git writes,

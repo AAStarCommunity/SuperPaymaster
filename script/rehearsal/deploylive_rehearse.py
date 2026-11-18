@@ -36,7 +36,7 @@ def guard_bls_verbosity(args, env, default=3):
 
 def scan_evidence(directory, rpc_url, scalars):
     directory = Path(directory).resolve()
-    require(directory.is_relative_to(ROOT) and directory.is_dir(), 'evidence directory must exist inside worktree')
+    require(directory.is_dir(), 'evidence directory must exist')
     url = urlsplit(rpc_url)
     needles = {rpc_url, url.hostname or ''}
     needles.update(fragment for fragment in unquote(url.path).split('/') if fragment)
@@ -255,9 +255,11 @@ def main():
     path = Path(config).resolve()
     require(path.is_relative_to(ROOT), 'config must be inside worktree')
     rpc = RPC(url)  # All mutation paths share this mandatory guard.
+    if mode == 'failure':
+        require(int(rpc('eth_chainId'), 16) == 31337, 'failure requires chain 31337')
     cfg = {} if mode in ('happy', 'failure') else json.loads(path.read_text())
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR'])
-    require(evidence.resolve().is_relative_to(ROOT) and evidence.is_dir(), 'evidence directory required inside worktree')
+    require(evidence.is_dir(), 'evidence directory required')
     scalars = json.loads(os.environ['REHEARSAL_BLS_SCALARS'])
     source_rpc = os.environ['REHEARSAL_SOURCE_RPC']
     try:
@@ -278,8 +280,8 @@ def main():
                 (evidence/'failed-set.log').write_text('\n'.join(lines) + '\n')
                 require(inventory_ok, 'failed set holds external value or inventory is incomplete')
             result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, safe], capture_output=True, text=True)
-            require(result.returncode == (1 if mode == 'failure' else 0), 'unexpected checker result')
             (evidence/'checker.log').write_text(result.stdout)
+            require(result.returncode == (1 if mode == 'failure' else 0), 'unexpected checker result')
         elif mode == 'governance':
             governance(rpc, cfg, safe)
         elif mode == 'prepare':

@@ -16,13 +16,15 @@ CAST = os.environ.get('CAST', 'cast')
 
 def creation_bytes(root, name, runs):
     candidates = set()
-    for path in Path(root).rglob('*.json'):
+    contract_dir = Path(root) / (name + '.sol')
+    paths = contract_dir.glob('*.json') if contract_dir.is_dir() else Path(root).rglob('*.json')
+    for path in paths:
         obj = json.loads(path.read_text())
         metadata = obj.get('metadata', {})
         if isinstance(metadata, str): metadata = json.loads(metadata)
         settings = metadata.get('settings', {})
         if name not in settings.get('compilationTarget', {}).values(): continue
-        if settings.get('optimizer', {}).get('runs') != runs or settings.get('evmVersion') != 'cancun': continue
+        if settings.get('optimizer', {}).get('runs') != runs or settings.get('evmVersion') != 'cancun' or settings.get('viaIR') is not True: continue
         code = obj['bytecode']['object']
         if not code.startswith('0x'): code = '0x' + code
         if not re.fullmatch(r'0x(?:[0-9a-fA-F]{2})+', code): raise ValueError('unlinked/empty bytecode: ' + name)
@@ -36,9 +38,19 @@ def check_pins(expected, actual):
         raise ValueError('creation pin mismatch: ' + ', '.join(sorted(k for k in expected.keys() | actual.keys() if expected.get(k) != actual.get(k))))
 
 
-def clean_build_pins():
+def release_names():
     names = re.findall(r'"([A-Za-z0-9]+)"', (ROOT/'contracts/script/v3/DeployLivePins.sol').read_text().split('return [', 1)[1].split('];', 1)[0])
     names.append('TimelockHandoverBootstrap')
+    return names
+
+
+def artifact_pins(directory):
+    return {name: subprocess.check_output([CAST, 'keccak', creation_bytes(directory, name,
+            200 if name in ('Registry', 'TimelockHandoverBootstrap') else 500)], text=True).strip()
+            for name in release_names()}
+
+
+def clean_build_pins():
     with tempfile.TemporaryDirectory(prefix='.creation-build-', dir=ROOT) as tmp:
         project = Path(tmp)
         ignore = shutil.ignore_patterns('.git', '.env*', 'out', 'cache', 'node_modules', '__pycache__', 'evidence')
@@ -48,21 +60,19 @@ def clean_build_pins():
         out = project/'out-clean'; out.mkdir()
         env = dict(os.environ, DEFAULT_ARTIFACTS_OUT='out-clean', FOUNDRY_OUT='out-clean', FOUNDRY_CACHE_PATH='cache-clean')
         subprocess.run(['nice', '-n', '10', FORGE, 'build', '--offline', '--evm-version', 'cancun'], cwd=project, env=env, check=True)
-        result = {}
-        for name in names:
-            code = creation_bytes(out, name, 200 if name in ('Registry', 'TimelockHandoverBootstrap') else 500)
-            result[name] = subprocess.check_output([CAST, 'keccak', code], text=True).strip()
-        return result
+        return artifact_pins(out)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('pin_file', type=Path)
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--artifacts', type=Path)
     args = parser.parse_args()
+    if args.artifacts and not args.check: parser.error('--artifacts requires --check')
     path = args.pin_file.resolve()
     if not path.is_relative_to(ROOT): raise ValueError('pin file must be in worktree')
-    actual = clean_build_pins()
+    actual = artifact_pins(args.artifacts) if args.artifacts is not None else clean_build_pins()
     if args.check: check_pins(json.loads(path.read_text()), actual)
     else: path.write_text(json.dumps(actual, indent=2, sort_keys=True) + '\n')
 

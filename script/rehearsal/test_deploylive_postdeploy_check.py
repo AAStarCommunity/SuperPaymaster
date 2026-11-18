@@ -50,6 +50,9 @@ class CheckerTest(unittest.TestCase):
         if op:
             cfg.update(simpleAccountFactory=op_deps["accountFactory"], agentValidationRegistry=op_deps["agentValidationRegistry"] if agents else ZERO)
         cfg['creationPinsSha256'] = '0x' + hashlib.sha256((CHECKER.parents[2] / f"deployments/creation-pins.{10 if op else 31337}.json").read_bytes()).hexdigest()
+        from creation_pins import release_names
+        cfg.update(artifactDirectory='out', deployerCodeLength=0,
+                   artifactCompileSettings={n: dict(evmVersion='cancun', viaIR=True, optimizerRuns=200 if n in ('Registry', 'TimelockHandoverBootstrap') else 500) for n in release_names()})
         authority_bad = None
         if isinstance(mutation, tuple) and mutation[0] == "authority":
             cfg[mutation[1]] = addr(777)
@@ -89,6 +92,9 @@ class CheckerTest(unittest.TestCase):
                 if settings.get('optimizer', {}).get('runs') == (200 if name == 'Registry' else 500) and settings.get('evmVersion') == 'cancun':
                     runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
                     creation_hashes[obj['bytecode']['object']] = pins[name]
+        from deploylive_runtime import release_artifact
+        for name, pin in pins.items():
+            creation_hashes[release_artifact(name)['bytecode']['object']] = pin
         def fake_run(cmd, **kwargs):
             self.assertEqual(cmd[0], "cast")
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
@@ -97,6 +103,8 @@ class CheckerTest(unittest.TestCase):
             out, rc = "", 0
             if kind in ("keccak", "calldata", "sig", "abi-encode"):
                 out = creation_hashes.get(args[0], digest("|".join(args))) if kind == "keccak" else digest("|".join(args))
+            elif kind == "code" and args[0] == deployer:
+                out = '0xef0100' + '12'*20 if mutation == 'delegated_deployer' else '0x'
             elif kind == "balance": out = "0"
             elif kind == "storage" and args[0].lower() in (safe.lower(), addr(777).lower()) and (args[0].lower() == safe.lower() or authority_bad):
                 slot = args[1]
@@ -236,6 +244,8 @@ class CheckerTest(unittest.TestCase):
                 obj = json.loads(raw); del obj['ethUsdFeed']; return json.dumps(obj)
             if isinstance(mutation, tuple) and mutation[0] == 'creation' and path.parent.name == mutation[1] + '.sol':
                 obj = json.loads(raw); obj['bytecode']['object'] = '0x00'; return json.dumps(obj)
+            if isinstance(mutation, tuple) and mutation[0] == 'settings' and path.parent.name == mutation[1] + '.sol':
+                obj = json.loads(raw); obj['metadata']['settings']['optimizer']['runs'] = 200; return json.dumps(obj)
             return raw
         output = io.StringIO()
         with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), contextlib.redirect_stdout(output):
@@ -243,6 +253,36 @@ class CheckerTest(unittest.TestCase):
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())
         return caught.exception.code, output.getvalue()
+
+    def test_round9_all_release_pins(self):
+        rc, out = self.run_checker(('creation', 'APNTsCapped'))
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  release creation pins', out)
+
+    def test_round9_directory(self):
+        rc, out = self.run_checker(('config', 'artifactDirectory', 'wrong-out'))
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  artifact directory', out)
+
+    def test_round9_settings(self):
+        rc, out = self.run_checker(('settings', 'SuperPaymaster'))
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  artifact compile settings', out)
+
+    def test_round9_recorded_settings(self):
+        rc, out = self.run_checker(('config', 'artifactCompileSettings', {}))
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  artifact compile settings', out)
+
+    def test_round9_deployer_code(self):
+        rc, out = self.run_checker('delegated_deployer')
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  deployer has no code', out)
+
+    def test_round9_recorded_code(self):
+        rc, out = self.run_checker(('config', 'deployerCodeLength', 23))
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  deployer has no code', out)
 
     def test_round8_real_proxy(self):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())

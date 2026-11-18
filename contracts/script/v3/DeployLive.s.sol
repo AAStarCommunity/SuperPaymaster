@@ -119,7 +119,14 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         if (deployer == address(0)) deployer = msg.sender;
     }
 
+    error DeployerHasCode(address account);
+
+    function _requireUndelegatedDeployer() internal view {
+        if (deployer.code.length != 0) revert DeployerHasCode(deployer);
+    }
+
     function run() external {
+        if (_production()) _requireUndelegatedDeployer();
         _stopBeforeBootstrap(); // Validate the rehearsal flag before any broadcast.
         // Use the configured account from CLI (--account or --private-key)
         deploymentStartBlock = block.number;
@@ -803,6 +810,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         bootstrapAddr = vm.computeCreateAddress(deployer, bootstrapNonce);
         address[] memory principals = new address[](1);
         principals[0] = bootstrapAddr;
+        _requireUndelegatedDeployer();
         TimelockController t = TimelockController(payable(_deployDefault(
             "TimelockController", abi.encode(uint256(0), principals, principals, address(0)))));
         require(address(t) == tl, "handover: timelock address");
@@ -814,6 +822,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         require(observedBootstrapNonce == bootstrapNonce, "handover: bootstrap nonce");
         require(vm.computeCreateAddress(deployer, observedBootstrapNonce) == bootstrapAddr, "handover: predicted H before CREATE");
         if (!_stopBeforeBootstrap()) {
+            _requireUndelegatedDeployer();
             require(address(new TimelockHandoverBootstrap(t, _twoStepTargets(), safeInput)) == bootstrapAddr, "handover: bootstrap address");
         }
         timelockControllerAddr = tl;
@@ -902,6 +911,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
             abi.encode(TimelockController(payable(timelockControllerAddr)), _twoStepTargets(), safeInput)));
         vm.serializeUint(jsonObj, "deploymentStartBlock", deploymentStartBlock);
         vm.serializeAddress(jsonObj, "deployer", deployer);
+        vm.serializeUint(jsonObj, "deployerCodeLength", deployer.code.length);
+        if (_production()) vm.serializeString(jsonObj, "artifactCompileSettings", _artifactCompileSettings());
         vm.serializeAddress(jsonObj, "governanceOwner", safeInput);
         vm.serializeUint(jsonObj, "gTokenMintCount", mintAmounts.length);
         vm.serializeAddress(jsonObj, "gTokenMintRecipients", mintRecipients);

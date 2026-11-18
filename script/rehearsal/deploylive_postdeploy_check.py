@@ -104,7 +104,23 @@ for key, getter in (("ethUsdFeed", "ETH_USD_PRICE_FEED"), ("entryPoint", "entryP
 check("external accountFactory", A.get("simpleAccountFactory", "").lower() == deps["accountFactory"].lower(), deps["accountFactory"])
 check("external validation registry recorded", A.get("agentValidationRegistry", "").lower() == deps["agentValidationRegistry"].lower(), deps["agentValidationRegistry"])
 
-from deploylive_runtime import artifact, matches
+from deploylive_runtime import artifact, matches, artifact_directory, compile_settings
+try:
+    directory_ok = CFG.get("artifactDirectory") == artifact_directory()
+except ValueError:
+    directory_ok = False
+check("artifact directory", directory_ok, "DEFAULT_ARTIFACTS_OUT equals config")
+try:
+    settings_ok = CFG.get("artifactCompileSettings") == compile_settings()
+except (OSError, ValueError, TypeError, KeyError):
+    settings_ok = False
+check("artifact compile settings", settings_ok, "Cancun, viaIR, Registry/H=200; all other pins=500")
+rc, deployer_code = cast("code", DEPLOYER)
+try:
+    recorded_empty = integer(CFG.get("deployerCodeLength")) == 0
+except (ValueError, TypeError):
+    recorded_empty = False
+check("deployer has no code", rc == 0 and deployer_code == "0x" and recorded_empty, "live and recorded code length zero")
 try:
     pins_bytes = (ROOT / f"deployments/creation-pins.{chain}.json").read_bytes()
     pins = json.loads(pins_bytes)
@@ -112,6 +128,14 @@ try:
 except (OSError, ValueError, TypeError, AttributeError):
     pins, pins_digest_ok = {}, False
 check("creationPinsSha256", pins_digest_ok, "sha256 of committed chain pin file")
+from creation_pins import release_names
+try:
+    for name in release_names():
+        artifact(name, pins[name], cast)
+    release_pins_ok = set(pins) == set(release_names())
+except (OSError, KeyError, ValueError, TypeError, AttributeError):
+    release_pins_ok = False
+check("release creation pins", release_pins_ok, "all 25 metadata artifacts match committed pins")
 for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
     try:
         expected_runtime = artifact(name, pins[name], cast)

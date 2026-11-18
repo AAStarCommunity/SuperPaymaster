@@ -49,7 +49,7 @@ contract T4ArtifactReader is Script {
     }
 
     function _expectedRuns(string memory name) internal pure returns (uint256) {
-        return keccak256(bytes(name)) == keccak256("Registry") ? REGISTRY_RUNS : DEFAULT_RUNS;
+        return (keccak256(bytes(name)) == keccak256("Registry") || keccak256(bytes(name)) == keccak256("TimelockHandoverBootstrap")) ? REGISTRY_RUNS : DEFAULT_RUNS;
     }
 
     function _runsOf(string memory json) internal pure returns (uint256) {
@@ -76,6 +76,7 @@ contract T4ArtifactReader is Script {
         bytes32 h = keccak256(bytes(name));
         string memory OZ = "singleton-paymaster/lib/openzeppelin-contracts-v5.0.2/contracts/";
         string memory AA = "singleton-paymaster/lib/account-abstraction-v7/contracts/";
+        if (h == keccak256("TimelockHandoverBootstrap")) return "contracts/script/v3/TimelockHandoverBootstrap.sol";
         if (h == keccak256("Registry")) return "contracts/src/core/Registry.sol";
         if (h == keccak256("GTokenStaking")) return "contracts/src/core/GTokenStaking.sol";
         if (h == keccak256("PolicyRegistry")) return "contracts/src/core/PolicyRegistry.sol";
@@ -116,6 +117,13 @@ contract T4ArtifactReader is Script {
         return _defaultArtifactImpl(name);
     }
 
+    function t4CompileSettings(string calldata name) external view returns (string memory) {
+        string memory j = vm.readFile(string.concat(vm.projectRoot(), "/", _defaultArtifactImpl(name)));
+        return string.concat('{"evmVersion":"', vm.parseJsonString(j, ".metadata.settings.evmVersion"),
+            '","viaIR":', vm.parseJsonBool(j, ".metadata.settings.viaIR") ? "true" : "false",
+            ',"optimizerRuns":', vm.toString(vm.parseJsonUint(j, ".metadata.settings.optimizer.runs")), '}');
+    }
+
     function t4CodeEqArtifact(address target, string calldata rel) external view returns (bool) {
         return _codeEqArtifactImpl(target, rel);
     }
@@ -154,13 +162,16 @@ contract T4ArtifactReader is Script {
         string memory n1 = string.concat("/", name, ".json");
         string memory n2 = string.concat("/", name, ".default.json");
         string memory outDir = _artifactOutDir();
-        string[6] memory c = [
+        string[9] memory c = [
             string.concat(outDir, "/", file, n1),
             string.concat(outDir, "/", file, n2),
             string.concat(outDir, "/", d1, "/", file, n1),
             string.concat(outDir, "/", d1, "/", file, n2),
             string.concat(outDir, "/", d2, "/", d1, "/", file, n1),
-            string.concat(outDir, "/", d2, "/", d1, "/", file, n2)
+            string.concat(outDir, "/", d2, "/", d1, "/", file, n2),
+            string.concat(outDir, "/", file, "/", name, ".registry-size.json"),
+            string.concat(outDir, "/", d1, "/", file, "/", name, ".registry-size.json"),
+            string.concat(outDir, "/", d2, "/", d1, "/", file, "/", name, ".registry-size.json")
         ];
         (bool okSrc, string memory source) = _tryRead(src);
         require(okSrc, string.concat("DefaultArtifacts: source file missing: ", src));

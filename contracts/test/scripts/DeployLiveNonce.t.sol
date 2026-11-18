@@ -7,7 +7,15 @@ contract NonceStub {
     function setTreasury(address) external {}
     function setGuardian(address) external {}
     function setDAOMultisig(address) external {}
-    function transferOwnership(address) external {}
+    address public delegateSender;
+    uint256 public transfers;
+    function delegateOnNomination(address sender) external { delegateSender = sender; }
+    function transferOwnership(address) external {
+        if (++transfers == 2 && delegateSender != address(0)) {
+            Vm(address(uint160(uint256(keccak256("hevm cheat code"))))).etch(
+                delegateSender, abi.encodePacked(hex"ef0100", address(0x1234)));
+        }
+    }
     function balanceOf(address) external pure returns (uint256) { return 0; }
     function transfer(address, uint256) external pure returns (bool) { return true; }
     function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory cfg) { return cfg; }
@@ -33,9 +41,27 @@ contract NonceHarness is DeployLive {
         _handoverProduction(expectedNonce, expectedAddress);
         vm.stopBroadcast();
     }
-    function _uintInput(string memory) internal pure override returns (uint256) { return 1; }
+    function _uintInput(string memory key) internal pure override returns (uint256) { return keccak256(bytes(key)) == keccak256("DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP") ? 0 : 1; }
 }
 contract DeployLiveNonceTest is Test {
+    function test_Round9DelegatedBeforeTL() public {
+        vm.chainId(31337);
+        address sender = address(0xD00D);
+        NonceHarness h = new NonceHarness(); h.prepare(sender, address(new NonceStub()));
+        uint64 nonce = vm.getNonce(sender) + 4;
+        vm.etch(sender, abi.encodePacked(hex"ef0100", address(0x1234)));
+        vm.expectRevert(abi.encodeWithSignature("DeployerHasCode(address)", sender));
+        h.handover(nonce, vm.computeCreateAddress(sender, nonce));
+    }
+    function test_Round9DelegatedBeforeH() public {
+        vm.chainId(31337);
+        address sender = address(0xD00D);
+        NonceStub stub = new NonceStub(); stub.delegateOnNomination(sender);
+        NonceHarness h = new NonceHarness(); h.prepare(sender, address(stub));
+        uint64 nonce = vm.getNonce(sender) + 4;
+        vm.expectRevert(abi.encodeWithSignature("DeployerHasCode(address)", sender));
+        h.handover(nonce, vm.computeCreateAddress(sender, nonce));
+    }
     function test_SubjectSlotsHaveNoUnassignedEntry() public {
         NonceHarness h = new NonceHarness();
         address[] memory subjects = h.subjectsForTest();

@@ -44,6 +44,10 @@ contract DeployLiveRunTest is DeployLiveSafeFixture {
         assertFalse(ok);
         assertEq(reason, expected);
     }
+    function test_Round9DelegatedPreflightBroadcastCountZero() public {
+        vm.etch(tx.origin, abi.encodePacked(hex"ef0100", address(0x1234)));
+        assertNoBroadcast(abi.encodeWithSignature("DeployerHasCode(address)", tx.origin));
+    }
     function test_RunWrongInfrastructureBroadcastCountZero() public {
         vm.mockCall(address(100), abi.encodeWithSignature("decimals()"), abi.encode(uint8(18)));
         assertNoBroadcast(abi.encodeWithSignature("Error(string)", "DeployLive: feed decimals"));

@@ -1,3 +1,64 @@
+# Round 9 acceptance corrections
+
+The checker has **181 + 2N** rows: **185 for N=2**, **187 for N=3**.
+The four additions are `deployer has no code`, `artifact directory`,
+`artifact compile settings`, and `release creation pins` (all 25).
+The earlier round counts below are historical.
+
+Production rejects a deployer with any code using `DeployerHasCode(address)`
+before any broadcast, immediately before CREATE TL, and immediately before CREATE H.
+Config records `deployerCodeLength`; the checker requires both recorded and live
+code length to be zero.
+
+All release readers use `DEFAULT_ARTIFACTS_OUT`, default `out`. The committed
+inputs use `out`, matching both the default and acceptance rehearsal; there is
+no need for `out-cancun`. Config's `artifactCompileSettings` is a contract-name
+map read from selected artifact metadata, with `evmVersion`, `viaIR`, and
+`optimizerRuns` per contract. All 25 must be Cancun/viaIR; Registry and
+TimelockHandoverBootstrap use 200 runs, the other 23 use 500. Registry's
+compilation restriction also places the importing H in the 200-run profile.
+The checker compares those recorded settings with its independently selected
+artifacts and verifies all 25 creation hashes against committed chain pins.
+
+Verify the exact directory before deployment:
+
+```sh
+python3 script/rehearsal/creation_pins.py --check deployments/creation-pins.10.json --artifacts "${DEFAULT_ARTIFACTS_OUT:-out}"
+```
+
+Without `--artifacts`, pin generation/checking retains the isolated clean-build
+mode. The fork wrapper keeps Prague simulation output in
+`cache/deploylive-rehearsal-out` and its cache in
+`cache/deploylive-rehearsal-cache`, separate from Cancun release artifacts.
+
+Happy mode accepts an OP-mainnet Anvil fork with chain ID 10 (also 31337).
+The wrapper explicitly runs `anvil_setCode(deployer, "0x")` before the run:
+this is the selected rehearsal approach for undelegating default-mnemonic OP
+accounts. It is an Anvil-only preparation step, never a production transaction.
+`DEPLOYLIVE_EVIDENCE_DIR` may be an existing directory outside the worktree.
+Forge stdout/stderr are written as `forge.stdout.log` and `forge.stderr.log`,
+including failed Forge runs; the outer driver scans those files before returning.
+
+Failure mode is **31337-only**, enforced by both driver and deployment helper,
+because the stop switch exists only on that rehearsal chain. Its three deviations
+from chain 10 are:
+
+1. `deployments/creation-pins.31337.json` is identical to `.10.json`.
+2. `deployments/external-deps.31337.json` points at local infrastructure fixtures;
+   install those fixtures on the fork before running.
+3. `inputs/external-tokens.json` now includes a committed `31337` group containing
+   the OP fork's inherited token addresses. Pass that file with `--external-tokens`;
+   nobody needs to re-parent the OP group by hand. This group assumes an OP fork,
+   not an empty local chain; empty-chain tests must supply their deployed mock tokens.
+
+In a failed set, the deployer still directly owns Registry, SuperPaymaster and
+APNTsCapped: the two-step transfers were nominated but never accepted, and
+pendingOwner is TL. The artificial failure rehearsal deliberately clears Registry's
+pendingOwner to trigger the revert; that injected fault is the exception to the
+normal failed-set nomination state. Operating rule: in an abandoned set, the
+deployer sends **NO further transaction** (no accept, no transfer). Redeploy with
+a new nonce range and regenerate all address-bound PoPs.
+
 # Round 8 delta handoff (2026-11-18, base 12278ac0)
 
 The current checker count is **177 + 2N**: **181 for N=2**, **183 for N=3**.
@@ -115,7 +176,7 @@ Generate or check it with `python3 script/rehearsal/creation_pins.py <pin-file> 
 The tool copies source/dependencies/config to a fresh worktree-local temporary
 directory, excludes existing outputs, caches and environment files, creates an
 empty `out-clean`, sets `DEFAULT_ARTIFACTS_OUT=out-clean`, and builds offline.
-It never selects a pre-existing artifact. Registry and the importing deployment
+Clean-build mode never selects a pre-existing artifact; --artifacts checks the supplied directory. Registry and the importing deployment
 script use runs=200; other release artifacts use runs=500. Pins cover the exact
 artifact creation bytes selected by DefaultArtifacts plus compiled H creationCode.
 SuperPaymaster's pin also binds its embedded SuperPaymasterAdmin creation code.
@@ -130,7 +191,7 @@ SuperPaymasterLens and xPNTsToken.
 For a Prague fork, retain **Cancun release artifacts in `out`** and set
 `DEFAULT_ARTIFACTS_OUT=out`, while the forge runner uses `--evm-version prague`
 and a separate `FOUNDRY_OUT` and `FOUNDRY_CACHE_PATH`. The independent checker
-reads the reviewed release artifacts from `out`, not the deployment config.
+reads the reviewed release artifacts from DEFAULT_ARTIFACTS_OUT (default out) and requires equality with the config directory.
 Cancun bytes are the deployed release; Prague supplies EIP-2537 for BLS verification.
 Do not let the simulation overwrite or silently replace the release artifact set.
 `compare_artifacts.py <dirA> <dirB>` lists creation/runtime differences and missing
@@ -204,8 +265,7 @@ and decimals are explicit metadata, never inferred from `symbol()`. The OP group
 contains native USDC, USDC.e, bridged USDT, USDT0, DAI, WETH and OP; Sepolia
 contains Circle USDC and both specified WETH deployments. Unknown chains and
 empty groups FAIL. Pass `--external-tokens <worktree-file>` to failure mode. It writes the supplied
-groups into the abandoned config as `externalTokens`; supply a
-`"31337"` group of deployed mock tokens (each entry: `label`, `address`, `decimals`).
+groups into the abandoned config as `externalTokens`. The committed 31337 group uses inherited OP tokens; empty-chain tests supply deployed mock tokens instead.
 Every listed address must have code before any balance call; missing code FAILs
 and its balance is never read. Every listed token is read directly against every
 contract in the failed set and must return an ABI uint256 equal to zero. Empty,
@@ -386,3 +446,63 @@ Both are 130 B proxies owned by the same EOA. The rc.8 Sepolia manifest does
 not call setAgentRegistries; the in-place upgrade keeps storage, so both pointers
 stay set after rc.8 on the testnet. These are owner-provided findings; this round
 performed no network verification.
+
+## Original 53 checks → current names
+
+All original checks remain; exact-target companion checks strengthen negative ownership checks.
+
+| Original # | Original check | Current name |
+|---|---|---|
+| 1 | `owner(superPaymaster) != deployer` | `owner(superPaymaster) != deployer` |
+| 2 | `owner(registry) != deployer` | `owner(registry) != deployer` |
+| 3 | `owner(staking) != deployer` | `owner(staking) != deployer` |
+| 4 | `owner(gToken) != deployer` | `owner(gToken) != deployer` |
+| 5 | `owner(xPNTsFactoryV2) != deployer` | `owner(xPNTsFactoryV2) != deployer` |
+| 6 | `owner(aoaProtocolRegistry) != deployer` | `owner(aoaProtocolRegistry) != deployer` |
+| 7 | `owner(reputationSystem) != deployer` | `owner(reputationSystem) != deployer` |
+| 8 | `owner(blsAggregator) != deployer` | `owner(blsAggregator) != deployer` |
+| 9 | `owner(dvtValidator) != deployer` | `owner(dvtValidator) != deployer` |
+| 10 | `roleConfigs[COMMUNITY].owner != deployer` | `roleConfigs[COMMUNITY].owner != deployer` |
+| 11 | `roleConfigs[ENDUSER].owner != deployer` | `roleConfigs[ENDUSER].owner != deployer` |
+| 12 | `roleConfigs[PAYMASTER_AOA].owner != deployer` | `roleConfigs[PAYMASTER_AOA].owner != deployer` |
+| 13 | `roleConfigs[PAYMASTER_SUPER].owner != deployer` | `roleConfigs[PAYMASTER_SUPER].owner != deployer` |
+| 14 | `roleConfigs[DVT].owner != deployer` | `roleConfigs[DVT].owner != deployer` |
+| 15 | `roleConfigs[ANODE].owner != deployer` | `roleConfigs[ANODE].owner != deployer` |
+| 16 | `roleConfigs[KMS].owner != deployer` | `roleConfigs[KMS].owner != deployer` |
+| 17 | `isReputationSource(repSystem)` | `isReputationSource(repSystem)` |
+| 18 | `isReputationSource(aggregator)` | `isReputationSource(aggregator)` |
+| 19 | `isReputationSource(deployer) == false` | `isReputationSource(deployer) == false` |
+| 20 | `SP.treasury != deployer` | `SP.treasury != deployer` |
+| 21 | `staking.treasury != deployer` | `staking.treasury != deployer` |
+| 22 | `MySBT.daoMultisig != deployer` | `MySBT.daoMultisig != deployer` |
+| 23 | `aggregator.slashPolicyAdmin != deployer` | `aggregator.slashPolicyAdmin != deployer` |
+| 24 | `SP.guardian != deployer` | `SP.guardian != deployer` |
+| 25 | `PolicyRegistry.guardian != deployer` | `PolicyRegistry.guardian != deployer` |
+| 26 | `DVT.isValidator(deployer) == false` | `DVT.isValidator(deployer) == false` |
+| 27 | `TL.PROPOSER_ROLE(deployer) == false` | `TL.PROPOSER_ROLE(deployer) == false` |
+| 28 | `TL.EXECUTOR_ROLE(deployer) == false` | `TL.EXECUTOR_ROLE(deployer) == false` |
+| 29 | `TL.CANCELLER_ROLE(deployer) == false` | `TL.CANCELLER_ROLE(deployer) == false` |
+| 30 | `TL.DEFAULT_ADMIN_ROLE(deployer) == false` | `TL.DEFAULT_ADMIN_ROLE(deployer) == false` |
+| 31 | `authorizedSlashers(aggregator) == false` | `authorizedSlashers(aggregator) == false` |
+| 32 | `fraudProofVerifier == 0` | `fraudProofVerifier == 0` |
+| 33 | `owner(superPaymaster) != aggregator` | `owner(superPaymaster) != aggregator` |
+| 34 | `owner(registry) != aggregator` | `owner(registry) != aggregator` |
+| 35 | `owner(staking) != aggregator` | `owner(staking) != aggregator` |
+| 36 | `owner(gToken) != aggregator` | `owner(gToken) != aggregator` |
+| 37 | `owner(xPNTsFactoryV2) != aggregator` | `owner(xPNTsFactoryV2) != aggregator` |
+| 38 | `owner(aoaProtocolRegistry) != aggregator` | `owner(aoaProtocolRegistry) != aggregator` |
+| 39 | `owner(reputationSystem) != aggregator` | `owner(reputationSystem) != aggregator` |
+| 40 | `owner(blsAggregator) != aggregator` | `owner(blsAggregator) != aggregator` |
+| 41 | `owner(dvtValidator) != aggregator` | `owner(dvtValidator) != aggregator` |
+| 42 | `owner(xPNTsFactory) != aggregator` | `owner(xPNTsFactory) != aggregator` |
+| 43 | `owner(paymasterFactory) != aggregator` | `owner(paymasterFactory) != aggregator` |
+| 44 | `owner(paymasterV4Impl) != aggregator` | `owner(paymasterV4Impl) != aggregator` |
+| 45 | `owner(microPaymentChannel) != aggregator` | `owner(microPaymentChannel) != aggregator` |
+| 46 | `owner(x402Facilitator) != aggregator` | `owner(x402Facilitator) != aggregator` |
+| 47 | `aggregator ETH balance == 0` | `aggregator ETH balance == 0` |
+| 48 | `aggregator gToken balance == 0` | `aggregator gToken balance == 0` |
+| 49 | `aggregator aPNTs balance == 0` | `aggregator aPNTs balance == 0` |
+| 50 | `aggregator pnts balance == 0` | `config legacy pnts == zero` |
+| 51 | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` | `generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector` |
+| 52 | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` | `generic executeProposal(slash) rejected with ForbiddenGenericSelector` |
+| 53 | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` | `generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector` |
