@@ -46,7 +46,8 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
         parts = shlex.split(raw, comments=True)
         require(len(parts) <= 1 and not any(c in raw for c in ('`', '$', '\n')), 'nonliteral input ' + key)
         values[key] = parts[0] if parts else ''
-        require(URL_SCHEME.match(values[key]) is None, 'inputs must not contain endpoint URLs; use ' + key + '_FILE')
+        hint = key if key.endswith('_FILE') else key + '_FILE'
+        require(URL_SCHEME.match(values[key]) is None, 'inputs must not contain endpoint URLs; put the URL in a file and set ' + hint + ' to its path')
     require(set(values) == input_keys(), 'input keys differ: missing=' + ','.join(sorted(input_keys()-set(values)))
             + ' extra=' + ','.join(sorted(set(values)-input_keys())))
     optional = {'AGENT_IDENTITY_REGISTRY', 'AGENT_REPUTATION_REGISTRY', 'AGENT_VALIDATION_REGISTRY',

@@ -122,6 +122,8 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    python3 script/rehearsal/deploylive_fork_deploy.py archive --inputs "$INPUTS" --to "$ARCHIVE_DIR"
    ```
 
+   `archive` re-reads the inputs file and every endpoint file: delete them only AFTER this step.
+
    **Then, by hand (until `archive` covers them):** copy the deployed config
    `deployments/live/config.$ENV.json` and forge's broadcast receipts
    `broadcast/DeployLive.s.sol/<chainId>/run-latest.json` into `$ARCHIVE_DIR`, and append

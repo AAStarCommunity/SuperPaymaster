@@ -129,6 +129,9 @@ class Ddf4Test(unittest.TestCase):
         for url in ('https://x.invalid/k','wss://x.invalid/k','HTTP://x.invalid/k'):
             bad=dict(base,ENV=url); write(bad)
             with self.assertRaisesRegex(RuntimeError,'must not contain endpoint URLs'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        bad=dict(base,DEPLOYLIVE_RPC_FILE='http://127.0.0.1:1'); write(bad)
+        with self.assertRaisesRegex(RuntimeError,'set DEPLOYLIVE_RPC_FILE to its path') as e: c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        self.assertNotIn('_FILE_FILE',str(e.exception))
         for content in ('','not-a-url','http://a\nhttp://b'):
             f=self.root/'bad.url'; f.write_text(content); write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(f)))
             with self.assertRaisesRegex(RuntimeError,'must hold one URL'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
