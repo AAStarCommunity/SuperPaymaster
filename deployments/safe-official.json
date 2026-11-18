@@ -12,7 +12,7 @@
     "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4": "standards/permit2/test/integration/GnosisSafe.t.sol: compatibilityFallbackHandler (v1.3.0)",
     "0xfd0732dc9e303f09fcef3a7388ad10a83459ec99": "script/upgrade/old_owner_isolation.py: FALLBACK_HANDLER; script/upgrade/OLD_OWNER_ISOLATION.md",
     "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762": "docs/design/aoa-balance-mode/data/rams-a/fork-A1-trace-11974465.log:60,66: SafeL2 v1.4.1 singleton receiving getThreshold/getOwners delegatecalls",
-    "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c": "docs/release/a3a-newpin-11995523/boot/plan.json:99: recorded runtime for 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 (SafeL2 v1.4.1); keccak256 of all runtime bytes including metadata"
+    "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c": "docs/release/a3a-newpin-11995523/boot/plan.json:99: recorded runtime of OUR test Safe 0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114 (SafeL2 v1.4.1); keccak256 of all runtime bytes. NOT taken from the official safe-deployments list; equal to that Safe's extcodehash read on OP (chain 10) and Sepolia on 2026-11-18. Proxies from the same official factory and version share this runtime (the singleton is in slot 0). Re-check against the author's mainnet Safe before deploy day."
   },
   "proxyCodehashes": [
     "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c"
