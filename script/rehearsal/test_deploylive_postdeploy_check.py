@@ -8,6 +8,7 @@ import runpy
 import re
 import builtins
 import sys
+import subprocess
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -32,10 +33,11 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False):
+        proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         cfg = {k: addr(i + 1) for i, k in enumerate(keys)}
-        cfg.update(simpleAccountFactory=addr(101), agentValidationRegistry=addr(105), aPNTsPaymasterV4=ZERO, pnts=ZERO, deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
+        cfg.update(simpleAccountFactory=addr(101), agentValidationRegistry=addr(105) if agents else ZERO, enableAgentRegistries=agents, aPNTsPaymasterV4=ZERO, pnts=ZERO, deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
                    slashThreshold0=2, slashThreshold1=2, slashThreshold2=2, guardians=[addr(101), addr(102)])
         safe, deployer, tl, h = addr(200), addr(201), cfg["timelockController"], cfg["handoverBootstrap"]
         cfg.update(deployer=deployer, governanceOwner=safe, SLASH_POLICY_ADMIN=tl, X402_OWNER=safe, REPUTATION_OWNER=tl, MPC_OWNER=tl, PAYMASTER_FACTORY_OWNER=tl)
@@ -46,7 +48,8 @@ class CheckerTest(unittest.TestCase):
                    registryImplOwner=deployer, spImplOwner=deployer)
         op_deps = json.loads((CHECKER.parents[2] / "deployments/external-deps.10.json").read_text())
         if op:
-            cfg.update(simpleAccountFactory=op_deps["accountFactory"], agentValidationRegistry=op_deps["agentValidationRegistry"])
+            cfg.update(simpleAccountFactory=op_deps["accountFactory"], agentValidationRegistry=op_deps["agentValidationRegistry"] if agents else ZERO)
+        cfg['creationPinsSha256'] = '0x' + hashlib.sha256((CHECKER.parents[2] / f"deployments/creation-pins.{10 if op else 31337}.json").read_bytes()).hexdigest()
         authority_bad = None
         if isinstance(mutation, tuple) and mutation[0] == "authority":
             cfg[mutation[1]] = addr(777)
@@ -77,12 +80,15 @@ class CheckerTest(unittest.TestCase):
         if mutation in role_names:
             membership[roles[mutation]].add(h)
         runtime_codes = {}
+        creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
+        pins = json.loads((CHECKER.parents[2]/'deployments/creation-pins.31337.json').read_text())
         for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
             for artifact in (CHECKER.parents[2]/'out'/f'{name}.sol').glob('*.json'):
                 obj = json.loads(artifact.read_text())
                 settings = obj.get('metadata', {}).get('settings', {})
                 if settings.get('optimizer', {}).get('runs') == (200 if name == 'Registry' else 500) and settings.get('evmVersion') == 'cancun':
                     runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
+                    creation_hashes[obj['bytecode']['object']] = pins[name]
         def fake_run(cmd, **kwargs):
             self.assertEqual(cmd[0], "cast")
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
@@ -90,7 +96,7 @@ class CheckerTest(unittest.TestCase):
                 return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.invalid/private-token")
             out, rc = "", 0
             if kind in ("keccak", "calldata", "sig", "abi-encode"):
-                out = digest("|".join(args))
+                out = creation_hashes.get(args[0], digest("|".join(args))) if kind == "keccak" else digest("|".join(args))
             elif kind == "balance": out = "0"
             elif kind == "storage" and args[0].lower() in (safe.lower(), addr(777).lower()) and (args[0].lower() == safe.lower() or authority_bad):
                 slot = args[1]
@@ -107,6 +113,7 @@ class CheckerTest(unittest.TestCase):
                 if args[0] in runtime_codes:
                     out = runtime_codes[args[0]]
                     if mutation == "runtime_" + next(k for k in ("registryImpl", "spImpl", "timelockController") if cfg[k] == args[0]): out = "0xff" + out[4:]
+                if args[0] == safe or (args[0] == addr(777) and authority_bad): out = "0x6001" if mutation == "safe_codehash" or authority_bad == "codehash" else proxy["runtime"] if real_proxy else "0x6000"
                 if args[0] == addr(777) and authority_bad == "eoa": out = "0x"
                 if args[0] == addr(777) and authority_bad == "delegation": out = "0xef0100" + "00"*20
                 if args[0] == safe and mutation == "delegated_safe": out = "0xef0100" + "00" * 20
@@ -190,8 +197,8 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "validatorAtSlot(uint8)(address)": out = cfg["guardians"][int(params[0]) - 1]
                 elif sig == "operators(address)": out = "0x" + "0" * (64 * 9)
                 elif sig == "ETH_USD_PRICE_FEED()(address)": out = op_deps["ethUsdFeed"] if op else addr(100)
-                elif sig == "agentIdentityRegistry()(address)": out = ZERO if op else addr(103)
-                elif sig == "agentReputationRegistry()(address)": out = ZERO if op else addr(104)
+                elif sig == "agentIdentityRegistry()(address)": out = addr(103) if agents else ZERO
+                elif sig == "agentReputationRegistry()(address)": out = addr(104) if agents else ZERO
                 elif sig == "entryPoint()(address)": out = "0x0000000071727De22E5E9d8BAf0edAc6f37da032"
                 elif sig == "pendingSBTBurn(address)(bool)": out = "true" if mutation == "pending_burn" else "false"
                 elif sig == "getPaymasterByOperator(address)(address)": out = addr(999) if mutation == "aoa_present" else ZERO
@@ -220,12 +227,76 @@ class CheckerTest(unittest.TestCase):
         def fixture_open(path, *args, **kwargs):
             if str(path) == "fixture.json": return io.StringIO(json.dumps(cfg))
             return original_open(path, *args, **kwargs)
+        original_read = Path.read_text
+        def fixture_read(path, *args, **kwargs):
+            raw = original_read(path, *args, **kwargs)
+            if path.name == 'safe-official.json' and not real_proxy:
+                obj = json.loads(raw); obj['proxyCodehashes'] = [digest('0x6000')]; return json.dumps(obj)
+            if mutation == 'missing_dep' and path.name == 'external-deps.31337.json':
+                obj = json.loads(raw); del obj['ethUsdFeed']; return json.dumps(obj)
+            if isinstance(mutation, tuple) and mutation[0] == 'creation' and path.parent.name == mutation[1] + '.sol':
+                obj = json.loads(raw); obj['bytecode']['object'] = '0x00'; return json.dumps(obj)
+            return raw
         output = io.StringIO()
-        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), contextlib.redirect_stdout(output):
+        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())
         return caught.exception.code, output.getvalue()
+
+    def test_round8_real_proxy(self):
+        proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
+        recorded = json.loads((CHECKER.parents[2] / proxy['source'].split(':')[0]).read_text())
+        self.assertIn(proxy['runtime'], json.dumps(recorded))
+        actual = subprocess.check_output(['cast', 'keccak', proxy['runtime']], text=True).strip()
+        self.assertEqual(actual, proxy['codehash'])
+        official = json.loads((CHECKER.parents[2] / 'deployments/safe-official.json').read_text())
+        self.assertIn(actual, official['proxyCodehashes'])
+        rc, out = self.run_checker(real_proxy=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn('PASS  Safe official proxy codehash', out)
+
+    def test_round8_fake_proxy(self):
+        rc, out = self.run_checker('safe_codehash', agents=True)
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  Safe official proxy codehash', out)
+
+    def test_round8_each_authority_proxy(self):
+        for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "deployerGTokenRecipient"):
+            with self.subTest(key=key):
+                rc, out = self.run_checker(('authority', key, 'codehash'), agents=True)
+                self.assertEqual(rc, 1, out)
+                self.assertIn('FAIL  ' + key + ' resolved contract', out)
+
+    def test_round8_creation_pin(self):
+        for name in ('Registry', 'SuperPaymaster', 'TimelockController'):
+            with self.subTest(name=name):
+                rc, out = self.run_checker(('creation', name), agents=True)
+                self.assertEqual(rc, 1, out)
+                self.assertIn('FAIL  creation pin ' + name, out)
+
+    def test_round8_config_pins_sha(self):
+        rc, out = self.run_checker(('config', 'creationPinsSha256', '0x' + '00'*32), agents=True)
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL  creationPinsSha256', out)
+
+    def test_round8_missing_dep(self):
+        rc, out = self.run_checker('missing_dep')
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL external dependencies: missing/invalid ethUsdFeed', out)
+
+    def test_round8_agents_off(self):
+        rc, out = self.run_checker()
+        self.assertEqual(rc, 0, out)
+
+    def test_round8_agents_on(self):
+        rc, out = self.run_checker(agents=True)
+        self.assertEqual(rc, 0, out)
+
+    def test_round8_invalid_switch(self):
+        rc, out = self.run_checker(('config', 'enableAgentRegistries', 'false'))
+        self.assertEqual(rc, 1, out)
+        self.assertIn('FAIL missing/invalid config boolean: enableAgentRegistries', out)
 
     def test_round7_each_unsafe_authority(self):
         for key in ("SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "deployerGTokenRecipient"):
@@ -361,7 +432,7 @@ class CheckerTest(unittest.TestCase):
     def test_round6_absent_contracts_na(self):
         rc, out = self.run_checker()
         self.assertIn("PASS  AOA Paymaster absent", out)
-        self.assertIn("PASS  legacy uncapped aPNTs absent", out)
+        self.assertIn("PASS  config legacy pnts == zero", out)
 
     def test_cancelled_recovery_rejected(self):
         self.assertEqual(self.run_checker(safe_recovery=True)[0], 1)

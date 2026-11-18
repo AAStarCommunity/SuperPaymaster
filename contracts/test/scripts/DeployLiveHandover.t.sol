@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import "./DeployLiveSafeFixture.sol";
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 import {Ownable2StepNamespaced} from "src/utils/Ownable2StepNamespaced.sol";
@@ -37,7 +38,7 @@ contract InputsHarness is DeployLiveInputs {
     function infrastructure(address ep, address feed, address factory) external view { _validateInfrastructure(ep, feed, factory); }
     function count() external view returns (uint256) { return guardiansInput.length; }
 }
-contract DeployLiveHandoverTest is Test {
+contract DeployLiveHandoverTest is DeployLiveSafeFixture {
     function setUp() public { vm.warp(100); }
     address safe = address(0xCAFE);
     address deployer = address(0xD00D);
@@ -155,6 +156,38 @@ contract DeployLiveHandoverTest is Test {
         }
         subjects[2] = safe; this.assertSubjects(t, owned, subjects);
     }
+    function test_Round8FakeProxyRejected() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        vm.etch(safe, type(SafeInputFixture).runtimeCode);
+        vm.store(safe, 0, bytes32(uint256(uint160(0x29fcB43b46531BcA003ddC8FCB67FFE91900C762))));
+        vm.store(safe, keccak256("fallback_manager.handler.address"), bytes32(uint256(uint160(0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99))));
+        vm.expectRevert("DeployLive: Safe proxy codehash"); h.load(deployer);
+    }
+    function test_Round8EachOwnerRejectsFakeProxy() public {
+        vm.chainId(10);
+        string[6] memory keys = ["SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER", "DEPLOYER_GTOKEN_RECIPIENT"];
+        for (uint256 i; i < keys.length; ++i) {
+            InputsHarness h = inputs();
+            address candidate = address(777); _installOfficialSafe(candidate);
+            vm.etch(candidate, type(SafeInputFixture).runtimeCode);
+            h.putString(keys[i], vm.toString(candidate));
+            vm.expectRevert("DeployLive: Safe proxy codehash"); h.load(deployer);
+        }
+    }
+    function test_Round8RealProxyAccepted() public {
+        vm.chainId(10); InputsHarness h = inputs(); h.load(deployer);
+        assertEq(safe.codehash, vm.parseJsonBytes32(vm.readFile("contracts/test/fixtures/deploylive/safe-proxy-v141.json"), ".codehash"));
+    }
+    function test_Round8SingletonRejected() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        vm.store(safe, 0, bytes32(uint256(777)));
+        vm.expectRevert("DeployLive: Safe singleton"); h.load(deployer);
+    }
+    function test_Round8HandlerRejected() public {
+        vm.chainId(10); InputsHarness h = inputs();
+        vm.store(safe, keccak256("fallback_manager.handler.address"), bytes32(uint256(777)));
+        vm.expectRevert("DeployLive: Safe fallback handler"); h.load(deployer);
+    }
     function inputs() internal returns (InputsHarness h) {
         h = new InputsHarness();
         h.putString("SLASH_POLICY_ADMIN", "timelock"); h.putString("X402_OWNER", "safe");
@@ -162,7 +195,7 @@ contract DeployLiveHandoverTest is Test {
         h.putString("PAYMASTER_FACTORY_OWNER", "timelock"); h.putString("DEPLOYER_GTOKEN_RECIPIENT", "safe");
         string[5] memory addrKeys = ["GOVERNANCE_OWNER", "GOVERNOR_ADDRESS", "GUARDIAN_ADDRESS", "SP_GUARDIAN", "GENESIS_AASTAR_OPERATOR"];
         for (uint256 i; i < addrKeys.length; ++i) h.putAddress(addrKeys[i], i < 2 ? safe : address(uint160(200 + i)));
-        vm.etch(safe, type(SafeInputFixture).runtimeCode);
+        _installOfficialSafe(safe);
         string[7] memory uintKeys = ["APNTS_CAP", "GUARDIAN_N", "GUARDIAN_MIN_THRESHOLD", "GUARDIAN_DEFAULT_THRESHOLD", "GUARDIAN_SLASH_THRESHOLD_0", "GUARDIAN_SLASH_THRESHOLD_1", "GUARDIAN_SLASH_THRESHOLD_2"];
         for (uint256 i; i < uintKeys.length; ++i) h.putUint(uintKeys[i], 2);
         DeployLiveInputs.GuardianInput[] memory gs = new DeployLiveInputs.GuardianInput[](2);
@@ -222,7 +255,7 @@ contract DeployLiveHandoverTest is Test {
         address candidate = address(777);
         for (uint256 i; i < keys.length; ++i) {
             InputsHarness h = inputs(); h.putString(keys[i], vm.toString(candidate));
-            vm.etch(candidate, type(SafeInputFixture).runtimeCode);
+            _installOfficialSafe(candidate);
             if (bad == 0) vm.etch(candidate, "");
             if (bad == 1) vm.etch(candidate, hex"ef01000000000000000000000000000000000000000001");
             if (bad == 2) vm.mockCall(candidate, abi.encodeWithSignature("getThreshold()"), abi.encode(uint256(1)));
@@ -249,7 +282,7 @@ contract DeployLiveHandoverTest is Test {
         vm.etch(safe, hex""); vm.expectRevert("DeployLive: Safe code"); h.load(deployer);
         vm.etch(safe, hex"ef01000000000000000000000000000000000000000001");
         vm.expectRevert("DeployLive: Safe code"); h.load(deployer);
-        vm.etch(safe, type(SafeInputFixture).runtimeCode);
+        _installOfficialSafe(safe);
         vm.mockCall(safe, abi.encodeWithSignature("getThreshold()"), abi.encode(uint256(1)));
         vm.expectRevert("DeployLive: Safe threshold/owners"); h.load(deployer);
     }

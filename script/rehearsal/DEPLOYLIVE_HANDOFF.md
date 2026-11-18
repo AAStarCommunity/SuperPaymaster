@@ -1,3 +1,58 @@
+# Round 8 delta handoff (2026-11-18, base 12278ac0)
+
+The current checker count is **177 + 2N**: **181 for N=2**, **183 for N=3**.
+The five new rows are the governance Safe proxy codehash, the config pin-file
+SHA256, and three artifact creation-code pins. Authority rows also apply the
+proxy and singleton checks to all five owner inputs and the GToken recipient.
+The agent switch and dependency-key schema fail fast and do not add summary rows.
+Historical round 7 counts below describe that version only.
+
+Proxy codehash: `0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c`.
+Provenance: committed `docs/release/a3a-newpin-11995523/boot/plan.json:99`,
+recorded runtime for `0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114`.
+The complete bytes, including compiler metadata, were hashed with local
+`cast keccak`; no network read was performed. The same bytes occur in
+`docs/release/sp-upgrade-a6e/evidence-11983550/boot/plan.json:99`.
+Main session must compare the live codehash. The reusable fixture copies these
+bytes and uses a stub singleton at the official v1.4.1 address; it tests real
+proxy delegation, not the full Safe singleton implementation.
+
+Script preflight now requires an allowlisted proxy codehash, slot-0 singleton,
+and fallback handler, in addition to the existing threshold/owner/module/guard
+checks. Checker runtime comparisons first hash each local artifact's creation
+code against `deployments/creation-pins.<chainId>.json`, and require the config's
+`creationPinsSha256` to match that committed file. Runtime matching is skipped
+and marked FAIL when either binding fails.
+
+31337 defaults to zero for all three agent registry addresses. Only a=1 selects
+`contracts/test/fixtures/deploylive/external-deps.31337.agents.json`; the production
+chain groups remain authoritative elsewhere. With a=0 the checker expects zeros,
+and the script records zero validation registry too (including OP; its address
+remains informational in the reviewed dependency file). Missing dependency keys
+produce a named FAIL. The legacy row is now named `config legacy pnts == zero`;
+it makes no claim of on-chain absence.
+
+The main session reported a green local Anvil run on 2026-11-18 at 12278ac0:
+`SUMMARY 178 passed, 0 failed, 178 total`. That was **a=1**, before these changes.
+Round 8 a=0 and a=1 acceptance remain for the main session; neither was run in
+this sandbox. Run `DEPLOYLIVE_LOCAL_TEST=1 python3 -m unittest discover -s
+script/rehearsal -p 'test_deploylive_local.py'`. Evidence is separated into
+`cache/deploylive-tests/round8/a0/` and `a1/`, including untouched forge configs.
+The Foundry workflow now runs all Python rehearsal tests with that opt-in flag,
+and its full-diff trigger includes all rehearsal, deployment and fixture paths.
+
+## Round 8 known gaps
+
+- Low 4: SafeL2 v1.3.0 is not allowlisted; DSR awaits the author's mainnet Safe
+  address. No v1.3.0 proxy hash was added. The existing v1.3.0 singleton entry
+  does not establish support without an approved proxy codehash.
+- Low 6: tokens sent to predicted addresses before deployment remain an accepted
+  inventory gap. Listed-token balance checks do not make discovery exhaustive.
+- Local Anvil a=0/a=1 and live proxy-codehash comparison require main-session
+  evidence. The historical a=1 result does not validate this round's changes.
+
+---
+
 # DeployLive round-seven governance ceremony
 
 The deployer is trusted during deployment. Acceptance is the verified final state,
@@ -276,7 +331,7 @@ The local Anvil regression is `DEPLOYLIVE_LOCAL_TEST=1 python3 -m unittest disco
 BLS material, fixture infrastructure and a fixture Safe, then invokes the actual
 DeployLive production/rehearsal path. The checker receives the untouched file
 written by forge. **It could not run in this sandbox: loopback bind was denied.**
-No real-forge-config SUMMARY or live failure-mode inventory is claimed. Execute
+The main session subsequently supplied the a=1 SUMMARY quoted above; round 8 and live failure-mode inventory remain pending. Execute
 these acceptance steps in the authorized parent session; the current offline
 results do not authorize deployment acceptance.
 

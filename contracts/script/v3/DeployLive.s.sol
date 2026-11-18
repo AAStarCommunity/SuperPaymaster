@@ -574,7 +574,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
             console.log("  ENABLE_AGENT_REGISTRIES:", enabled);
             console.log("  AGENT_IDENTITY_REGISTRY:", erc8004Identity);
             console.log("  AGENT_REPUTATION_REGISTRY:", erc8004Reputation);
-            erc8004Validation = vm.parseJsonAddress(deps, ".agentValidationRegistry");
+            erc8004Validation = enabled ? vm.parseJsonAddress(deps, ".agentValidationRegistry") : address(0);
         } else {
         // Local legacy path only.
         erc8004Identity = vm.envOr("AGENT_IDENTITY_REGISTRY", erc8004Identity);

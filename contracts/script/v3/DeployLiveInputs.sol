@@ -86,6 +86,21 @@ abstract contract DeployLiveInputs is Script {
     function _validateSafeAddress(address candidate, address sender) internal view {
         bytes memory code = candidate.code;
         require(code.length > 0 && bytes3(code) != 0xef0100, "DeployLive: Safe code");
+        string memory official = vm.readFile("deployments/safe-official.json");
+        bytes32[] memory hashes = vm.parseJsonBytes32Array(official, ".proxyCodehashes");
+        bool approved;
+        for (uint256 i; i < hashes.length; ++i) if (candidate.codehash == hashes[i]) approved = true;
+        require(approved, "DeployLive: Safe proxy codehash");
+        address[] memory singletons = vm.parseJsonAddressArray(official, ".singletons");
+        bytes32 singleton = vm.load(candidate, 0);
+        approved = false;
+        for (uint256 i; i < singletons.length; ++i) if (singleton == bytes32(uint256(uint160(singletons[i])))) approved = true;
+        require(approved, "DeployLive: Safe singleton");
+        address[] memory handlers = vm.parseJsonAddressArray(official, ".fallbackHandlers");
+        bytes32 handler = vm.load(candidate, keccak256("fallback_manager.handler.address"));
+        approved = false;
+        for (uint256 i; i < handlers.length; ++i) if (handler == bytes32(uint256(uint160(handlers[i])))) approved = true;
+        require(approved, "DeployLive: Safe fallback handler");
         (bool ok,,) = GovernanceOwnerGate.readMofN(candidate);
         require(ok, "DeployLive: Safe threshold/owners");
         address[] memory owners = ISafeCompatibleMofN(candidate).getOwners();
@@ -95,6 +110,8 @@ abstract contract DeployLiveInputs is Script {
         require(vm.load(candidate, keccak256("guard_manager.guard.address")) == 0, "DeployLive: Safe guard");
     }
     function _externalDependencies() internal view returns (string memory) {
+        if (block.chainid == 31337 && _uintInput("ENABLE_AGENT_REGISTRIES") == 1)
+            return vm.readFile("contracts/test/fixtures/deploylive/external-deps.31337.agents.json");
         return vm.readFile(string.concat("deployments/external-deps.", vm.toString(block.chainid), ".json"));
     }
     function _validateInfrastructure(address ep, address feed, address factory) internal view {

@@ -36,6 +36,6 @@ contract DeployLiveLocalBundle is Script {
                 gs[i].key.x_a, gs[i].key.x_b, gs[i].key.y_a, gs[i].key.y_b));
             gs[i].pop = GenuineBLS.signature(abi.encodePacked(digest), i + 1);
         }
-        vm.writeFile("cache/deploylive-tests/round7/guardians.txt", vm.toString(abi.encode(gs)));
+        vm.writeFile(string.concat(vm.envString("DEPLOYLIVE_LOCAL_EVIDENCE"), "/guardians.txt"), vm.toString(abi.encode(gs)));
     }
 }

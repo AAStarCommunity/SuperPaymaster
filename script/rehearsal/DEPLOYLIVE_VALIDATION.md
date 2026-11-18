@@ -1,3 +1,125 @@
+# DeployLive round 8 validation
+
+Base HEAD: `12278ac0`. No formatter, network, RPC, keystore, Anvil, git writes,
+or `contracts/src` edits were used in this round. All task files and evidence
+are in this worktree. Build and tests use Foundry offline mode.
+
+## Main-session acceptance already reported
+
+On **2026-11-18**, the main session ran the local Anvil test green at **12278ac0**:
+
+```text
+SUMMARY 178 passed, 0 failed, 178 total
+```
+
+That run used **a=1**. The a=0 run will be added by the main session. Both new
+round 8 local cases remain unexecuted here; the Python suite skips them unless
+`DEPLOYLIVE_LOCAL_TEST=1`. CI enables that flag in the existing Foundry workflow.
+
+## Fail-first evidence
+
+`cache/deploylive-tests/round8/red-forge.log` ran the new Safe tests against
+unchanged DeployLiveInputs before implementation:
+
+```text
+[FAIL: next call did not revert as expected] test_Round8FakeProxyRejected()
+[FAIL: next call did not revert as expected] test_Round8HandlerRejected()
+[FAIL: next call did not revert as expected] test_Round8SingletonRejected()
+```
+
+`red-owner-inputs.log` additionally runs the owner-input fake-proxy test against
+DeployLiveInputs restored from `git show 12278ac0:...` (read-only git operation),
+then restores the working implementation. It fails with `next call did not revert
+as expected`. `red-python.log` records five failures and one error across seven
+tests against the unchanged checker: codehash, artifact creation pin, config
+pin-file digest, a=0 defaults, invalid switch, and the missing-key traceback.
+The existing a=1 positive control passed. No red evidence was inferred from
+source inspection.
+
+## Proxy provenance and fixture boundary
+
+`deployments/safe-official.json` pins
+`0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c`,
+computed by local `cast keccak` from the entire runtime in committed
+`docs/release/a3a-newpin-11995523/boot/plan.json:99` for
+`0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114`. Duplicate evidence appears at
+`docs/release/sp-upgrade-a6e/evidence-11983550/boot/plan.json:99`.
+`safe-proxy-v141.json` copies those bytes. Solidity fixtures install that runtime
+and stub only singleton behavior; Python also tests the recorded runtime and
+hash, while other mock cases explicitly inject an allowed test codehash.
+The on-chain hash comparison is reserved for the main session.
+
+The new valid-config check-count formula is **177 + 2N** (181 at N=2; 183 at N=3).
+This adds five rows to 172 + 2N: one proxy hash, one pin-file SHA256 and three
+creation pins. N guardian rows and N+3 stake rows remain variable. INFO-PASS
+implementation rows count; ordinary INFO and fail-fast schema errors do not.
+
+## Final offline results
+
+Full logs are in `cache/deploylive-tests/round8/`. Commands and verbatim result
+lines (forge build completed with exit 0; existing lint/compiler warnings remain):
+
+```text
+FOUNDRY_OFFLINE=true forge build
+Compiler run successful with warnings:
+
+forge test --offline --match-path 'contracts/test/scripts/DeployLive*.t.sol' -vv
+Ran 7 test suites in 2.03s (7.31s CPU time): 75 tests passed, 0 failed, 0 skipped (75 total tests)
+
+python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
+Ran 67 tests in 5.623s
+OK (skipped=2)
+
+Mock checker a=0, N=2:
+SUMMARY 181 passed, 0 failed, 181 total
+Mock checker a=1, N=2:
+SUMMARY 181 passed, 0 failed, 181 total
+
+New check-count formula: 177 + 2N
+```
+
+`build.log`, `forge-tests.log`, `python-tests.log`, `mock-checker-a0.log`, and
+`mock-checker-a1.log` contain the complete outputs. `real-artifact-pins.log`
+independently confirms all three actual local creation hashes using `cast keccak`.
+`red-python-all-checks.log` additionally reruns the baseline checker and runtime
+helper from 12278ac0, with that revision's deps file restored, then restores all
+working files. Its subtests expose all three creation-pin gaps and all six
+contract-authority proxy gaps, not just the first failure in each loop.
+
+```text
+git diff --stat bfb9cc45 -- contracts/script/v3/TimelockHandoverBootstrap.sol
+```
+
+Output is empty (zero bytes in `bootstrap-diff-stat.log`). `git diff --check`
+passes. `git diff -- contracts/src` is empty.
+
+## Modified/new file line counts
+
+These are whole-file line counts, not diff sizes.
+
+| File | Lines |
+|---|---:|
+| `.github/workflows/test.yml` | 145 |
+| `contracts/script/v3/DeployLive.s.sol` | 1009 |
+| `contracts/script/v3/DeployLiveInputs.sol` | 176 |
+| `contracts/test/fixtures/deploylive/external-deps.31337.agents.json` | 9 |
+| `contracts/test/fixtures/deploylive/safe-proxy-v141.json` | 5 |
+| `contracts/test/scripts/DeployLiveHandover.t.sol` | 383 |
+| `contracts/test/scripts/DeployLiveLocalFixture.s.sol` | 41 |
+| `contracts/test/scripts/DeployLiveProduction.t.sol` | 247 |
+| `contracts/test/scripts/DeployLiveRun.t.sol` | 60 |
+| `contracts/test/scripts/DeployLiveSafeFixture.sol` | 22 |
+| `deployments/external-deps.31337.json` | 9 |
+| `deployments/safe-official.json` | 20 |
+| `script/rehearsal/DEPLOYLIVE_HANDOFF.md` | 388 |
+| `script/rehearsal/DEPLOYLIVE_VALIDATION.md` | 426 |
+| `script/rehearsal/deploylive_postdeploy_check.py` | 467 |
+| `script/rehearsal/deploylive_runtime.py` | 38 |
+| `script/rehearsal/test_deploylive_local.py` | 97 |
+| `script/rehearsal/test_deploylive_postdeploy_check.py` | 516 |
+
+---
+
 # DeployLive round 7b validation
 
 Round 7b supersedes the round 7 automatic agent wiring and a=1 OP count below.

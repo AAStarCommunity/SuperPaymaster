@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def artifact(name):
+def artifact(name, expected_pin, keccak):
     candidates = []
     for path in (ROOT / 'out' / (name + '.sol')).glob('*.json'):
         obj = json.loads(path.read_text())
@@ -15,6 +15,11 @@ def artifact(name):
         if (name in settings.get('compilationTarget', {}).values()
                 and settings.get('optimizer', {}).get('runs') == (200 if name == 'Registry' else 500)
                 and settings.get('evmVersion') == 'cancun' and settings.get('viaIR') is True):
+            code = obj['bytecode']['object']
+            if not code.startswith('0x'): code = '0x' + code
+            rc, digest = keccak('keccak', code)
+            if rc != 0 or digest.lower() != expected_pin.lower():
+                raise ValueError('creation pin mismatch: ' + name)
             candidates.append(obj['deployedBytecode'])
     if not candidates or any(c != candidates[0] for c in candidates):
         raise ValueError('missing/ambiguous release runtime: ' + name)

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import "./DeployLiveSafeFixture.sol";
 import "./DeployLiveProduction.t.sol";
 
-contract DeployLiveRunTest is Test {
+contract DeployLiveRunTest is DeployLiveSafeFixture {
     ProductionHarness h;
     function setUp() public {
         vm.chainId(31337); vm.warp(10000);
         address sender = tx.origin;
         address safe = address(new Round6Safe());
+        _installOfficialSafe(safe);
         vm.setEnv("GOVERNANCE_OWNER", vm.toString(safe));
         vm.setEnv("ENV", "round6-fixture");
         address ep = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;

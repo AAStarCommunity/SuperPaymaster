@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
+import "./DeployLiveSafeFixture.sol";
 import "forge-std/Test.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
@@ -136,7 +137,7 @@ contract ProductionHarness is DeployLive {
     }
 }
 
-contract DeployLiveProductionTest is Test {
+contract DeployLiveProductionTest is DeployLiveSafeFixture {
     function test_ProductionPathN3() public { _productionPath(false, false); }
     function test_TicketsReachSafeWithSeparateRecipient() public { _productionPath(true, false); }
     function test_ProductionPathAgentsEnabled() public { _productionPath(false, true); }
@@ -147,6 +148,7 @@ contract DeployLiveProductionTest is Test {
         vm.chainId(31337); vm.warp(10000);
         address sender = tx.origin;
         address safe = address(new Round6Safe());
+        _installOfficialSafe(safe);
         vm.setEnv("GOVERNANCE_OWNER", vm.toString(safe));
         vm.setEnv("ENV", "round6-fixture");
         address ep = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
@@ -166,7 +168,7 @@ contract DeployLiveProductionTest is Test {
         ProductionHarness h = new ProductionHarness();
         h.configure(sender, safe, ep, feed, factory);
         if (agents) h.enableAgents();
-        if (separate) { vm.etch(address(0x222), type(Round6Safe).runtimeCode); h.useSeparateRecipient(); }
+        if (separate) { _installOfficialSafe(address(0x222)); h.useSeparateRecipient(); }
         string memory pins = "deployments/creation-pins.31337.json";
         vm.createDir("cache/deploylive-tests", true); vm.setEnv("CREATION_PINS", pins); vm.setEnv("DEPLOYLIVE_EVM_VERSION", "cancun");
         uint64 startNonce = vm.getNonce(sender);

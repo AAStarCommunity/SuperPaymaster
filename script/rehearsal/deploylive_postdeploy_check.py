@@ -4,6 +4,7 @@
 Usage: postdeploy_check.py <rpc> <config.json> <deployer> <safe>
 Prints one PASS/FAIL line per assertion and a summary. Nothing is sent: eth_call only.
 """
+import hashlib
 import json
 import subprocess
 import sys
@@ -75,14 +76,28 @@ agg, dvt, reg, sp, stk = A["blsAggregator"], A["dvtValidator"], A["registry"], A
 TL = A["timelockController"]
 
 # Chain expectations come from reviewed files, never deployment inputs.
+if type(CFG.get("enableAgentRegistries")) is not bool:
+    print("FAIL missing/invalid config boolean: enableAgentRegistries")
+    sys.exit(1)
+agents_enabled = CFG["enableAgentRegistries"]
+ROOT = Path(__file__).resolve().parents[2]
 rc, chain_raw = cast("rpc", "eth_chainId")
 try:
     if rc != 0: raise ValueError("chain unreadable")
     chain = integer(json.loads(chain_raw))
-    deps = json.loads((Path(__file__).resolve().parents[2] / f"deployments/external-deps.{chain}.json").read_text())
+    deps_path = ROOT / f"deployments/external-deps.{chain}.json"
+    if chain == 31337 and agents_enabled:
+        deps_path = ROOT / "contracts/test/fixtures/deploylive/external-deps.31337.agents.json"
+    deps = json.loads(deps_path.read_text())
 except (ValueError, TypeError, OSError):
     print("FAIL external dependencies: missing chain group / unreadable chain")
     sys.exit(1)
+for key in ("ethUsdFeed", "entryPoint", "accountFactory", "agentIdentityRegistry", "agentReputationRegistry", "agentValidationRegistry"):
+    if not isinstance(deps, dict) or not isinstance(deps.get(key), str) or not re.fullmatch(r"0x[0-9a-fA-F]{40}", deps[key]):
+        print("FAIL external dependencies: missing/invalid " + key)
+        sys.exit(1)
+    if key.startswith("agent") and not agents_enabled:
+        deps[key] = "0x" + "0" * 40
 for key, getter in (("ethUsdFeed", "ETH_USD_PRICE_FEED"), ("entryPoint", "entryPoint"),
                     ("agentIdentityRegistry", "agentIdentityRegistry"), ("agentReputationRegistry", "agentReputationRegistry")):
     check("external " + key, call(sp, getter + "()(address)").lower() == deps[key].lower(), deps[key])
@@ -90,12 +105,27 @@ check("external accountFactory", A.get("simpleAccountFactory", "").lower() == de
 check("external validation registry recorded", A.get("agentValidationRegistry", "").lower() == deps["agentValidationRegistry"].lower(), deps["agentValidationRegistry"])
 
 from deploylive_runtime import artifact, matches
+try:
+    pins_bytes = (ROOT / f"deployments/creation-pins.{chain}.json").read_bytes()
+    pins = json.loads(pins_bytes)
+    pins_digest_ok = CFG.get("creationPinsSha256", "").lower() == "0x" + hashlib.sha256(pins_bytes).hexdigest()
+except (OSError, ValueError, TypeError, AttributeError):
+    pins, pins_digest_ok = {}, False
+check("creationPinsSha256", pins_digest_ok, "sha256 of committed chain pin file")
 for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
     try:
-        rc, runtime = cast("code", A[key])
-        runtime_ok = rc == 0 and matches(artifact(name), runtime)
-    except (OSError, KeyError, ValueError, TypeError):
-        runtime_ok = False
+        expected_runtime = artifact(name, pins[name], cast)
+        pin_ok = True
+    except (OSError, KeyError, ValueError, TypeError, AttributeError):
+        pin_ok = False
+    check("creation pin " + name, pin_ok, "local artifact creation hash == committed pin")
+    runtime_ok = False
+    if pin_ok and pins_digest_ok:
+        try:
+            rc, runtime = cast("code", A[key])
+            runtime_ok = rc == 0 and matches(expected_runtime, runtime)
+        except (ValueError, TypeError, KeyError):
+            pass
     check("runtime " + name, runtime_ok, "release artifact; compiler immutable references masked")
 
 # 1. Owners: no system-internal contract may be owned by the deployer.
@@ -184,7 +214,7 @@ for k, choice in (("x402Facilitator", "X402_OWNER"), ("reputationSystem", "REPUT
                   ("paymasterV4Impl", "PAYMASTER_FACTORY_OWNER")):
     EXPECTED_OWNERS[k] = A.get(choice, ZERO)
 check("AOA Paymaster absent", A.get("aPNTsPaymasterV4", "").lower() == ZERO and call(A["paymasterFactory"], "getPaymasterByOperator(address)(address)", DEPLOYER).lower() == ZERO, "no AOA deployment")
-check("legacy uncapped aPNTs absent", A.get("pnts", ZERO).lower() == ZERO, "no legacy token")
+check("config legacy pnts == zero", A.get("pnts", ZERO).lower() == ZERO, "config only; no on-chain absence claim")
 for k, expected in EXPECTED_OWNERS.items():
     actual = call(A[k], "owner()(address)").lower()
     check(f"owner({k}) == expected", actual == expected.lower(), f"expected {expected}; actual {actual}")
@@ -285,6 +315,9 @@ def safe_security(candidate):
         rc, raw = cast("storage", candidate, slot)
         if rc != 0 or not re.fullmatch(r"0x[0-9a-fA-F]{64}", raw): return None
         return raw.lower()
+    code_rc, code = cast("code", candidate)
+    hash_rc, codehash = cast("keccak", code) if code_rc == 0 else (1, "")
+    proxy_ok = hash_rc == 0 and codehash.lower() in [h.lower() for h in OFFICIAL_SAFE["proxyCodehashes"]]
     master = storage("0")
     guard_rc, guard_slot = cast("keccak", "guard_manager.guard.address")
     handler_rc, handler_slot = cast("keccak", "fallback_manager.handler.address")
@@ -292,12 +325,12 @@ def safe_security(candidate):
     handler = storage(handler_slot) if handler_rc == 0 else None
     rc, raw = cast("call", candidate, "getModulesPaginated(address,uint256)(address[],address)", "0x" + "0" * 39 + "1", "10")
     modules = rc == 0 and re.fullmatch(r"\[\]\s+0x0{39}1", raw) is not None
-    return (master is not None and "0x" + master[-40:] in [a.lower() for a in OFFICIAL_SAFE["singletons"]],
+    return (proxy_ok, master is not None and "0x" + master[-40:] in [a.lower() for a in OFFICIAL_SAFE["singletons"]],
             modules, guard == "0x" + "0" * 64,
             handler is not None and "0x" + handler[-40:] in [a.lower() for a in OFFICIAL_SAFE["fallbackHandlers"]])
 
 
-for label, ok in zip(("official singleton", "modules empty", "guard zero", "official fallback handler"), safe_security(SAFE)):
+for label, ok in zip(("official proxy codehash", "official singleton", "modules empty", "guard zero", "official fallback handler"), safe_security(SAFE)):
     check("Safe " + label, ok, "independent storage / module read")
 role_addresses = [(f"Safe owner[{i}]", a) for i, a in enumerate(owners)]
 role_addresses += [(f"guardian[{i}]", a) for i, a in enumerate(guardians)]
