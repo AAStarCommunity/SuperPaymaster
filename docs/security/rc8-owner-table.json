@@ -39,7 +39,11 @@
     "XPNTS_FACTORY_CC28": "0x9f426568f16e81144F3eBf6F07e497fB9f160d11",
     "POLICY_REGISTRY": "0x29253bF61310B63866dfb9E9f464B6d95E09f2C1",
     "APNTS": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
-    "PNTS": "0xE6579A90dc498a710008de12119812D0FB7aA224"
+    "PNTS": "0xE6579A90dc498a710008de12119812D0FB7aA224",
+    "APNTS_COMMUNITY_OWNER": "0x51C00187e940FA5cbAD256cbB2A5fDb173A09708",
+    "GUARDIAN_1": "0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3",
+    "GUARDIAN_2": "0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f",
+    "GUARDIAN_3": "0xD904A706E355D6b48bAeDBec472CE94BC6981601"
   },
   "aggregators": [
     "A7",
@@ -131,12 +135,11 @@
       "read": {
         "fn": "function version() view returns (string)"
       },
-      "expected": "SuperPaymaster-5.5.0",
+      "expected": "SuperPaymaster-5.5.3 (rc.8 source)",
       "step": "manifest B (upgradeToAndCall)",
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "SuperPaymaster-5.4.2"
@@ -155,11 +158,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "sp.pendingOwner",
@@ -174,11 +178,12 @@
       "readback": "eth_getStorageAt(Ownable2StepNamespaced pending-owner slot); pendingOwner() reverts on 5.4.2",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x0000000000000000000000000000000000000000"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "sp.treasury",
@@ -188,35 +193,37 @@
       "read": {
         "fn": "function treasury() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "SAFE",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (setTreasury(SAFE))",
       "readback": "treasury()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "sp.guardian",
       "contract": "SuperPaymaster (UUPS proxy)",
       "address": "SP",
-      "slot": "guardian",
+      "slot": "guardian (5.5.0 storage slot 40, low 20 bytes)",
       "read": {
-        "fn": "function guardian() view returns (address)"
+        "storage": "0x0000000000000000000000000000000000000000000000000000000000000028"
       },
-      "expected": "unknown until the 5.5.0 upgrade (no setGuardian step)",
-      "step": "none",
-      "readback": "guardian() (getter is new in 5.5.0)",
+      "expected": "ZERO",
+      "step": "none (no setGuardian step)",
+      "readback": "eth_getStorageAt(SP, 40) now (the getter is new in 5.5.0); guardian() after the upgrade",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Read back at step 13 after the upgrade; must be neither D nor an aggregator.",
-      "notes": null,
+      "notes": "Slot 40 is carved from the 5.4.2 __gap (storage-layout/allowed-changes.json), so it reads 0 before the upgrade; no manifest step calls setGuardian.",
       "current": {
-        "error": "reverted or absent: The contract function \"guardian\" reverted."
-      }
+        "value": "0x0000000000000000000000000000000000000000"
+      },
+      "class": 1,
+      "classReason": "handed over: no holder; only the owner (TL48) can set a guardian."
     },
     {
       "id": "sp.blsAggregator",
@@ -231,10 +238,111 @@
       "readback": "BLS_AGGREGATOR()",
       "kind": "wiring",
       "aggAllowed": true,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+      }
+    },
+    {
+      "id": "sp.xpntsFactory",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "xpntsFactory",
+      "read": {
+        "fn": "function xpntsFactory() view returns (address)"
+      },
+      "expected": "XPNTS_FACTORY_V2",
+      "step": "manifest upgrade batch setXPNTsFactory (manifest_exec.py:2311)",
+      "readback": "xpntsFactory() (manifest readback manifest_exec.py:2849)",
+      "kind": "wiring",
+      "aggAllowed": false,
+      "notes": null,
+      "current": {
+        "value": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2"
+      }
+    },
+    {
+      "id": "sp.apntsToken",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "APNTS_TOKEN",
+      "read": {
+        "fn": "function APNTS_TOKEN() view returns (address)"
+      },
+      "expected": "CAPPED",
+      "step": "activation executeAPNTsTokenChange (manifest_exec.py:2312)",
+      "readback": "APNTS_TOKEN()",
+      "kind": "wiring",
+      "aggAllowed": false,
+      "notes": null,
+      "current": {
+        "value": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89"
+      }
+    },
+    {
+      "id": "sp.operator.ANNI.isPaused",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "operators(ANNI).isPaused",
+      "read": {
+        "fn": "function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)",
+        "args": [
+          "ANNI"
+        ],
+        "pick": 2
+      },
+      "expected": "true",
+      "step": "manifest A14 (manifest_exec.py:2294); never unpaused (sampled = [D], manifest_exec.py:660)",
+      "readback": "operators(ANNI) field 2",
+      "kind": "info",
+      "aggAllowed": false,
+      "notes": null,
+      "current": {
+        "value": false
+      }
+    },
+    {
+      "id": "sp.operator.ANNI.xPNTsToken",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "operators(ANNI).xPNTsToken",
+      "read": {
+        "fn": "function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)",
+        "args": [
+          "ANNI"
+        ],
+        "pick": 3
+      },
+      "expected": "PNTS",
+      "step": "-",
+      "readback": "operators(ANNI) field 3",
+      "kind": "info",
+      "notes": "Disclosed residual: the paused ANNI record still names the v1 pNTs token.",
+      "aggAllowed": false,
+      "current": {
+        "value": "0xE6579A90dc498a710008de12119812D0FB7aA224"
+      }
+    },
+    {
+      "id": "sp.operator.D.xPNTsToken",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "operators(D).xPNTsToken",
+      "read": {
+        "fn": "function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)",
+        "args": [
+          "D"
+        ],
+        "pick": 3
+      },
+      "expected": "the C3.deploy xPNTs v2 token",
+      "step": "manifest C3.configure (manifest_exec.py:2428)",
+      "readback": "operators(D) field 3",
+      "kind": "info",
+      "aggAllowed": false,
+      "notes": null,
+      "current": {
+        "value": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89"
       }
     },
     {
@@ -250,11 +358,12 @@
       "readback": "eth_getStorageAt(EIP-1967 admin slot)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x0000000000000000000000000000000000000000"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "sp.impl",
@@ -269,7 +378,6 @@
       "readback": "eth_getStorageAt(EIP-1967 implementation slot)",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27"
@@ -283,13 +391,12 @@
       "read": {
         "fn": "function version() view returns (string)"
       },
-      "expected": "Registry-5.9.0",
+      "expected": "Registry-5.10.1 (rc.8 source)",
       "step": "manifest A6.upgrade",
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
-      "notes": null,
+      "notes": "STALE MANIFEST: A6.upgrade still asserts Registry-5.9.0 (manifest_exec.py:2247).",
       "current": {
         "value": "Registry-5.8.0"
       }
@@ -307,11 +414,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.pendingOwner",
@@ -326,11 +434,12 @@
       "readback": "eth_getStorageAt(Ownable2StepNamespaced pending-owner slot) = manifest PENDING_OWNER_SLOT; pendingOwner() reverts on 5.8.0",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x0000000000000000000000000000000000000000"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.COMMUNITY",
@@ -344,16 +453,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"COMMUNITY\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.ENDUSER",
@@ -367,16 +477,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"ENDUSER\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.PAYMASTER_AOA",
@@ -390,16 +501,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"PAYMASTER_AOA\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.PAYMASTER_SUPER",
@@ -413,16 +525,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"PAYMASTER_SUPER\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.DVT",
@@ -436,16 +549,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"DVT\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.ANODE",
@@ -459,16 +573,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"ANODE\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.roleOwner.KMS",
@@ -482,16 +597,17 @@
         ],
         "pick": "owner"
       },
-      "expected": "D",
-      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (configureRole with owner = TL48; A16 only freezes PAYMASTER_SUPER isActive)",
       "readback": "getRoleConfig(keccak256(\"KMS\")).owner",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "reg.reputationSources",
@@ -523,14 +639,12 @@
       },
       "expected": [
         "REPSYS",
-        "A7",
-        "D"
+        "A7"
       ],
-      "step": "manifest A9.new (A7 true), A9.old (AGG_4_11 false); D: none",
+      "step": "manifest A9.new (A7 true) and A9.old (AGG_4_11 false); D: MISSING: no step in script/upgrade/manifest_exec.py on main (setReputationSource(D,false); DeployLive does it)",
       "readback": "isReputationSource(x) for every seed and named identity",
       "kind": "authority",
       "aggAllowed": true,
-      "exception": "GAP for D: the manifest never calls setReputationSource(D,false) (DeployLive does, _wireReputationSources). The aggregator A7 is an allow-listed source by design (verifyAndExecute reputation branch).",
       "notes": "Registry.initialize sets isReputationSource[_owner] WITHOUT emitting ReputationSourceUpdated, so a ReputationSourceUpdated replay misses the initial owner. The set is seeded from OwnershipTransferred(0 -> owner) (the initialize owner) plus every ReputationSourceUpdated, plus every named identity, and membership is decided by the isReputationSource state read. Registry deploy block 11151002.",
       "current": {
         "value": [
@@ -565,8 +679,10 @@
           }
         ],
         "deployBlock": 11151002,
-        "candidates": 34
-      }
+        "candidates": 38
+      },
+      "class": 1,
+      "classReason": "handed over: only rc.8 protocol contracts remain sources: REPSYS (owner TL48) and A7 (owner SAFE; allow-listed by design)."
     },
     {
       "id": "reg.blsAggregator",
@@ -581,7 +697,6 @@
       "readback": "blsAggregator()",
       "kind": "wiring",
       "aggAllowed": true,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
@@ -600,11 +715,12 @@
       "readback": "eth_getStorageAt(EIP-1967 admin slot)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x0000000000000000000000000000000000000000"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "a7.version",
@@ -614,13 +730,12 @@
       "read": {
         "fn": "function version() view returns (string)"
       },
-      "expected": "BLSAggregator-4.14.1",
+      "expected": "BLSAggregator-4.14.2 (rc.8 source)",
       "step": "manifest A7",
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
-      "notes": null,
+      "notes": "STALE MANIFEST: AGG_VERSION = BLSAggregator-4.12.0 (manifest_exec.py:22).",
       "current": {
         "error": "not deployed at the pinned block (address assigned at deploy)"
       }
@@ -638,11 +753,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "error": "not deployed at the pinned block (address assigned at deploy)"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "a7.slashPolicyAdmin",
@@ -657,11 +773,12 @@
       "readback": "slashPolicyAdmin()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "error": "not deployed at the pinned block (address assigned at deploy)"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "agg_4_11.version",
@@ -676,7 +793,6 @@
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "BLSAggregator-4.11.0"
@@ -695,11 +811,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "agg_4_11.slashPolicyAdmin",
@@ -714,10 +831,40 @@
       "readback": "slashPolicyAdmin()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
+    },
+    {
+      "id": "agg_4_11.guardians",
+      "contract": "BLSAggregator 4.11.0 (current)",
+      "address": "AGG_4_11",
+      "slot": "validatorAtSlot(1..13), non-zero",
+      "read": {
+        "fn": "function validatorAtSlot(uint8) view returns (address)",
+        "args": [
+          "$member"
+        ],
+        "range": [
+          1,
+          13
+        ]
+      },
+      "expected": "unchanged; A10 re-registers exactly these on A7",
+      "step": "manifest A10.0-2 (manifest_exec.py:2262-2272, pin guardianInventory :1935)",
+      "readback": "validatorAtSlot(i) for i in 1..13",
+      "kind": "info",
+      "aggAllowed": false,
+      "notes": null,
+      "current": {
+        "value": [
+          "0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3",
+          "0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f",
+          "0xD904A706E355D6b48bAeDBec472CE94BC6981601"
+        ]
       }
     },
     {
@@ -733,7 +880,6 @@
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "BLSAggregator-4.3.0"
@@ -752,10 +898,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan). A superseded aggregator generation.",
+      "class3": {
+        "subjects": [
+          "AGG_4_3"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -771,10 +925,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan). A superseded aggregator generation.",
+      "class3": {
+        "subjects": [
+          "AGG_4_3_IND"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -790,10 +952,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan). A superseded aggregator generation.",
+      "class3": {
+        "subjects": [
+          "AGG_4_1_B"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -809,10 +979,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan). A superseded aggregator generation.",
+      "class3": {
+        "subjects": [
+          "AGG_4_1_A"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -828,10 +1006,18 @@
       "readback": "slashPolicyAdmin() (may be absent in 4.3.0)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan). A superseded aggregator generation.",
+      "class3": {
+        "subjects": [
+          "AGG_4_3"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -842,13 +1028,12 @@
       "read": {
         "fn": "function version() view returns (string)"
       },
-      "expected": "unchanged",
+      "expected": "DVTValidator-0.6.0 (kept)",
       "step": "-",
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
-      "notes": null,
+      "notes": "The manifest keeps this DVTValidator (fixed_dvt, manifest_exec.py:637); the rc.8 source is DVTValidator-0.9.0 but no new DVTValidator is deployed on Sepolia.",
       "current": {
         "value": "DVTValidator-0.6.0"
       }
@@ -866,11 +1051,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "dvt.blsAggregator",
@@ -885,7 +1071,6 @@
       "readback": "BLS_AGGREGATOR()",
       "kind": "wiring",
       "aggAllowed": true,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
@@ -929,8 +1114,7 @@
       "readback": "isValidator(x) for every ValidatorAdded, every Registry RoleRegistered(DVT) user and every named identity (AGG-NOT-DVT-VALIDATOR)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP for D (no removeValidator step).",
-      "notes": "DVTValidator 0.6.0 addValidator emits NO event (ValidatorAdded is 0.7.0+), so the event seed is empty by construction. 0.6.0 addValidator requires the candidate to hold ROLE_DVT, so every Registry RoleRegistered(DVT) user is seeded; premise: no validator was set other than through addValidator.",
+      "notes": "DVTValidator 0.6.0 (deployed 2026-07-08 by 090c78e4 from source 41784173) has exactly one write of true: addValidator (onlyOwner, requires ROLE_DVT) contracts/src/modules/monitoring/DVTValidator.sol@41784173:136-150 (isValidator[_v] = true at :150); the other writes set false: pruneValidator :321-332, removeValidator :339-341; mapping declared at :54; no assembly in the file. The same three sites exist in every commit that carries the DVTValidator-0.6.0 string (9d05a299, ecd8373b, 5af932bc, 45654a36, 17043193, 41784173); no bytecode parity was run for 0x568b. addValidator emits NO event, so the ValidatorAdded seed is empty by construction; every Registry RoleRegistered(DVT) user is seeded instead.",
       "current": {
         "value": [
           "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
@@ -980,8 +1164,10 @@
           }
         ],
         "deployBlock": 11209693,
-        "candidates": 52
-      }
+        "candidates": 53
+      },
+      "class": null,
+      "pending": "PENDING AUTHOR DECISION: D is not one of the three addresses A10 registers on A7 (GUARDIAN_1..3 = AGG_4_11.validatorAtSlot(1..3), row agg_4_11.guardians), but the manifest keeps THIS DVTValidator (fixed_dvt, manifest_exec.py:637; A7 is constructed with DVT_VALIDATOR = 0x568b, :2248) and deploys no new one. So isValidator[D] is on an rc.8-referenced contract and cannot be class 3: as a validator D can open DVT proposals (DVTValidator 0.6.0 :112). Options: removeValidator(D) (owner, before D.dvt.transfer) or a written decision."
     },
     {
       "id": "committee.version",
@@ -996,7 +1182,6 @@
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "error": "reverted or absent: The contract function \"version\" reverted."
@@ -1015,11 +1200,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "committee.blsAggregator",
@@ -1034,7 +1220,6 @@
       "readback": "blsAggregator()",
       "kind": "wiring",
       "aggAllowed": true,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
@@ -1053,11 +1238,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "error": "not deployed at the pinned block (address assigned at deploy)"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "xpntsV2.owner",
@@ -1072,11 +1258,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "error": "not deployed at the pinned block (address assigned at deploy)"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "capped.version",
@@ -1091,7 +1278,6 @@
       "readback": "version()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "APNTsCapped-1.0.0"
@@ -1110,11 +1296,12 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "capped.pendingOwner",
@@ -1129,11 +1316,12 @@
       "readback": "pendingOwner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x0000000000000000000000000000000000000000"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "capped.minter",
@@ -1148,11 +1336,12 @@
       "readback": "minter()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "capped.capGuardian",
@@ -1167,11 +1356,12 @@
       "readback": "capGuardian()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "tl48.minDelay",
@@ -1186,7 +1376,6 @@
       "readback": "getMinDelay()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "172800"
@@ -1224,7 +1413,6 @@
       "readback": "hasRole(DEFAULT_ADMIN_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": [
@@ -1245,8 +1433,10 @@
           }
         ],
         "deployBlock": 12032424,
-        "candidates": 34
-      }
+        "candidates": 38
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "tl48.role.PROPOSER",
@@ -1280,7 +1470,6 @@
       "readback": "hasRole(PROPOSER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": [
@@ -1301,8 +1490,10 @@
           }
         ],
         "deployBlock": 12032424,
-        "candidates": 34
-      }
+        "candidates": 38
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "tl48.role.EXECUTOR",
@@ -1336,7 +1527,6 @@
       "readback": "hasRole(EXECUTOR_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": [
@@ -1357,8 +1547,10 @@
           }
         ],
         "deployBlock": 12032424,
-        "candidates": 34
-      }
+        "candidates": 38
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "tl48.role.CANCELLER",
@@ -1392,7 +1584,6 @@
       "readback": "hasRole(CANCELLER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": [
@@ -1413,8 +1604,10 @@
           }
         ],
         "deployBlock": 12032424,
-        "candidates": 34
-      }
+        "candidates": 38
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "safe.owners",
@@ -1427,9 +1620,8 @@
       "expected": "unchanged",
       "step": "-",
       "readback": "getOwners()",
-      "kind": "authority",
+      "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": [
@@ -1452,7 +1644,6 @@
       "readback": "getThreshold()",
       "kind": "info",
       "aggAllowed": false,
-      "exception": null,
       "notes": null,
       "current": {
         "value": "2"
@@ -1466,16 +1657,17 @@
       "read": {
         "fn": "function owner() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (transferOwnership(TL48))",
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "staking.treasury",
@@ -1485,16 +1677,17 @@
       "read": {
         "fn": "function treasury() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "SAFE",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (setTreasury(SAFE))",
       "readback": "treasury()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "staking.slashers",
@@ -1517,15 +1710,11 @@
           }
         }
       },
-      "expected": [
-        "AGG_4_11",
-        "AGG_4_1_B"
-      ],
-      "step": "none",
+      "expected": [],
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (setAuthorizedSlasher(AGG_4_11,false) and setAuthorizedSlasher(AGG_4_1_B,false); rule, not optional)",
       "readback": "authorizedSlashers(x) for every SlasherAuthorizationUpdated and named identity; must be false for every aggregator generation",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "VIOLATION as written: two aggregator generations (4.11.0 and 4.1.0 0xF51c) are authorized staking slashers and no manifest step revokes them (setAuthorizedSlasher(x,false)); A7 must also read false.",
       "notes": null,
       "current": {
         "value": [
@@ -1550,8 +1739,10 @@
           }
         ],
         "deployBlock": 11151005,
-        "candidates": 34
-      }
+        "candidates": 38
+      },
+      "class": 1,
+      "classReason": "handed over: no slasher at all; both old aggregators revoked, A7 never granted."
     },
     {
       "id": "gtoken.owner",
@@ -1561,16 +1752,17 @@
       "read": {
         "fn": "function owner() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "SAFE",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (transferOwnership(SAFE))",
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
-      "notes": "The owner is also the minter (mint is onlyOwner).",
+      "notes": "The owner is also the minter (mint is onlyOwner); expected owner is the community Safe.",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "mysbt.daoMultisig",
@@ -1580,16 +1772,17 @@
       "read": {
         "fn": "function daoMultisig() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "SAFE",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (setDAOMultisig(SAFE), onlyDAO = D)",
       "readback": "daoMultisig()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "xpntsV1.owner",
@@ -1604,30 +1797,43 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": "FACTORY of aPNTs/pNTs (mint and auto-approved spender on them).",
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: the rc.8 SuperPaymaster rejects v1 tokens. Mechanical evidence: (a) configureOperator binds the token to SP.xpntsFactory and requires BALANCE_MODE_VERSION() == 1, reverting InvalidXPNTsToken otherwise (contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:162-171; tests SuperPaymasterV3.t.sol:338 testConfigureOperator_RejectsLegacy3xToken, SuperPaymaster_Coverage.t.sol:527, SecurityFixes_M4_M5_M7.t.sol:141); (b) eth_call BALANCE_MODE_VERSION() on aPNTs and pNTs reverts at the pin (rows apnts.balanceMode, pnts.balanceMode); (c) SP.xpntsFactory() moves from the v1 factory to XPNTS_FACTORY_V2 in the upgrade batch (manifest_exec.py:2311, readback :2849; row sp.xpntsFactory); (d) the only operators bound to v1 tokens are D (rebound to a v2 token at C3.configure, manifest_exec.py:2428) and ANNI (paused by A14, manifest_exec.py:2294, and never unpaused: sampled = [D] only, manifest_exec.py:660). Residual disclosed: SP storage still holds pNTs as operators(ANNI).xPNTsToken.",
+      "class3": {
+        "subjects": [
+          "XPNTS_FACTORY_V1"
+        ],
+        "requires": [
+          "sp.xpntsFactory must read XPNTS_FACTORY_V2 (upgrade batch)",
+          "sp.apntsToken must read CAPPED (activation)",
+          "sp.operator.ANNI.isPaused must read true (A14)"
+        ],
+        "authorDecision": false
       }
     },
     {
       "id": "repsys.owner",
-      "contract": "ReputationSystem",
+      "contract": "ReputationSystem (rc.8)",
       "address": "REPSYS",
       "slot": "owner",
       "read": {
         "fn": "function owner() view returns (address)"
       },
-      "expected": "D",
-      "step": "none",
+      "expected": "TL48",
+      "step": "MISSING: no step in script/upgrade/manifest_exec.py on main (transferOwnership(TL48))",
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 1,
+      "classReason": "handed over: the post-rc.8 value is TL48 / the community Safe (or no holder)."
     },
     {
       "id": "pmFactory.owner",
@@ -1642,10 +1848,20 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy only AFTER the rc.8 disable step for the old factory (sentinel implementation + upgradeImplementation + setRegistry away from the rc.8 Registry). That step is MISSING: no step in script/upgrade/manifest_exec.py on main (no PaymasterFactory call in manifest_exec.py); until it exists and reads back, the old factory still trusts the rc.8 Registry.",
+      "class3": {
+        "subjects": [
+          "PM_FACTORY"
+        ],
+        "requires": [
+          "MISSING: old PaymasterFactory disable step (sentinel + upgradeImplementation + setRegistry)"
+        ],
+        "authorDecision": false
       }
     },
     {
@@ -1661,10 +1877,20 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: implementation behind the old factory only; EIP-1167 clones keep their own owner storage. Same dependency as pmFactory.owner.",
+      "class3": {
+        "subjects": [
+          "PMV4_IMPL"
+        ],
+        "requires": [
+          "MISSING: old PaymasterFactory disable step (sentinel + upgradeImplementation + setRegistry)"
+        ],
+        "authorDecision": false
       }
     },
     {
@@ -1680,11 +1906,13 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
-      }
+      },
+      "class": 2,
+      "operatorOwner": "D",
+      "classReason": "operator-owned by design: the AAStar community operator's own PaymasterV4 (owner D as the AAStar operator, created by the old PaymasterFactory). Not an exception."
     },
     {
       "id": "pntsPmv4.owner",
@@ -1699,11 +1927,13 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Community-owned (Mycelium operator); unchanged.",
       "notes": null,
       "current": {
         "value": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9"
-      }
+      },
+      "class": 2,
+      "operatorOwner": "ANNI",
+      "classReason": "operator-owned by design: the Mycelium community operator's own PaymasterV4 (owner ANNI). Not an exception."
     },
     {
       "id": "mpc.owner",
@@ -1718,10 +1948,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy by AUTHOR DECISION (\"tool contracts do not block 5.5.0\", 2026-11-09), not by mechanical evidence; the probes below are recorded but are not the basis.",
+      "class3": {
+        "subjects": [
+          "MPC"
+        ],
+        "requires": [],
+        "authorDecision": true
       }
     },
     {
@@ -1737,10 +1975,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy by AUTHOR DECISION (\"tool contracts do not block 5.5.0\", 2026-11-09), not by mechanical evidence; the probes below are recorded but are not the basis. X402Facilitator is an auto-approved spender on v1 xPNTs tokens, which are themselves legacy.",
+      "class3": {
+        "subjects": [
+          "X402"
+        ],
+        "requires": [],
+        "authorDecision": true
       }
     },
     {
@@ -1756,10 +2002,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan).",
+      "class3": {
+        "subjects": [
+          "LIVENESS"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -1775,10 +2029,18 @@
       "readback": "owner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no deployed rc.8 contract references it (getter/role probes in legacyProbe) and no rc.8 source or manifest names it (source scan). Test factory.",
+      "class3": {
+        "subjects": [
+          "XPNTS_FACTORY_CC28"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -1794,10 +2056,18 @@
       "readback": "timelock()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+      },
+      "class": 3,
+      "classReason": "legacy: no rc.8 contract reads PolicyRegistry. Source: only core/PolicyRegistry.sol and interfaces/v3/IPolicyRegistry.sol mention it under contracts/src (source scan); deployed: no rc.8 getter or role mapping returns it (legacyProbe).",
+      "class3": {
+        "subjects": [
+          "POLICY_REGISTRY"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -1813,10 +2083,18 @@
       "readback": "guardian()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      },
+      "class": 3,
+      "classReason": "legacy: no rc.8 contract reads PolicyRegistry. Source: only core/PolicyRegistry.sol and interfaces/v3/IPolicyRegistry.sol mention it under contracts/src (source scan); deployed: no rc.8 getter or role mapping returns it (legacyProbe).",
+      "class3": {
+        "subjects": [
+          "POLICY_REGISTRY"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -1852,7 +2130,6 @@
       "readback": "hasRole(DEFAULT_ADMIN_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": [
@@ -1875,7 +2152,16 @@
           }
         ],
         "deployBlock": 11151057,
-        "candidates": 34
+        "candidates": 38
+      },
+      "class": 3,
+      "classReason": "legacy: the old timelock holds nothing on rc.8 contracts. #608 evidence on main: script/upgrade/manifest_exec.py:1146 old_timelock_holds_nothing (at the pin, pre_send and closing: TL48 hasRole(admin/proposer/executor/canceller, 0x86c8) all 0; every owner / roleConfig.owner / role row of the isolation targets Registry, SP, APNTsCapped, TL48, GTokenStaking, GToken, xPNTsFactory, xPNTsToken, MySBT, PaymasterFactory differs from 0x86c8; no token allowance to it; not a Safe owner or module), added in a3367a66 (#608 split L1); script/upgrade/test_no_legacy_timelock.py (no tracked file hardcodes 0x86c8 outside the reviewed allowlist script/upgrade/legacy_timelock_allowlist.json); docs/release/sp-upgrade-a6e/OLD_TIMELOCK_READERS.md. Its remaining power is over PolicyRegistry (itself legacy).",
+      "class3": {
+        "subjects": [
+          "OLD_TL"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -1910,7 +2196,6 @@
       "readback": "hasRole(PROPOSER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": [
@@ -1931,7 +2216,16 @@
           }
         ],
         "deployBlock": 11151057,
-        "candidates": 34
+        "candidates": 38
+      },
+      "class": 3,
+      "classReason": "legacy: the old timelock holds nothing on rc.8 contracts. #608 evidence on main: script/upgrade/manifest_exec.py:1146 old_timelock_holds_nothing (at the pin, pre_send and closing: TL48 hasRole(admin/proposer/executor/canceller, 0x86c8) all 0; every owner / roleConfig.owner / role row of the isolation targets Registry, SP, APNTsCapped, TL48, GTokenStaking, GToken, xPNTsFactory, xPNTsToken, MySBT, PaymasterFactory differs from 0x86c8; no token allowance to it; not a Safe owner or module), added in a3367a66 (#608 split L1); script/upgrade/test_no_legacy_timelock.py (no tracked file hardcodes 0x86c8 outside the reviewed allowlist script/upgrade/legacy_timelock_allowlist.json); docs/release/sp-upgrade-a6e/OLD_TIMELOCK_READERS.md. Its remaining power is over PolicyRegistry (itself legacy).",
+      "class3": {
+        "subjects": [
+          "OLD_TL"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -1966,7 +2260,6 @@
       "readback": "hasRole(EXECUTOR_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": [
@@ -1987,7 +2280,16 @@
           }
         ],
         "deployBlock": 11151057,
-        "candidates": 34
+        "candidates": 38
+      },
+      "class": 3,
+      "classReason": "legacy: the old timelock holds nothing on rc.8 contracts. #608 evidence on main: script/upgrade/manifest_exec.py:1146 old_timelock_holds_nothing (at the pin, pre_send and closing: TL48 hasRole(admin/proposer/executor/canceller, 0x86c8) all 0; every owner / roleConfig.owner / role row of the isolation targets Registry, SP, APNTsCapped, TL48, GTokenStaking, GToken, xPNTsFactory, xPNTsToken, MySBT, PaymasterFactory differs from 0x86c8; no token allowance to it; not a Safe owner or module), added in a3367a66 (#608 split L1); script/upgrade/test_no_legacy_timelock.py (no tracked file hardcodes 0x86c8 outside the reviewed allowlist script/upgrade/legacy_timelock_allowlist.json); docs/release/sp-upgrade-a6e/OLD_TIMELOCK_READERS.md. Its remaining power is over PolicyRegistry (itself legacy).",
+      "class3": {
+        "subjects": [
+          "OLD_TL"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -2022,7 +2324,6 @@
       "readback": "hasRole(CANCELLER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
       "notes": null,
       "current": {
         "value": [
@@ -2043,7 +2344,16 @@
           }
         ],
         "deployBlock": 11151057,
-        "candidates": 34
+        "candidates": 38
+      },
+      "class": 3,
+      "classReason": "legacy: the old timelock holds nothing on rc.8 contracts. #608 evidence on main: script/upgrade/manifest_exec.py:1146 old_timelock_holds_nothing (at the pin, pre_send and closing: TL48 hasRole(admin/proposer/executor/canceller, 0x86c8) all 0; every owner / roleConfig.owner / role row of the isolation targets Registry, SP, APNTsCapped, TL48, GTokenStaking, GToken, xPNTsFactory, xPNTsToken, MySBT, PaymasterFactory differs from 0x86c8; no token allowance to it; not a Safe owner or module), added in a3367a66 (#608 split L1); script/upgrade/test_no_legacy_timelock.py (no tracked file hardcodes 0x86c8 outside the reviewed allowlist script/upgrade/legacy_timelock_allowlist.json); docs/release/sp-upgrade-a6e/OLD_TIMELOCK_READERS.md. Its remaining power is over PolicyRegistry (itself legacy).",
+      "class3": {
+        "subjects": [
+          "OLD_TL"
+        ],
+        "requires": [],
+        "authorDecision": false
       }
     },
     {
@@ -2054,16 +2364,18 @@
       "read": {
         "fn": "function communityOwner() view returns (address)"
       },
-      "expected": "unchanged",
+      "expected": "APNTS_COMMUNITY_OWNER",
       "step": "-",
       "readback": "communityOwner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Community token; owner set by the community.",
       "notes": null,
       "current": {
         "value": "0x51C00187e940FA5cbAD256cbB2A5fDb173A09708"
-      }
+      },
+      "class": 2,
+      "operatorOwner": "APNTS_COMMUNITY_OWNER",
+      "classReason": "operator-owned by design: the AAStar community owner of its own v1 community token."
     },
     {
       "id": "apnts.factory",
@@ -2078,10 +2390,38 @@
       "readback": "FACTORY()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Community token; minting authority with communityOwner.",
       "notes": null,
       "current": {
         "value": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2"
+      },
+      "class": 3,
+      "classReason": "legacy with the v1 factory (see xpntsV1.owner).",
+      "class3": {
+        "subjects": [
+          "XPNTS_FACTORY_V1"
+        ],
+        "requires": [
+          "as xpntsV1.owner"
+        ],
+        "authorDecision": false
+      }
+    },
+    {
+      "id": "apnts.balanceMode",
+      "contract": "aPNTs (xPNTs v1)",
+      "address": "APNTS",
+      "slot": "BALANCE_MODE_VERSION",
+      "read": {
+        "fn": "function BALANCE_MODE_VERSION() view returns (uint16)"
+      },
+      "expected": "reverts (not a v2 token)",
+      "step": "-",
+      "readback": "eth_call BALANCE_MODE_VERSION()",
+      "kind": "info",
+      "notes": "Mechanical half of the v1 rejection: configureOperator reverts InvalidXPNTsToken when this call reverts.",
+      "aggAllowed": false,
+      "current": {
+        "error": "reverted or absent: The contract function \"BALANCE_MODE_VERSION\" reverted."
       }
     },
     {
@@ -2092,16 +2432,18 @@
       "read": {
         "fn": "function communityOwner() view returns (address)"
       },
-      "expected": "unchanged",
+      "expected": "ANNI",
       "step": "-",
       "readback": "communityOwner()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Community token; owner set by the community.",
       "notes": null,
       "current": {
         "value": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9"
-      }
+      },
+      "class": 2,
+      "operatorOwner": "ANNI",
+      "classReason": "operator-owned by design: the Mycelium community owner (ANNI) of its own v1 community token."
     },
     {
       "id": "pnts.factory",
@@ -2116,26 +2458,58 @@
       "readback": "FACTORY()",
       "kind": "authority",
       "aggAllowed": false,
-      "exception": "Community token; minting authority with communityOwner.",
       "notes": null,
       "current": {
         "value": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2"
+      },
+      "class": 3,
+      "classReason": "legacy with the v1 factory (see xpntsV1.owner).",
+      "class3": {
+        "subjects": [
+          "XPNTS_FACTORY_V1"
+        ],
+        "requires": [
+          "as xpntsV1.owner"
+        ],
+        "authorDecision": false
+      }
+    },
+    {
+      "id": "pnts.balanceMode",
+      "contract": "pNTs (xPNTs v1)",
+      "address": "PNTS",
+      "slot": "BALANCE_MODE_VERSION",
+      "read": {
+        "fn": "function BALANCE_MODE_VERSION() view returns (uint16)"
+      },
+      "expected": "reverts (not a v2 token)",
+      "step": "-",
+      "readback": "eth_call BALANCE_MODE_VERSION()",
+      "kind": "info",
+      "aggAllowed": false,
+      "notes": null,
+      "current": {
+        "error": "reverted or absent: The contract function \"BALANCE_MODE_VERSION\" reverted."
       }
     }
   ],
   "readAt": {
     "chainId": 11155111,
-    "block": 12158083,
-    "hash": "0x35997ceca184b69f408df7445df7a82f2e0083ba9a5e8e9254fc3ff62ee52503",
+    "block": 12158399,
+    "hash": "0x7db3394fc4a77369e4231cdef2a8184af33e7b9c07111471cd336a5c6588b1fe",
     "endpoints": [
       "Alchemy",
       "Tenderly"
     ],
+    "finalizedAtRead": [
+      12158463,
+      12158463
+    ],
     "rule": "every value read on both endpoints at this block and required to be identical"
   },
   "inventory": {
-    "path": "script/evidence/rc8-owner-table/inventory-12158083.json",
-    "sha256": "81b744fd7fec44bbb0da068d8b22a903654410f70b7db869bb46fa249576e081",
+    "path": "script/evidence/rc8-owner-table/inventory-12158399.json",
+    "sha256": "686e983cf099a0756ded4341eb062b5fa537cdc3c4075caef82f6f4fe32a6c25",
     "configuredOperators": [
       "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
       "0xb5600060e6de5E11D3636731964218E53caadf0E"
@@ -2206,7 +2580,7 @@
       },
       {
         "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
-        "count": 429,
+        "count": 430,
         "firstBlock": 11151035,
         "signature": "PriceUpdated(int256,uint256)",
         "class": "historical",
@@ -2365,5 +2739,255 @@
         "source": "abis/SuperPaymaster.full.json"
       }
     ]
+  },
+  "protocolContracts": [
+    "REPSYS",
+    "A7"
+  ],
+  "legacyProbe": {
+    "subjects": [
+      "AGG_4_3",
+      "AGG_4_3_IND",
+      "AGG_4_1_A",
+      "AGG_4_1_B",
+      "XPNTS_FACTORY_V1",
+      "PM_FACTORY",
+      "PMV4_IMPL",
+      "MPC",
+      "X402",
+      "LIVENESS",
+      "XPNTS_FACTORY_CC28",
+      "POLICY_REGISTRY",
+      "OLD_TL"
+    ],
+    "getterTargets": {
+      "SP": {
+        "abi": "abis/SuperPaymaster.full.json"
+      },
+      "REGISTRY": {
+        "abi": "abis/Registry.json"
+      },
+      "DVT": {
+        "abi": "abis/DVTValidator.json"
+      },
+      "CAPPED": {
+        "abi": "abis/APNTsCapped.json"
+      },
+      "STAKING": {
+        "abi": "abis/GTokenStaking.json"
+      },
+      "GTOKEN": {
+        "abi": "abis/GToken.json"
+      },
+      "MYSBT": {
+        "abi": "abis/MySBT.json"
+      },
+      "REPSYS": {
+        "abi": "abis/ReputationSystem.json"
+      },
+      "AGG_4_11": {
+        "abi": "abis/BLSAggregator-4.11.0.deployed.json"
+      },
+      "COMMITTEE": {
+        "extra": [
+          "owner",
+          "blsAggregator"
+        ]
+      }
+    },
+    "memberProbes": [
+      {
+        "target": "REGISTRY",
+        "label": "isReputationSource(x)",
+        "fn": "function isReputationSource(address) view returns (bool)",
+        "args": [
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(COMMUNITY,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:COMMUNITY",
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(ENDUSER,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:ENDUSER",
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(PAYMASTER_AOA,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:PAYMASTER_AOA",
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(PAYMASTER_SUPER,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:PAYMASTER_SUPER",
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(DVT,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:DVT",
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(ANODE,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:ANODE",
+          "$member"
+        ]
+      },
+      {
+        "target": "REGISTRY",
+        "label": "hasRole(KMS,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:KMS",
+          "$member"
+        ]
+      },
+      {
+        "target": "STAKING",
+        "label": "authorizedSlashers(x)",
+        "fn": "function authorizedSlashers(address) view returns (bool)",
+        "args": [
+          "$member"
+        ]
+      },
+      {
+        "target": "DVT",
+        "label": "isValidator(x)",
+        "fn": "function isValidator(address) view returns (bool)",
+        "args": [
+          "$member"
+        ]
+      },
+      {
+        "target": "TL48",
+        "label": "hasRole(DEFAULT_ADMIN,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "$member"
+        ]
+      },
+      {
+        "target": "TL48",
+        "label": "hasRole(PROPOSER,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:PROPOSER_ROLE",
+          "$member"
+        ]
+      },
+      {
+        "target": "TL48",
+        "label": "hasRole(EXECUTOR,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:EXECUTOR_ROLE",
+          "$member"
+        ]
+      },
+      {
+        "target": "TL48",
+        "label": "hasRole(CANCELLER,x)",
+        "fn": "function hasRole(bytes32,address) view returns (bool)",
+        "args": [
+          "$keccak:CANCELLER_ROLE",
+          "$member"
+        ]
+      },
+      {
+        "target": "SAFE",
+        "label": "isOwner(x)",
+        "fn": "function isOwner(address) view returns (bool)",
+        "args": [
+          "$member"
+        ]
+      },
+      {
+        "target": "SAFE",
+        "label": "isModuleEnabled(x)",
+        "fn": "function isModuleEnabled(address) view returns (bool)",
+        "args": [
+          "$member"
+        ]
+      },
+      {
+        "target": "SP",
+        "label": "operators(x).isConfigured",
+        "fn": "function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)",
+        "args": [
+          "$member"
+        ],
+        "pick": 1
+      }
+    ],
+    "sourceScan": [
+      "contracts/src",
+      "script/upgrade/manifest_exec.py",
+      "script/upgrade/sp_upgrade_exec.py",
+      "script/a3a/a3a_exec.py",
+      "contracts/script/v3/DeployLive.s.sol"
+    ],
+    "note": "Undeployed rc.8 contracts (A7, AOAProtocolRegistry, xPNTsFactoryV2, the new SP/Registry implementations) are covered by the source scan of contracts/src and the manifest; their deployed state is read back at step 13.",
+    "results": {
+      "subjects": [
+        "0x174b60bB462b00550F0EC7Bc35Fe39dDB6310158",
+        "0xf44E7E51EFFa867114BE48fA92411fE216b1A285",
+        "0x893b8fb7B3d203C288b481400fE05Ade5edD6d11",
+        "0xF51c029879685Ced8fbCfa4b647c2eAe50Cd8B13",
+        "0x67422d2e44a33c8dA99b3b776841bF316bD209a2",
+        "0xA936F8e3d682B0eCf280E6f5c05fF4204ee87180",
+        "0xa4683e383af87069a2782A72031C329807F2E5A9",
+        "0x37578b70B231CC0Eda5991CA633ae99eb35f3818",
+        "0xfe1DB01e1d6622e722B92ed5993af61325DB92aF",
+        "0x02d841F7905aFb4424DBA71680D27C0F75d36BE7",
+        "0x9f426568f16e81144F3eBf6F07e497fB9f160d11",
+        "0x29253bF61310B63866dfb9E9f464B6d95E09f2C1",
+        "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+      ],
+      "gettersRead": 45,
+      "gettersAbsent": [
+        "SP.EXTENSION()",
+        "SP.guardian()",
+        "SP.pendingOwner()",
+        "REGISTRY.pendingOwner()"
+      ],
+      "memberReads": 221,
+      "memberAbsent": [],
+      "hits": [
+        {
+          "subject": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2",
+          "probe": "SP.xpntsFactory()"
+        },
+        {
+          "subject": "0xF51c029879685Ced8fbCfa4b647c2eAe50Cd8B13",
+          "probe": "STAKING.authorizedSlashers(x)"
+        }
+      ]
+    }
   }
 }

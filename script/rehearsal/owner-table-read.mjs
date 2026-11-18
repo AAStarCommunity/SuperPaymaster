@@ -4,38 +4,39 @@
 //
 // Usage: node script/rehearsal/owner-table-read.mjs <envFileWithRPC_URL> <secondRpcUrl> <inventory.json> [table.json]
 //   inventory.json = output of script/rehearsal/inventory.mjs (gives the pinned block and the operator lists).
-//   Neither endpoint URL is printed or written; endpoints are recorded by provider name only.
+//   Neither endpoint URL is printed or written; endpoints are recorded by a provider name derived from
+//   the host (lib/two-endpoint.mjs PROVIDERS), with the verified chain id and finalized heights.
+//   The inventory is refused unless all its controls are true and it is bound to this chain, SP and Registry.
 // After a read, regenerate the doc: node scripts/gen-rc8-owner-table.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createPublicClient, http, parseAbi, parseAbiItem, getAddress, keccak256, stringToHex } from "viem";
+import { makeRedactor, assertIndependent, both as both2, verifyPin, requireIdenticalLogs, codeAt } from "./lib/two-endpoint.mjs";
+import { inventoryErrors } from "./lib/inventory-accept.mjs";
 
 const [envFile, secondRpc, inventoryPath, tablePath = "docs/security/rc8-owner-table.json"] = process.argv.slice(2);
 const env = Object.fromEntries(readFileSync(envFile, "utf8").split("\n").filter((l) => /^\s*RPC_URL\s*=/.test(l))
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")]; }));
 if (!env.RPC_URL || !secondRpc) throw new Error("RPC_URL (env file) and second RPC URL are required");
-const SECRETS = [env.RPC_URL, secondRpc].flatMap((u) => { try { const x = new URL(u); return [u, x.host, x.pathname, x.search]; } catch { return [u]; } })
-    .filter((s) => s && s.length > 3).sort((a, b) => b.length - a.length);
-const redact = (s) => SECRETS.reduce((t, f) => t.split(f).join("<redacted>"), String(s));
-// Provider names, never URLs (rpca = Alchemy, rpcb = Tenderly; see the runbook endpoint note).
-const PROVIDERS = ["Alchemy", "Tenderly"];
+const redact = makeRedactor([env.RPC_URL, secondRpc]);
+const PROVIDERS = assertIndependent(env.RPC_URL, secondRpc); // throws on an identical host or provider
+const CHAIN_ID = 11155111;
 const clients = [env.RPC_URL, secondRpc].map((u) => createPublicClient({ transport: http(u, { timeout: 60_000 }) }));
 
 const table = JSON.parse(readFileSync(tablePath, "utf8"));
 const invRaw = readFileSync(inventoryPath);
 const inv = JSON.parse(invRaw);
-const block = BigInt(inv.pinnedBlock.number);
 const ID = table.identities;
 for (const k of Object.keys(ID)) if (ID[k] !== null) ID[k] = getAddress(ID[k]); // stored checksummed
+const refused = inventoryErrors(inv, { chainId: CHAIN_ID, sp: ID.SP, registry: ID.REGISTRY });
+if (refused.length) throw new Error("inventory refused:\n  " + refused.join("\n  "));
+const block = BigInt(inv.pinnedBlock.number);
 const resolve = (v) => (typeof v === "string" && Object.hasOwn(ID, v) ? ID[v] : v);
 const norm = (v) => (typeof v === "string" && /^0x[0-9a-fA-F]{40}$/.test(v) ? getAddress(v) : typeof v === "bigint" ? v.toString() : v);
 
 async function both(fn) {
-    const r = await Promise.all(clients.map((c) => fn(c).then((v) => ({ v }), (e) => ({ e: e.shortMessage ?? e.message }))));
-    const k = r.map((x) => JSON.stringify(x.v ?? null, (_, y) => (typeof y === "bigint" ? y.toString() : y)) + (x.e ? "!" : ""));
-    if (k[0] !== k[1]) throw new Error("endpoints disagree: " + redact(k.join(" | ")).slice(0, 300));
-    if (r[0].e) return { error: "reverted or absent: " + redact(r[0].e).split("\n")[0].slice(0, 120) };
-    return { value: r[0].v };
+    const r = await both2(clients, fn, redact);
+    return r.error ? { error: "reverted or absent: " + r.error.slice(0, 120) } : r;
 }
 
 async function deployBlock(c, address) {
@@ -70,6 +71,48 @@ async function readCall(address, r, member) {
     return res;
 }
 
+async function readRange(address, r) {
+    // fn(i) for i in [from, to]; the non-zero results, with their index (e.g. validatorAtSlot(1..13)).
+    const out = [];
+    for (let i = r.range[0]; i <= r.range[1]; i++) {
+        const res = await readCall(address, r, i);
+        if (res.error) return { error: `index ${i}: ${res.error}` };
+        if (res.value !== "0x0000000000000000000000000000000000000000") out.push({ index: i, value: res.value });
+    }
+    return { value: out.map((x) => x.value), indexed: out };
+}
+
+// Class-3 (legacy) evidence: no deployed rc.8 contract returns a legacy subject from any zero-argument
+// address getter of its rc.8 ABI, and no rc.8 role mapping holds it. Getters absent from the deployed
+// (older) version revert and are recorded as absent, not as clean.
+async function legacyProbe(lp) {
+    const subjects = [...new Set(lp.subjects.map((k) => getAddress(resolve(k))))];
+    const hit = (v) => [v].flat().filter((x) => typeof x === "string" && /^0x[0-9a-fA-F]{40}$/.test(x)).map((x) => getAddress(x)).filter((x) => subjects.includes(x));
+    const getters = [], hits = [];
+    for (const [target, spec] of Object.entries(lp.getterTargets)) {
+        const abiJson = spec.abi ? JSON.parse(readFileSync(new URL("../../" + spec.abi, import.meta.url), "utf8")) : [];
+        const fns = (Array.isArray(abiJson) ? abiJson : abiJson.abi).filter((f) => f.type === "function" && f.inputs.length === 0 &&
+            ["view", "pure"].includes(f.stateMutability) && f.outputs.length === 1 && ["address", "address[]"].includes(f.outputs[0].type))
+            .map((f) => `function ${f.name}() view returns (${f.outputs[0].type})`).concat((spec.extra ?? []).map((n) => `function ${n}() view returns (address)`));
+        for (const fn of [...new Set(fns)].sort()) {
+            const res = await readCall(resolve(target), { fn });
+            const name = fn.slice(9, fn.indexOf("("));
+            getters.push({ target, getter: name, ...(res.error ? { absent: true } : { value: res.value }) });
+            for (const h of res.error ? [] : hit(res.value)) hits.push({ subject: h, probe: `${target}.${name}()` });
+        }
+    }
+    const members = [];
+    for (const subject of subjects) for (const m of lp.memberProbes) {
+        const res = await readCall(resolve(m.target), { fn: m.fn, args: m.args, pick: m.pick }, subject);
+        const label = `${m.target}.${m.label}`;
+        members.push({ subject, probe: label, ...(res.error ? { absent: true } : { value: res.value }) });
+        if (!res.error && res.value === true) hits.push({ subject, probe: label });
+    }
+    return { subjects, gettersRead: getters.filter((g) => !g.absent).length,
+        gettersAbsent: getters.filter((g) => g.absent).map((g) => `${g.target}.${g.getter}()`),
+        memberReads: members.filter((m) => !m.absent).length, memberAbsent: [...new Set(members.filter((m) => m.absent).map((m) => m.probe))], hits };
+}
+
 async function readSet(address, r) {
     // Candidates = every member named by an event of the listed kinds + every named identity;
     // membership = the getter at the pinned block (events seed, state decides).
@@ -88,8 +131,8 @@ async function readSet(address, r) {
         const at = s.address ? resolve(s.address) : address;
         const start = s.address ? await from(at) : fromBlocks[0];
         const got = await Promise.all(clients.map((c) => logs(c, at, start, ev, filter)));
-        const fp = (ls) => ls.map((l) => `${l.blockHash}:${l.logIndex}`).sort().join(",");
-        if (fp(got[0]) !== fp(got[1])) throw new Error("endpoints return different logs for " + s.event);
+        // Full payload (address, topics, data, blockHash, logIndex, txHash); candidates only after agreement.
+        requireIdenticalLogs(got[0], got[1], s.event);
         const members = [...new Set(got[0].map((l) => getAddress(l.args[s.member])))];
         members.forEach((m) => candidates.add(m));
         seeds.push({ event: ev.name, address: getAddress(at), fromBlock: Number(start), filter: s.args ?? null, logs: got[0].length, members });
@@ -104,8 +147,8 @@ async function readSet(address, r) {
 }
 
 async function main() {
-    const pinned = await both((c) => c.getBlock({ blockNumber: block }).then((b) => b.hash));
-    if (pinned.value !== inv.pinnedBlock.hash) throw new Error("pinned block hash differs from the inventory");
+    // Both endpoints: chain id 11155111, pin <= finalized head, and the inventory's hash at the pin.
+    const provenance = await verifyPin(clients, CHAIN_ID, inv.pinnedBlock.number, inv.pinnedBlock.hash);
     // Role ids from IRegistry.sol, cross-checked against Registry.getRoleConfig on Sepolia.
     const src = readFileSync(new URL("../../contracts/src/interfaces/v3/IRegistry.sol", import.meta.url), "utf8");
     const roles = [...src.matchAll(/^bytes32 constant (ROLE_\w+)\s*=\s*keccak256\("(\w+)"\);/gm)].map((m) => ({ constant: m[1], name: m[2], id: keccak256(stringToHex(m[2])) }));
@@ -124,17 +167,20 @@ async function main() {
         const address = resolve(row.address);
         let res;
         if (address === null) res = { error: "not deployed at the pinned block (address assigned at deploy)" };
-        else if (row.read.fn) res = await readCall(address, row.read);
+        else if (row.read.fn && !row.read.range) res = await readCall(address, row.read);
         else if (row.read.storage) res = await both((c) => c.getStorageAt({ address, slot: row.read.storage, blockNumber: block }))
             .then((x) => (x.value ? { value: getAddress("0x" + x.value.slice(26)) } : x));
-        else if (row.read.code) res = await both((c) => c.getCode({ address, blockNumber: block })).then((x) => ({ value: x.value && x.value !== "0x" ? "has code" : "no code" }));
+        else if (row.read.code) res = await codeAt(clients, address, block, redact); // a failed read stays an error
         else if (row.read.set) res = await readSet(address, row.read.set);
+        else if (row.read.range) res = await readRange(address, row.read);
         else if (row.read.inventory) res = { value: row.read.inventory.split(".").reduce((o, k) => o[k], inv) };
         else throw new Error("row " + row.id + ": unknown read kind");
         row.current = res.error ? { error: res.error } : { value: res.value, ...(res.seeds ? { seeds: res.seeds, deployBlock: res.deployBlock, candidates: res.candidates } : {}) };
         console.log(row.id, JSON.stringify(row.current.value ?? row.current.error).slice(0, 140));
     }
-    table.readAt = { chainId: 11155111, block: inv.pinnedBlock.number, hash: inv.pinnedBlock.hash, endpoints: PROVIDERS,
+    if (table.legacyProbe) table.legacyProbe.results = await legacyProbe(table.legacyProbe);
+    table.readAt = { chainId: provenance.chainId, block: provenance.number, hash: provenance.hash, endpoints: PROVIDERS,
+        finalizedAtRead: provenance.finalized,
         rule: "every value read on both endpoints at this block and required to be identical" };
     table.inventory = {
         path: inventoryPath.replace(/^.*?(script\/evidence\/)/, "$1"), sha256: createHash("sha256").update(invRaw).digest("hex"),

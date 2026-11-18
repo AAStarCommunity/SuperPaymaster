@@ -1,6 +1,7 @@
 {
   "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
-  "at": "2026-11-18T01:17:14.118Z",
+  "chainId": 11155111,
+  "at": "2026-11-18T02:22:13.848Z",
   "endpoints": [
     {
       "label": "archive(Alchemy)",
@@ -13,8 +14,8 @@
   ],
   "crossCheck": {
     "allLogs": {
-      "archive": 497,
-      "second": 497,
+      "archive": 498,
+      "second": 498,
       "identical": true
     },
     "registryGrants": {
@@ -95,11 +96,11 @@
     "pendingDebts": []
   },
   "pinnedBlock": {
-    "number": 12158083,
-    "hash": "0x35997ceca184b69f408df7445df7a82f2e0083ba9a5e8e9254fc3ff62ee52503",
+    "number": 12158399,
+    "hash": "0x7db3394fc4a77369e4231cdef2a8184af33e7b9c07111471cd336a5c6588b1fe",
     "finalized": [
-      12158083,
-      12158083
+      12158399,
+      12158399
     ]
   },
   "deployBlock": {
@@ -108,7 +109,7 @@
   },
   "range": {
     "from": 11151016,
-    "to": 12158083
+    "to": 12158399
   },
   "events": {
     "unclassified": 0,
@@ -175,7 +176,7 @@
     },
     {
       "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
-      "count": 429,
+      "count": 430,
       "firstBlock": 11151035,
       "signature": "PriceUpdated(int256,uint256)",
       "class": "historical",
@@ -345,6 +346,5 @@
     "endpointsReturnIdenticalLogs": true,
     "roleMembersSlotMatchesView": true,
     "noConfiguredOperatorOutsideList": true
-  },
-  "endpointLabelNote": "endpoint labels rewritten to provider names after the run (the raw run printed the second host); no other field changed"
+  }
 }

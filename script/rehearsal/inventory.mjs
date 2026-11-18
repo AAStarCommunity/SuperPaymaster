@@ -20,11 +20,14 @@
 // _firstTimeRegister, whose two callers emit RoleRegistered.
 // Usage: node script/rehearsal/inventory.mjs <envFileWithRPC_URL> <secondRpcUrl> <out.json>
 //   Neither endpoint URL is printed or written; errors are redacted before output.
+//   The output file is written ONLY when every positive control holds (exit 1 and no file otherwise).
+//   Two-endpoint helpers (redaction, independence, finalized pin, log comparison) live in lib/two-endpoint.mjs.
 import { readFileSync, writeFileSync } from "node:fs";
 import {
     createPublicClient, http, parseAbiItem, getAddress, decodeEventLog, toEventSelector,
     keccak256, encodeAbiParameters, stringToHex, hexToBigInt, numberToHex,
 } from "viem";
+import { makeRedactor, assertIndependent, both, compareLogs, pinFinalized } from "./lib/two-endpoint.mjs";
 
 const [envFile, secondRpc, outPath] = process.argv.slice(2);
 const env = Object.fromEntries(readFileSync(envFile, "utf8").split("\n")
@@ -32,33 +35,8 @@ const env = Object.fromEntries(readFileSync(envFile, "utf8").split("\n")
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")]; }));
 if (!env.RPC_URL) throw new Error("RPC_URL missing in env file");
 
-// Every secret-bearing fragment of both URLs, in the forms a library may echo them back.
-const SECRETS = [];
-for (const u of [env.RPC_URL, secondRpc]) {
-    if (typeof u !== "string" || u.length === 0) continue;
-    SECRETS.push(u, u.replace(/\/+$/, ""));
-    try {
-        const x = new URL(u);
-        SECRETS.push(x.href);
-        if (x.pathname.length > 1) SECRETS.push(x.pathname, x.pathname.replace(/\/+$/, ""));
-        if (x.search.length > 1) SECRETS.push(x.search);
-        if (x.username) SECRETS.push(x.username);
-        if (x.password) SECRETS.push(x.password);
-    } catch { /* malformed: the raw string is still redacted */ }
-}
-SECRETS.sort((a, b) => b.length - a.length);
-function redact(s) {
-    let t = String(s);
-    for (const f of SECRETS) {
-        if (f.length < 2) continue;
-        t = t.split(f).join("<redacted>");
-        t = t.split(f.toLowerCase()).join("<redacted>");
-    }
-    return t;
-}
-function hostOf(u, label) {
-    try { return new URL(u).host; } catch { throw new Error(`${label} is not a valid URL`); }
-}
+const redact = makeRedactor([env.RPC_URL, secondRpc]);
+const CHAIN_ID = 11155111;
 
 const SP = "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9";
 const ROLE_MEMBERS_SLOT = 9n; // Registry `roleMembers` (forge inspect storageLayout), checked against getRoleUserCount
@@ -142,11 +120,7 @@ async function fetchLogs(c, address, from, to, filter) {
     return logs;
 }
 
-const fingerprint = (l) => [l.blockNumber, l.blockHash, l.logIndex, l.transactionHash, l.topics.join(","), l.data].join(":");
-const sameLogs = (x, y) => {
-    const fa = x.map(fingerprint).sort(), fb = y.map(fingerprint).sort();
-    return { archive: fa.length, second: fb.length, identical: fa.length === fb.length && fa.every((v, i) => v === fb[i]) };
-};
+const sameLogs = compareLogs; // full-payload fingerprints, shared implementation
 
 function classify(logs) {
     const out = { unclassified: [], operatorArgs: [] };
@@ -165,20 +139,19 @@ function classify(logs) {
 }
 
 async function main() {
-    if (hostOf(env.RPC_URL, "RPC_URL") === hostOf(secondRpc, "second RPC URL")) throw new Error("the two endpoints must be different providers");
+    const providers = assertIndependent(env.RPC_URL, secondRpc);
     const endpoints = [
-        { label: "archive(env RPC_URL)", client: createPublicClient({ transport: http(env.RPC_URL, { timeout: 60_000 }) }) },
-        { label: `second(${hostOf(secondRpc, "second RPC URL")})`, client: createPublicClient({ transport: http(secondRpc, { timeout: 60_000 }) }) },
+        { label: `archive(${providers[0]})`, client: createPublicClient({ transport: http(env.RPC_URL, { timeout: 60_000 }) }) },
+        { label: `second(${providers[1]})`, client: createPublicClient({ transport: http(secondRpc, { timeout: 60_000 }) }) },
     ];
-    const res = { sp: SP, at: new Date().toISOString(), endpoints: [], crossCheck: {}, state: {} };
+    const clients = endpoints.map((ep) => ep.client);
+    const res = { sp: SP, chainId: CHAIN_ID, at: new Date().toISOString(), endpoints: [], crossCheck: {}, state: {} };
 
-    // One pinned, reorg-safe range: the finalized block, identical (number and hash) on both endpoints.
-    const fin = await Promise.all(endpoints.map((ep) => ep.client.getBlock({ blockTag: "finalized" })));
-    const finNum = fin[0].number < fin[1].number ? fin[0].number : fin[1].number;
-    const pinned = await Promise.all(endpoints.map((ep) => ep.client.getBlock({ blockNumber: finNum })));
-    if (pinned[0].hash !== pinned[1].hash) throw new Error(`endpoints disagree on block ${finNum}`);
-    const head = finNum;
-    res.pinnedBlock = { number: Number(head), hash: pinned[0].hash, finalized: fin.map((b) => Number(b.number)) };
+    // One pinned, reorg-safe range: the finalized block, identical (number and hash) on both endpoints,
+    // both reporting chain id 11155111.
+    const pin = await pinFinalized(clients, CHAIN_ID);
+    const head = pin.number;
+    res.pinnedBlock = { number: Number(head), hash: pin.hash, finalized: pin.finalized };
     const deploy = await Promise.all(endpoints.map((ep) => deployBlockOf(ep.client, SP, head)));
     res.deployBlock = { archive: Number(deploy[0]), second: Number(deploy[1]) };
     if (deploy[0] !== deploy[1]) throw new Error("endpoints disagree on the SP deploy block");
@@ -190,6 +163,8 @@ async function main() {
         res.endpoints.push({ label: ep.label, ok: true });
     }
     res.crossCheck.allLogs = sameLogs(raw[0], raw[1]);
+    // Nothing is derived from the logs unless both endpoints returned the identical full payload.
+    if (!res.crossCheck.allLogs.identical) throw new Error("endpoints return different SP logs");
     const ev = classify(raw[0]);
     res.events = Object.fromEntries(Object.entries(ev).map(([k, v]) => [k, v.length]));
     // Per-topic0 table for the deploy-day readback (DVT's detector takes the non-current rows as its supplement).
@@ -208,13 +183,19 @@ async function main() {
     });
     res.unclassifiedTopic0 = [...new Set(ev.unclassified.map((x) => x.topic0))];
 
-    // State read-back at the pinned head (positive control: every OperatorConfigured operator must read isConfigured).
-    const c = endpoints[0].client;
-    const read = (fn, args = []) => c.readContract({ address: SP, abi: SP_ABI, functionName: fn, args, blockNumber: head });
+    // State read-back at the pinned head, on BOTH endpoints with equal results (positive control: every
+    // OperatorConfigured operator must read isConfigured).
+    const must = async (label, fn) => {
+        const r = await both(clients, fn, redact);
+        if (r.error) throw new Error(`${label}: ${r.error}`);
+        return r.value;
+    };
+    const read = (fn, args = []) => must(`SP.${fn}`, (c) => c.readContract({ address: SP, abi: SP_ABI, functionName: fn, args, blockNumber: head }));
     res.state.version = await read("version");
     res.state.APNTS_TOKEN = await read("APNTS_TOKEN");
     res.state.pendingAPNTsToken = await read("pendingAPNTsToken");
-    res.state.pendingAPNTsEta = (await read("pendingAPNTsEta").catch(() => null))?.toString() ?? null;
+    const eta = await both(clients, (c) => c.readContract({ address: SP, abi: SP_ABI, functionName: "pendingAPNTsEta", blockNumber: head }), redact);
+    res.state.pendingAPNTsEta = eta.error ? null : eta.value.toString();
     const ops = [...new Set(ev.OperatorConfigured.map((x) => getAddress(x.args.operator)))];
     res.state.operators = [];
     for (const op of ops) {
@@ -232,11 +213,13 @@ async function main() {
         grants.push(await fetchLogs(ep.client, registry, regDeploy[0], head, { event: ROLE_REGISTERED, args: { roleId: PAYMASTER_SUPER } }));
     }
     res.crossCheck.registryGrants = sameLogs(grants[0], grants[1]);
+    if (!res.crossCheck.registryGrants.identical) throw new Error("endpoints return different Registry RoleRegistered logs");
     const everRegistered = [...new Set(grants[0].map((l) => getAddress(l.args.user)))];
     const base = keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [PAYMASTER_SUPER, ROLE_MEMBERS_SLOT]));
-    const storageAt = (slot) => c.getStorageAt({ address: registry, slot, blockNumber: head });
+    const storageAt = (slot) => must("Registry storage", (c) => c.getStorageAt({ address: registry, slot, blockNumber: head }));
     const count = hexToBigInt(await storageAt(base));
-    const viewCount = await c.readContract({ address: registry, abi: REGISTRY_ABI, functionName: "getRoleUserCount", args: [PAYMASTER_SUPER], blockNumber: head });
+    const viewCount = await must("Registry.getRoleUserCount", (c) => c.readContract({ address: registry, abi: REGISTRY_ABI,
+        functionName: "getRoleUserCount", args: [PAYMASTER_SUPER], blockNumber: head }));
     const first = hexToBigInt(keccak256(base));
     const holders = [];
     for (let i = 0n; i < count; i++) holders.push(getAddress("0x" + (await storageAt(numberToHex(first + i, { size: 32 }))).slice(26)));
@@ -260,9 +243,9 @@ async function main() {
         const [token, user] = p.split("|");
         res.state.pendingDebts.push({ token, user, amount: (await read("pendingDebts", [token, user])).toString() });
     }
-    const after = await c.getBlock({ blockNumber: head });
+    const after = await Promise.all(clients.map((c) => c.getBlock({ blockNumber: head })));
     res.positiveControl = {
-        pinnedBlockUnchanged: after.hash === res.pinnedBlock.hash,
+        pinnedBlockUnchanged: after.every((b) => b.hash === res.pinnedBlock.hash),
         endpointsReturnIdenticalRegistryGrants: res.crossCheck.registryGrants.identical,
         everyHolderEverRegistered: holders.every((h) => everRegistered.includes(h)),
         operatorConfiguredEventsFound: ev.OperatorConfigured.length > 0,
@@ -272,7 +255,6 @@ async function main() {
         roleMembersSlotMatchesView: count === viewCount,
         noConfiguredOperatorOutsideList: res.state.outsideList.every((o) => !o.isConfigured),
     };
-    writeFileSync(outPath, JSON.stringify(res, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2));
     console.log(JSON.stringify({ pinnedBlock: res.pinnedBlock, deployBlock: res.deployBlock, range: res.range, endpoints: res.endpoints,
         crossCheck: res.crossCheck, events: res.events,
         topic0Table: res.topic0Table.map((r) => `${r.topic0} ${r.signature} ${r.count} ${r.firstBlock} ${r.class}`), operators: res.state.operators.map((o) => o.operator),
@@ -282,9 +264,11 @@ async function main() {
         pendingAPNTsToken: res.state.pendingAPNTsToken, unclassifiedTopic0: res.unclassifiedTopic0,
         positiveControl: res.positiveControl }, null, 2));
     if (!Object.values(res.positiveControl).every(Boolean)) {
-        console.error("INVENTORY INCOMPLETE: see positiveControl");
+        console.error("INVENTORY INCOMPLETE: see positiveControl (no output file written)");
         process.exit(1);
     }
+    // Written only after every control holds: a consumer never sees a file from a failed run.
+    writeFileSync(outPath, JSON.stringify(res, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2));
 }
 
 main().catch((e) => {
