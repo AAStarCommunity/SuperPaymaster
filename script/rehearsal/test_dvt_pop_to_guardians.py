@@ -34,9 +34,8 @@ class ConverterTest(unittest.TestCase):
             self.assertEqual(encoded, entry['calldata'])
         encoded = subprocess.check_output(['cast', 'abi-encode', 'f((address,(bytes32,bytes32,bytes32,bytes32),(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))[])', '[' + ','.join(tuples) + ']'], text=True).strip()
         self.assertEqual(expected, encoded)
-        local = ROOT / 'cache/dlpop/guardians.txt'
-        self.assertTrue(local.exists(), 'run DeployLivePopSyntheticTest with Prague first')
-        self.assertEqual(expected, local.read_text().strip())
+        # The other half of the round trip (DeployLiveLocalBundle's GUARDIANS == this committed hex)
+        # is asserted on Prague by DeployLivePopSyntheticTest; no cache file from an earlier run.
 
     def test_cli_hashes(self):
         args = ['python3', str(SCRIPT), str(FIX / 'SYNTHETIC.export.json'), str(FIX / 'SYNTHETIC.request.json'), '--sp-root', str(ROOT)]

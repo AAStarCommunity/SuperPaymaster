@@ -16,6 +16,10 @@ contract DeployLivePopSyntheticTest is Test {
         vm.setEnv("DEPLOYER_ADDRESS", vm.toString(sender));
         vm.setEnv("DEPLOYLIVE_LOCAL_EVIDENCE", "cache/dlpop");
         new DeployLiveLocalBundle().run();
+        // Round-trip anchor: the local bundle's GUARDIANS must equal the committed converter fixture,
+        // so the Python converter test needs no cache file from an earlier Prague run.
+        assertEq(vm.trim(vm.readFile("cache/dlpop/guardians.txt")),
+                 vm.trim(vm.readFile("script/rehearsal/fixtures/dvt-pop/SYNTHETIC.guardians.hex")), "SYNTHETIC GUARDIANS");
         vm.writeFile("cache/dlpop/SYNTHETIC.addresses.json", vm.serializeAddress("synthetic", "Registry", vm.computeCreateAddress(sender, 8)));
         vm.writeFile("cache/dlpop/SYNTHETIC.addresses.json", vm.serializeAddress("synthetic", "BLSAggregator", vm.computeCreateAddress(sender, 36)));
     }
