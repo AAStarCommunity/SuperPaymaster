@@ -3344,6 +3344,22 @@
         }
       ],
       "anonymous": false
+    },
+    {
+      "type": "error",
+      "name": "InvalidOracleTimestamp",
+      "inputs": [
+        {
+          "name": "updatedAt",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "nowTs",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
     }
   ],
   "note": "SuperPaymaster 5.5.0 (D5b) = core (SuperPaymaster) + extension (SuperPaymasterAdmin, reached via the core's fallback DELEGATECALL). Both live at the proxy address; call everything through this combined ABI."
