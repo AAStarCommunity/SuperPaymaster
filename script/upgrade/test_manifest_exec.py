@@ -3026,6 +3026,42 @@ class ManifestTests(unittest.TestCase):
             m.reconcile_nonces(self.history_rpc(True), p, self.inputs)
         self.assertEqual(caught.exception.record['gate'], 'a3a_canonical_receipt')
 
+    # #608 split PR-2: the four 6e-renamed dynamic gate prefixes, asserted by their full name.
+    def test_reconcile_names_the_step_without_receipt(self):
+        sid = m.history_steps(self.pin, self.inputs)['steps'][0]['id']
+        honest = self.history_rpc()
+        txhash = self.data['a3aPlan']['receipts'][sid]
+        def rpc(method, params):
+            if method == 'eth_getTransactionReceipt' and params == [txhash]:
+                return None
+            return honest(method, params)
+        with assert_stop(self, 'a3a_mined_reconcile_'+sid):
+            m.reconcile_nonces(rpc, copy.deepcopy(self.pin), self.inputs)
+
+    def test_history_names_the_step_without_receipt(self):
+        sid = m.history_steps(self.pin, self.inputs)['steps'][0]['id']
+        bad = copy.deepcopy(self.pin)
+        bad['a3aHistory'][sid]['receipt'] = None
+        with assert_stop(self, 'a3a_mined_history_'+sid):
+            m.validate_nonce_history(bad, self.inputs)
+
+    def test_readback_names_the_failing_getter(self):
+        step = self.step('A12a')
+        broken = 'AGGREGATOR()'
+        def call(rpc, target, sig, *args):
+            value = ANNI if target == step['creates'] and sig == broken else (
+                self.plan['addresses']['BLSAggregator'] if sig == 'AGGREGATOR()' else u.REG)
+            return '0x'+value[2:].zfill(64)
+        with patch.object(a, 'call', side_effect=call), patch.object(u, 'code', return_value='0x6000'):
+            with assert_stop(self, 'readback_value_'+broken):
+                for pred in step['readbacks']: m.check_predicate(None, pred)
+
+    def test_plan_validation_names_the_mutated_step_key(self):
+        bad = copy.deepcopy(self.plan)
+        bad['steps'][0]['sender'] = 'not-a-sender'
+        with assert_stop(self, 'manifest_step_key_sender'):
+            m.validate_plan(bad, self.inputs)
+
     def test_internal_nonce_hole_refused(self):
         spec = copy.deepcopy(self.data['a3aPlan'])
         plan = json.loads(Path(spec['path']).read_text())
