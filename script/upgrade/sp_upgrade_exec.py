@@ -2,6 +2,7 @@
 """Unsigned CC-125 Safe A6e plan and same-fork A3a/upgrade rehearsal."""
 import sys
 sys.dont_write_bytecode = True
+from release_versions import RELEASE_VERSIONS, LIVE_VERSIONS
 import argparse
 import copy
 from contextlib import contextmanager
@@ -368,7 +369,7 @@ def collect(rpc, block, source=None):
     block = b['number']
     capped, tl_start = a3a_gate(rpc, block)
     a.need('sp_542', a.call(rpc, SP, 'version()', block=block),
-           a.cast('abi-encode', 'c(string)', 'SuperPaymaster-5.4.2'))
+           a.cast('abi-encode', 'c(string)', LIVE_VERSIONS['SuperPaymaster']))
     registry = a.address(rpc, SP, 'REGISTRY()', block)
     a.need('sp_registry', registry, REG)
     cfg = config(a.call(rpc, REG, 'getRoleConfig(bytes32)', role(), block=block))
@@ -876,7 +877,7 @@ def upgrade_readback(rpc, plan, activated=False):
     a.need('extension_getter', a.address(rpc, impl, 'EXTENSION()'), plan['extension'])
     for key, expected in pin['immutables'].items():
         a.need('immutable_readback_'+key, a.address(rpc, SP, key+'()'), expected)
-    a.need('version_550', a.call(rpc, SP, 'version()'), a.cast('abi-encode', 'c(string)', 'SuperPaymaster-5.5.0'))
+    a.need('version_550', a.call(rpc, SP, 'version()'), a.cast('abi-encode', 'c(string)', RELEASE_VERSIONS['SuperPaymaster']))
     a.need('sp_owner', a.address(rpc, SP, 'owner()'), TL)
     a.need('guardian', a.address(rpc, SP, 'guardian()'), pin['guardianBefore'])
     a.need('global_pause', a.word(rpc, SP, 'paused()'), 1)

@@ -37,3 +37,14 @@ Results kept as evidence, not landed:
 **B1** (CI read the local `/private/tmp/l1-builds` archive) is already solved on `main` by `8e0fc8d4`
 (#614 review B1): the fixture is committed, and CI materializes it before the suites run. The split
 therefore has no separate PR for COMMIT 6m.
+
+### Release and live version pins
+
+`script/upgrade/release_versions.py` separates `LIVE_VERSIONS` (the authenticated
+Sepolia pin-time chain versions, independent of source) from `RELEASE_VERSIONS`
+(the built/post-upgrade targets). The pure-Python `test_release_versions.py` CI
+check matches release targets to each declaring contract's source `version()`
+literal and rejects stray runtime version literals, including copies of live pins
+outside the live table. Temporary-copy mutation controls exercise source drift
+and stray literals. The manifest reads SuperPaymaster's version after both upgrade
+and activation, and the Lens version after deployment.

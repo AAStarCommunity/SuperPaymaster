@@ -749,7 +749,7 @@ class ExecutorTests(unittest.TestCase):
         stack.enter_context(patch.object(a, 'word', return_value=changes.get('paused', 1)))
         gas = [*ex.GAS, *([0]*5 if activated else [*ex.GAS, 12345])]
         def call(rpc, target, sig, *args):
-            if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'SuperPaymaster-5.5.0')
+            if sig == 'version()': return a.cast('abi-encode', 'c(string)', ex.RELEASE_VERSIONS['SuperPaymaster'])
             self.assertEqual(sig, 'gasParams()')
             return a.cast('abi-encode', 'c(uint32,uint32,uint32,uint32,uint32,uint32,uint32,uint32,uint64)', *changes.get('gas', gas))
         stack.enter_context(patch.object(a, 'call', side_effect=call))

@@ -32,6 +32,8 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.7.1
+      - name: Release versions match source and reject stray runtime pins (pure Python)
+        run: python3 -B script/upgrade/test_release_versions.py
       - name: Gate-name hygiene (no merged names, no orphaned consumers, rpc_result sites) and its mutation controls
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_gate_name_hygiene.py

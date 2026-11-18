@@ -33,6 +33,10 @@ class RealDvtExportTests(unittest.TestCase):
     def adapt(self):
         return p.adapt(self.path, pin=self.pin, stage_source=self.source, tool_commit='a'*40)
 
+    def test_real_export_rejected_by_version_gate(self):
+        with self.assertRaisesRegex(p.Stop, '^STOP: version$'):
+            self.adapt()
+
     def test_real_export_encoding_seam(self):
         for item in self.export['registrations']:
             with self.subTest(slot=item['slot']):
@@ -45,8 +49,21 @@ class RealDvtExportTests(unittest.TestCase):
                 self.assertFalse(differences,
                     'calldata differences (zero-based byte offset, DVT byte, adapter byte): '+str(differences))
                 self.assertEqual(len(encoded), 4+14*32)
-        result = self.adapt()
-        self.assertEqual(result['exportSha256'], self.sha256)
+
+    def synthetic_adapt(self):
+        # Preserve the real export bytes except for the release version metadata.
+        raw = self.path.read_bytes().replace(
+            json.dumps(self.export['version']).encode(),
+            json.dumps(p.RELEASE_VERSIONS['BLSAggregator']).encode(), 1)
+        self.synthetic_sha256 = hashlib.sha256(raw).hexdigest()
+        with tempfile.TemporaryDirectory() as tmp:
+            synthetic_path = Path(tmp)/'synthetic-export.json'
+            synthetic_path.write_bytes(raw)
+            return p.adapt(synthetic_path, pin=self.pin, stage_source=self.source, tool_commit='a'*40)
+
+    def test_synthetic_export_accepted(self):
+        result = self.synthetic_adapt()
+        self.assertEqual(result['exportSha256'], self.synthetic_sha256)
         self.assertEqual(len(result['pop']), 3)
         for actual, exported in zip(result['pop'], self.export['registrations']):
             self.assertEqual(actual, dict(validator=exported['validator'].lower(), slot=exported['slot'],
@@ -55,7 +72,7 @@ class RealDvtExportTests(unittest.TestCase):
 
     def test_real_export_rejects_different_plan_a7(self):
         self.source['plan']['addresses']['BLSAggregator'] = '0x'+'77'*20
-        with self.assertRaisesRegex(p.Stop, '^STOP: aggregator$'):
+        with self.assertRaisesRegex(p.Stop, '^STOP: version$'):
             self.adapt()
 
     def test_real_export_rejects_different_stage_readback(self):
@@ -66,8 +83,19 @@ class RealDvtExportTests(unittest.TestCase):
     def test_real_export_rejects_different_expected_and_readback_domain(self):
         self.source['plan']['expectedDomainSeparator'] = '0x'+'77'*32
         self.source['readback']['domainSeparator'] = '0x'+'77'*32
-        with self.assertRaisesRegex(p.Stop, '^STOP: domain$'):
+        with self.assertRaisesRegex(p.Stop, '^STOP: version$'):
             self.adapt()
+
+    def test_synthetic_export_rejects_different_plan_a7(self):
+        self.source['plan']['addresses']['BLSAggregator'] = '0x'+'77'*20
+        with self.assertRaisesRegex(p.Stop, '^STOP: aggregator$'):
+            self.synthetic_adapt()
+
+    def test_synthetic_export_rejects_different_expected_and_readback_domain(self):
+        self.source['plan']['expectedDomainSeparator'] = '0x'+'77'*32
+        self.source['readback']['domainSeparator'] = '0x'+'77'*32
+        with self.assertRaisesRegex(p.Stop, '^STOP: domain$'):
+            self.synthetic_adapt()
 
 
 class PopAdapterTests(unittest.TestCase):
@@ -81,7 +109,7 @@ class PopAdapterTests(unittest.TestCase):
             addresses=dict(BLSAggregator='0x'+'ab'*20), expectedDomainSeparator='0x'+'22'*32,
             prefixDigest='33'*32), readback=dict(prefixDigest='33'*32, domainSeparator='0x'+'22'*32))
         self.export = dict(chainId=11155111, aggregator='0x'+'ab'*20,
-            version='BLSAggregator-4.12.0', owner=p.m.u.DEPLOYER,
+            version=p.RELEASE_VERSIONS['BLSAggregator'], owner=p.m.u.DEPLOYER,
             domainSeparator='0x'+'22'*32, block=999, registrations=[])
         for slot, who in p.GUARDIANS.items():
             key = ['0x'+format(slot*10+i, '064x') for i in range(4)]

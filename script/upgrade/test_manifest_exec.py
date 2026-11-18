@@ -28,7 +28,7 @@ SAMPLE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-fraud-dri
 VERIFIER_CODE = json.loads(Path(__file__).with_name('fixtures').joinpath('dvt-creation.json').read_text())['creationBytecode']
 COMMITTEE = m.COMMITTEE
 OLD = m.OLD_AGGREGATOR
-ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol']), commit='a'*40, aggregatorVersion=m.AGG_VERSION, forgeVersion='forge Version: 1.7.1', contracts={name: dict(
+ART = dict(scope=dict(contracts=list(m.NAMES), files=['contracts/src/SuperPaymaster.sol']), commit='a'*40, aggregatorVersion=m.RELEASE_VERSIONS['BLSAggregator'], forgeVersion='forge Version: 1.7.1', contracts={name: dict(
     bytecode='0x60006000f3a00001', runtimeIdentity=dict(artifactRuntime='0x6000', ranges=[]),
     storageLayout={}, metadata={}) for name in m.NAMES})
 
@@ -144,7 +144,7 @@ def fraud_export(f):
     e = copy.deepcopy(SAMPLE)
     for key in ('aggregator', 'verifier', 'registry', 'domainSeparator', 'block'):
         e[key] = f[key]
-    e['version'] = m.AGG_VERSION
+    e['version'] = m.RELEASE_VERSIONS['BLSAggregator']
     e['forkState']['token'].update(address=f['mockToken']['address'], runtimeBytecode=f['mockToken']['runtime'])
     e['forkState']['commitment'].update(key=str(f['pid']), value=f['commitment']['value'])
     words = u.uints(f['fraudProof'])
@@ -447,7 +447,7 @@ def dvt_accepted_failures():
 class DvtCiEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.e = dict(kind='dvt-ci', subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'],
-            aggregatorVersion=m.AGG_VERSION, tool=dict(name='CI', version='1'),
+            aggregatorVersion=m.RELEASE_VERSIONS['BLSAggregator'], tool=dict(name='CI', version='1'),
             counts=dict(passed=23, failed=0, skipped=0), result='PASS',
             suites={k:dict(passed=v, failed=0, skipped=0, result='PASS') for k,v in m.DVT_SUITES.items()},
             ciRun=dvt_ci_run(), acceptedFailures=dvt_accepted_failures())
@@ -732,7 +732,7 @@ class RebuiltScopeTests(unittest.TestCase):
                           runtimeIdentity=art['runtimeIdentity'], storageLayout=art['storageLayout'])
                 for name, art in ART['contracts'].items()}
         arts['BLSAggregator']['ast'] = dict(nodeType='FunctionDefinition', name='version',
-            body=dict(nodeType='Literal', value=m.AGG_VERSION))
+            body=dict(nodeType='Literal', value=m.RELEASE_VERSIONS['BLSAggregator']))
         trees = []
         def archive(repo, commit, tree):
             self.assertEqual(commit, ART['commit'])
@@ -803,7 +803,7 @@ class ManifestTests(unittest.TestCase):
             e = dict(kind=kind, subjectCommit=ART['commit'], tool=dict(name='synthetic', version='1'),
                      counts=dict(passed=1, failed=0, skipped=0), result='PASS')
             if kind.startswith('dvt-'):
-                e.update(subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'], aggregatorVersion=m.AGG_VERSION)
+                e.update(subjectCommit=m.VERIFIER_COMMIT, spCommit=ART['commit'], aggregatorVersion=m.RELEASE_VERSIONS['BLSAggregator'])
             if kind == 'conformance':
                 e['scope'] = 'checker-logic-offline'
                 e['controls'] = json.loads((Path(__file__).resolve().parents[1]/'evidence/a4-conformance-record.template.json').read_text())['controls']
@@ -888,6 +888,27 @@ class ManifestTests(unittest.TestCase):
         b4 = m.build_plan(self.pin, middle, 'b4', sources)
         sources['b4'] = source(b4)
         return a7, b4, sources
+
+    def test_release_version_readbacks(self):
+        from test_release_versions import source_versions
+        versions = source_versions(m.a.ROOT)
+        lens = self.plan['addresses']['SuperPaymasterLens']
+        step = next(s for s in self.plan['steps'] if s['id'] == 'A5')
+        self.assertIn(m.predicate(lens, 'version()', (), a.cast('abi-encode', 'c(string)', versions['SuperPaymasterLens'])), step['readbacks'])
+
+    def test_batch_release_version_readback(self):
+        from test_release_versions import source_versions
+        expected = a.cast('abi-encode', 'c(string)', source_versions(m.a.ROOT)['SuperPaymaster'])
+        for activated in (False, True):
+            gas = [*u.GAS, *([0]*5)] if activated else [0]*4 + u.GAS + [100+u.DELAY]
+            checks = []
+            with patch.object(a, 'call', return_value=a.cast('abi-encode', 'c(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)', *gas)), patch.object(m, 'check_predicate', side_effect=lambda rpc, p: checks.append(p)):
+                m.batch_readback(None, self.plan, activated, 100)
+            self.assertIn(m.predicate(u.SP, 'version()', (), expected), checks)
+            version = next(p for p in checks if p.get('signature') == 'version()')
+            with patch.object(a, 'call', return_value=a.cast('abi-encode', 'c(string)', 'stale')):
+                with self.assertRaises(a.Gate):
+                    m.check_predicate(None, version)
 
     def test_staged_builds(self):
         a7, b4, sources = self.staged_chain()
@@ -2768,7 +2789,7 @@ class ManifestTests(unittest.TestCase):
     def test_fraud_sample_412_schema_and_bindings(self):
         wrapped = dict(toolCommit='b'*40, verifierCommit=m.VERIFIER_COMMIT, export=copy.deepcopy(SAMPLE))
         e = wrapped['export']
-        e.update(version=m.AGG_VERSION, aggregator=self.plan['addresses']['BLSAggregator'],
+        e.update(version=m.RELEASE_VERSIONS['BLSAggregator'], aggregator=self.plan['addresses']['BLSAggregator'],
                  verifier=self.plan['addresses']['OverIssueFraudProofVerifier'])
         # Address substitution proves format compatibility, not an authenticated fork domain.
         p = dict(block=e['block'], guardianInventory=[dict(validator=x.lower()) for x in e['valid']['guiltyGuardians']])

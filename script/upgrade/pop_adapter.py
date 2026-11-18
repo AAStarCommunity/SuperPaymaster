@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 import manifest_exec as m
+from release_versions import RELEASE_VERSIONS
 
 GUARDIANS = {
     1: '0x5d870e132cc010e882e90f4afaacdc4f19c7eca3',
@@ -122,7 +123,7 @@ def adapt(export_path, *, pin, stage_source, tool_commit):
         require('stage_domain', domain == hex_value(plan['expectedDomainSeparator'], 32, 'expected_domain'))
         pin_hash = hex_value(pin['blockHash'], 32, 'pin_hash')
         require('chain_id', type(export['chainId']) is int and export['chainId'] == 11155111)
-        require('version', export['version'] == 'BLSAggregator-4.12.0')
+        require('version', export['version'] == RELEASE_VERSIONS['BLSAggregator'])
         require('aggregator', hex_value(export['aggregator'], 20, 'aggregator_format') == aggregator)
         require('owner', hex_value(export['owner'], 20, 'owner_format') == m.u.DEPLOYER)
         require('domain', hex_value(export['domainSeparator'], 32, 'domain_format') == domain)

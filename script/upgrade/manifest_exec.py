@@ -16,10 +16,10 @@ import subprocess
 import sp_upgrade_exec as u
 import old_owner_isolation as isolation
 import execution_reads
+from release_versions import RELEASE_VERSIONS, LIVE_VERSIONS
 
 a = u.a
 ANNI = '0xecaacb915f7d92e9916f449f7ad42bd0408733c9'
-AGG_VERSION = 'BLSAggregator-4.12.0'
 FRAUD_SIG = 'queueGuardianSlash(uint256,address[],bytes)'
 EVIDENCE_KINDS = ('conformance', 'mutation', 'slither', 'reproducible-build', 'dvt-ci', 'dvt-conformance-4.12')
 BUFFER = 10**17
@@ -153,7 +153,7 @@ def evidence_file(ref, kind, commit=None):
     validate_evidence_details(e, kind, Path(ref['path']).parent)
     if kind.startswith('dvt-'):
         a.need('evidence_dvt_commit', e['subjectCommit'], VERIFIER_COMMIT)
-        a.need('evidence_aggregator_version', e['aggregatorVersion'], AGG_VERSION)
+        a.need('evidence_aggregator_version', e['aggregatorVersion'], RELEASE_VERSIONS['BLSAggregator'])
     if commit is not None:
         a.need('evidence_release_commit', e['spCommit'] if kind.startswith('dvt-') else e['subjectCommit'], commit)
     return e
@@ -704,8 +704,8 @@ def rebuild_commit(head):
            commitment_slot(arts['BLSAggregator']['storageLayout'], 1))
     arts['BLSAggregator']['storageLayout'] = layout
     functions = [n for n in a.ast_nodes(arts['BLSAggregator']['ast']) if n.get('nodeType') == 'FunctionDefinition' and n.get('name') == 'version']
-    a.need('built_aggregator_version_rebuild_commit', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[AGG_VERSION]])
-    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release", names=tuple(sorted(set(isolation.NAMES) | {"xPNTsFactoryV2", "xPNTsTokenV2", "xPNTsTokenV2Ext"}))), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=AGG_VERSION, forgeVersion=version.strip(), contracts={name: dict(
+    a.need('built_aggregator_version_rebuild_commit', [[n.get('value') for n in a.ast_nodes(f['body']) if n.get('nodeType') == 'Literal'] for f in functions], [[RELEASE_VERSIONS['BLSAggregator']]])
+    return dict(calldataSignatures=isolation.signature_catalogue(tree), oldOwnerInventory=isolation.inventory_source(tree, mode="release", names=tuple(sorted(set(isolation.NAMES) | {"xPNTsFactoryV2", "xPNTsTokenV2", "xPNTsTokenV2Ext"}))), tree=tree, treeOwner=directory, scope=scope, commit=head, aggregatorVersion=RELEASE_VERSIONS['BLSAggregator'], forgeVersion=version.strip(), contracts={name: dict(
         bytecode=art['bytecode']['object'], creationHashes=creation_hashes(art['bytecode']['object']), runtimeIdentity=art['runtimeIdentity'],
         storageLayout=art.get('storageLayout', {}), metadata=a.metadata_identity(art, cfg))
         for name, art in arts.items()})
@@ -738,7 +738,7 @@ def release_gate(inputs, build, pin):
     data = inputs['data']
     state = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=u.ROOT, capture_output=True, text=True, check=True)
     a.need('release_clean_tree', state.stdout, '')
-    a.need('built_aggregator_version_release_gate', build['aggregatorVersion'], AGG_VERSION)
+    a.need('built_aggregator_version_release_gate', build['aggregatorVersion'], RELEASE_VERSIONS['BLSAggregator'])
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT, capture_output=True, text=True, check=True).stdout.strip()
     a.need('release_current_head', head, build['commit'])
     for kind in EVIDENCE_KINDS:
@@ -1924,7 +1924,7 @@ def collect(rpc, block, inputs, stage="full", governance_rpcs=None):
     a.need('anni_pending_nonce', a.nonce(rpc, who, 'pending'), n)
     a.need('anni_eoa', u.code(rpc, who, block), '0x')
     pin['senders']['anni'] = dict(address=who, nonce=n, balance=a.qty(rpc('eth_getBalance', [who, block])))
-    a.need('registry_version', a.call(rpc, u.REG, 'version()', block=block), a.cast('abi-encode', 'c(string)', 'Registry-5.8.0'))
+    a.need('registry_version', a.call(rpc, u.REG, 'version()', block=block), a.cast('abi-encode', 'c(string)', LIVE_VERSIONS['Registry']))
     pin['registryImplementation'] = u.addr_word(int(rpc('eth_getStorageAt', [u.REG, u.IMPL_SLOT, block]), 16))
     pin['registryImplementationCode'] = u.code(rpc, pin['registryImplementation'], block)
     reconcile_nonces(rpc, pin, inputs, governance_rpcs)
@@ -2240,16 +2240,18 @@ def build_plan(pin, inputs=None, stage='full', stage_sources=None):
              extensionCodehash=int(a.keccak(runtimes[ext]), 16)))
     steps[-1]['readbacks'] += [address_pred(factory, 'SUPERPAYMASTER()', u.SP),
         address_pred(factory, 'defaultTierSource()', tier)]
-    deploy('A5', 'SuperPaymasterLens')
+    lens = deploy('A5', 'SuperPaymasterLens')
+    steps[-1]['readbacks'].append(predicate(lens, 'version()', (),
+        a.cast('abi-encode', 'c(string)', RELEASE_VERSIONS['SuperPaymasterLens'])))
     reg = deploy('A6.create', 'Registry', values=lambda t: {'__self': int(t, 16)})
     call('A6.upgrade', u.REG, 'upgradeToAndCall(address,bytes)', (reg, '0x'),
         [dict(kind='storage', target=u.REG, slot=u.IMPL_SLOT, expected=int(reg, 16)),
-         predicate(u.REG, 'version()', (), a.cast('abi-encode', 'c(string)', 'Registry-5.9.0'))])
+         predicate(u.REG, 'version()', (), a.cast('abi-encode', 'c(string)', RELEASE_VERSIONS['Registry']))])
     agg = deploy('A7', 'BLSAggregator', 'c(address,address,address)', (u.REG, u.SP, d['dvt']), {'REGISTRY': int(u.REG, 16)})
     steps[-1]['readbacks'] += [word_pred(agg, 'minThreshold()', 3), word_pred(agg, 'defaultThreshold()', 7),
         address_pred(agg, 'SUPERPAYMASTER()', u.SP), address_pred(agg, 'DVT_VALIDATOR()', d['dvt']),
         *[word_pred(agg, 'slashThresholds(uint8)', threshold, severity) for severity, threshold in enumerate((2, 3, 3))]]
-    steps[-1]['readbacks'].append(predicate(agg, 'version()', (), a.cast('abi-encode', 'c(string)', AGG_VERSION)))
+    steps[-1]['readbacks'].append(predicate(agg, 'version()', (), a.cast('abi-encode', 'c(string)', RELEASE_VERSIONS['BLSAggregator'])))
     steps[-1]['readbacks'].append(predicate(agg, 'domainSeparator()', (), domain_separator(agg)))
     if stage == 'a7':
         return finish()
@@ -2844,7 +2846,8 @@ def check_predicate(rpc, p, timestamp=None):
 
 def batch_readback(rpc, plan, activated, timestamp):
     addr = plan['addresses']
-    checks = [dict(kind='storage', target=u.SP, slot=u.IMPL_SLOT, expected=int(plan['implementation'], 16)),
+    checks = [predicate(u.SP, 'version()', (), a.cast('abi-encode', 'c(string)', RELEASE_VERSIONS['SuperPaymaster'])),
+        dict(kind='storage', target=u.SP, slot=u.IMPL_SLOT, expected=int(plan['implementation'], 16)),
         address_pred(plan['implementation'], 'EXTENSION()', plan['extension']),
         address_pred(u.SP, 'owner()', u.TL), address_pred(u.SP, 'xpntsFactory()', addr['xPNTsFactoryV2']),
         word_pred(u.SP, 'paused()', int(not activated))]
