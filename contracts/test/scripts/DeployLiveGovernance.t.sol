@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import "forge-std/Test.sol";
+import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
 import {DeployLive} from "../../script/v3/DeployLive.s.sol";
 import {DeployNewBLSModules} from "../../script/v3/DeployNewBLSModules.s.sol";
 import {BLSAggregator} from "../../src/modules/monitoring/BLSAggregator.sol";
@@ -25,6 +26,10 @@ contract SingleStepOwnedFixture {
 
 contract DeployLiveGovernanceHarness is DeployLive {
     address internal governanceForTest;
+
+    function deployPhase1Timelock(address governor, address safe) external returns (address) {
+        return _deployPhase1Timelock(governor, safe);
+    }
 
     function setGovernanceForTest(address g) external {
         governanceForTest = g;
@@ -89,6 +94,21 @@ contract DeployNewBLSModulesGovernanceHarness is DeployNewBLSModules {
 }
 
 contract DeployLiveGovernanceTest is Test {
+    function test_DeployLiveTimelockHasOnlySelfAdmin() public {
+        DeployLiveGovernanceHarness h = new DeployLiveGovernanceHarness();
+        address governor = address(0xBEEF);
+        address safe = address(0xCAFE);
+        TimelockController t = TimelockController(payable(h.deployPhase1Timelock(governor, safe)));
+        assertTrue(t.hasRole(t.DEFAULT_ADMIN_ROLE(), address(t)));
+        assertFalse(t.hasRole(t.DEFAULT_ADMIN_ROLE(), governor));
+        assertFalse(t.hasRole(t.DEFAULT_ADMIN_ROLE(), safe));
+        assertFalse(t.hasRole(t.DEFAULT_ADMIN_ROLE(), address(h)));
+        assertTrue(t.hasRole(t.PROPOSER_ROLE(), governor));
+        assertTrue(t.hasRole(t.EXECUTOR_ROLE(), governor));
+        assertTrue(t.hasRole(t.CANCELLER_ROLE(), governor));
+        assertEq(t.getMinDelay(), 48 hours);
+    }
+
     /// #633 review B1: DeployLive's reputation-source readback against a Registry initialised the
     /// way DeployLive initialises it. Without the deployer revocation the readback must fail.
     function test_DeployLiveReputationSourceReadbackPassesAfterWiring() public {

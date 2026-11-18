@@ -4,6 +4,10 @@ import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPa
 using SuperPaymasterAdminCalls for SuperPaymaster; // D5b: extension functions on a SuperPaymaster reference
 
 import "forge-std/Script.sol";
+import {APNTsCapped} from "src/tokens/APNTsCapped.sol";
+import {DeployLiveInputs} from "./DeployLiveInputs.sol";
+import {TimelockController} from "@openzeppelin-v5.0.2/contracts/governance/TimelockController.sol";
+import {TimelockHandoverBootstrap, TimelockHandover} from "./TimelockHandoverBootstrap.sol";
 import "forge-std/console.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/Clones.sol";
 import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -51,9 +55,12 @@ import {V55Bootstrap, IxPNTsV2Script} from "./V55Bootstrap.sol";
  *         The 3.x xPNTsFactory still deploys the protocol aPNTs (APNTS_TOKEN, the operator
  *         deposit asset) and stays bound into GTokenAuthorization and X402Facilitator.
  */
-contract DeployLive is V54Bootstrap, V55Bootstrap {
+contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs {
     using Clones for address;
 
+    uint256 deploymentStartBlock;
+    address bootstrapAddr;
+    uint256 bootstrapNonce;
     address deployer;
     address entryPointAddr;
     address priceFeedAddr;
@@ -103,6 +110,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
     function run() external {
         // Use the configured account from CLI (--account or --private-key)
+        deploymentStartBlock = block.number;
+        _loadProductionInputs(deployer);
         vm.startBroadcast();
 
         console.log("Deployer:", deployer);
@@ -154,12 +163,13 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         gtoken.mint(deployer, 2000 ether);
         gtoken.approve(address(staking), 2000 ether);
         Registry.CommunityRoleData memory aaStarData =
-            Registry.CommunityRoleData({name: "AAStar", ensName: "aastar.eth", stakeAmount: 30 ether});
+            Registry.CommunityRoleData({name: _production() ? "Deployment bootstrap" : "AAStar", ensName: _production() ? "" : "aastar.eth", stakeAmount: _production() ? 0 : 30 ether});
         registry.registerRole(ROLE_COMMUNITY, deployer, abi.encode(aaStarData));
 
         // xPNTsFactory already deployed in Step 1
         address apntsAddr =
-            xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
+            _production() ? _deployDefault("APNTsCapped", abi.encode("AAStar PNTs", "aPNTs", capInput, deployer, safeInput, safeInput))
+                : xpntsFactory.deployxPNTsToken("AAStar PNTs", "aPNTs", "AAStar", "aastar.eth", 1e18, address(0));
         apnts = xPNTsToken(apntsAddr);
         console.log("  aPNTs Deployed at:", apntsAddr);
 
@@ -196,12 +206,13 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         _executeWiring();
 
         console.log("=== Step 6: Role Orchestration (Jason / AAStar) ===");
-        _orchestrateRolesJason();
+        if (_production()) _registerProductionGuardians();
+        else _orchestrateRolesJason();
 
         console.log("=== Step 7: Mycelium Community (Anni) ===");
         // On mainnet (no PRIVATE_KEY_ANNI), skip in-script Mycelium setup.
         // Run InitializeMyceliumPrep.s.sol + InitializeMycelium.s.sol separately.
-        if (vm.envOr("PRIVATE_KEY_ANNI", uint256(0)) != 0) {
+        if (!_production() && vm.envOr("PRIVATE_KEY_ANNI", uint256(0)) != 0) {
             _setupMyceliumCommunity();
         } else {
             console.log("  PRIVATE_KEY_ANNI not set - skipping Mycelium setup.");
@@ -221,10 +232,13 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         // accusation by front-running it out of the mempool -- and no Timelock can cover
         // that path. DVT ownership moves to the same boundary because its validator-removal
         // route must not remain with the deployer. Everything above still runs deployer-owned.
-        _settleAggregatorGovernance();
-        _settleTokenGovernance();
+        if (!_production()) {
+            _settleAggregatorGovernance();
+            _settleTokenGovernance();
+        } else _assertHandover();
 
         vm.stopBroadcast();
+        if (!_production()) {
         GovernanceOwnerGate.requireGovernanceOwner(address(aggregator), aggregator.owner(), "BLSAggregator");
         require(dvt.owner() == aggregator.owner(), "DeployLive: DVT owner != BLS owner");
         // Not wrapped in a `declaredGovernanceOwner() != 0` check, and the aggregator's
@@ -241,6 +255,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         // source a token may ever activate), so they are gated by the same rule.
         GovernanceOwnerGate.requireGovernanceOwner(v55.factory, xPNTsFactoryV2Owner(), "xPNTsFactoryV2");
         GovernanceOwnerGate.requireGovernanceOwner(v55.aoaRegistry, aoaRegistryOwner(), "AOAProtocolRegistry");
+
+        }
 
         // v5.5.0 read-back (runbook steps 4 / 6 / 7a). View-only.
         _verifyV55Stack(v55, address(superPaymaster), address(registry));
@@ -264,7 +280,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         _requireDefaultProxy(address(registry), "Registry");
         _requireDefaultProxy(address(superPaymaster), "SuperPaymaster");
         _requireDefaultArtifact(address(xpntsFactory), "xPNTsFactory");
-        require(
+        if (_production()) _requireDefaultArtifact(address(apnts), "APNTsCapped");
+        else require(
             _requireDefaultClone(address(apnts), "xPNTsToken") == xpntsFactory.implementation(),
             "T-4: aPNTs not a clone of the factory template"
         );
@@ -358,6 +375,19 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         console.log("  xPNTsFactoryV2 + AOAProtocolRegistry ownership transferred to governance:", gov);
     }
 
+    /// @dev Fresh timelock with governor proposer/executor/canceller and no external admin.
+    function _deployPhase1Timelock(address governor, address guardian) internal returns (address) {
+        address[] memory principals = new address[](1);
+        principals[0] = governor;
+        TimelockController timelock = TimelockController(payable(_deployDefault(
+            "TimelockController", abi.encode(TIMELOCK_MIN_DELAY, principals, principals, address(0))
+        )));
+        require(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)), "phase1: timelock self admin");
+        require(!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), governor), "phase1: governor is admin");
+        require(!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), guardian), "phase1: guardian is admin");
+        return address(timelock);
+    }
+
     /// @dev Deploy the three NEW v5.4 contracts and wire X402Facilitator on the
     ///      deployer-owned xPNTs tokens. Runs under the deployer broadcast (Step 8,
     ///      after all factory tokens exist). On a fresh GA deploy the deployer-owned
@@ -365,13 +395,14 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
     ///      operator tokens (Anni's PNTs) are skipped+logged and wired by prepare-test.
     function _deployV54Stack() internal {
         (address governor, address guardian) = _resolveGovernance(deployer);
+        address timelock = _production() ? _handoverProduction() : _deployPhase1Timelock(governor, guardian);
         V54Addresses memory v54 = _deployV54Contracts(
             address(registry),
             address(superPaymaster),
             address(xpntsFactory),
-            governor,
+            _production() ? timelock : governor,
             guardian,
-            address(0) // fresh timelock
+            timelock // fresh, self-administered timelock
         );
         x402FacilitatorAddr = v54.facilitator;
         policyRegistryAddr = v54.policyRegistry;
@@ -404,6 +435,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         require(dvt.categoryCount() == 0, "wire: dvt evidence allowlist must be empty in 5.5.0");
 
         // ── Step 5: PaymasterFactory implementation registration ────────────────
+        require(address(pmFactory.registry()) == address(registry), "wire: factory.setRegistry");
         require(pmFactory.implementations("v4.2") == address(pmV4Impl), "wire: factory.addImplementation v4.2");
 
         // ── Step 5: SuperPaymaster ↔ xPNTsFactoryV2 (5.5.0) / 3.x factory ──────
@@ -424,7 +456,8 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         require(address(superPaymaster.ETH_USD_PRICE_FEED()) == priceFeedAddr, "wire: sp.priceFeed");
 
         // ── Step 6: aPNTs ↔ SuperPaymaster ─────────────────────────────────────
-        require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "wire: apnts.setSuperPaymaster");
+        if (_production()) require(address(superPaymaster.APNTS_TOKEN()) == address(apnts), "wire: capped apnts binding");
+        else require(apnts.SUPERPAYMASTER_ADDRESS() == address(superPaymaster), "wire: apnts.setSuperPaymaster");
     }
 
     /// @dev Reputation sources are exactly ReputationSystem and the aggregator. The aggregator's
@@ -461,12 +494,13 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         dvt.setBLSAggregator(address(aggregator));
         aggregator.setDVTValidator(address(dvt));
         pmFactory.addImplementation("v4.2", address(pmV4Impl));
+        if (_production()) pmFactory.setRegistry(address(registry));
         // 5.5.0 (runbook step 6): SP binds operators to tokens issued by xPNTsFactoryV2.
         _wireSPFactory(address(superPaymaster), v55.factory);
         xpntsFactory.setSuperPaymasterAddress(address(superPaymaster));
         // Wire aPNTs (deployed before SP in Step 2, so SP address must be set retroactively).
         // setSuperPaymasterAddress also sets autoApprovedSpenders[SP] = true.
-        apnts.setSuperPaymasterAddress(address(superPaymaster));
+        if (!_production()) apnts.setSuperPaymasterAddress(address(superPaymaster));
 
         // Wire BLSAggregator into SuperPaymaster (Tier 1 slash authorization).
         // Uses initBLSAggregator() — a one-time setter that bypasses the 24h timelock
@@ -551,6 +585,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
 
         gtoken.approve(address(staking), 33 ether);
         registry.registerRole(ROLE_PAYMASTER_AOA, deployer, abi.encode(uint256(30 ether)));
+        pmFactory.setRegistry(address(registry));
 
         // Step 37: 0.05 ETH
         IEntryPoint(entryPointAddr).depositTo{value: 0.05 ether}(pmProxy);
@@ -630,10 +665,120 @@ contract DeployLive is V54Bootstrap, V55Bootstrap {
         vm.startBroadcast();
     }
 
+    function _registerProductionGuardians() internal {
+        gtoken.mint(deployer, nInput * 33 ether + 100 ether);
+        gtoken.approve(address(staking), type(uint256).max);
+        registry.safeMintForRole(ROLE_COMMUNITY, genesisInput,
+            abi.encode(Registry.CommunityRoleData("AAStar", "aastar.eth", 0)));
+        registry.safeMintForRole(ROLE_PAYMASTER_SUPER, genesisInput, "");
+        for (uint256 i; i < guardiansInput.length; ++i) {
+            GuardianInput memory g = guardiansInput[i];
+            registry.safeMintForRole(ROLE_DVT, g.account, "");
+            dvt.addValidator(g.account);
+            dvt.registerBLSPublicKey(g.account, g.key, uint8(i + 1), g.pop);
+        }
+        // Lower min first, raise default first: respect min <= default throughout.
+        if (minInput < aggregator.minThreshold()) aggregator.setMinThreshold(minInput);
+        aggregator.setDefaultThreshold(defaultInput);
+        aggregator.setMinThreshold(minInput);
+        for (uint8 i; i < 3; ++i) aggregator.setSlashThreshold(i, uint8(slashInput[i]));
+        registry.exitRole(ROLE_COMMUNITY);
+    }
+
+    function _twoStepTargets() internal view returns (address[] memory a) {
+        a = new address[](3);
+        a[0] = address(registry); a[1] = address(superPaymaster); a[2] = address(apnts);
+    }
+
+    function _singleStepTargets() internal view returns (address[10] memory) {
+        return [address(staking), address(repSystem), address(aggregator), address(dvt), address(xpntsFactory),
+            address(pmFactory), address(pmV4Impl), address(microPaymentCh), v55.factory, v55.aoaRegistry];
+    }
+
+    function _handoverProduction() internal returns (address) {
+        superPaymaster.setTreasury(safeInput);
+        superPaymaster.setGuardian(spGuardianInput);
+        staking.setTreasury(safeInput);
+        mysbt.setDAOMultisig(safeInput);
+        gtoken.transferOwnership(safeInput);
+        address[10] memory singles = _singleStepTargets();
+        bytes32[7] memory roles = [ROLE_COMMUNITY, ROLE_ENDUSER, ROLE_PAYMASTER_AOA, ROLE_PAYMASTER_SUPER, ROLE_DVT, ROLE_ANODE, ROLE_KMS];
+        // Fixed sequence: CREATE timelock, 7 configs + 10 transfers + slash admin
+        // + 3 nominations, CREATE H. No conditional transactions in this region.
+        uint64 startNonce = vm.getNonce(deployer);
+        uint64 tlNonce = startNonce;
+        bootstrapNonce = tlNonce + 22;
+        address tl = vm.computeCreateAddress(deployer, tlNonce);
+        bootstrapAddr = vm.computeCreateAddress(deployer, bootstrapNonce);
+        require(vm.getNonce(deployer) == startNonce, "handover: initial nonce");
+        require(vm.getNonce(deployer) == tlNonce, "handover: timelock nonce");
+        address[] memory principals = new address[](2);
+        principals[0] = safeInput; principals[1] = bootstrapAddr;
+        TimelockController t = TimelockController(payable(_deployDefault(
+            "TimelockController", abi.encode(uint256(0), principals, principals, address(0)))));
+        require(address(t) == tl, "handover: timelock address");
+        for (uint256 i; i < roles.length; ++i) {
+            IRegistry.RoleConfig memory cfg = registry.getRoleConfig(roles[i]);
+            cfg.owner = tl;
+            registry.configureRole(roles[i], cfg);
+        }
+        aggregator.setSlashPolicyAdmin(tl);
+        for (uint256 i; i < singles.length; ++i) Ownable(singles[i]).transferOwnership(tl);
+        registry.transferOwnership(tl);
+        superPaymaster.transferOwnership(tl);
+        APNTsCapped(address(apnts)).transferOwnership(tl);
+        require(vm.getNonce(deployer) == bootstrapNonce, "handover: bootstrap nonce");
+        require(address(new TimelockHandoverBootstrap(t, _twoStepTargets())) == bootstrapAddr, "handover: bootstrap address");
+        timelockControllerAddr = tl;
+        return tl;
+    }
+
+    function _assertHandover() internal view {
+        TimelockHandover.assertFinal(TimelockController(payable(timelockControllerAddr)), _twoStepTargets(), safeInput, deployer, bootstrapAddr);
+        require(bootstrapAddr.codehash == keccak256(type(TimelockHandoverBootstrap).runtimeCode), "handover: callable bootstrap");
+        require(Ownable(x402FacilitatorAddr).owner() == timelockControllerAddr, "handover: facilitator owner");
+        address[10] memory singles = _singleStepTargets();
+        for (uint256 i; i < singles.length; ++i) require(Ownable(singles[i]).owner() == timelockControllerAddr, "handover: single owner");
+        bytes32[7] memory roles = [ROLE_COMMUNITY, ROLE_ENDUSER, ROLE_PAYMASTER_AOA, ROLE_PAYMASTER_SUPER, ROLE_DVT, ROLE_ANODE, ROLE_KMS];
+        for (uint256 i; i < roles.length; ++i) {
+            require(registry.getRoleConfig(roles[i]).owner == timelockControllerAddr, "handover: role owner");
+            require(!registry.hasRole(roles[i], deployer), "handover: deployer registry role");
+        }
+        require(registry.getUserRoles(deployer).length == 0, "handover: deployer roles");
+        require(!dvt.isValidator(deployer) && !registry.isReputationSource(deployer), "handover: deployer privilege");
+        require(gtoken.owner() == safeInput && mysbt.daoMultisig() == safeInput, "handover: safe ownership");
+        require(superPaymaster.treasury() == safeInput && staking.treasury() == safeInput, "handover: treasury");
+        require(superPaymaster.guardian() == spGuardianInput, "handover: SP guardian");
+        require(aggregator.slashPolicyAdmin() == timelockControllerAddr, "handover: slash admin");
+        require(aggregator.minThreshold() == minInput && aggregator.defaultThreshold() == defaultInput, "handover: thresholds");
+        for (uint8 i; i < 3; ++i) require(aggregator.slashThresholds(i) == slashInput[i], "handover: slash thresholds");
+        for (uint256 i; i < nInput; ++i) require(aggregator.validatorAtSlot(uint8(i + 1)) == guardiansInput[i].account, "handover: guardian slot");
+        require(APNTsCapped(address(apnts)).cap() == capInput, "handover: cap");
+        require(APNTsCapped(address(apnts)).minter() == safeInput && APNTsCapped(address(apnts)).capGuardian() == safeInput, "handover: cap roles");
+        require(superPaymaster.priceStalenessThreshold() == 4200, "handover: staleness");
+        (,,,,, uint48 interval,,,) = superPaymaster.operators(genesisInput);
+        require(interval == 0 && registry.hasRole(ROLE_PAYMASTER_SUPER, genesisInput) && registry.hasRole(ROLE_COMMUNITY, genesisInput), "handover: genesis operator");
+    }
+
     function _generateConfig() internal {
         string memory network = vm.envString("ENV");
         string memory finalPath = string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
         string memory jsonObj = "json";
+        vm.serializeUint(jsonObj, "deploymentStartBlock", deploymentStartBlock);
+        vm.serializeAddress(jsonObj, "expectedGovernor", governorInput);
+        vm.serializeAddress(jsonObj, "expectedGuardian", guardianInput);
+        vm.serializeAddress(jsonObj, "expectedSPGuardian", spGuardianInput);
+        vm.serializeAddress(jsonObj, "genesisOperator", genesisInput);
+        vm.serializeUint(jsonObj, "expectedCap", capInput);
+        vm.serializeUint(jsonObj, "guardianN", nInput);
+        vm.serializeUint(jsonObj, "minThreshold", minInput);
+        vm.serializeUint(jsonObj, "defaultThreshold", defaultInput);
+        for (uint256 i; i < 3; ++i) vm.serializeUint(jsonObj, string.concat("slashThreshold", vm.toString(i)), slashInput[i]);
+        address[] memory gs = new address[](guardiansInput.length);
+        for (uint256 i; i < gs.length; ++i) gs[i] = guardiansInput[i].account;
+        vm.serializeAddress(jsonObj, "guardians", gs);
+        vm.serializeAddress(jsonObj, "handoverBootstrap", bootstrapAddr);
+        vm.serializeUint(jsonObj, "handoverBootstrapNonce", bootstrapNonce);
         vm.serializeAddress(jsonObj, "registry", address(registry));
         vm.serializeAddress(jsonObj, "gToken", address(gtoken));
         vm.serializeAddress(jsonObj, "staking", address(staking));

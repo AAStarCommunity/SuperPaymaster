@@ -91,6 +91,7 @@ contract T4ArtifactReader is Script {
         if (h == keccak256("xPNTsTokenV2")) return "contracts/src/tokens/v2/xPNTsTokenV2.sol";
         if (h == keccak256("xPNTsFactoryV2")) return "contracts/src/tokens/v2/xPNTsFactoryV2.sol";
         if (h == keccak256("ReputationSystem")) return "contracts/src/modules/reputation/ReputationSystem.sol";
+        if (h == keccak256("APNTsCapped")) return "contracts/src/tokens/APNTsCapped.sol";
         if (h == keccak256("DVTValidator")) return "contracts/src/modules/monitoring/DVTValidator.sol";
         if (h == keccak256("BLSAggregator")) return "contracts/src/modules/monitoring/BLSAggregator.sol";
         if (h == keccak256("SuperPaymaster")) return "contracts/src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
