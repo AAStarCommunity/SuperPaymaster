@@ -123,7 +123,7 @@ class ExecutionReadTests(unittest.TestCase):
         with patch.object(m, 'build_plan', side_effect=AssertionError('execution build')):
             with e.guard(frozenset()):
                 m.validate_plan(dict(expected), {}, expected=expected)
-                with assert_stop(self, 'manifest_externalInputs'):
+                with assert_stop(self, 'manifest_plan_key_externalInputs'):
                     m.validate_plan({'externalInputs': {'changed': True}, 'steps': []},
                                     {'changed': True}, expected=expected)
 

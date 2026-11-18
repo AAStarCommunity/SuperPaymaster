@@ -966,6 +966,52 @@ It needed no new PoP, no `addValidator` and no owner approval. Both halves were 
 - `_isChainlinkStale` and `updatePriceDVT` compare before subtracting: zero and future rounds count as not fresh and cannot underflow.
 - **Measured skew.** On the OP mainnet and Sepolia ETH/USD aggregators, over the last 60 `AnswerUpdated` events each, `updatedAt` equals the block timestamp of the writing transaction: maximum and minimum offset 0 s. The grace therefore rejects no normal round.
 
+## I-01 issuance cap enforced; C2-02 per-clone EIP-712 name (XPNTs-4.0.2)
+
+**I-01.** `xPNTsV2Base._update` checks the issuance cap on every mint, net of automatic debt
+repayment. Zero net issuance remains allowed even when supply already exceeds a lowered cap;
+settlement, debt repayment and burns remain available. This cap is a community self-constraint:
+`setIssuanceCap` is `onlyCommunityOwner` with no delay, so the owner can raise it and mint in one
+transaction. The economic guard remains `isOverIssued`'s value model. A cap of `0` means unlimited,
+and new clones default to `0`. The cap bounds circulating supply (`totalSupply`), not cumulative
+issuance: a burn frees room that a later mint can use again
+(`test_I_01_issuance_cap_exact_boundary_and_burn_reopens_room`).
+
+**C2-02.** The EIP-712 domain changes from
+`{name: "", version: "1", chainId, verifyingContract: clone}` to
+`{name: token.name(), version: "1", chainId, verifyingContract: clone}`.
+`DOMAIN_SEPARATOR()` and `eip712Domain()` are computed per call. Both ERC-2612 `permit` and
+`executeBySig` / `actionDigest` (`V2Action`) are affected. The implementation itself retains name
+`""`. New clones cannot have an empty name: the factory rejects it with `InvalidParameters()`, and
+`initialize` itself rejects it with `InvalidParam()`, so the rule also holds for a clone initialized
+outside the factory. `eip712Domain()` keeps the EIP-5267 output names `name` and `version`, so clients
+that read the result by name keep working.
+Existing 4.0.1 clones keep name `""` forever: these are EIP-1167 clones, not upgradeable contracts.
+`deployments/config.sepolia.json` contains no v2 clones (configuration evidence, not a chain scan).
+The SDK must read `eip712Domain()` per clone and must not hard-code the name. Deploy the new
+implementation and factory for new named-domain clones; do not apply 4.0.2 signing assumptions
+to existing 4.0.1 clones. Regenerated ABI bundles expose `IssuanceCapExceeded`.
+
+**Evidence scope.** The cross-chain and cross-clone permit / V2Action replay tests are regression
+controls: OpenZeppelin already rebuilt the domain for clone address and chain before this fix.
+They are not discriminating C2-02 evidence. Named-domain equality, rejecting an old empty-name
+permit, named-domain `actionDigest`, and rejecting an old empty-name V2Action signature are the
+discriminating cases. The latter signs with the correct clone, chain, nonce and deadline, rejects
+that signature, then accepts the named-domain signature at the same nonce.
+
+**Formal-evidence scope.** Halmos was not re-run for this change. The D5c-1 checks in
+`contracts/test/halmos/XPNTsV2Halmos.t.sol` and arithmetic checks in
+`contracts/test/halmos/MintRepayLemma.t.sol` predate the new cap branch in `_update`; their prior
+results are not a proof of XPNTs-4.0.2. In particular, the mint branches of `check_I2_coreAbi` /
+`check_I2_extAbi` (allowance/budget counters, authorized pulls, lock accounting and renewal bounds)
+and `check_I6_coreAbi` / `check_I6_extAbi` / `check_I6J_coreAbi` / `check_I6J_extAbi`
+(authorized credit reservation/debt increases, reservation accounting, and the cumulative
+`debts + creditReserved <= B` induction property), including the no-debt mint partitions,
+have not been re-proven with the cap guard. Nor have the other D5c-1 properties been re-proven
+against this bytecode. The arithmetic lemma M (`repayX <= mint`) and its M1/M2/M3 decomposition
+have not been re-run or extended to prove cap admission, zero-net admission above a lowered cap,
+or atomic rollback when positive net issuance exceeds the cap. Foundry unit/fuzz/invariant runs
+are executable regression evidence, not renewed symbolic proofs of these properties.
 
 ## DeployLive round six: authority, implementation owners and failed sets (2026-11-18)
 

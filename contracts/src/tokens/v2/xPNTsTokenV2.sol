@@ -45,7 +45,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-4.0.1";
+        return "XPNTs-4.0.2";
     }
 
     // ---------------------------------------------------------------------
@@ -71,6 +71,8 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
     /// @notice Clone initializer, called once by the factory. A-9: the factory is NOT a spender.
     function initialize(InitConfig calldata c) external initializer {
         if (c.communityOwner == address(0) || c.community == address(0)) revert InvalidAddress(address(0));
+        // C2-02: every clone signs under a non-empty EIP-712 name, also when initialized outside the factory.
+        if (bytes(c.name).length == 0) revert InvalidParam();
         FACTORY = msg.sender;
         communityOwner = c.communityOwner;
         community = c.community;
@@ -78,6 +80,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
         communityENS = c.communityENS;
         _tokenName = c.name;
         _tokenSymbol = c.symbol;
+        _eip712NameHash = keccak256(bytes(c.name));
         uint256 rate = c.exchangeRate > 0 ? c.exchangeRate : 1 ether;
         if (rate < _RATE_MIN || rate > _RATE_MAX) revert ExchangeRateOutOfRange(rate, _RATE_MIN, _RATE_MAX);
         exchangeRate = rate;

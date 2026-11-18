@@ -32,6 +32,10 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.7.1
+      - name: Gate-name hygiene (no merged names, no orphaned consumers, rpc_result sites) and its mutation controls
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/test_gate_name_hygiene.py
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/upgrade/probe_gate_name_hygiene_mutants.py "$PWD"
       - name: Offline executor tests
         run: |
           A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -B script/a3a/test_a3a_exec.py

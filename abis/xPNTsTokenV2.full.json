@@ -2831,13 +2831,29 @@
     },
     {
       "type": "error",
-      "name": "InvalidShortString",
+      "name": "InvalidSignature",
       "inputs": []
     },
     {
       "type": "error",
-      "name": "InvalidSignature",
-      "inputs": []
+      "name": "IssuanceCapExceeded",
+      "inputs": [
+        {
+          "name": "supply",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "cap",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
     },
     {
       "type": "error",

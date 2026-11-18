@@ -92,3 +92,9 @@ jobs:
 
       - name: ABI bundles match the compiled contracts
         run: node scripts/check-abi-bundle.mjs
+
+      # xPNTsTokenV2 DELEGATECALLs xPNTsTokenV2Ext: both must have identical storage layouts.
+      - name: xPNTs v2 core/extension storage layouts are identical (with self-test)
+        run: |
+          FORGE="$(command -v forge)" python3 -B scripts/check-xpnts-v2-layout.py --self-test
+          FORGE="$(command -v forge)" python3 -B scripts/check-xpnts-v2-layout.py
