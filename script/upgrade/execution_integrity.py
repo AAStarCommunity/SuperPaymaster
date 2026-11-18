@@ -6,19 +6,70 @@ import hashlib
 import importlib.util
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+
+
+def git_query(root, *args):
+    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    env.update(GIT_CONFIG_NOSYSTEM='1', GIT_NO_REPLACE_OBJECTS='1')
+    binary = shutil.which('git')
+    if binary is None:
+        raise RuntimeError('git unavailable')
+    return subprocess.run([str(Path(binary).resolve()), '--no-replace-objects', *args],
+                          cwd=root, env=env, capture_output=True, check=True).stdout
+
+
+def git_evidence(root):
+    return dict(path=str(Path(shutil.which('git')).resolve()),
+                version=git_query(root, '--version').decode().strip())
+
+
+def reject_rewrites(root):
+    if git_query(root, 'for-each-ref', '--format=%(refname)', 'refs/replace/'):
+        raise RuntimeError('execution_replace_refs')
+    grafts = Path(os.fsdecode(git_query(root, 'rev-parse', '--git-path', 'info/grafts').strip()))
+    if not grafts.is_absolute():
+        grafts = root / grafts
+    if grafts.exists() or grafts.is_symlink():
+        raise RuntimeError('execution_grafts')
+
+
+def packet_check(plan):
+    from execution_set import manifest
+    digest = hashlib.sha256(manifest().encode()).hexdigest()
+    if plan.get('execution', {}).get('manifestSha256') != digest:
+        raise RuntimeError('execution_set_sha256')
+    return dict(manifestSha256=digest)
+
+
+def cli_preflight():
+    """Before first-party imports, inspect a supplied plan using only stdlib.
+
+    Building a new plan has no reviewed commit yet; deploy-day shasum is its
+    external check. Library entry points check once their caller supplies a plan.
+    """
+    import argparse
+    import json
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--plan', type=Path)
+    parser.add_argument('--reviewed-plan-sha256')
+    args, _ = parser.parse_known_args()
+    if args.plan is not None:
+        raw = args.plan.read_bytes()
+        if args.reviewed_plan_sha256 and hashlib.sha256(raw).hexdigest() != args.reviewed_plan_sha256:
+            raise RuntimeError('reviewed_plan_hash')
+        check(json.loads(raw)['rebuild']['commit'])
 
 
 def bootstrap(commit):
     """Authenticate dependencies without invoking any first-party code."""
     root = Path(__file__).resolve().parents[2]
-    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
-    env['GIT_CONFIG_NOSYSTEM'] = '1'
+    reject_rewrites(root)
 
     def committed(relative):
-        return subprocess.run(['git', 'show', commit + ':' + relative], cwd=root,
-                              env=env, capture_output=True, check=True).stdout
+        return git_query(root, 'show', commit + ':' + relative)
 
     def verified(relative):
         path = root / relative
@@ -28,8 +79,20 @@ def bootstrap(commit):
     gate_path = 'script/a3a/a3a_exec.py'
     if not verified(gate_path) or not verified('script/evidence/lib/rpc_strict.py'):
         raise RuntimeError('bootstrap Gate source is not the committed repository file')
-    tracked = subprocess.run(['git', 'ls-tree', '-r', '--name-only', commit], cwd=root,
-                             env=env, capture_output=True, check=True).stdout.decode().splitlines()
+    # Authenticate the stdlib-only generator before running its AST traversal,
+    # then compare the entire execution set before loading any business module.
+    def require_verified(relative):
+        if not verified(relative):
+            raise RuntimeError('execution_bootstrap_source: ' + relative)
+
+    generator_path = 'script/upgrade/execution_set.py'
+    require_verified(generator_path)
+    generator_spec = importlib.util.spec_from_file_location('_bootstrap_execution_set', root / generator_path)
+    generator = importlib.util.module_from_spec(generator_spec)
+    generator_spec.loader.exec_module(generator)
+    for relative in generator.execution_files(root):
+        require_verified(relative)
+    tracked = git_query(root, 'ls-tree', '-r', '--name-only', commit).decode().splitlines()
     invalid = []
     for relative in tracked:
         path = Path(relative)
@@ -74,15 +137,13 @@ def bootstrap(commit):
 
 def git(*args):
     import sp_upgrade_exec as u
-    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
-    env['GIT_CONFIG_NOSYSTEM'] = '1'
-    return subprocess.run(['git', *args], cwd=u.ROOT, env=env,
-                          capture_output=True, check=True).stdout
+    return git_query(u.ROOT, *args)
 
 
 def tree_gates(commit):
     import sp_upgrade_exec as u
     a = u.a
+    reject_rewrites(u.ROOT)
     root = Path(os.fsdecode(git('rev-parse', '--show-toplevel').strip())).resolve()
     a.need('execution_root', str(root), str(u.ROOT.resolve()))
     flags = git('ls-files', '-v', '-z').split(b'\0')
@@ -129,3 +190,5 @@ def check(commit):
     bootstrap(commit)
     tree_gates(commit)
     module_gates(commit)
+    import sp_upgrade_exec as u
+    return dict(git=git_evidence(u.ROOT))

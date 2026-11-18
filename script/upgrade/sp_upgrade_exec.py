@@ -13,6 +13,9 @@ from functools import lru_cache
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'script/a3a'))
+if __name__ == '__main__':
+    import execution_integrity
+    execution_integrity.cli_preflight()
 import a3a_exec as a
 
 TL = '0xccdf8e0d29fb2c3061910d79484a2b653757c34b'
@@ -585,7 +588,7 @@ def fresh_gas(rpc, step, overrides=None, timestamp=None, *, pin_block=None):
 
 def validate_plan(plan, frozen=True):
     expected = build_plan(plan['pin'], plan['a3aPlanSha256'])
-    a.exact_keys('plan_keys', plan, set(expected) | ({'budgetsWei'} if frozen else set()))
+    a.exact_keys('plan_keys', plan, set(expected) | ({'execution'} if 'execution' in plan else set()) | ({'budgetsWei'} if frozen else set()))
     validate_pin(plan['pin'])
     for key in set(expected)-{'steps'}:
         a.need('plan_derived_'+key, plan[key], expected[key])
@@ -1225,7 +1228,9 @@ def run_upgrade(rpc, plan, out, remote=None, calibrate=False):
 
 
 def save_plan(out, plan):
+    from execution_set import freeze_manifest
     a.require_final_artifact(plan)
+    freeze_manifest(plan, out)
     a.write_json(out/'plan.json', plan)
     digest = hashlib.sha256((out/'plan.json').read_bytes()).hexdigest()
     (out/'plan.json.sha256').write_text(digest+'  plan.json\n')

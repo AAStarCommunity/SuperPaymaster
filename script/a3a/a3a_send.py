@@ -22,17 +22,18 @@ Order of operations, each a hard stop on failure (nothing leaves this process un
   1. a3a_exec.signing_transaction on the snapshot: frozen-plan validation, Safe hash recheck for S5/S6, and
      pre_send (chain, code, predecessor readback, latest == pending == planned nonce, Safe nonce, fresh
      estimateGas <= planned gas).
-  2. `cast mktx --account <name>` offline: the signer's environment is a whitelist with no RPC variable, and
+  2. The operator types `SEND <step> <first 12 hex of the plan sha256>` at the terminal (/dev/tty; no terminal,
+     no send), unless the exact phrase is supplied through --confirm at this same point.
+  3. After the confirmation, executor integrity is checked again before mktx.
+  4. `cast mktx --account <name>` offline: the signer's environment is a whitelist with no RPC variable, and
      argv carries no URL; every field comes from the plan (type 2, chain, nonce, gas, both fee caps, value,
      to or --create, data).
-  3. Local verification: `cast decode-transaction` fields and signer equal the plan, no access list or
+  5. Local verification: `cast decode-transaction` fields and signer equal the plan, no access list or
      authorization list, and a local keccak of the raw bytes equals the decoded hash. Nothing is sent to any
      provider here.
-  4. The operator types `SEND <step> <first 12 hex of the plan sha256>` at the terminal (/dev/tty; no terminal,
-     no send), unless the exact phrase is supplied through --confirm at this same point.
-  5. After the confirmation, immediately before broadcast: pre_send again (it must return the identical
-     transaction) and the latest base fee plus the planned priority fee must fit under the planned max fee.
-  6. broadcast.json ("attempting", hash) is written first; then eth_sendRawTransaction under a total deadline.
+  6. After signing (including any password pause), pre_send again must return the identical transaction,
+     and the latest base fee plus priority fee must fit under the planned max fee.
+  7. broadcast.json ("attempting", hash) is written first; then eth_sendRawTransaction under a total deadline.
      Any reply other than the signed hash (timeout, malformed, error such as "already known") is outcome
      "unknown"; another hash is "accepted_hash_mismatch". In every case the run monitors the local hash
      (tolerating transient RPC failures), evidence writes are best effort, and any failure ends as
@@ -46,22 +47,28 @@ import argparse, contextlib, fcntl, hashlib, json, os, re, stat, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'upgrade'))
+if __name__ == '__main__':
+    import execution_integrity
+    execution_integrity.cli_preflight()
 import a3a_exec as ex  # noqa: E402
 
 def integrity_check(commit):
-    # Trust root: the helper's bytes must equal the reviewed commit before any of it runs; the helper then
+    # Second line of defence against accidental deviation: compare helper bytes; the helper then
     # attests every loaded repository module, this file included. Kept inline (stdlib only) on purpose.
     root = Path(__file__).resolve().parents[2]
     path = root / 'script/upgrade/execution_integrity.py'
     env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
     env['GIT_CONFIG_NOSYSTEM'] = '1'
-    committed = subprocess.run(['git', 'show', commit + ':script/upgrade/execution_integrity.py'], cwd=root,
+    env['GIT_NO_REPLACE_OBJECTS'] = '1'
+    import shutil
+    committed = subprocess.run([str(Path(shutil.which('git')).resolve()), '--no-replace-objects', 'show', commit + ':script/upgrade/execution_integrity.py'], cwd=root,
                                env=env, capture_output=True, check=True).stdout
     ex.need('execution_integrity_source', path.read_bytes() == committed, True)
     spec = importlib.util.spec_from_file_location('_a3a_repository_execution_integrity', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.check(commit)
+    return module.check(commit)
 
 
 CAST = os.environ.get('A3A_CAST', str(Path.home()/'.foundry/bin/cast'))
@@ -73,6 +80,24 @@ DECODED_FIELDS = ('signer', 'type', 'chainId', 'nonce', 'gas', 'maxFeePerGas', '
 SIGNER_ENV_KEYS = ('HOME', 'PATH', 'TERM', 'LANG', 'USER')
 TTY_PATH = '/dev/tty'
 LOCK_PATH = Path.home()/'.a3a_send.lock'  # one sender at a time per user (HOME); other users or machines are out of reach
+
+
+def verify_cast(plan):
+    """Authenticate the signer before account names or password metadata are read."""
+    import shutil
+    global CAST
+    binary = shutil.which(CAST)
+    ex.need('send_cast_available', binary is not None, True)
+    path = Path(binary).resolve()
+    pin = plan.get('execution', {}).get('cast', {})
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    ex.need('send_cast_sha256', digest, pin.get('sha256'))
+    result = subprocess.run([str(path), '--version'], env=signer_env(), capture_output=True, text=True)
+    ex.need('send_cast_version_exit', result.returncode, 0)
+    version = result.stdout.strip()
+    ex.need('send_cast_version', version, pin.get('version'))
+    CAST = str(path)
+    return dict(path=str(path), sha256=digest, version=version)
 
 
 def signer_env():
@@ -299,26 +324,30 @@ def run(args, remote, url, confirm=None):
     snapshot.write_bytes(raw_plan)
     plan = ex.plan_json(raw_plan)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'upgrade'))
-    integrity_check(plan['rebuild']['commit'])
+    evidence = integrity_check(plan['rebuild']['commit'])
+    import execution_integrity
+    packet = execution_integrity.packet_check(plan)
+    signer = verify_cast(plan)
+    ex.write_json(args.out/'execution.json', dict(evidence or {}, **packet, cast=signer))
     tx = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     role = role_of(plan, tx['from'])
     accounts = json.loads(args.accounts.read_text())
     ex.need('send_account_named', isinstance(accounts.get(role), str) and accounts[role] != '', True)
     ex.write_json(args.out/'unsigned.json', tx)
-    raw, h, decoded = signed(tx, accounts[role], args.password_file)  # held in memory only until broadcast
-    ex.write_json(args.out/'decoded.json', {k: decoded.get(k) for k in DECODED_FIELDS})
     phrase = 'SEND %s %s' % (args.step, args.reviewed_plan_sha256[:12])
     typed = args.confirm
     if typed is None:
-        typed = (confirm or tty_confirm)('Type "%s" to broadcast %s from %s (%s): ' %
-                                         (phrase, h, tx['from'], role)).strip()
+        typed = (confirm or tty_confirm)('Type "%s" to sign and broadcast from %s (%s): ' %
+                                         (phrase, tx['from'], role)).strip()
     ex.need('send_operator_confirmation', typed, phrase)
-    # Every live check again after the (unbounded) confirmation pause, immediately before broadcast.
+    # Executor integrity again after the pause, before any record claims an attempt.
+    integrity_check(plan['rebuild']['commit'])
+    raw, h, decoded = signed(tx, accounts[role], args.password_file)  # held in memory only until broadcast
+    ex.write_json(args.out/'decoded.json', {k: decoded.get(k) for k in DECODED_FIELDS})
+    # Signing may pause for a password: refresh chain state after signing, before broadcast.
     again = ex.signing_transaction(snapshot, args.reviewed_plan_sha256, args.step, remote)
     ex.need('send_tx_stable', again, tx)
     fee_fits(remote, tx)
-    # Executor integrity again after the pause, before any record claims an attempt.
-    integrity_check(plan['rebuild']['commit'])
     # The attempt is on disk before anything is transmitted: if this write fails, nothing has been sent.
     ex.write_json(args.out/'broadcast.json', dict(step=args.step, hash=h, outcome='attempting'))
     outcome, provider = 'unknown', None

@@ -32,15 +32,75 @@ on deploy day. The offline suites, the dry run and the Sepolia fork rehearsal ex
 
 ## PR-3 (COMMIT 6f–6i, executor integrity)
 
-PR-3 lands `execution_integrity.py`, the wider read barrier in `execution_reads.py`, the call sites in
-`manifest_exec.py`, `a3a_send.py` and `a3a_exec.py`, `test_execution_integrity.py` and the strict
-deletion-probe driver `probe_execution_integrity.py` (final version from 6k, `3792e230`). The CI probe
-`probe_phase_c_gates.py` lists `execution_integrity_source_manifest` as `COVERED_ELSEWHERE` by that
-driver.
+These checks defend against an honest operator running on a tree that is not the reviewed one: a
+dirty worktree, the wrong branch, or a forgotten pull. They do NOT defend against an attacker who
+can write files on the operator's machine as the same user; such an attacker can replace the Python
+interpreter or take the keystore, and no self-check can stop that. That threat is carried by the
+deploy-day procedure (fresh clone + `shasum -c`, below).
 
-The 6d interim probe cases for `execution_head` and `execution_clean_tree` are removed. 6f moved those
-gates out of `manifest_exec.py`, so they no longer have a deletion site there. They stay covered by
-`test_execution_head.py` and by `test_execution_integrity.py`.
+**Deploy day, step 1 (paste into the Sepolia and OP runbooks):** Make a fresh clone of the reviewed
+commit. Obtain the execution-set manifest from the signed freeze packet and confirm its SHA-256
+against `execution.manifestSha256` in the author-confirmed freeze record. From the clone root, run
+`shasum -a 256 -c <execution-set manifest>` with the system shasum. Only after every file passes may
+you run any Python from the repository. Keep the manifest/output packet outside the checkout, or
+in an ignored evidence directory, so the clean-tree check remains meaningful.
+
+PR-3 is **a second line of defence against accidental deviation**. It checks the checkout, helper
+source and loaded module files before transaction preparation and again after operator confirmation.
+The sender now signs only after that second check; confirmation therefore identifies the planned
+step and reviewed plan digest, before a signed transaction hash exists.
+
+`execution_set.py` computes the entry scripts' transitive repository imports from the AST, including
+imports inside functions, the integrity helper, and itself. Ambiguous module names are included
+conservatively. The manifest uses system `shasum -a 256 -c` syntax. `a3a_exec.plan_command`,
+`sp_upgrade_exec.save_plan`, and `manifest_exec.save_artifact` now write `execution-set.sha256` and
+record its digest in `execution.manifestSha256`. An existing digest is never silently refreshed.
+The final signer pin is added explicitly when preparing the author-reviewed freeze packet:
+
+```sh
+python3 -B script/upgrade/execution_set.py --manifest <execution-set manifest> \
+  --plan <calibrated plan.json> --packet <frozen plan.json> --cast <reviewed cast executable>
+```
+
+This freeze command records `execution.cast.sha256` and `execution.cast.version`. Review these and
+the manifest digest, then sign the freeze record and deliver the frozen **plan's** SHA-256 out of
+band as usual. The signing of the author freeze record is an external release procedure, not code
+on this branch. Legacy calibrated plans remain loadable for rehearsal but cannot be sent live
+without both execution pins. Live sending recomputes the manifest digest, resolves the absolute
+cast executable, compares its bytes before invoking `--version`, and compares that version before
+reading account names or inspecting password-file metadata. `execution.json` records the manifest
+digest and the absolute Git/cast paths, versions and cast digest.
+
+Every integrity Git query disables replacement objects in both argv and environment; replacement
+refs and an existing `info/grafts` file are refused. A replaced Git binary on PATH is part of the
+same-user trust-root limitation, not a security property of these checks.
+
+Import-order limits and remaining gaps:
+
+- CLI paths with `--plan` in `a3a_send.py`, `a3a_exec.py`, `sp_upgrade_exec.py`, and
+  `manifest_exec.py` call the stdlib-only preflight before importing other repository modules.
+  Building a new plan has no reviewed plan/commit argument yet; deploy-day shasum is its prior check.
+- Library imports have no plan argument. `a3a_send` imports `a3a_exec` (and its `rpc_strict` dependency)
+  to expose the existing Gate/API. `manifest_exec` imports `sp_upgrade_exec`, `old_owner_isolation`,
+  and `execution_reads` (transitively `a3a_exec`/`rpc_strict`) to define its builder/rehearsal API.
+  Those imports necessarily precede a later library caller supplying the plan. The library caller
+  must perform deploy-day verification first. `run_manifest` now checks integrity before validation
+  or loading the read allowlist, not after them.
+- The helper first byte-checks the stdlib-only AST generator, then verifies every execution-set
+  file against the reviewed commit before loading `a3a_exec`, `rpc_strict`, or `sp_upgrade_exec`.
+  The Gate bootstrap retains exception compatibility; later checks also validate loaded origins.
+  This remains a second line of defence against accidental deviation, not a same-user boundary.
+- Verification/loading and verification/signing TOCTOU (including symlink swaps) is covered by the
+  stated trust root and fresh-clone procedure. The code does not pin in-memory bytecode.
+- The read barrier can be bypassed via `sh -c`, nested interpreters/external programs, dynamic
+  imports and case-alias paths. It is an accidental-read barrier, not an OS sandbox. AST discovery
+  cannot infer arbitrary runtime-generated imports; those require review and an updated generator.
+
+`test_execution_calls.py` uses committed temporary copies and real integrity functions, asserting
+that the cast mktx wrapper is never called on refusal. `probe_execution_integrity.py` removes both
+sender calls, each loader's `module.check`, the manifest call, and the head/clean-tree gates. It
+requires a green baseline, an actual text change, a named assertion FAIL and no ERROR for each
+mutation. Existing named gate-deletion probes remain in place.
 
 What PR-3 does not carry:
 

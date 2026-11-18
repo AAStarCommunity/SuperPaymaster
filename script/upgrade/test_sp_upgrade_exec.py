@@ -541,7 +541,10 @@ class ExecutorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
             ex.save_plan(out, self.plan())
-            self.assertEqual(a.load_plan(out/'plan.json'), self.plan())
+            loaded = a.load_plan(out/'plan.json')
+            self.assertEqual(loaded.pop('execution'), {'manifestSha256':
+                hashlib.sha256((out/'execution-set.sha256').read_bytes()).hexdigest()})
+            self.assertEqual(loaded, self.plan())
             (out/'plan.json').write_text('{"schema":1,"schema":2}')
             self.fails('plan_hash', a.load_plan, out/'plan.json')
             (out/'plan.json.sha256').write_text(hashlib.sha256((out/'plan.json').read_bytes()).hexdigest())
@@ -599,6 +602,8 @@ class ExecutorTests(unittest.TestCase):
                 plan.update(measured_plan(p))
             stack.enter_context(patch.object(ex, 'run_upgrade', side_effect=calibrate))
             result = ex.plan_command(remote, secondary, BLOCK, out)
+            self.assertEqual(result.pop('execution'), {'manifestSha256':
+                hashlib.sha256((out/'execution-set.sha256').read_bytes()).hexdigest()})
             self.assertEqual(result, self.plan())
             self.assertEqual(collect.call_args_list[0].args, (remote, BLOCK))
             self.assertEqual(collect.call_args_list[1].args, (secondary, BLOCK))

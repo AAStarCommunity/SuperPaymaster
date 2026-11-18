@@ -26,6 +26,10 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'script/evidence/lib'))
+if __name__ == '__main__':
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'upgrade'))
+    import execution_integrity
+    execution_integrity.cli_preflight()
 from rpc_strict import HEXDATA, QTY, HASH32, classify
 import re
 ADDRESS_RX = re.compile(r"0x[0-9a-fA-F]{40}", re.ASCII)
@@ -1411,7 +1415,7 @@ def validate_plan(plan, frozen=False, historical=False):
     need('plan_step_ids', [s['id'] for s in plan['steps']], list(STEP_IDS))
     rebuilt = (build_plan(plan['pin'], validate_gaps(plan), rebuild_commit=plan['rebuild']['commit'])
                if historical else build_plan(plan['pin'], validate_gaps(plan)))
-    exact_keys('plan_keys', plan, set(rebuilt) | ({'budgetsWei', 'budgetWei'} if frozen else set()))
+    exact_keys('plan_keys', plan, set(rebuilt) | ({'execution'} if 'execution' in plan else set()) | ({'budgetsWei', 'budgetWei'} if frozen else set()))
     for key in set(rebuilt)-{'steps'}:
         need('plan_identity_'+key, plan[key], rebuilt[key])
     for step, expected in zip(plan['steps'], rebuilt['steps']):
@@ -1758,6 +1762,9 @@ def plan_command(remote, block, out):
     budget(plan)
     # Recheck archive identity and live pending nonce after the rehearsal.
     need('pin_recheck', preflight(remote, block), state)
+    sys.path.insert(0, str(ROOT / 'script/upgrade'))
+    from execution_set import freeze_manifest
+    freeze_manifest(plan, out)
     write_json(out/'plan.json', plan)
     digest = hashlib.sha256((out/'plan.json').read_bytes()).hexdigest()
     (out/'plan.json.sha256').write_text(digest+'  plan.json\n')

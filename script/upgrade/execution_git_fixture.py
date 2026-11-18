@@ -7,6 +7,6 @@ import manifest_exec
 
 
 def clean_checkout(test, commit):
-    fixture = patch.object(manifest_exec, 'execution_tree_gates')
+    fixture = patch.object(manifest_exec, 'execution_tree_gates', return_value=None)
     fixture.start()
     test.addCleanup(fixture.stop)

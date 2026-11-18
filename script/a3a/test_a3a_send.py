@@ -97,7 +97,9 @@ class SenderTests(unittest.TestCase):
                               accounts=d / 'accounts.json', out=d / 'out')
         self.args.out.mkdir()
         self.patches = [
-            mock.patch.object(sd, 'integrity_check'),
+            mock.patch.object(sd, 'integrity_check', return_value={}),
+            mock.patch.object(execution_integrity, 'packet_check', return_value={}),
+            mock.patch.object(sd, 'verify_cast', return_value={}),
             mock.patch.object(sd, 'CAST', str(wrapper)),
             mock.patch.object(sd, 'LOCK_PATH', d / 'send.lock'),
             # Secrets present in the operator's environment must not reach cast.
@@ -240,7 +242,8 @@ class SenderTests(unittest.TestCase):
                 self.assertEqual(self.gate_name(lambda: self.run_send(Chain())), 'send_operator_confirmation')
                 self.assertEqual(self.sent, [])
                 self.assertEqual([e[0] for e in self.events], ['gate'])
-                self.assertTrue((self.args.out / 'decoded.json').exists())
+                self.assertFalse((self.args.out / 'decoded.json').exists())
+                self.assertFalse(any('mktx' in call['argv'] for call in self.calls()))
 
     def test_confirm_right_phrase(self):
         self.args.confirm = self.phrase()
@@ -1114,7 +1117,11 @@ class SenderS7Integration(unittest.TestCase):
     a state where S7 did not take effect.
     """
     def setUp(self):
-        integrity = mock.patch.object(sd, 'integrity_check')
+        for target, name in ((execution_integrity, 'packet_check'), (sd, 'verify_cast')):
+            fixture = mock.patch.object(target, name, return_value={})
+            fixture.start()
+            self.addCleanup(fixture.stop)
+        integrity = mock.patch.object(sd, 'integrity_check', return_value={})
         integrity.start()
         self.addCleanup(integrity.stop)
         import test_a3a_exec as te

@@ -33,6 +33,10 @@ class IntegrityTests(unittest.TestCase):
         self.addCleanup(bootstrap.stop)
         import manifest_exec as manifest
         import a3a_send as sender
+        for target, name in ((e, 'packet_check'), (sender, 'verify_cast')):
+            fixture = patch.object(target, name, return_value={})
+            fixture.start()
+            self.addCleanup(fixture.stop)
         for module, name, callback in ((manifest, 'execution_tree_gates', lambda plan: e.check(plan['rebuild']['commit'])),
                                        (sender, 'integrity_check', e.check)):
             wrapper = patch.object(module, name, side_effect=callback)
@@ -196,8 +200,8 @@ class IntegrityTests(unittest.TestCase):
                      patch.object(sender, 'fee_fits'), patch.object(sender, 'broadcast') as broadcast:
                     with assert_stop(self, 'execution_clean_tree'):
                         sender.run(args, None, 'offline.invalid', confirm=confirm)
-                    self.assertEqual(signing.call_count, 2 if late else 0)
-                    self.assertEqual(signed.call_count, 1 if late else 0)
+                    self.assertEqual(signing.call_count, 1 if late else 0)
+                    self.assertEqual(signed.call_count, 0)
                     broadcast.assert_not_called()
 
     def test_new_names_unique_across_executor_sources(self):

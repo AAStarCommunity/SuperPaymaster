@@ -975,7 +975,7 @@ class ManifestTests(unittest.TestCase):
             if plan['stage'] == 'b4': args += ['--a7-source', str(source_path)]
             self.assertEqual(m.main(args), 0)
             name = 'stage-'+plan['stage']+'.json'
-            self.assertEqual(sorted(p.name for p in cli_out.iterdir()), [name, name+'.sha256'])
+            self.assertEqual(sorted(p.name for p in cli_out.iterdir()), ['execution-set.sha256', name, name+'.sha256'])
             out = Path(self.tmp.name)/plan['stage']
             out.mkdir()
             m.save_artifact(out, plan)
@@ -5229,7 +5229,7 @@ class ExceptionStopTests(unittest.TestCase):
                 patch.object(m, 'collect_pair', return_value=plan['pin']),
                 patch.object(m, 'build_plan', return_value=plan), patch.object(m, 'validate_plan'),
                 # The HEAD/clean-tree gates have their own tests and probes; this fixture targets fault handling.
-                patch.object(m, 'execution_tree_gates'),
+                patch.object(m, 'execution_tree_gates', return_value=None),
                 patch.object(a, 'process_alive'), patch.object(m, 'controls_at'), patch.object(m, 'phase_c_controls'),
                 patch.object(m, 'pre_send', side_effect=pre), patch.object(u, 'measure_step', side_effect=measure),
                 patch.object(u, 'fresh_gas', return_value={}), patch.object(u, 'receipt', side_effect=receipt),

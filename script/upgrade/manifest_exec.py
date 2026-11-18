@@ -13,6 +13,9 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 import subprocess
+if __name__ == '__main__':
+    import execution_integrity
+    execution_integrity.cli_preflight()
 import sp_upgrade_exec as u
 import old_owner_isolation as isolation
 import execution_reads
@@ -2892,7 +2895,7 @@ def validate_plan(plan, inputs, frozen=False, *, expected=None):
     a.need('external_inputs_match', plan['externalInputs'], inputs)
     if expected is None:
         expected = build_plan(plan['pin'], inputs, plan.get('stage', 'full'), plan.get('stageSources'))
-    a.exact_keys('manifest_keys', plan, set(expected) | ({'budgetsWei'} if frozen else set()))
+    a.exact_keys('manifest_keys', plan, set(expected) | ({'execution'} if 'execution' in plan else set()) | ({'budgetsWei'} if frozen else set()))
     for key in set(expected)-{'steps'}:
         a.need('manifest_plan_key_'+key, plan[key], expected[key])
     a.need('manifest_length', len(plan['steps']), len(expected['steps']))
@@ -3419,25 +3422,29 @@ def execution_tree_gates(plan):
     Retain this entry point for rehearsal fixtures; the sender shares the helper.
     """
     import importlib.util
-    # Trust root: the helper's bytes must equal the reviewed commit before any of it runs; the helper then
+    # Second line of defence against accidental deviation: compare helper bytes; the helper then
     # attests every loaded repository module, this file included. Kept inline (stdlib only) on purpose.
     path = Path(__file__).resolve().parent / 'execution_integrity.py'
     env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
     env['GIT_CONFIG_NOSYSTEM'] = '1'
-    committed = subprocess.run(['git', 'show', plan['rebuild']['commit'] + ':script/upgrade/execution_integrity.py'],
+    env['GIT_NO_REPLACE_OBJECTS'] = '1'
+    import shutil
+    committed = subprocess.run([str(Path(shutil.which('git')).resolve()), '--no-replace-objects', 'show', plan['rebuild']['commit'] + ':script/upgrade/execution_integrity.py'],
                                cwd=path.parents[2], env=env, capture_output=True, check=True).stdout
     a.need('execution_integrity_source_manifest', path.read_bytes() == committed, True)
     spec = importlib.util.spec_from_file_location('_manifest_repository_execution_integrity', path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.check(plan['rebuild']['commit'])
+    return module.check(plan['rebuild']['commit'])
 
 
 def run_manifest(remote, rpc, plan, out, calibrate=True):
     a.need('manifest_local_only_run_manifest', getattr(rpc, 'local', False), True)
+    evidence = execution_tree_gates(plan)
+    if evidence is not None:
+        a.write_json(out/'execution.json', evidence)
     expected = validate_plan(plan, plan['externalInputs'], frozen=not calibrate)
     allowlist = execution_reads.reviewed_allowlist()
-    execution_tree_gates(plan)
     with execution_reads.guard(allowlist):
         return _run_manifest(remote, rpc, plan, out, calibrate, expected)
 
@@ -3635,6 +3642,8 @@ def require_final(plan):
 
 
 def save_artifact(out, plan):
+    from execution_set import freeze_manifest
+    freeze_manifest(plan, out)
     if plan['stage'] in STAGES[:-1]:
         a.need('stage_not_final_save_artifact', plan['final'], False)
         path = out/('stage-'+plan['stage']+'.json')
