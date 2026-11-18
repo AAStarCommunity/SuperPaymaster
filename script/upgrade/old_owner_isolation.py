@@ -491,7 +491,7 @@ def extract(tree, names=NAMES):
                         a.need('old_owner_role_expression_'+label, False, True)
                 else:
                     a.need('old_owner_getter_abi_'+name+'_'+label, sig in signatures, True)
-                    a.need('old_owner_getter_signature_present', sig in signatures, True); a.need('old_owner_getter_output_'+label, [v['type'] for v in signatures[sig]['outputs']], ['address' if category == 'authorities' else 'bool'])
+                    a.need('old_owner_getter_output_'+label, [v['type'] for v in signatures[sig]['outputs']], ['address' if category == 'authorities' else 'bool'])
                 groups[category].append(row)
             if name == 'Registry':
                 a.need('old_owner_role_init_standard', sorted(initialized_roles), sorted({r['name'] for r in groups['roles']}))

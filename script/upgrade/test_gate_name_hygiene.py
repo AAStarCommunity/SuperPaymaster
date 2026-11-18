@@ -1,109 +1,93 @@
-#!/usr/bin/env python3
 """Gate-name hygiene for the release executors (#608 split PR-2, COMMIT 6e renames).
 
-The 6e renames changed gate-name strings only. A rename can break three things, and this file
-checks each mechanically from the source AST:
-  (a) two gates merged into one name: the set of names that still repeat is frozen; a new
-      repeat fails. (All 41 predate 6e; the renames removed 42 others.)
-  (b) a consumer that compares gate names (allow lists, expected-gate checks) still holding an
-      old name: the 46 replaced names must not appear as string literals in executor code,
-      tests or workflows, and every gate name a consumer compares against must still be raised.
+The 6e renames changed gate-name strings only. A rename can break three things; this file checks
+each mechanically with gate_name_scan over every executor module (gate_name_scan.runtime_files()):
+  (a) two gates merged into one name: the per-name count of every name raised more than once is
+      frozen; a new repeat or a grown count fails.
+  (b) a consumer that compares a caught gate name still holding an old name: every consumer
+      literal/prefix must be exactly producible, and the names replaced between the base and the
+      PR-2 head (generated, gate_names_replaced_pr2.json) survive nowhere as string literals in
+      executor code, tests or workflows.
   (c) rpc_result sites: typed() reports exactly the name its caller passes, and every
-      rpc_result_* call site passes a unique literal; the site count is pinned.
+      rpc_result_* site passes a unique literal; the site count is pinned.
 """
-import ast
+import json
 import re
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'script'/'a3a'))
+sys.path.insert(0, str(ROOT/'script'/'upgrade'))
 import a3a_exec as a  # noqa: E402
+import gate_name_scan  # noqa: E402
 
-RUNTIME = ['script/upgrade/manifest_exec.py', 'script/upgrade/old_owner_isolation.py',
-           'script/upgrade/sp_upgrade_exec.py', 'script/a3a/a3a_exec.py', 'script/a3a/a3a_send.py']
 RPC_RESULT_SITES = 89
-# Names raised from more than one site before and after 6e (6e removed 42 others).
+# Per-name counts of names raised from more than one site. All predate 6e (6e removed 47 others);
+# none may grow and no new name may join.
 FROZEN_REPEATS = {
-    'abi_address_padding', 'artifact_bytecode', 'artifact_source_unresolved', 'block_gas_limit', 'chain',
-    'engine_start', 'engine_stderr', 'fork_config_missing', 'fresh_estimate', 'frozen_budgets',
-    'frozen_plan_unchanged', 'immutable_range_bounds', 'immutable_range_overlap', 'independent_pin',
-    'metadata_cbor', 'negative_order_reason', 'negative_trace', 'onchain_safe_hash', 'output_empty',
-    'pin_recheck', 'pinned_block', 'plan_budgets', 'post_safe_nonce', 'pre_send_chain',
-    'rebuild_forge_unavailable', 'rebuild_submodule_unavailable', 'reviewed_plan_hash', 'rpc_envelope',
-    'rr_create_only', 'rr_mined_need', 'safe_guard', 'safe_modules', 'safe_threshold',
-    'schedule_canonical_block', 'schedule_log_removed', 'schedule_log_tx_block', 'schedule_log_tx_block_hash',
-    'schedule_log_tx_hash', 'schedule_receipt_block', 'schedule_receipt_missing', 'simulation_pin',
+    'abi_address_padding': 2, 'artifact_bytecode': 2, 'artifact_source_unresolved': 2, 'block_gas_limit': 5,
+    'chain': 2, 'engine_start': 2, 'engine_stderr': 4, 'fork_config_missing': 2, 'fresh_estimate': 2,
+    'frozen_budgets': 2, 'frozen_plan_unchanged': 4, 'immutable_range_bounds': 2, 'immutable_range_overlap': 2,
+    'independent_pin': 2, 'metadata_cbor': 9, 'negative_order_reason': 2, 'negative_trace': 2,
+    'onchain_safe_hash': 2, 'output_empty': 4, 'pin_keys': 3, 'pin_recheck': 3, 'pinned_block': 2,
+    'plan_budgets': 2, 'plan_keys': 2, 'post_safe_nonce': 2, 'pre_send_chain': 2,
+    'rebuild_forge_unavailable': 2, 'rebuild_submodule_unavailable': 3, 'reviewed_plan_hash': 3,
+    'rpc_envelope': 2, 'rr_create_only': 2, 'rr_mined_need': 2, 'safe_guard': 2, 'safe_modules': 2,
+    'safe_threshold': 2, 'schedule_canonical_block': 2, 'schedule_log_removed': 2, 'schedule_log_tx_block': 2,
+    'schedule_log_tx_block_hash': 2, 'schedule_log_tx_hash': 2, 'schedule_receipt_block': 2,
+    'schedule_receipt_missing': 3, 'simulation_pin': 2,
 }
-# Gate names 6e replaced; they must not survive as string literals anywhere a gate can be raised
-# or compared (the rename records under script/upgrade/gate_rename_*.json and historical docs
-# are deliberately out of scope).
-REPLACED = {
-    'a3a_gap_mined_before_pin', 'a3a_mined_', 'a3a_plan', 'built_aggregator_version',
-    'evidence_scope_recomputed', 'evidence_slither_rederived', 'evidence_unique_findings',
-    'fixed_old_aggregator', 'fraud_token_fields', 'manifest_', 'manifest_local_only', 'manifest_step_',
-    'manifest_tx_', 'old_owner_allowance_', 'old_owner_authority_', 'old_owner_calldata_bytes',
-    'old_owner_deployed_build', 'old_owner_event_role_', 'old_owner_evidence_present',
-    'old_owner_factory_enumeration', 'old_owner_mapping_', 'old_owner_role_', 'old_owner_role_admin_',
-    'old_timelock_approval_history', 'old_timelock_replay', 'phase_c_account_evidence', 'phase_c_measurement',
-    'phase_c_rehearsal_evidence', 'prefix_boundary', 'readback_', 'rpc_result', 'safe_gap_endpoints',
-    'safe_gap_gas_price', 'safe_gap_gas_used', 'safe_gap_hash', 'safe_gap_log_data', 'safe_gap_miner_balance',
-    'safe_gap_owner_eoa', 'safe_gap_pin_nonce', 'safe_gap_pin_owners', 'safe_gap_pin_threshold',
-    'safe_gap_receipt_identity', 'safe_gap_trace_storage', 'stage_not_final', 'stake_not_unlocking',
-    'unexpected_proxy', 'verifier_commit',
+REPLACED_FILE = ROOT/'script'/'upgrade'/'gate_names_replaced_pr2.json'
+# Consumers whose compared value is itself data (a control case's recorded gate); reviewed by hand.
+OPAQUE_CONSUMERS = {
+    "a.need('old_owner_release_negative_control', stopped, control['gate'])",
 }
-# Gate names (or prefixes) that executor code compares a caught Gate against.
-CONSUMED = ['operator_paused_', 'output_empty', 'rebuild_submodule_unavailable', 'pre_send_code_S4',
-            'old_owner_event_role_member_', 'old_owner_mapping_getter', 'rpc_fault', 'rpc_transport',
-            'rpc_envelope', 'readback_value_fraudProofVerifier()', 'B2_capped_buffer', 'manifest_length']
+
+# Consumer literals that no producer raises verbatim and that are matched only through a producer
+# prefix (the suffix is runtime data); each was checked by hand against its producer. Any other
+# prefix-only match fails, because a short prefix (e.g. 'verifier_') would accept any old name.
+PREFIX_ONLY_CONSUMERS = {
+    'pre_send_code_S4': 'pre_send_code_',
+    'C_funding_bundler': 'C_funding_',
+    'readback_value_fraudProofVerifier()': 'readback_value_',
+}
 
 
-def _name(func):
-    return func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
-
-
-def gate_sites():
-    """Every need/typed/Gate call in the runtime files: (file, line, kind, name-or-source)."""
-    sites = []
-    for path in RUNTIME:
-        for node in ast.walk(ast.parse((ROOT/path).read_text())):
-            if not isinstance(node, ast.Call):
-                continue
-            fn = _name(node.func)
-            if fn in ('need', 'Gate'):
-                arg = node.args[0] if node.args else None
-            elif fn == 'typed':
-                arg = next((k.value for k in node.keywords if k.arg == 'gate'),
-                           node.args[2] if len(node.args) > 2 else None)
-            else:
-                continue
-            if arg is None:
-                sites.append((path, node.lineno, 'missing', None))
-            elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                sites.append((path, node.lineno, 'literal', arg.value))
-            else:
-                sites.append((path, node.lineno, 'dynamic', ast.unparse(arg)))
-    return sites
+def gate_sites(scan=None):
+    """Producer sites as (file, line, kind, name): kind is literal, prefix, dynamic or missing."""
+    scan = scan or gate_name_scan.Scan()
+    kinds = {'opaque': 'dynamic'}
+    return [(f, line, kinds.get(kind, kind), value) for kind, value, (f, line) in scan.producers]
 
 
 class GateNameHygieneTests(unittest.TestCase):
-    def setUp(self):
-        self.sites = gate_sites()
-        self.literals = [s[3] for s in self.sites if s[2] == 'literal']
+    @classmethod
+    def setUpClass(cls):
+        cls.scan = gate_name_scan.Scan()
+        cls.sites = gate_sites(cls.scan)
+        cls.literals = [s[3] for s in cls.sites if s[2] == 'literal']
 
     def test_enumeration_control(self):
-        # Positive control: the scan sees the executors (a broken scan would pass every check below).
+        # Positive control: the scan sees every executor and both producer and consumer sides
+        # (a broken scan would pass every check below).
+        self.assertGreaterEqual(len(self.scan.files), 12)
         self.assertGreater(len(self.literals), 1000)
         self.assertIn('rpc_result_inventory_1', self.literals)
+        consumed = {v for k, v, _ in self.scan.consumers}
+        for name in ('send_after_broadcast', 'operator_paused_', 'old_owner_fork_case_', 'C_price_bound_exec'):
+            self.assertIn(name, consumed)
 
     def test_no_new_repeated_gate_name(self):
-        seen, repeats = set(), set()
+        counts = {}
         for name in self.literals:
-            (repeats if name in seen else seen).add(name)
-        self.assertEqual(repeats - FROZEN_REPEATS, set(), 'a gate name now repeats')
-        self.assertEqual(FROZEN_REPEATS - repeats, set(), 'a frozen repeat is gone: shrink FROZEN_REPEATS')
+            counts[name] = counts.get(name, 0)+1
+        repeats = {k: v for k, v in counts.items() if v > 1}
+        self.assertEqual(repeats, FROZEN_REPEATS)
 
     def test_every_typed_call_names_its_gate(self):
         self.assertEqual([s for s in self.sites if s[2] == 'missing'], [])
@@ -112,8 +96,7 @@ class GateNameHygieneTests(unittest.TestCase):
         rpc = [s for s in self.sites if s[2] == 'literal' and s[3].startswith('rpc_result')]
         self.assertEqual(len(rpc), RPC_RESULT_SITES)
         self.assertEqual(len({s[3] for s in rpc}), RPC_RESULT_SITES)
-        dynamic = [s for s in self.sites if s[2] == 'dynamic' and 'rpc_result' in s[3]]
-        self.assertEqual(dynamic, [])
+        self.assertEqual([s for s in self.sites if s[2] in ('dynamic', 'prefix') and 'rpc_result' in s[3]], [])
 
     def test_typed_reports_the_name_it_was_given(self):
         for name in ('rpc_result_inventory_1', 'rpc_result_qty_value', 'any_caller_supplied_name'):
@@ -121,30 +104,59 @@ class GateNameHygieneTests(unittest.TestCase):
                 a.typed('not-hex', a.HASH32, name)
             self.assertEqual(caught.exception.record['gate'], name)
             self.assertEqual(a.typed('0x'+'ab'*32, a.HASH32, name), '0x'+'ab'*32)
+        with self.assertRaises(TypeError):
+            a.typed('0x'+'ab'*32, a.HASH32)  # no default name since 6e
 
     def test_replaced_names_have_no_literal_left(self):
-        files = [ROOT/p for p in RUNTIME]
+        replaced = json.loads(REPLACED_FILE.read_text())
+        names = replaced['literals']+replaced['prefixes']
+        self.assertGreater(len(names), 50)
+        files = [ROOT/p for p in self.scan.files]
         files += sorted(f for f in (ROOT/'script').glob('**/test_*.py') if f.resolve() != Path(__file__).resolve())
         files += sorted((ROOT/'.github'/'workflows').glob('*.yml'))
         hits = []
         for path in files:
             text = path.read_text()
-            for name in REPLACED:
+            for name in names:
                 if re.search(r"""['"]%s['"]""" % re.escape(name), text):
                     hits.append((path.relative_to(ROOT).as_posix(), name))
         self.assertEqual(hits, [])
 
-    def test_consumed_gate_names_are_still_raised(self):
-        prefixes = []
-        for _, _, kind, source in self.sites:
-            if kind == 'dynamic':
-                m = re.match(r"""^f?'([^'{]+)""", source)
-                if m:
-                    prefixes.append(m.group(1))
-        literals = set(self.literals)
-        for name in CONSUMED:
-            self.assertTrue(name in literals or any(name.startswith(p) for p in prefixes)
-                            or any(p.startswith(name) for p in prefixes), name)
+    def test_consumed_gate_names_are_exactly_producible(self):
+        self.assertEqual(self.scan.unproducible(), [])
+        literals, prefixes = self.scan.producer_names()
+        prefix_only = {v: sorted(p for p in prefixes if v.startswith(p) and len(v) > len(p))
+                       for k, v, _ in self.scan.consumers if k == 'literal' and v not in literals}
+        self.assertEqual(prefix_only, {k: [v] for k, v in PREFIX_ONLY_CONSUMERS.items()})
+        opaque = {v for k, v, _ in self.scan.consumers if k == 'opaque'}
+        self.assertEqual(opaque, OPAQUE_CONSUMERS)
+
+    def test_scanner_rejects_an_orphaned_consumer(self):
+        # Negative controls on a copy: renaming the producer of a consumed literal, or of a consumed
+        # prefix, must make that consumer unproducible.
+        mutations = [
+            ('script/a3a/a3a_send.py', "Gate('send_after_broadcast',", "Gate('send_after_broadcast_x',"),
+            ('script/upgrade/sp_upgrade_exec.py', "a.need('operator_paused_'+who, paused",
+             "a.need('operator_paused_x_'+who, paused"),
+        ]
+        for path, old, new in mutations:
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
+                for f in self.scan.files:
+                    (Path(tmp)/f).parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(ROOT/f, Path(tmp)/f)
+                text = (Path(tmp)/path).read_text()
+                self.assertEqual(text.count(old), 1)
+                self.assertEqual(gate_name_scan.Scan(root=tmp).unproducible(), [])
+                (Path(tmp)/path).write_text(text.replace(old, new))
+                self.assertNotEqual(gate_name_scan.Scan(root=tmp).unproducible(), [])
+
+    def test_frozen_renames_are_raised_where_recorded(self):
+        import probe_phase_c_gates as probe
+        rows = json.loads((ROOT/probe.RENAMES_FILE).read_text())['renamed']
+        self.assertEqual(len(rows), probe.RENAMED_COUNT)
+        source = (ROOT/'script'/'upgrade'/'manifest_exec.py').read_text()
+        for row in rows:
+            self.assertEqual(set(row['functions']), probe._defining_functions(source, row['name']), row['name'])
 
 
 if __name__ == '__main__':

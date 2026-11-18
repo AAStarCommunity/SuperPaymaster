@@ -1820,7 +1820,7 @@ def nonce_expectations(pin, inputs):
     for label in ('deployer', 'approver', 'executor'):
         rows = [x for x in plan['steps'] if x['tx']['from'] == pin['senders'][label]['address']]
         a.need('a3a_sender_history', bool(rows), True)
-        a.need('a3a_sender_history_rows_present', bool(rows), True); last[label] = max(rows, key=lambda x: a.qty(x['tx']['nonce']))
+        last[label] = max(rows, key=lambda x: a.qty(x['tx']['nonce']))
         a.need('a3a_last_'+label, last[label]['id'],
                {'deployer':'S7', 'approver':'S6a', 'executor':'S6b'}[label])
         start = a.qty(last[label]['tx']['nonce'])+1

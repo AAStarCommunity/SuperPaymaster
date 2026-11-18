@@ -1,0 +1,780 @@
+{
+ "base": "4029a23e64744066d99c5d81d71bd39eedee7f5e",
+ "generated": "manifest_exec.py gate names absent at the base that gate_rename_map.json maps from a base name; reviewed for #608 split PR-2",
+ "renamed": [
+  {
+   "name": "C1_cap_headroom_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_controls",
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C1_cap_headroom"
+   ]
+  },
+  {
+   "name": "C1_cap_headroom_worksheet",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_worksheet"
+   ],
+   "previous": [
+    "C1_cap_headroom"
+   ]
+  },
+  {
+   "name": "C1_minter_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C1_minter"
+   ]
+  },
+  {
+   "name": "C1_minter_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C1_minter"
+   ]
+  },
+  {
+   "name": "C2_operator_role_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C2_operator_role"
+   ]
+  },
+  {
+   "name": "C2_operator_role_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C2_operator_role"
+   ]
+  },
+  {
+   "name": "C3_community_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C3_community"
+   ]
+  },
+  {
+   "name": "C3_community_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C3_community"
+   ]
+  },
+  {
+   "name": "C5_counterfactual_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C5_counterfactual"
+   ]
+  },
+  {
+   "name": "C5_counterfactual_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C5_counterfactual"
+   ]
+  },
+  {
+   "name": "C6_gtoken_balance_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C6_gtoken_balance"
+   ]
+  },
+  {
+   "name": "C6_gtoken_balance_worksheet",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_worksheet"
+   ],
+   "previous": [
+    "C6_gtoken_balance"
+   ]
+  },
+  {
+   "name": "C7_enduser_active_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_controls",
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C7_enduser_active"
+   ]
+  },
+  {
+   "name": "C7_enduser_active_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C7_enduser_active"
+   ]
+  },
+  {
+   "name": "C_account_status_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_controls",
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C_account_status"
+   ]
+  },
+  {
+   "name": "C_account_status_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C_account_status"
+   ]
+  },
+  {
+   "name": "C_control_slot_allowance_used",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_controls.exhaust"
+   ],
+   "previous": [
+    "C_control_slot"
+   ]
+  },
+  {
+   "name": "C_control_slot_cached_price",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_controls.high_price"
+   ],
+   "previous": [
+    "C_control_slot"
+   ]
+  },
+  {
+   "name": "C_operator_before_approve",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C_operator_before"
+   ]
+  },
+  {
+   "name": "C_operator_before_configure",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pre_send"
+   ],
+   "previous": [
+    "C_operator_before"
+   ]
+  },
+  {
+   "name": "C_price_bound_exec",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_controls",
+    "price_gate"
+   ],
+   "previous": [
+    "C_price_bound"
+   ]
+  },
+  {
+   "name": "C_price_bound_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "phase_c_pin_gates"
+   ],
+   "previous": [
+    "C_price_bound"
+   ]
+  },
+  {
+   "name": "a3a_gap_mined_before_pin_recording",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "reconcile_nonces.recording"
+   ],
+   "previous": [
+    "a3a_gap_mined_before_pin"
+   ]
+  },
+  {
+   "name": "a3a_gap_mined_before_pin_replay",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_nonce_history.replay"
+   ],
+   "previous": [
+    "a3a_gap_mined_before_pin"
+   ]
+  },
+  {
+   "name": "a3a_mined_history_",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_nonce_history"
+   ],
+   "previous": [
+    "a3a_mined_"
+   ]
+  },
+  {
+   "name": "a3a_mined_reconcile_",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "reconcile_nonces"
+   ],
+   "previous": [
+    "a3a_mined_"
+   ]
+  },
+  {
+   "name": "built_aggregator_version_rebuild_commit",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "rebuild_commit"
+   ],
+   "previous": [
+    "built_aggregator_version"
+   ]
+  },
+  {
+   "name": "built_aggregator_version_release_gate",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "release_gate"
+   ],
+   "previous": [
+    "built_aggregator_version"
+   ]
+  },
+  {
+   "name": "evidence_scope_recomputed_validate_evidence_details",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_scope_recomputed"
+   ]
+  },
+  {
+   "name": "evidence_slither_rederived_filename",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_slither_rederived"
+   ]
+  },
+  {
+   "name": "evidence_slither_rederived_findings",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_slither_rederived"
+   ]
+  },
+  {
+   "name": "evidence_slither_rederived_path_containment",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_slither_rederived"
+   ]
+  },
+  {
+   "name": "evidence_slither_rederived_path_syntax",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_slither_rederived"
+   ]
+  },
+  {
+   "name": "evidence_slither_rederived_reference_fields",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_slither_rederived"
+   ]
+  },
+  {
+   "name": "evidence_slither_rederived_success",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_slither_rederived"
+   ]
+  },
+  {
+   "name": "evidence_unique_findings_all_scope",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_unique_findings"
+   ]
+  },
+  {
+   "name": "evidence_unique_findings_in_scope",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_evidence_details"
+   ],
+   "previous": [
+    "evidence_unique_findings"
+   ]
+  },
+  {
+   "name": "fixed_old_aggregator_build_plan",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "build_plan"
+   ],
+   "previous": [
+    "fixed_old_aggregator"
+   ]
+  },
+  {
+   "name": "fixed_old_aggregator_collect",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "collect"
+   ],
+   "previous": [
+    "fixed_old_aggregator"
+   ]
+  },
+  {
+   "name": "fraud_token_fields_arm",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "fraud_fixture"
+   ],
+   "previous": [
+    "fraud_token_fields"
+   ]
+  },
+  {
+   "name": "fraud_token_fields_mock",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "fraud_fixture"
+   ],
+   "previous": [
+    "fraud_token_fields"
+   ]
+  },
+  {
+   "name": "manifest_local_only_pre_send",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "pre_send"
+   ],
+   "previous": [
+    "manifest_local_only"
+   ]
+  },
+  {
+   "name": "manifest_local_only_run_manifest",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "run_manifest"
+   ],
+   "previous": [
+    "manifest_local_only"
+   ]
+  },
+  {
+   "name": "manifest_plan_key_",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_plan"
+   ],
+   "previous": [
+    "manifest_"
+   ]
+  },
+  {
+   "name": "manifest_step_key_",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_plan"
+   ],
+   "previous": [
+    "manifest_step_"
+   ]
+  },
+  {
+   "name": "manifest_tx_field_",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_plan"
+   ],
+   "previous": [
+    "manifest_tx_"
+   ]
+  },
+  {
+   "name": "old_timelock_approval_history_creation",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "old_timelock_holds_nothing"
+   ],
+   "previous": [
+    "old_timelock_approval_history"
+   ]
+  },
+  {
+   "name": "old_timelock_approval_history_log",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "old_timelock_holds_nothing"
+   ],
+   "previous": [
+    "old_timelock_approval_history"
+   ]
+  },
+  {
+   "name": "old_timelock_replay_owners",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_old_timelock"
+   ],
+   "previous": [
+    "old_timelock_replay"
+   ]
+  },
+  {
+   "name": "old_timelock_replay_reads",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_old_timelock.replay"
+   ],
+   "previous": [
+    "old_timelock_replay"
+   ]
+  },
+  {
+   "name": "prefix_boundary_phase_c",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "verify_prefix"
+   ],
+   "previous": [
+    "prefix_boundary"
+   ]
+  },
+  {
+   "name": "prefix_boundary_prior_stage",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "verify_prefix"
+   ],
+   "previous": [
+    "prefix_boundary"
+   ]
+  },
+  {
+   "name": "readback_value_",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_predicate"
+   ],
+   "previous": [
+    "readback_"
+   ]
+  },
+  {
+   "name": "safe_gap_endpoints_check_governance",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_endpoints"
+   ]
+  },
+  {
+   "name": "safe_gap_endpoints_governance_evidence",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_evidence"
+   ],
+   "previous": [
+    "safe_gap_endpoints"
+   ]
+  },
+  {
+   "name": "safe_gap_hash_check_governance",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_hash"
+   ]
+  },
+  {
+   "name": "safe_gap_log_data_approval",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_logs"
+   ],
+   "previous": [
+    "safe_gap_log_data"
+   ]
+  },
+  {
+   "name": "safe_gap_log_data_swap_execution",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_logs"
+   ],
+   "previous": [
+    "safe_gap_log_data"
+   ]
+  },
+  {
+   "name": "safe_gap_log_data_swap_tail",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_logs"
+   ],
+   "previous": [
+    "safe_gap_log_data"
+   ]
+  },
+  {
+   "name": "safe_gap_log_logIndex_sequence",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_logs"
+   ],
+   "previous": [
+    "safe_gap_log_logIndex"
+   ]
+  },
+  {
+   "name": "safe_gap_miner_balance_delta",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_trace"
+   ],
+   "previous": [
+    "safe_gap_miner_balance"
+   ]
+  },
+  {
+   "name": "safe_gap_owner_eoa_live",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_owner_eoa"
+   ]
+  },
+  {
+   "name": "safe_gap_owner_eoa_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_owner_eoa"
+   ]
+  },
+  {
+   "name": "safe_gap_pin_nonce_live",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_pin_nonce"
+   ]
+  },
+  {
+   "name": "safe_gap_pin_nonce_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_pin_nonce"
+   ]
+  },
+  {
+   "name": "safe_gap_pin_owners_live",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_pin_owners"
+   ]
+  },
+  {
+   "name": "safe_gap_pin_owners_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_pin_owners"
+   ]
+  },
+  {
+   "name": "safe_gap_pin_threshold_live",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_pin_threshold"
+   ]
+  },
+  {
+   "name": "safe_gap_pin_threshold_pin",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_pin_threshold"
+   ]
+  },
+  {
+   "name": "safe_gap_receipt_identity_fields",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "check_governance"
+   ],
+   "previous": [
+    "safe_gap_receipt_identity"
+   ]
+  },
+  {
+   "name": "safe_gap_trace_storage_mapping",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "governance_trace"
+   ],
+   "previous": [
+    "safe_gap_trace_storage"
+   ]
+  },
+  {
+   "name": "stage_not_final_load_artifact",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "load_artifact"
+   ],
+   "previous": [
+    "stage_not_final"
+   ]
+  },
+  {
+   "name": "stage_not_final_save_artifact",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "save_artifact"
+   ],
+   "previous": [
+    "stage_not_final"
+   ]
+  },
+  {
+   "name": "stake_not_unlocking_build_plan",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "build_plan"
+   ],
+   "previous": [
+    "stake_not_unlocking"
+   ]
+  },
+  {
+   "name": "stake_not_unlocking_collect",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "collect"
+   ],
+   "previous": [
+    "stake_not_unlocking"
+   ]
+  },
+  {
+   "name": "verifier_commit_validate_external",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "validate_external"
+   ],
+   "previous": [
+    "verifier_commit"
+   ]
+  },
+  {
+   "name": "verifier_commit_verifier_artifact",
+   "file": "script/upgrade/manifest_exec.py",
+   "functions": [
+    "verifier_artifact"
+   ],
+   "previous": [
+    "verifier_commit"
+   ]
+  }
+ ]
+}
