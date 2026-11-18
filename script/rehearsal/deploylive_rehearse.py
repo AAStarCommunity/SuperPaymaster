@@ -42,6 +42,13 @@ MIN_FRAGMENT = 6
 def scan_evidence(directory, rpc_url, scalars):
     directory = Path(directory).resolve()
     require(directory.is_dir(), 'evidence directory must exist')
+    for path in directory.rglob('*'):
+        require(not path.is_symlink(), 'evidence symlinks refused')
+        if path.is_file():
+            scan_content(path.read_bytes(), rpc_url, scalars)
+
+
+def scan_content(content, rpc_url, scalars):
     url = urlsplit(rpc_url)
     needles = {rpc_url, url.hostname or ''}
     # Path/query fragments count only from MIN_FRAGMENT characters, like the fixed final scan: a
@@ -54,11 +61,8 @@ def scan_evidence(directory, rpc_url, scalars):
         require(n > 0, 'invalid rehearsal scalar')
         needles.update((str(n), f'{n:064x}', hex(n)))
     encoded = [n.encode().lower() for n in needles if n]
-    for path in directory.rglob('*'):
-        require(not path.is_symlink(), 'evidence symlinks refused')
-        if path.is_file():
-            content = path.read_bytes().lower()
-            require(not any(n in content for n in encoded), 'evidence contains sensitive material (details redacted)')
+    content = content.lower()
+    require(not any(n in content for n in encoded), 'evidence contains sensitive material (details redacted)')
 
 
 def local_endpoint(url):

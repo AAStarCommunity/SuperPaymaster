@@ -68,9 +68,10 @@ class Ddf3Test(unittest.TestCase):
     def test_fees_real_success_observations(self):
         text=json.loads((FIX/'simulate.alchemy.json').read_text())['simulate-fullseq-alchemy.txt']
         self.assertIn('97 calls; non-success: []',text)
-        p=plan(); lines=[]; observed={int(i):int(g) for i,g in re.findall(r'GAS index=(\d+).*? real=(\d+)',text)}
-        # Only the eight gas observations were captured. Other results are explicit transport stubs.
-        results=[dict(calls=[dict(status='0x1',gasUsed=hex(observed.get(i,21000)))]) for i in range(97)]
+        p=json.loads((FIX/'broadcast-97.json').read_text()); lines=[]
+        observed={i:int(r['gasUsed'],16) for i,r in enumerate(p['receipts'])}
+        # All 97 gas observations come from the actual broadcast receipts.
+        results=[dict(calls=[dict(status='0x1',gasUsed=hex(observed[i]))]) for i in range(97)]
         p['transactions'][0]['transaction'].update(maxFeePerGas='0x1234',maxPriorityFeePerGas='0x12')
         p['transactions'][1]['transaction']['maxPriorityFeePerGas']='0x23'
         def rpc(method,*args):

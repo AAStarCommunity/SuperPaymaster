@@ -7,6 +7,7 @@ import re
 import shlex
 import shutil
 import time
+import stat
 from deploylive_deploy_day import ROOT, require, integer, redact_error
 from deploylive_runtime import clean_source_commit
 
@@ -26,7 +27,11 @@ def read_endpoint_file(key, raw):
     # Endpoint URLs carry credentials: they never appear in inputs, output, config or evidence.
     path = Path(os.path.expanduser(raw))
     try:
-        text = path.read_text().strip()
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) & ~0o600 == 0, 'endpoint file must be regular, owned by current user, mode <= 0600')
+        raw_text = path.read_text()
+        require(len(raw_text.splitlines()) == 1, 'endpoint file must hold one URL')
+        text = raw_text.strip()
     except OSError:
         raise RuntimeError('unreadable endpoint file for ' + key) from None
     require(text and '\n' not in text and URL_SCHEME.match(text) is not None, 'endpoint file for ' + key + ' must hold one URL')
@@ -164,6 +169,7 @@ def archive(source, destination, copy=shutil.copytree):
     source, destination = Path(source).resolve(), Path(destination).resolve()
     require(source.is_dir() and not destination.exists(), 'archive source missing or destination exists')
     require(not destination.is_relative_to(source) and not source.is_relative_to(destination), 'archive overlaps evidence')
+    archive_records(source)
     files=sorted(p for p in source.rglob('*') if p.is_file())
     require(not any(p.is_symlink() for p in source.rglob('*')), 'evidence symlinks refused')
     require(all('\n' not in str(p.relative_to(source)) and '\\' not in str(p.relative_to(source)) for p in files), 'unsafe archive filename')
@@ -174,3 +180,94 @@ def archive(source, destination, copy=shutil.copytree):
         require((destination/p.relative_to(source)).read_bytes() == p.read_bytes(), 'archive verification failed')
     (destination/'SHA256SUMS').write_text(sums)
     print('ARCHIVE PASS')
+
+
+MANIFEST = 'inputs.manifest'
+
+
+def manifest_bytes(env, request):
+    excluded = {'DEPLOYER_ACCOUNT', 'PRIVATE_KEY_ANNI', 'REHEARSAL_BLS_SCALARS'}
+    keys = input_keys() - excluded - {k + '_FILE' for k in URL_KEYS}
+    values = {k: env.get(k, '') for k in keys}
+    values.update(SP_COMMIT=env['SP_COMMIT'], POP_REQUEST_SHA256=hashlib.sha256(request.read_bytes()).hexdigest())
+    require(all('\n' not in v and '\r' not in v for v in values.values()), 'multiline manifest input')
+    return ''.join(k+'='+values[k]+'\n' for k in sorted(values)).encode()
+
+
+def write_manifest(env, evidence):
+    data = manifest_bytes(env, evidence/'pop-request.json')
+    (evidence/MANIFEST).write_bytes(data)
+    (evidence/(MANIFEST+'.sha256')).write_text(hashlib.sha256(data).hexdigest()+'\n')
+    (evidence/'checker.PASS.json').unlink(missing_ok=True)
+
+
+def manifest_digest(evidence):
+    digest = hashlib.sha256((evidence/MANIFEST).read_bytes()).hexdigest()
+    require((evidence/(MANIFEST+'.sha256')).read_text() == digest+'\n', 'input manifest digest mismatch')
+    return digest
+
+
+def verify_manifest(env, evidence, request=None):
+    digest = manifest_digest(evidence)
+    require(manifest_bytes(env, request or evidence/'pop-request.json') == (evidence/MANIFEST).read_bytes(), 'input manifest mismatch; repeat predict and PoP')
+    return digest
+
+
+def forge_endpoint(command, env):
+    return command, dict(env, ETH_RPC_URL=env['DEPLOYLIVE_RPC'])
+
+
+def safe_logs(evidence, prefix, result, env):
+    from deploylive_rehearse import scan_content
+    for content in (result.stdout, result.stderr):
+        require(redact_error(content) == content, 'raw output contains credentials; refusing write')
+        for key in URL_KEYS:
+            scan_content(content.encode(), env.get(key, ''), json.loads(env.get('REHEARSAL_BLS_SCALARS', '[]')))
+        if env.get('PRIVATE_KEY_ANNI'):
+            require(env['PRIVATE_KEY_ANNI'].lower() not in content.lower(), 'raw output contains secret; refusing write')
+    for suffix, content in (('stdout', result.stdout), ('stderr', result.stderr)):
+        (evidence/(prefix+'.'+suffix+'.log')).write_text(content)
+
+
+def plan_diff(gated, actual, gas_bounds=None):
+    left, right = gated['transactions'], actual['transactions']
+    diff = []
+    if len(left) != len(right): diff.append('transaction count mismatch')
+    for i, (a, b) in enumerate(zip(left, right)):
+        a, b = a['transaction'], b['transaction']
+        for key in ('to', 'input', 'value', 'from', 'chainId', 'nonce'):
+            if key not in a or key not in b or a[key] != b[key]: diff.append(f'index={i} field={key}')
+        if gas_bounds is not None:
+            low, high = gas_bounds[i]
+            if not low <= integer(b['gas']) <= high: diff.append(f'index={i} gas outside [{low},{high}]')
+    return diff
+
+
+def check_start_nonce(plan, expected, rpc, deployer):
+    require(integer(rpc('eth_getTransactionCount', deployer, 'pending')) == integer(expected)
+            and integer(plan['transactions'][0]['transaction']['nonce']) == integer(expected), 'predict-time starting nonce mismatch')
+
+
+def deployment_rule(env, evidence, transport, chain):
+    require(env['DEPLOYLIVE_SOURCE_RPC'] != env['DEPLOYLIVE_SECOND_RPC'], 'distinct endpoints required')
+    record = hardfork_check(transport(env['DEPLOYLIVE_SOURCE_RPC']), transport(env['DEPLOYLIVE_SECOND_RPC']), evidence)
+    require(chain == 31337 or record['chainId'] == chain, 'hardfork deployment chain mismatch')
+    return record
+
+
+def write_success(evidence, env, config, broadcast):
+    write_json(evidence, 'checker.PASS.json', dict(status='PASS', manifest=manifest_digest(evidence),
+        env=env['ENV'], config=str(config), broadcast=str(broadcast),
+        configSha256=hashlib.sha256(config.read_bytes()).hexdigest(),
+        broadcastSha256=hashlib.sha256(broadcast.read_bytes()).hexdigest()))
+
+
+def archive_records(source):
+    record = json.loads((source/'checker.PASS.json').read_text()) if (source/'checker.PASS.json').is_file() else {}
+    require(record.get('status') == 'PASS' and record.get('manifest') == manifest_digest(source), 'archive requires current manifest-bound checker PASS')
+    for key, name in (('config', 'config.'+record['env']+'.json'), ('broadcast', 'run-latest.json')):
+        path = Path(record[key])
+        require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(ROOT), 'missing deployment record')
+        require(hashlib.sha256(path.read_bytes()).hexdigest() == record[key+'Sha256'], 'deployment record changed since PASS')
+        require(Path(name).name == name, 'unsafe archive record name')
+        shutil.copyfile(path, source/name)

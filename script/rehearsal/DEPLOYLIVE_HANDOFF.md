@@ -13,7 +13,7 @@ for a rehearsal: rehearsal and production configs share `deployments/live/config
 Prepare the ignored input file once, fill every required value from the approved
 manifest, and leave optional keys present but empty. Endpoint URLs never go into this
 file: `DEPLOYLIVE_RPC_FILE`, `DEPLOYLIVE_SOURCE_RPC_FILE` and `DEPLOYLIVE_SECOND_RPC_FILE`
-name files that each hold one URL, which the loader reads in-process. Any input value that
+name regular, non-symlink files owned by the operator, mode 0600 or narrower, with exactly one physical URL line, which the loader reads in-process. Any input value that
 starts with `http://`, `https://`, `ws://` or `wss://` is refused. This is the explicit load step
 (run from the worktree root in bash/zsh; the file contains literal assignments only):
 
@@ -85,7 +85,9 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    ```
 
 5. Predict. The driver writes `cache/deploylive-prediction/pop-request.json` and
-   copies it to `$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json`.
+   copies it to `$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json`. It also writes sorted
+   `inputs.manifest` and `inputs.manifest.sha256`: non-secret inputs, derived SP_COMMIT,
+   and request SHA256. The DVT request key set is unchanged.
    Expected final line: `PREDICT PASS` (preceded by the request SHA256).
    The request's `pin.block` is the **PoP pin block**: the PARENT of the block the
    prediction simulated on. On a real chain it follows the live head at prediction time and
@@ -101,7 +103,7 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    external prerequisite, not an improvised local helper. Expected: `CONVERT PASS`.
 
    ```sh
-   test -s "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" && PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex" && echo 'CONVERT PASS'
+   test -s "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" && PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . --inputs "$INPUTS" > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex" && echo 'CONVERT PASS'
    ```
 
 7. Deploy and run the integrated checker. The driver reads generated `guardians.hex`;
@@ -114,7 +116,9 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    ```
 
 8. Copy evidence to a new external archive, including verified file copies and
-   `SHA256SUMS`. Enter the full destination path when prompted; existing destinations
+   `SHA256SUMS`. Archive requires this run’s manifest-bound `checker.PASS.json`,
+   copies `deployments/live/config.<ENV>.json` and the actual broadcast
+   `run-latest.json` itself, and checks their PASS-time digests. Enter the full destination path when prompted; existing destinations
    and symlinks are refused. Expected: `ARCHIVE PASS`.
 
    ```sh
@@ -124,18 +128,6 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
 
    `archive` re-reads the inputs file and every endpoint file: delete them only AFTER this step.
 
-   **Then, by hand (until `archive` covers them):** copy the deployed config
-   `deployments/live/config.$ENV.json` and forge's broadcast receipts
-   `broadcast/DeployLive.s.sol/<chainId>/run-latest.json` into `$ARCHIVE_DIR`, and append
-   their sha256 lines to `$ARCHIVE_DIR/SHA256SUMS`. The deployment transaction hashes that the
-   paper cites live in those receipts; do not lose them on the Sepolia rehearsal day.
-
-   The endpoint goes to cast through the environment, never as a command-line argument.
-
-   ```sh
-   cp "deployments/live/config.$ENV.json" "broadcast/DeployLive.s.sol/$(ETH_RPC_URL="$DEPLOYLIVE_RPC" cast chain-id)/run-latest.json" "$ARCHIVE_DIR/"
-   (cd "$ARCHIVE_DIR" && shasum -a 256 "config.$ENV.json" run-latest.json >> SHA256SUMS && shasum -a 256 -c SHA256SUMS)
-   ```
 
 The gas gate remains single-endpoint on the real chain (`DEPLOYLIVE_SOURCE_RPC`),
 independent of fork-price mode. It retains fees, full-sequence simulation and the
@@ -143,6 +135,36 @@ independent of fork-price mode. It retains fees, full-sequence simulation and th
 same build/predict/deploy commands with `--production` and approved production inputs;
 never run cap-control there. Archive evidence includes hardfork/control JSON, request,
 DVT export, build identity, simulation reads, Forge logs and checker output.
+
+The build stamps bind clean HEAD and the SHA256 of `foundry.toml`. Deploy verifies
+both before planning and before broadcast. The artefacts themselves are checked
+byte by byte against the creation pins (hashing all creation bytes) in DeployLive’s
+preflight before broadcast; no separate artefact manifest is used.
+Deploy re-runs the dual-provider hardfork rule check before generating its plan.
+Immediately before broadcast it simulates again and compares count, order, sender,
+nonce, destination, calldata, value and chainId with the gated plan, then checks the
+pending deployer nonce against the prediction. The post-broadcast comparison also
+requires each gas limit to equal its gated value (the accepted range is [limit, limit]).
+Success requires checker PASS and an empty `postbroadcast.diff.json`.
+
+Remaining window: chain-head movement between the final simulation and broadcast
+can change gas estimates. The 1.3× margin plus the post-broadcast comparison cover
+it: a changed gas limit makes the run NOT successful even if transactions were sent.
+Forge and checker receive RPC URLs through `ETH_RPC_URL`, never process arguments;
+raw output is scanned in memory before any log write.
+
+### Change an input after predict: offline refusal cell
+
+This cell uses mocked Forge/RPC transports and proves the broadcast/Forge invocation
+never ran. Expected: `Ran 1 test` and `OK`.
+
+```sh
+PYTHONPATH=script/rehearsal python3 -m unittest test_ddf5.Ddf5Test.test_owner_change_refuses_before_forge
+```
+
+On deploy day, any owner, recipient, threshold or other manifest input change requires
+new prediction and PoPs. Deploy refuses it with
+`STOP deployment: STOP input manifest mismatch; repeat predict and PoP` before Forge.
 
 ## Historical design and acceptance notes
 
@@ -162,7 +184,7 @@ Local non-production chain-31337 behavior remains `deployments/config.<ENV>.json
 Pass the new production path explicitly to the checker and rehearsal driver:
 
 ```sh
-python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
+ETH_RPC_URL="$DEPLOYLIVE_RPC" python3 script/rehearsal/deploylive_postdeploy_check.py "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
 ```
 
 Success means **checker exit 0 AND its SUMMARY has failed == 0**. Forge can
@@ -210,8 +232,8 @@ exact method-(a) broadcast command (shown for audit; run it through the driver
 so the gates and build stamps cannot be omitted):
 
 ```sh
-"$FORGE" script --offline contracts/script/v3/DeployLive.s.sol:DeployLive \
-  --rpc-url "$DEPLOYLIVE_RPC" --sender "$DEPLOYER_ADDRESS" --slow \
+ETH_RPC_URL="$DEPLOYLIVE_RPC" "$FORGE" script --offline contracts/script/v3/DeployLive.s.sol:DeployLive \
+  --sender "$DEPLOYER_ADDRESS" --slow \
   --evm-version prague --hardfork "$DEPLOYLIVE_HARDFORK" \
   --gas-estimate-multiplier 130 -vv --account "$DEPLOYER_ACCOUNT" --broadcast
 ```
@@ -860,7 +882,7 @@ before RPC access and derive `SP_COMMIT` from HEAD themselves.
    `pin.block` and `pin.blockHash` name the same block: the PARENT of the simulated block, because EVM BLOCKHASH cannot read the current block. `pin.senders.deployer.nonce` is the deployer nonce at entry to `run()`. If the deployer sent a transaction in the latest block, a nonce read at `pin.block` differs and DVT refuses (fail-closed), so the operator re-runs the simulation. DVT can check `getBlock(pin.block).hash == pin.blockHash` directly.
 
    ```sh
-   python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
+   python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . --inputs "$INPUTS" > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
    ```
 
    The converter prints both input SHA256 values to stderr and emits only

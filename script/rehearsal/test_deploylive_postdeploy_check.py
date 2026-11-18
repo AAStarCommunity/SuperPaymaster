@@ -117,6 +117,8 @@ class CheckerTest(unittest.TestCase):
             if cmd[0] == "git":
                 return SimpleNamespace(returncode=0, stdout=(" M file\n" if git_dirty else "") if cmd[-1] == "--porcelain" else "a" * 40 + "\n")
             self.assertEqual(cmd[0], "cast")
+            self.assertNotIn("--rpc-url", cmd)
+            self.assertEqual(kwargs["env"]["ETH_RPC_URL"], "https://secret.invalid/private-token")
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
                 return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.invalid/private-token")
@@ -246,7 +248,7 @@ class CheckerTest(unittest.TestCase):
                 if mutation == "nonzero_recorded_balance" and target == cfg["gToken"] and sig == "balanceOf(address)(uint256)" and params[0] == deployer: out = "1"
                 if isinstance(mutation, tuple) and len(mutation) == 4:
                     key, changed_sig, changed_params, replacement = mutation
-                    if target == cfg[key] and sig == changed_sig and params[:-2] == changed_params:
+                    if target == cfg[key] and sig == changed_sig and params == changed_params:
                         out = replacement
                         if sig == "getRoleConfig(bytes32)": out = "0x" + "0" * (64 * 11) + replacement[2:].zfill(64) + "0" * 64
             else: self.fail(f"Non-read-only command: {kind}")

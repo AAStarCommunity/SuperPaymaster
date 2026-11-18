@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import tomllib
+from deploylive_runtime import clean_source_commit
 
 ROOT = Path(__file__).resolve().parents[2]
 PIN = ROOT / 'deployments/forge-deploy-pin.json'
@@ -119,13 +120,13 @@ def build(env, production):
     print_command([identity['path'], 'build', '--offline', '--evm-version', 'cancun'])
     release_result = subprocess.run([identity['path'], 'build', '--offline', '--evm-version', 'cancun'], cwd=ROOT, env=release_env)
     require(release_result.returncode == 0, 'Cancun build failed')
-    release_record = dict(forge=identity, out=str(release_out), cache=str(release_cache), evmVersion='cancun')
+    release_record = dict(forge=identity, out=str(release_out), cache=str(release_cache), evmVersion='cancun', **source_stamp())
     release_stamp.write_text(json.dumps(release_record, indent=2) + '\n')
     print_command([identity['path'], 'build', '--offline', '--evm-version', 'prague'])
     result = subprocess.run([identity['path'], 'build', '--offline', '--evm-version', 'prague'], cwd=ROOT, env=env)
     require(result.returncode == 0, 'Prague build failed')
     require(forge_identity(env) == identity, 'build forge changed during build')
-    record = dict(forge=identity, out=str(out), cache=str(cache), evmVersion='prague')
+    record = dict(forge=identity, out=str(out), cache=str(cache), evmVersion='prague', **source_stamp())
     stamp.write_text(json.dumps(record, indent=2) + '\n')
     print('BUILD ' + json.dumps(release_record))
     print('BUILD ' + json.dumps(record))
@@ -139,7 +140,7 @@ def verify_build(env, production):
         record = json.loads(stamp_path(env).read_text())
     except (OSError, ValueError):
         raise RuntimeError('STOP missing build stamp; build with this driver') from None
-    require(record == dict(forge=identity, out=str(out), cache=str(cache), evmVersion='prague'),
+    require(record == dict(forge=identity, out=str(out), cache=str(cache), evmVersion='prague', **source_stamp()),
             'build forge/settings differs from script forge/settings')
     release_out = (ROOT / env.get('DEFAULT_ARTIFACTS_OUT', 'out')).resolve()
     release_cache = (ROOT / env.get('DEFAULT_CACHE_PATH', 'cache')).resolve()
@@ -147,7 +148,7 @@ def verify_build(env, production):
         release_record = json.loads(release_out.with_name(release_out.name + '.build-stamp.json').read_text())
     except (OSError, ValueError):
         raise RuntimeError('STOP missing Cancun build stamp') from None
-    require(release_record == dict(forge=identity, out=str(release_out), cache=str(release_cache), evmVersion='cancun'),
+    require(release_record == dict(forge=identity, out=str(release_out), cache=str(release_cache), evmVersion='cancun', **source_stamp()),
             'Cancun build forge/settings differs from script forge/settings')
     print('SCRIPT ' + json.dumps(identity))
     return identity['path']
@@ -294,3 +295,8 @@ def broadcast_gates(env, plan, rpc, second_rpc, emit=print, price_rpcs=None):
     gas_crosscheck(plan, rpc, block, float(env.get('DEPLOYLIVE_GAS_TOLERANCE', '0.05')), emit,
                    multiplier=integer(env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130')))
     price_window(plan, primary, secondary, env['ETH_USD_FEED'], threshold, emit)
+    return [[integer(tx['transaction']['gas'])]*2 for tx in plan['transactions']]
+
+
+def source_stamp():
+    return dict(commit=clean_source_commit(), foundrySha256=hashlib.sha256((ROOT/'foundry.toml').read_bytes()).hexdigest())

@@ -80,12 +80,13 @@ class Ddf4Test(unittest.TestCase):
         c=self.api(); source=self.root/'evidence'; source.mkdir(); (source/'a.json').write_text('{}')
         dest=self.root/'archive'
         copier=Mock(wraps=shutil.copytree)
-        c.archive(source,dest,copy=copier)
+        with patch.object(c,'archive_records'):
+            c.archive(source,dest,copy=copier)
         copier.assert_called_once_with(source,dest)
         self.assertEqual((dest/'SHA256SUMS').read_text(),hashlib.sha256(b'{}').hexdigest()+'  a.json\n')
         with self.assertRaises(RuntimeError): c.archive(source,dest)
         (source/'link').symlink_to(source/'a.json')
-        with self.assertRaises(RuntimeError): c.archive(source,self.root/'other')
+        with patch.object(c,'archive_records'), self.assertRaises(RuntimeError): c.archive(source,self.root/'other')
 
     def test_inputs_exact_keys_no_execution_and_commit(self):
         c=self.api(); template=c.TEMPLATE.read_text(); path=self.root/'approved.inputs'
@@ -112,7 +113,7 @@ class Ddf4Test(unittest.TestCase):
         out={}
         for k in keys:
             if k.endswith('_RPC_FILE'):
-                path=self.root/(k.lower()+'.url'); path.write_text('http://127.0.0.1:1/'+k.lower()+'\n'); out[k]=str(path)
+                path=self.root/(k.lower()+'.url'); path.write_text('http://127.0.0.1:1/'+k.lower()+'\n'); path.chmod(0o600); out[k]=str(path)
         return out
 
     def test_endpoint_urls_only_via_files(self):
@@ -133,7 +134,7 @@ class Ddf4Test(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'set DEPLOYLIVE_RPC_FILE to its path') as e: c.load_inputs(path,{},commit_reader=lambda:'a'*40)
         self.assertNotIn('_FILE_FILE',str(e.exception))
         for content in ('','not-a-url','http://a\nhttp://b'):
-            f=self.root/'bad.url'; f.write_text(content); write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(f)))
+            f=self.root/'bad.url'; f.write_text(content); f.chmod(0o600); write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(f)))
             with self.assertRaisesRegex(RuntimeError,'must hold one URL'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
         write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(self.root/'missing.url')))
         with self.assertRaises(RuntimeError) as e: c.load_inputs(path,{},commit_reader=lambda:'a'*40)
@@ -162,7 +163,7 @@ class Ddf4Test(unittest.TestCase):
         with patch.object(c,'load_inputs',return_value=env), patch.object(f,'RPC') as rpc:
             with self.assertRaises(RuntimeError): f.cli(['cap-control','--inputs','approved.inputs','--production'])
             rpc.assert_not_called()
-        with patch.object(c,'load_inputs',return_value=env):
+        with patch.object(c,'load_inputs',return_value=env), patch.object(c,'archive_records'):
             f.cli(['archive','--inputs','approved.inputs','--to',str(self.root/'copy')])
         for action in ('build','predict','deploy','hardfork-check','cap-control','archive'):
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit): f.cli([action])

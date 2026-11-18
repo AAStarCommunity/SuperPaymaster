@@ -39,7 +39,17 @@ class ConverterTest(unittest.TestCase):
 
     def test_cli_hashes(self):
         args = ['python3', str(SCRIPT), str(FIX / 'SYNTHETIC.export.json'), str(FIX / 'SYNTHETIC.request.json'), '--sp-root', str(ROOT)]
-        result = subprocess.run(args, capture_output=True, text=True)
+        import sys
+        import contextlib
+        import io
+        from unittest.mock import patch
+        import deploylive_controls as controls
+        from types import SimpleNamespace
+        args += ['--inputs', 'approved.inputs']
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(sys, 'argv', args[1:]), patch.object(controls, 'load_inputs', return_value={}), patch.object(controls, 'evidence_dir', return_value=FIX), patch.object(controls, 'verify_manifest'), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = self.c.main()
+        result = SimpleNamespace(returncode=code, stdout=stdout.getvalue(), stderr=stderr.getvalue())
         self.assertEqual(result.returncode, 0, result.stderr)
         for name in ['export.json', 'request.json']:
             self.assertIn(hashlib.sha256((FIX / ('SYNTHETIC.' + name)).read_bytes()).hexdigest(), result.stderr)

@@ -92,7 +92,7 @@ class PredictionExecutionTest(unittest.TestCase):
                     self.assertEqual('--unlocked' in command, not production)
                     self.assertIn('--sender', command)
                     (root/kwargs['env']['DEPLOYLIVE_POP_REQUEST_OUT']).write_text('{"request":true}')
-                    return SimpleNamespace(returncode=0)
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
                 output = io.StringIO()
                 with patch.dict(os.environ, dict.fromkeys(keys, 'fixed'), clear=True), patch.object(f, 'ROOT', root), patch.object(f, 'guard_bls_verbosity'), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'verify_build', return_value='/forge') as verify, patch.object(f, 'config_path', return_value=root/'config.json'), patch.object(f.subprocess, 'run', side_effect=run), contextlib.redirect_stdout(output):
                     f.stage('predict', ['--evidence', 'evidence'] + (['--production'] if production else []))

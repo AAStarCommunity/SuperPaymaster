@@ -134,16 +134,21 @@ def main():
     parser = Parser(description=__doc__)
     parser.add_argument('export', type=Path)
     parser.add_argument('request', type=Path)
+    parser.add_argument('--inputs', type=Path, required=True)
     parser.add_argument('--sp-root', type=Path, required=True)
     try:
+        check(shutil.which('cast') is not None, 'cast_not_found: install foundry or add it to PATH')
         args = parser.parse_args()
+        from deploylive_controls import load_inputs, evidence_dir, verify_manifest
+        env = load_inputs(args.inputs)
+        verify_manifest(env, evidence_dir(env), args.request)
         inputs = []
         for path in (args.export, args.request):
             data = path.read_bytes()
             print(f'sha256 {path}: {hashlib.sha256(data).hexdigest()}', file=sys.stderr)
             inputs.append(json.loads(data))
         print(convert(*inputs, args.sp_root))
-    except (Stop, OSError, ValueError, TypeError, KeyError) as exc:
+    except (Stop, RuntimeError, OSError, ValueError, TypeError, KeyError) as exc:
         print(str(exc) if isinstance(exc, Stop) else 'STOP input_read: ' + str(exc), file=sys.stderr)
         return 3
     return 0

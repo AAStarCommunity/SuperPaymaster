@@ -42,7 +42,7 @@ class DeployDayTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT/'cache/ddf') as tmp:
             env = {'FOUNDRY_OUT':tmp+'/out', 'FOUNDRY_CACHE_PATH':tmp+'/cache', 'DEFAULT_ARTIFACTS_OUT':tmp+'/release', 'DEFAULT_CACHE_PATH':tmp+'/release-cache'}
             identity = dict(path='/forge', version='forge 4e8874b nightly', sha256='a'*64)
-            with patch.object(d, 'forge_identity', return_value=identity), patch.object(d.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), patch.object(d, 'check_pin'):
+            with patch.object(d, 'clean_source_commit', return_value='a'*40), patch.object(d, 'forge_identity', return_value=identity), patch.object(d.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), patch.object(d, 'check_pin'):
                 d.build(env, False)
                 d.verify_build(env, False)
                 for key in identity:

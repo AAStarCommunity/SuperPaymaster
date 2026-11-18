@@ -6,12 +6,15 @@ Local non-production runs may supply their original deployments/config.<ENV>.jso
 Prints one PASS/FAIL line per assertion and a summary. Nothing is sent: eth_call only.
 """
 import hashlib
+import os
 import json
 import subprocess
 import sys
 import re
 from pathlib import Path
 
+if len(sys.argv) == 4:
+    sys.argv.insert(1, os.environ['ETH_RPC_URL'])
 RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
 results = []
 principal_addresses = {DEPLOYER, SAFE}
@@ -50,8 +53,8 @@ LOCAL = {"keccak", "calldata", "sig", "abi-encode"}
 
 
 def cast(*args):
-    cmd = ["cast", *args] + ([] if args[0] in LOCAL else ["--rpc-url", RPC])
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = ["cast", *args]
+    r = subprocess.run(cmd, env=dict(os.environ, ETH_RPC_URL=RPC), capture_output=True, text=True)
     # Never expose RPC URLs, including transport errors with credentials or query strings.
     if r.returncode:
         return r.returncode, " ".join(re.findall(r"0x[0-9a-fA-F]+", r.stderr)) or "RPC/local command failed"
