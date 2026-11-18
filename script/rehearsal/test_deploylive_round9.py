@@ -13,6 +13,8 @@ import deploylive_runtime as runtime
 
 ROOT = rehearsal.ROOT
 OUTPUT = ROOT/'cache/deploylive-tests/round9'
+# Fresh checkouts have no cache/ tree; the tests must not depend on an earlier run creating it.
+OUTPUT.mkdir(parents=True, exist_ok=True)
 
 class Round9Test(unittest.TestCase):
     def test_artifacts_check_does_not_build(self):
