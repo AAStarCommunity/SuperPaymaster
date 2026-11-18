@@ -1,0 +1,43 @@
+{
+  "address": "0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e",
+  "commit": "41784173",
+  "artifactRuntimeKeccak": "0xa1a0963a5fa9757c12b84eef4de35b638a48db48253b35ff7bbe1e3ebfa99b41",
+  "pin": {
+    "chainId": 11155111,
+    "number": 12158619,
+    "hash": "0x67da8e573a528b46fd5634b599de12498b967f10aff0cc20130a8c8187e70bea",
+    "finalized": [
+      12158650,
+      12158650
+    ]
+  },
+  "endpoints": [
+    "Alchemy",
+    "Tenderly"
+  ],
+  "method": "mask artifact immutableReferences in the on-chain bytes; masked bytes == artifact deployedBytecode (incl. CBOR tail)",
+  "match": true,
+  "firstDiff": -1,
+  "ranges": 4,
+  "immutables": [
+    {
+      "start": 1723,
+      "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+    },
+    {
+      "start": 2697,
+      "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+    },
+    {
+      "start": 4495,
+      "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+    },
+    {
+      "start": 5727,
+      "value": "0x000000000000000000000000f5bf37ca83afdaab73691ba7eccdfa69b8708e71"
+    }
+  ],
+  "onchainCodehash": "0x945bf1df04a0894f57b0da0d62661f123a8ccec7e1c9e748610d0663e71b863c",
+  "maskedKeccak": "0xa1a0963a5fa9757c12b84eef4de35b638a48db48253b35ff7bbe1e3ebfa99b41",
+  "artifactKeccak": "0xa1a0963a5fa9757c12b84eef4de35b638a48db48253b35ff7bbe1e3ebfa99b41"
+}

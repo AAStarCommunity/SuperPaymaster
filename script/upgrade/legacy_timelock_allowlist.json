@@ -19,5 +19,7 @@
   "docs/release/a3a-precheck-v4/fork-sim/S2-roles.json": "Historical S2 fork role evidence.",
   "docs/release/a3a-precheck-v4/fork-sim/final-roles.json": "Historical final fork role evidence.",
   "docs/release/a3a-precheck-v4/snapshot.json": "Historical pre-A3a snapshot of the old timelock.",
-  "docs/release/v5.4.1-beta.1-release-log.md": "Historical v5.4.1 deployment release log."
+  "docs/release/v5.4.1-beta.1-release-log.md": "Historical v5.4.1 deployment release log.",
+  "docs/security/rc8-owner-table.json": "rc.8 owner table source of truth: names the old timelock as a legacy (class 3) privilege holder on purpose.",
+  "docs/security/rc8-owner-table.md": "Generated rc.8 owner table: lists the old timelock and its roles as legacy (class 3) rows on purpose."
 }
