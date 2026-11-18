@@ -515,7 +515,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         key = ('eth_call', str([dict(to=u.REG, data=a.calldata('hasRole(bytes32,address)', CUSTOM_ROLE, u.SAFE)), self.pin['stateBlock']]))
         # A mapping with valid contents violates the exact dict requirement but
         # remains executable after deletion, so this probe cannot pass on a crash.
-        case = UserDict(dict(sender=u.SAFE, gate='old_owner_event_role_Registry',
+        case = UserDict(dict(sender=u.SAFE, gate='old_owner_event_role_member_Registry',
             transactions=[dict(target=u.REG, signature='grantRole(bytes32,address)', args=[CUSTOM_ROLE, '$ACCOUNT'])],
             getter=dict(target=u.REG, signature='hasRole(bytes32,address)', args=[CUSTOM_ROLE, '$ACCOUNT'])))
         self.pin['isolationControlCases'] = {u.REG+':'+CUSTOM_ROLE: case}
@@ -708,7 +708,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
         rpc = a.RPC(url, local=True)
         pin = json.loads(Path(os.environ['OLD_OWNER_FORK_PIN']).read_text())
         role = a.keccak('PROPOSER_ROLE')
-        case = dict(sender=u.TL,gate='old_owner_event_role_TimelockController',
+        case = dict(sender=u.TL,gate='old_owner_event_role_member_TimelockController',
                     transactions=[dict(target=u.TL,signature='grantRole(bytes32,address)',args=[role,'$ACCOUNT'])],
                     getter=dict(target=u.TL,signature='hasRole(bytes32,address)',args=[role,'$ACCOUNT']))
         self.assertEqual(o.fork_probe(rpc,pin,case)['status'],'verified')
@@ -731,25 +731,25 @@ class OldOwnerIsolationTests(unittest.TestCase):
         def query(target,sig,args):
             return ('eth_call',str([dict(to=target,data=a.calldata(sig,*args)),self.pin['stateBlock']]))
         role = inventory()['TimelockController']['roles'][0]['value']
-        yield 'old_owner_role_TimelockController_PROPOSER_ROLE',query(u.TL,'hasRole(bytes32,address)',[role,o.OLD]),raw([1])
-        yield 'old_owner_authority_SuperPaymaster_pendingOwner',query(u.SP,'pendingOwner()',[]),raw([int(o.OLD,16)])
-        yield 'old_owner_mapping_Registry_authorized',query(u.REG,'authorized(address)',[o.OLD]),raw([1])
+        yield 'old_owner_role_member_declared_TimelockController_PROPOSER_ROLE',query(u.TL,'hasRole(bytes32,address)',[role,o.OLD]),raw([1])
+        yield 'old_owner_authority_member_SuperPaymaster_pendingOwner',query(u.SP,'pendingOwner()',[]),raw([int(o.OLD,16)])
+        yield 'old_owner_mapping_member_Registry_authorized',query(u.REG,'authorized(address)',[o.OLD]),raw([1])
         registry_role = inventory()['Registry']['roles'][1]['value']
         cfg = [32]+[0]*13
         cfg[10],cfg[11] = 384,int(o.OLD,16)
-        yield 'old_owner_role_admin_ROLE_COMMUNITY',query(u.REG,'getRoleConfig(bytes32)',[registry_role]),raw(cfg)
+        yield 'old_owner_role_admin_declared_ROLE_COMMUNITY',query(u.REG,'getRoleConfig(bytes32)',[registry_role]),raw(cfg)
         for name,target in [('GTokenStaking',STAKING),('GToken',GTOKEN),('xPNTsFactory',FACTORY),('xPNTsToken',TOKEN),('MySBT',SBT),('PaymasterFactory',o.PAYMASTER_FACTORY)]:
             getter = {'xPNTsToken':'communityOwner','MySBT':'daoMultisig'}.get(name,'owner')
-            yield ('old_owner_xpnts_owner_pin' if name == 'xPNTsToken' else 'old_owner_authority_'+name+'_'+getter),query(target,getter+'()',[]),raw([int(o.OLD,16)])
+            yield ('old_owner_xpnts_owner_pin' if name == 'xPNTsToken' else 'old_owner_authority_member_'+name+'_'+getter),query(target,getter+'()',[]),raw([int(o.OLD,16)])
         for name,target,label in [('GTokenStaking',STAKING,'authorizedSlashers'),('xPNTsFactory',FACTORY,'isXPNTs'),('xPNTsToken',TOKEN,'autoApprovedSpenders')]:
-            yield 'old_owner_mapping_'+name+'_'+label,query(target,label+'(address)',[o.OLD]),raw([1])
-        yield 'old_owner_role_Registry_'+CUSTOM_ROLE,query(u.REG,'hasRole(bytes32,address)',[CUSTOM_ROLE,o.OLD]),raw([1])
-        yield 'old_owner_role_admin_'+CUSTOM_ROLE,query(u.REG,'getRoleConfig(bytes32)',[CUSTOM_ROLE]),raw(cfg)
-        yield 'old_owner_allowance_'+GTOKEN+'_'+u.SAFE,query(GTOKEN,'allowance(address,address)',[u.SAFE,o.OLD]),raw([1])
+            yield 'old_owner_mapping_member_'+name+'_'+label,query(target,label+'(address)',[o.OLD]),raw([1])
+        yield 'old_owner_role_member_configured_Registry_'+CUSTOM_ROLE,query(u.REG,'hasRole(bytes32,address)',[CUSTOM_ROLE,o.OLD]),raw([1])
+        yield 'old_owner_role_admin_configured_'+CUSTOM_ROLE,query(u.REG,'getRoleConfig(bytes32)',[CUSTOM_ROLE]),raw(cfg)
+        yield 'old_owner_allowance_pair_'+GTOKEN+'_'+u.SAFE,query(GTOKEN,'allowance(address,address)',[u.SAFE,o.OLD]),raw([1])
         yield 'old_owner_operator_treasury_'+u.DEPLOYER,query(u.SP,'operators(address)',[u.DEPLOYER]),raw([1,1,0,int(TOKEN,16),0,0,int(o.OLD,16),0,0])
         yield 'old_owner_operator',query(u.SP,'operators(address)',[o.OLD]),raw([1]+[0]*8)
         yield 'old_owner_registry_user_roles',query(u.REG,'getUserRoles(address)',[o.OLD]),raw([32,1,99])
-        yield 'old_owner_allowance_'+o.OLD_TOKEN+'_'+u.SAFE,query(o.OLD_TOKEN,'allowance(address,address)',[u.SAFE,o.OLD]),raw([1])
+        yield 'old_owner_allowance_pair_'+o.OLD_TOKEN+'_'+u.SAFE,query(o.OLD_TOKEN,'allowance(address,address)',[u.SAFE,o.OLD]),raw([1])
         yield 'old_owner_safe_owners',query(u.SAFE,'getOwners()',[]),raw([32,3,int(a.APPROVER,16),int(a.EXECUTOR,16),int(o.OLD,16)])
         yield 'old_owner_safe_modules',query(u.SAFE,'isModuleEnabled(address)',[o.OLD]),raw([1])
         for label,slot in [('guard','guard_manager.guard.address'),('fallback','fallback_manager.handler.address')]:
@@ -771,9 +771,9 @@ class OldOwnerIsolationTests(unittest.TestCase):
         self.assertEqual(value['xpnts'],sorted([TOKEN,token,*o.ROUND_CLONES]))
         self.assertIn(GTOKEN,value['tokens'])
         query = ('eth_call',str([dict(to=token,data=a.calldata('autoApprovedSpenders(address)',o.OLD)),self.pin['stateBlock']]))
-        with assert_stop(self, 'old_owner_mapping_xPNTsToken_autoApprovedSpenders') as caught:
+        with assert_stop(self, 'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders') as caught:
             o.audit(fixture_rpc(self.pin,{query:raw([1])},factory_token=token),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
-        self.assertEqual(caught.exception.record['gate'],'old_owner_mapping_xPNTsToken_autoApprovedSpenders')
+        self.assertEqual(caught.exception.record['gate'],'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders')
 
     def test_decoded_arguments_both_cast_formats(self):
         values = ['0x0000000000000000000000000000000000000001', 5]
@@ -864,10 +864,11 @@ class OldOwnerIsolationTests(unittest.TestCase):
         for listed in ([], [o.ROUND_CLONES[0]]):
             with self.subTest(listed=listed):
                 answer = raw([32,len(listed),*[int(t,16) for t in listed]])
-                for run in (lambda rpc: o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS), lambda rpc: o.discover_targets(rpc,self.pin)):
-                    with assert_stop(self, 'old_owner_factory_enumeration') as caught:
+                for run, gate in ((lambda rpc: o.audit(rpc,self.pin,inventory(), FIXTURE_CALLSITE_TARGETS), 'old_owner_factory_enumeration_audit'),
+                                  (lambda rpc: o.discover_targets(rpc,self.pin), 'old_owner_factory_enumeration_discover_targets')):
+                    with assert_stop(self, gate) as caught:
                         run(fixture_rpc(self.pin,{query:answer}))
-                    self.assertEqual(caught.exception.record['gate'],'old_owner_factory_enumeration')
+                    self.assertEqual(caught.exception.record['gate'],gate)
 
     def test_role_history_authentication_and_empty_probes(self):
         baseline = fixture_rpc(self.pin)
@@ -982,9 +983,9 @@ class OldOwnerIsolationTests(unittest.TestCase):
                 return baseline(method,params)
             with self.subTest(slot=slot),patch.object(o,'deployed_build',side_effect=build):
                 action = lambda:o.deployed_inventory(rpc,self.pin,changed)
-                with assert_stop(self, 'unexpected_proxy') as caught: action()
-                self.assertEqual(caught.exception.record['gate'],'unexpected_proxy')
-                removed_probe(self,action,'unexpected_proxy')
+                with assert_stop(self, 'unexpected_proxy_other') as caught: action()
+                self.assertEqual(caught.exception.record['gate'],'unexpected_proxy_other')
+                removed_probe(self,action,'unexpected_proxy_other')
         def clone_rpc(method,params):
             if method == 'eth_getCode' and params == [GTOKEN,self.pin['stateBlock']]: return CLONE
             return baseline(method,params)
@@ -1385,9 +1386,9 @@ class OldOwnerIsolationTests(unittest.TestCase):
             self.assertEqual(caught.exception.record['gate'],'old_owner_runtime_parity')
             removed_probe(self,lambda:o.validate_deployed(bad,self.pin,sources),'old_owner_runtime_parity')
             with self.assertRaises(a.Gate): o.collect_deployed(rpc,self.pin,{}, FIXTURE_CALLSITE_TARGETS)
-            with patch.object(o,'deployed_build',side_effect=a.Gate('old_owner_deployed_build','missing','source required')):
-                with assert_stop(self, 'old_owner_deployed_build') as caught: o.collect_deployed(rpc,self.pin,sources, FIXTURE_CALLSITE_TARGETS)
-                self.assertEqual(caught.exception.record['gate'],'old_owner_deployed_build')
+            with patch.object(o,'deployed_build',side_effect=a.Gate('old_owner_deployed_build_launch','missing','source required')):
+                with assert_stop(self, 'old_owner_deployed_build_launch') as caught: o.collect_deployed(rpc,self.pin,sources, FIXTURE_CALLSITE_TARGETS)
+                self.assertEqual(caught.exception.record['gate'],'old_owner_deployed_build_launch')
 
     def test_registry_adopted_behavioral_claim(self):
         fragment = json.loads((Path(__file__).parent/'fixtures/old-owner/deployed-sources.json').read_text())
@@ -1555,9 +1556,9 @@ class OldOwnerIsolationTests(unittest.TestCase):
     def test_named_clones_storage_authority_controls(self):
         for token in o.ROUND_CLONES:
             cases = [('communityOwner()',[],int(o.OLD,16),'old_owner_xpnts_owner_pin'),
-                     ('approvedFacilitators(address)',[o.OLD],1,'old_owner_mapping_xPNTsToken_approvedFacilitators'),
-                     ('autoApprovedSpenders(address)',[o.OLD],1,'old_owner_mapping_xPNTsToken_autoApprovedSpenders'),
-                     ('allowance(address,address)',[u.SAFE,o.OLD],1,'old_owner_allowance_'+token+'_'+u.SAFE)]
+                     ('approvedFacilitators(address)',[o.OLD],1,'old_owner_mapping_member_xPNTsToken_approvedFacilitators'),
+                     ('autoApprovedSpenders(address)',[o.OLD],1,'old_owner_mapping_member_xPNTsToken_autoApprovedSpenders'),
+                     ('allowance(address,address)',[u.SAFE,o.OLD],1,'old_owner_allowance_pair_'+token+'_'+u.SAFE)]
             for signature,args,value,gate in cases:
                 key = ('eth_call',str([dict(to=token,data=a.calldata(signature,*args)),self.pin['stateBlock']]))
                 action = lambda:o.audit(fixture_rpc(self.pin,{key:raw([value])}),self.pin,inventory(), FIXTURE_CALLSITE_TARGETS)
@@ -1645,9 +1646,9 @@ class OldOwnerIsolationTests(unittest.TestCase):
             data = a.calldata(safe,u.TL,0,data,0,0,0,0,a.ZERO,a.ZERO,'0x')
             return [dict(tx=dict(to=u.SAFE,data=data))]
         self.assertGreaterEqual(len(o.assert_manifest_calldata(steps(o.NEW),signatures)),3)
-        with assert_stop(self, 'old_owner_calldata_bytes') as caught: o.assert_manifest_calldata(steps(o.OLD),signatures)
-        self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_bytes')
-        removed_probe(self,lambda:o.assert_manifest_calldata(steps(o.OLD),signatures),'old_owner_calldata_bytes')
+        with assert_stop(self, 'old_owner_calldata_bytes_outer_tx') as caught: o.assert_manifest_calldata(steps(o.OLD),signatures)
+        self.assertEqual(caught.exception.record['gate'],'old_owner_calldata_bytes_outer_tx')
+        removed_probe(self,lambda:o.assert_manifest_calldata(steps(o.OLD),signatures),'old_owner_calldata_bytes_outer_tx')
         data = a.calldata(nested,'[('+o.OLD+',0x)]')
         with self.assertRaises(a.Gate): o.assert_manifest_calldata([dict(tx=dict(to=u.REG,data=data))],signatures)
         data = a.calldata(schedule,u.REG,0,'0x12345678',a.ZERO32,a.ZERO32,1)
@@ -1659,7 +1660,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
 
     def test_review_low_calldata_gates(self):
         cases = [
-            ('creation_prefix','old_owner_calldata_bytes',[dict(tx=dict(to=None,data='0x60'+o.OLD[2:].upper()),constructor=dict(bytecode='0x60'+o.OLD[2:].upper(),signature='c()'))],[]),
+            ('creation_prefix','old_owner_calldata_bytes_outer_tx',[dict(tx=dict(to=None,data='0x60'+o.OLD[2:].upper()),constructor=dict(bytecode='0x60'+o.OLD[2:].upper(),signature='c()'))],[]),
             ('target','old_owner_calldata_target',[dict(tx=dict(to=o.OLD,data='0x'))],[]),
             ('variant_target','old_owner_calldata_target',[dict(tx=dict(to=u.REG,data='0x'),variants=dict(other=dict(to=o.OLD,data='0x')))],[]),
             ('payload','old_owner_calldata_payload',[dict(tx=dict(to=u.REG,data=a.calldata('execute(uint256)',1)))],['execute(uint256)'])]
@@ -1844,7 +1845,7 @@ class OldOwnerIsolationTests(unittest.TestCase):
                   dict(sender=u.SAFE,gate='old_owner_safe_modules',module=True,
                        transactions=[dict(target=u.SAFE,signature='enableModule(address)',args=['$ACCOUNT'])],
                        getter=dict(target=u.SAFE,signature='isModuleEnabled(address)',args=['$ACCOUNT'])),
-                  dict(sender=u.SAFE,gate='old_owner_allowance_'+pin['capped']+'_'+u.SAFE,
+                  dict(sender=u.SAFE,gate='old_owner_allowance_pair_'+pin['capped']+'_'+u.SAFE,
                        transactions=[dict(target=pin['capped'],signature='approve(address,uint256)',args=['$ACCOUNT',1])],
                        getter=dict(target=pin['capped'],signature='allowance(address,address)',args=[u.SAFE,'$ACCOUNT']))]
         for case in cases:

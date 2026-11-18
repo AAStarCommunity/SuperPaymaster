@@ -33,6 +33,10 @@ AOA balance mode. Contract versions: `SuperPaymaster-5.5.0`, `SuperPaymasterLens
 `Registry-5.9.0`, `XPNTs-4.0.0` (xPNTsTokenV2), `xPNTsFactory-3.0.0-v2`, `AOAProtocolRegistry-1.0.0`,
 `GlobalTierSource-1.0.0`, `APNTsCapped-1.0.0`. Integrated into `main` by #511 (`a02456ff`).
 
+- **XPNTs-4.0.2** (I-01, C2-02): enforce the community issuance cap on net minting and use
+  each clone's token name for EIP-712 signing; reject empty names at factory deployment. Existing
+  4.0.1 clones retain the empty domain name; SDKs must read `eip712Domain()` per clone. See
+  [the disclosure and formal-evidence scope](docs/security/rc8-daybreak-fixes.md#i-01-issuance-cap-enforced-c2-02-per-clone-eip-712-name-xpnts-402).
 - **Balance mode** (Decision 1): validation-time reservation of the user's xPNTs and settlement capped
   by the reservation (`tryLockForGas` / `settleLocked`); reservation-based credit, default OFF
   (`tryReserveCredit` / `settleCredit`).

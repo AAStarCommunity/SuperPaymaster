@@ -5,11 +5,13 @@ Production files are never modified: the baseline identifies the failing source
 statement, then the probe deletes exactly that AST statement in memory. A red
 probe has failures >= 1, zero errors, and a failing assertion naming the gate.
 The script also scans manifest_exec.py against a base revision and fails if a newly added
-gate literal has no probe case.
+gate literal has no probe case. A gate that gate_rename_map.json maps from an old name present
+at the base is a rename, not a new gate; every excluded rename is printed.
 """
 import sys
 sys.dont_write_bytecode = True
 import io
+import json
 import inspect
 import ast
 import re
@@ -31,8 +33,8 @@ CASES += [(L, 'test_live_'+g, g) for g in tests.LIVE_CASES]
 CASES += [(L, 'test_precheck_'+g, g.split('__')[0]) for g in tests.PRECHECK_CASES]
 CASES += [(L, 'test_funding_'+g, g.split('__')[0]) for g in tests.FUNDING_CASES]
 CASES += [
-    (P, 'test_pin_price_zero', 'C_price_bound'),
-    (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary'),
+    (P, 'test_pin_price_zero', 'C_price_bound_pin'),
+    (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary_phase_c'),
     (P, 'test_stage_c_prefix_must_end_in_phase_c', 'prefix_boundary_last'),
     (P, 'test_stage_c_artifact_never_final', 'final_stage'),
     (P, 'test_collect_phase_c_pending_nonce', 'phase_c_pending_nonce_owner'),
@@ -42,7 +44,7 @@ CASES += [
     (L, 'test_handover_requires_phase_c', 'handover_dependencies'),
     (S, 'test_control_must_fire_named_gate', 'X_gate'),
     (S, 'test_control_must_fire_named_gate', 'X_restore'),
-    (S, 'test_control_slot_readback', 'C_control_slot'),
+    (S, 'test_control_slot_readback', 'C_control_slot_cached_price'),
     (S, 'test_control_slot_readback', 'C_control_layout_cachedPrice'),
     (base_tests.ManifestTests, 'test_rehearsal_phase_c_controls_complete', 'phase_c_controls_complete'),
     (base_tests.ManifestTests, 'test_rehearsal_after_6d_accounting', 'after_6d_accounting'),
@@ -63,7 +65,7 @@ CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
 CASES += [(base_tests.ManifestTests, 'test_old_timelock_inventory_new_role', 'old_timelock_inventory'),
           (base_tests.ManifestTests, 'test_old_timelock_inventory_new_token', 'old_timelock_inventory')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_legacy_timelock_source_targets', 'old_owner_source_targets')]
-CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history_range', 'old_timelock_approval_history'),
+CASES += [(base_tests.ManifestTests, 'test_old_timelock_approval_history_range', 'old_timelock_approval_history_creation'),
           (base_tests.ManifestTests, 'test_old_timelock_external_approval', 'old_timelock_allowance'),
           (base_tests.ManifestTests, 'test_old_timelock_approval_incomplete', 'old_owner_log_partition')]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_never_granted_range_grant', 'old_owner_never_granted_set')]
@@ -83,9 +85,9 @@ CASES += [(base_tests.ManifestTests, name, 'old_owner_role_recheck') for name in
 CASES += [(base_tests.DeltaTests, 'test_old_timelock_delta_'+g, 'old_timelock_delta_'+g) for g in base_tests.DELTA_CASES]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_history_standard_revoke_only', 'old_owner_history_positive')]
 CASES += [(base_tests.ManifestTests, name, gate) for name, gate in (
-    ('test_old_timelock_replay_reads', 'old_timelock_replay'),
-    ('test_old_timelock_replay_owners', 'old_timelock_replay'),
-    ('test_old_timelock_approval_history_log', 'old_timelock_approval_history'))]
+    ('test_old_timelock_replay_reads', 'old_timelock_replay_reads'),
+    ('test_old_timelock_replay_owners', 'old_timelock_replay_owners'),
+    ('test_old_timelock_approval_history_log', 'old_timelock_approval_history_log'))]
 CASES += [(base_tests.isolation_tests.OldOwnerIsolationTests, 'test_proxy_runtime_'+kind, 'old_owner_runtime_'+kind)
           for kind in ('length', 'parity')]
 C1_GATES = ('role_write_key', 'role_assembly', 'role_lowlevel_call', 'registry_source_commit', 'role_write_sites', 'role_initializer_only', 'role_init_ids', 'role_init_standard', 'role_configure_emit', 'role_config_control')
@@ -180,12 +182,39 @@ def run(cls, name, gate=None):
     return not red, matches == 1, stream.getvalue()
 
 
+# Gates added outside Phase C whose strict deletion probe lives in another committed driver.
+# Each driver must name the gate as a string literal; main() prints every entry it relies on.
+COVERED_ELSEWHERE = {}
+# Genuinely new gates accepted without a deletion probe: gate -> reason.
+KNOWN_GAPS = {}
+
+
+# The #608 split PR-2 renames are frozen in gate_name_scan.RENAMES_FILE (name, file, defining
+# function(s), base name). Only those names, still raised in the recorded function, are excluded as
+# renames; gate_rename_map.json does not widen the set.
+from gate_name_scan import RENAMES_FILE, RENAMED_COUNT, defining_functions as _defining_functions  # noqa: E402
+
+
 def new_gates(base):
+    """Return (new, renamed) for manifest_exec.py against base, using the frozen PR-2 rename list."""
     path = 'script/upgrade/manifest_exec.py'
     root = Path(__file__).resolve().parents[2]
     old = subprocess.run(['git', 'show', base+':'+path], cwd=root, capture_output=True, text=True, check=True).stdout
     current = (root/path).read_text()
-    return sorted(set(GATE.findall(current))-set(GATE.findall(old)))
+    before = set(GATE.findall(old))
+    frozen = json.loads((root/RENAMES_FILE).read_text())['renamed']
+    if len(frozen) != RENAMED_COUNT:
+        raise SystemExit(f'{RENAMES_FILE}: expected {RENAMED_COUNT} frozen renames, found {len(frozen)}')
+    by_name = {row['name']: row for row in frozen}
+    new, renamed = [], {}
+    for gate in sorted(set(GATE.findall(current))-before):
+        row = by_name.get(gate)
+        if (row and row['file'] == path and set(row['functions']) == _defining_functions(current, gate)
+                and all(p in before for p in row['previous'])):
+            renamed[gate] = row['previous']
+        else:
+            new.append(gate)
+    return new, renamed
 
 
 def covered(gate, names):
@@ -199,7 +228,22 @@ def covered(gate, names):
 def main(argv):
     base = argv[1] if len(argv) > 1 else 'origin/main'
     names = {g for _, _, g in CASES} | {'_gate', '_restore'}
-    missing = [g for g in new_gates(base) if not covered(g, names)]
+    added, renamed = new_gates(base)
+    root = Path(__file__).resolve().parents[2]
+    print(f'base={base} renamed gates excluded ({RENAMES_FILE}, frozen at PR-2): {len(renamed)}')
+    for gate, previous in renamed.items():
+        print(f'  RENAMED {gate} <- {", ".join(previous)}')
+    missing = []
+    for gate in added:
+        if covered(gate, names):
+            continue
+        driver = COVERED_ELSEWHERE.get(gate)
+        if driver and (f"'{gate}'" in (root/driver).read_text()):
+            print(f'  COVERED ELSEWHERE {gate} by {driver}')
+        elif gate in KNOWN_GAPS:
+            print(f'  KNOWN GAP {gate}: {KNOWN_GAPS[gate]}')
+        else:
+            missing.append(gate)
     rows = []
     for cls, name, gate in CASES:
         ok, _, log = run(cls, name)

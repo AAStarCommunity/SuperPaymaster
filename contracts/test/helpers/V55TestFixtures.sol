@@ -9,6 +9,8 @@ import "src/interfaces/v3/IRegistry.sol";
 contract V55Registry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
+    uint256[1] public levelThresholds = [uint256(13)];
+    mapping(uint256 => uint256) public creditTierConfig;
     mapping(bytes32 => uint256) public minStake;
     mapping(bytes32 => mapping(address => uint256)) public effectiveStake;
     function setRole(bytes32 role, address a, bool v) external {
@@ -55,5 +57,6 @@ interface IV2Ext {
     function queueCreditPolicy(uint8 p) external;
     function executeCreditPolicy() external;
     function requestCredit(uint256 maxCap) external;
+    function approveCredit(address user, uint256 cap) external;
 }
 
