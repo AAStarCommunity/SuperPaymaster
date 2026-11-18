@@ -69,6 +69,25 @@ normal failed-set nomination state. Operating rule: in an abandoned set, the
 deployer sends **NO further transaction** (no accept, no transfer). Redeploy with
 a new nonce range and regenerate all address-bound PoPs.
 
+## Deployer EOA after a successful deployment; SDK experiment account ordering (DSR 2026-11-18)
+
+After a successful broadcast and a checker PASS, the deployer EOA holds no protocol
+authority. It sends **no further transaction to protocol contracts**. It remains
+the owner of the paper's SDK experiment account, the SimpleAccount v0.7
+`0xE8Eaad6A4802300F33E53c40e65863CCcDA6898b` (factory `0x91E6…8985`,
+`getAddress(owner 0x51Ac694981b6CEa06aA6c51751C227aac5F6b8A3, salt 0)`), and only
+signs UserOps for it.
+
+Ordering constraint: between the PoP request pin and the DeployLive broadcast, the
+deployer sends nothing, because the PoPs bind its nonce. The following therefore
+run only AFTER the broadcast has completed and the checker has passed:
+- deploying that SimpleAccount on a chain where it does not exist yet (on Sepolia
+  it is not deployed; the owner EOA sends that transaction);
+- any preparation paid by the deployer EOA.
+
+Minting task tokens to that address does not need the account to exist and may
+happen in the three-arm setup.
+
 # Round 8 delta handoff (2026-11-18, base 12278ac0)
 
 The current checker count is **177 + 2N**: **181 for N=2**, **183 for N=3**.
