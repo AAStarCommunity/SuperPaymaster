@@ -1372,7 +1372,7 @@ contract SuperPaymasterV55Test is Test {
         console.log("credit validation gas MANUAL", gasManual);
         assertGt(gasAuto, gasManual, "AUTO pays for the floor read");
         console.log("credit validation gas delta", gasAuto - gasManual);
-        // Pinned: the disclosed figure is 8,735 (Cancun/Prague, same user, same level).
+        // Pinned: the disclosed figure is 8,728 (Cancun/Prague, same user, same level); the range is the cross-engine tolerance.
         assertGe(gasAuto - gasManual, 5_000, "floor read delta below the disclosed range");
         assertLe(gasAuto - gasManual, 15_000, "floor read delta above the disclosed range");
     }
