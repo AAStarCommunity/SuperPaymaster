@@ -9,7 +9,9 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-import execution_integrity as integrity
+HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(HERE), str(HERE.parent/'a3a')]
+import execution_integrity as integrity  # noqa: E402
 import a3a_send as sender
 from test_execution_head import ExecutionHeadTests
 
