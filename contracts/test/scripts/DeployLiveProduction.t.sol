@@ -18,6 +18,14 @@ contract Round6Safe {
 interface IMintProbe { function mint(address to, uint256 amount) external; function balanceOf(address account) external view returns (uint256); }
 
 contract ProductionHarness is DeployLive {
+    // SP_COMMIT is process-wide and forge runs suites concurrently: negative cases override the
+    // commit here instead of mutating the environment other suites read.
+    bool commitOverridden;
+    string commitValue;
+    function overrideCommit(string calldata value) external { commitOverridden = true; commitValue = value; }
+    function _popRequestCommit() internal view virtual override returns (string memory) {
+        return commitOverridden ? commitValue : super._popRequestCommit();
+    }
     bool agentsEnabled;
     function enableAgents() external { agentsEnabled = true; }
     bool badCreationPin;

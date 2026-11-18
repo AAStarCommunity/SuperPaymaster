@@ -46,19 +46,16 @@ contract DeployLiveRunTest is DeployLiveSafeFixture {
         assertEq(reason, expected);
     }
     function test_ProductionCommitMissing() public {
-        vm.setEnv("SP_COMMIT", "");
+        h.overrideCommit("");
         assertNoBroadcast(abi.encodeWithSignature("Error(string)", "STOP pop_request_commit"));
-        vm.setEnv("SP_COMMIT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
     function test_ProductionCommitUppercase() public {
-        vm.setEnv("SP_COMMIT", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        h.overrideCommit("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         assertNoBroadcast(abi.encodeWithSignature("Error(string)", "STOP pop_request_commit"));
-        vm.setEnv("SP_COMMIT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
     function test_ProductionCommitShort() public {
-        vm.setEnv("SP_COMMIT", "abc");
+        h.overrideCommit("abc");
         assertNoBroadcast(abi.encodeWithSignature("Error(string)", "STOP pop_request_commit"));
-        vm.setEnv("SP_COMMIT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
     function test_Round9DelegatedPreflightBroadcastCountZero() public {
         vm.etch(tx.origin, abi.encodePacked(hex"ef0100", address(0x1234)));
