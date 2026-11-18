@@ -30,6 +30,25 @@ on deploy day. The offline suites, the dry run and the Sepolia fork rehearsal ex
 | **6j D/M7 behavioural substitution controls** (`probe_discovery_substitutions.py`, the 6j additions to `test_manifest_exec.py`) | A behavioural proof that discovery calls cannot be substituted by a different, equally shaped call. | The discovery gates themselves stay on `main` and are exercised by the manifest suites. | `probe_discovery_substitutions.py` 124f8d05…860c |
 | **6k/6l rpc_result 88-site inventory proof** (`script/evidence/rpc_result_merge.py` and its test, `run_all_6j.sh`) | An evidence-level inventory proving the rpc_result probe drivers covered every site with an owned gate set. | The PR-2 hygiene test pins the site count and the uniqueness of the names from the source AST. | `rpc_result_merge.py` e2bd0f2a…267f<br>`test_rpc_result_merge.py` 8536c096…685a<br>`run_all_6j.sh` 24d55b69…b63b |
 
+## PR-3 (COMMIT 6f–6i, executor integrity)
+
+PR-3 lands `execution_integrity.py`, the wider read barrier in `execution_reads.py`, the call sites in
+`manifest_exec.py`, `a3a_send.py` and `a3a_exec.py`, `test_execution_integrity.py` and the strict
+deletion-probe driver `probe_execution_integrity.py` (final version from 6k, `3792e230`). The CI probe
+`probe_phase_c_gates.py` lists `execution_integrity_source_manifest` as `COVERED_ELSEWHERE` by that
+driver.
+
+The 6d interim probe cases for `execution_head` and `execution_clean_tree` are removed. 6f moved those
+gates out of `manifest_exec.py`, so they no longer have a deletion site there. They stay covered by
+`test_execution_head.py` and by `test_execution_integrity.py`.
+
+What PR-3 does not carry:
+
+| Item | Missing guarantee | What covers instead | Evidence on `bb9ac9af` |
+|---|---|---|---|
+| `DeclarationTests.test_6f_declarations_reject_changed_bytes_and_gate_locations` (uses `gate_rename_ast_diff.declared_6f` and `gate_6f_additions.json`) | A machine proof that the 6f declarations exactly match the source: the eight added gates sit at the declared lines, with the declared fingerprints. | `probe_execution_integrity.py`: deleting each integrity gate turns its named test red. `test_gate_name_hygiene.py`: every gate name is a unique literal. The named-STOP tests in `test_execution_integrity.py`. | `gate_6f_additions.json` and `gate_rename_ast_diff.py` (see the 6e row) |
+| `test_new_names_unique_across_executor_sources`, previously on `test_gate_names.inventory` (name-flow aware) | Uniqueness counted through forwarding, aliases and defaults. | The same test, now on `test_gate_name_hygiene.gate_sites` (literal call sites only). `execution_reads.py` and `execution_integrity.py` were added to the hygiene scan. | `test_gate_names.py` |
+
 Results kept as evidence, not landed:
 - `COMMIT6_RESULTS.md` f11bf111…f383
 - `fixtures/gate-producer-compile.json` 19786182…d841
