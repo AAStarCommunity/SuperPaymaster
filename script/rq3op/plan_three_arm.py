@@ -140,6 +140,8 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     sources={arm:{k:dict(source=cal['source'],measurement=cal['arms'][arm].get(k),factor=gas_factor,
                         limit=v,block=head) for k,v in b.items()} for arm,b in bounds.items()}
     sources['SP']['postOp'].update(rule='max(measured*gasFactor, minPostOpGas)',target=ctx['SP'],**postop_rule)
+    # DSR 2026-11-18: record the structural zero explicitly instead of a scaled limit.
+    sources['VPM']['postOp'].update(rule='structural zero: VerifyingPaymaster has no postOp (empty context)',limit=0)
     return dict(attempts=n,feeCap=fee,priorityCap=priority,priceCap=m.PC_PRICE_CAP,priceDecimals=m.PC_PRICE_DECIMALS,
         exchangeRate=m.PC_RATE,betaMultiplier=m.PC_BETA,bundlerBeta=m.PC_BUNDLER_BETA,allowanceCap=m.PC_CAP_L,
         spRenew=False,spPostOp=bounds['SP']['postOp'],spPostOpRule=postop_rule,gasTuple=gas_tuple,gasSources=sources,bounds=bounds,

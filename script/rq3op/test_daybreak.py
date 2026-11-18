@@ -44,7 +44,10 @@ class Daybreak(unittest.TestCase):
             with self.assertRaises(q.a.Gate):f.build()
     def test_vpm_postop_structurally_zero(self):
         f=fixtures.ThreeArm();f.setUp();f.cal['arms']['VPM']['postOp']=0
-        f.build()
+        pc=next(iter(f.build()['plans'].values()))['phaseC']
+        self.assertEqual(pc['bounds']['VPM']['postOp'],0)
+        self.assertEqual(pc['gasSources']['VPM']['postOp']['limit'],0)
+        self.assertIn('structural zero',pc['gasSources']['VPM']['postOp']['rule'])
         f=fixtures.ThreeArm();f.setUp();f.cal['arms']['VPM']['postOp']=5
         with self.assertRaisesRegex(q.a.Gate,'rq3_structural_zero'):f.build()
     def test_output_credentials_refused(self):
