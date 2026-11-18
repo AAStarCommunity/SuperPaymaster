@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import manifest_exec as m
+import execution_integrity as integrity
 from gate_assertions import assert_stop
 
 
@@ -24,6 +25,11 @@ class ExecutionHeadTests(unittest.TestCase):
         self.plan = dict(externalInputs={}, rebuild=dict(commit=self.git('rev-parse', 'HEAD').strip()),
                          pin=dict(senders={}), steps=[], stage='a7')
         self.closed = False
+        # These fixtures isolate checkout gates; BootstrapTests exercise the real loader.
+        gates = patch.object(m, 'execution_tree_gates',
+                             side_effect=lambda plan: integrity.tree_gates(plan['rebuild']['commit']))
+        gates.start()
+        self.addCleanup(gates.stop)
 
     def git(self, *args):
         return subprocess.run(['git', *args], cwd=self.root, check=True,

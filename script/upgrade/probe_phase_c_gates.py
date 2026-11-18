@@ -98,11 +98,6 @@ CASES += [(base_tests.ManifestTests, 'test_xpnts_owner_'+stage, 'old_owner_xpnts
 CASES += [(base_tests.DiscoveryTests, 'test_'+gate, gate) for gate in base_tests.DISCOVERY_GATES]
 CASES += [(base_tests.ManifestTests, 'test_'+gate, gate) for gate in
           ('callsite_source_path', 'callsite_source_commit', 'callsite_source_sha256', 'callsite_source_expected')]
-# Interim (#608 split L5..L8, carried patch #2): COMMIT 6d's HEAD/clean-tree gates live in
-# manifest_exec.py until 6f moves them to execution_integrity.py, so new_gates() sees them here.
-import test_execution_head as execution_head_tests
-CASES += [(execution_head_tests.ExecutionHeadTests, 'test_wrong_head', 'execution_head'),
-          (execution_head_tests.ExecutionHeadTests, 'test_dirty_file', 'execution_clean_tree')]
 # These new/changed isolation gates must fail by assertion, with zero test errors.
 ASSERTION_ONLY_GATES = {'old_owner_never_granted_set', 'old_owner_never_granted_holder',
                         'old_owner_never_granted_recheck', 'old_owner_role_recheck', 'old_owner_mapping_getter',
@@ -184,7 +179,9 @@ def run(cls, name, gate=None):
 
 # Gates added outside Phase C whose strict deletion probe lives in another committed driver.
 # Each driver must name the gate as a string literal; main() prints every entry it relies on.
-COVERED_ELSEWHERE = {}
+COVERED_ELSEWHERE = {
+    'execution_integrity_source_manifest': 'script/upgrade/probe_execution_integrity.py',
+}
 # Genuinely new gates accepted without a deletion probe: gate -> reason.
 KNOWN_GAPS = {}
 

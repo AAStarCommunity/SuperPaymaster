@@ -3414,12 +3414,23 @@ def controls_at(rpc, plan, sid, controls, expected=None):
 
 
 def execution_tree_gates(plan):
-    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=u.ROOT,
-                          capture_output=True, text=True, check=True).stdout.strip()
-    a.need('execution_head', head, plan['rebuild']['commit'])
-    state = subprocess.run(['git', 'status', '--porcelain', '--untracked-files=all'], cwd=u.ROOT,
-                           capture_output=True, text=True, check=True)
-    a.need('execution_clean_tree', state.stdout, '')
+    """Check the checkout and every loaded repository module before execution.
+
+    Retain this entry point for rehearsal fixtures; the sender shares the helper.
+    """
+    import importlib.util
+    # Trust root: the helper's bytes must equal the reviewed commit before any of it runs; the helper then
+    # attests every loaded repository module, this file included. Kept inline (stdlib only) on purpose.
+    path = Path(__file__).resolve().parent / 'execution_integrity.py'
+    env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+    env['GIT_CONFIG_NOSYSTEM'] = '1'
+    committed = subprocess.run(['git', 'show', plan['rebuild']['commit'] + ':script/upgrade/execution_integrity.py'],
+                               cwd=path.parents[2], env=env, capture_output=True, check=True).stdout
+    a.need('execution_integrity_source_manifest', path.read_bytes() == committed, True)
+    spec = importlib.util.spec_from_file_location('_manifest_repository_execution_integrity', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.check(plan['rebuild']['commit'])
 
 
 def run_manifest(remote, rpc, plan, out, calibrate=True):
