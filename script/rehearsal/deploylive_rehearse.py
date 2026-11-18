@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from deploylive_runtime import clean_source_commit
 from urllib.parse import urlsplit, unquote
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 
@@ -260,6 +261,7 @@ def main():
     guard_bls_verbosity([], os.environ, tomllib.loads((ROOT/'foundry.toml').read_text())['profile']['default'].get('verbosity', 0))
     path = Path(config).resolve()
     require(path.is_relative_to(ROOT), 'config must be inside worktree')
+    deploy_env = dict(os.environ, SP_COMMIT=clean_source_commit()) if mode in ("happy", "failure") else None
     rpc = RPC(url)  # All mutation paths share this mandatory guard.
     if mode == 'failure':
         require(int(rpc('eth_chainId'), 16) == 31337, 'failure requires chain 31337')
@@ -272,7 +274,7 @@ def main():
         if mode in ('happy', 'failure'):
             command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), url, deployer]
             if mode == 'failure': command.append('--stop')
-            result = subprocess.run(command, capture_output=True, text=True)
+            result = subprocess.run(command, env=deploy_env, capture_output=True, text=True)
             require(result.returncode == 0, 'deployment failed')
             cfg = json.loads(path.read_text())
             if mode == 'failure':

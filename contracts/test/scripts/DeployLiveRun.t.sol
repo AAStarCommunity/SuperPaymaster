@@ -6,6 +6,7 @@ import "./DeployLiveProduction.t.sol";
 contract DeployLiveRunTest is DeployLiveSafeFixture {
     ProductionHarness h;
     function setUp() public {
+        vm.setEnv("SP_COMMIT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         vm.chainId(31337); vm.warp(10000);
         address sender = tx.origin;
         address safe = address(new Round6Safe());
@@ -43,6 +44,18 @@ contract DeployLiveRunTest is DeployLiveSafeFixture {
         assertEq(broadcasts, 0, "preflight must precede every broadcast");
         assertFalse(ok);
         assertEq(reason, expected);
+    }
+    function test_ProductionCommitMissing() public {
+        h.overrideCommit("");
+        assertNoBroadcast(abi.encodeWithSignature("Error(string)", "STOP pop_request_commit"));
+    }
+    function test_ProductionCommitUppercase() public {
+        h.overrideCommit("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        assertNoBroadcast(abi.encodeWithSignature("Error(string)", "STOP pop_request_commit"));
+    }
+    function test_ProductionCommitShort() public {
+        h.overrideCommit("abc");
+        assertNoBroadcast(abi.encodeWithSignature("Error(string)", "STOP pop_request_commit"));
     }
     function test_Round9DelegatedPreflightBroadcastCountZero() public {
         vm.etch(tx.origin, abi.encodePacked(hex"ef0100", address(0x1234)));

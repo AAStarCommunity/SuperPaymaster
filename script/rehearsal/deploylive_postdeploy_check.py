@@ -92,6 +92,9 @@ try:
 except (ValueError, TypeError, OSError):
     print("FAIL external dependencies: missing chain group / unreadable chain")
     sys.exit(1)
+from deploylive_runtime import check_source_commit
+check("source commit", check_source_commit(CFG, chain, ROOT), "config.commit must match HEAD in a clean worktree; empty local commit exempt")
+
 for key in ("ethUsdFeed", "entryPoint", "accountFactory", "agentIdentityRegistry", "agentReputationRegistry", "agentValidationRegistry"):
     if not isinstance(deps, dict) or not isinstance(deps.get(key), str) or not re.fullmatch(r"0x[0-9a-fA-F]{40}", deps[key]):
         print("FAIL external dependencies: missing/invalid " + key)

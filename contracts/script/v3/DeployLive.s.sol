@@ -61,6 +61,10 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
     using Clones for address;
 
     uint256 deploymentStartBlock;
+    uint64 popStartNonce;
+    bytes32 popStartBlockHash;
+    string popRequestOut;
+    string popCommit;
     address bootstrapAddr;
     uint256 bootstrapNonce;
     uint256 observedBootstrapNonce;
@@ -126,10 +130,24 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
     }
 
     function run() external {
+        deploymentStartBlock = block.number;
+        popStartNonce = vm.getNonce(deployer);
+        // EVM BLOCKHASH cannot read the current block: pin the parent hash explicitly.
+        popStartBlockHash = block.number == 0 ? bytes32(0) : blockhash(block.number - 1);
+        popRequestOut = _popRequestPath();
+        if (bytes(popRequestOut).length != 0) require(!_popBroadcastContext(), "STOP pop_request_broadcast");
+        // SP_COMMIT names the source commit: required for a PoP request and for every production run,
+        // where it is written to config.commit (the post-deploy checker compares it with git HEAD).
+        if (bytes(popRequestOut).length != 0 || _production()) {
+            popCommit = _popRequestCommit();
+            bytes memory commit = bytes(popCommit);
+            require(commit.length == 40, "STOP pop_request_commit");
+            for (uint256 i; i < commit.length; ++i)
+                require((commit[i] >= 0x30 && commit[i] <= 0x39) || (commit[i] >= 0x61 && commit[i] <= 0x66), "STOP pop_request_commit");
+        }
         if (_production()) _requireUndelegatedDeployer();
         _stopBeforeBootstrap(); // Validate the rehearsal flag before any broadcast.
         // Use the configured account from CLI (--account or --private-key)
-        deploymentStartBlock = block.number;
         _loadProductionInputs(deployer);
         if (_production()) _validateInfrastructure(entryPointAddr, priceFeedAddr, simpleAccountFactory);
         if (_production()) _assertCreationPins(vm.envString("CREATION_PINS"));
@@ -224,6 +242,12 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         aggregator = BLSAggregator(
             _deployDefault("BLSAggregator", abi.encode(address(registry), address(superPaymaster), address(dvt)))
         );
+        if (bytes(popRequestOut).length != 0) {
+            vm.stopBroadcast();
+            _writePopRequest();
+            console.log("STOP: PoP request written; simulation ends before guardian registration:", popRequestOut);
+            return;
+        }
         microPaymentCh = MicroPaymentChannel(_deployDefault("MicroPaymentChannel", abi.encode(deployer)));
 
         pmFactory = PaymasterFactory(_deployDefault("PaymasterFactory", ""));
@@ -754,6 +778,35 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         registry.exitRole(ROLE_COMMUNITY);
     }
 
+    function _popRequestCommit() internal view virtual returns (string memory) {
+        return vm.envOr("SP_COMMIT", string(""));
+    }
+
+    function _popBroadcastContext() internal view virtual returns (bool) {
+        return vm.isContext(VmSafe.ForgeContext.ScriptBroadcast) || vm.isContext(VmSafe.ForgeContext.ScriptResume);
+    }
+
+    function _writePopRequest() internal {
+        vm.serializeAddress("pop-addresses", "BLSAggregator", address(aggregator));
+        vm.serializeAddress("pop-addresses", "DVTValidator", address(dvt));
+        string memory addresses = vm.serializeAddress("pop-addresses", "Registry", address(registry));
+        vm.serializeAddress("pop-deployer", "address", deployer);
+        string memory sender = vm.serializeUint("pop-deployer", "nonce", popStartNonce);
+        string memory senders = vm.serializeString("pop-senders", "deployer", sender);
+        // pin.block and pin.blockHash name the SAME block: the parent of the simulated block (EVM
+        // BLOCKHASH cannot read the current one). The deployer nonce is the one at run() entry; if the
+        // deployer sent a transaction in the latest block, DVT's nonce-at-pin check refuses (fail-closed).
+        vm.serializeUint("pop-pin", "block", deploymentStartBlock == 0 ? 0 : deploymentStartBlock - 1);
+        vm.serializeBytes32("pop-pin", "blockHash", popStartBlockHash);
+        string memory pin = vm.serializeString("pop-pin", "senders", senders);
+        vm.serializeString("pop-request", "schema", "deploylive-pop-request/1");
+        vm.serializeUint("pop-request", "chainId", block.chainid);
+        vm.serializeString("pop-request", "spCommit", popCommit);
+        vm.serializeString("pop-request", "addresses", addresses);
+        vm.serializeString("pop-request", "pin", pin);
+        vm.writeJson(vm.serializeUint("pop-request", "guardianCount", _requiredUint("GUARDIAN_N")), popRequestOut);
+    }
+
     function _twoStepTargets() internal view returns (address[] memory a) {
         a = new address[](3);
         a[0] = address(registry); a[1] = address(superPaymaster); a[2] = address(apnts);
@@ -1010,6 +1063,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
         vm.serializeAddress(jsonObj, "superPaymasterLens", v55.lens);
         // srcHash intentionally written as "" — deploy-core commits the real hash after audit-core passes.
         vm.serializeString(jsonObj, "srcHash", string(""));
+        vm.serializeString(jsonObj, "commit", popCommit);
         vm.serializeString(jsonObj, "updateTime", vm.envOr("DEPLOY_TIME", string("N/A")));
         vm.serializeAddress(jsonObj, "priceFeed", priceFeedAddr);
         string memory finalJson = vm.serializeAddress(jsonObj, "entryPoint", entryPointAddr);

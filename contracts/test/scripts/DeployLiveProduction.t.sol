@@ -18,6 +18,14 @@ contract Round6Safe {
 interface IMintProbe { function mint(address to, uint256 amount) external; function balanceOf(address account) external view returns (uint256); }
 
 contract ProductionHarness is DeployLive {
+    // SP_COMMIT is process-wide and forge runs suites concurrently: negative cases override the
+    // commit here instead of mutating the environment other suites read.
+    bool commitOverridden;
+    string commitValue;
+    function overrideCommit(string calldata value) external { commitOverridden = true; commitValue = value; }
+    function _popRequestCommit() internal view virtual override returns (string memory) {
+        return commitOverridden ? commitValue : super._popRequestCommit();
+    }
     bool agentsEnabled;
     function enableAgents() external { agentsEnabled = true; }
     bool badCreationPin;
@@ -63,7 +71,7 @@ contract ProductionHarness is DeployLive {
         if (h == keccak256("GUARDIAN_N")) return 3;
         return 2;
     }
-    function _guardiansInput() internal pure override returns (bytes memory) {
+    function _guardiansInput() internal pure virtual override returns (bytes memory) {
         GuardianInput[] memory gs = new GuardianInput[](3);
         for (uint256 i; i < 3; ++i) { gs[i].account = address(uint160(300 + i)); gs[i].key.x_b = bytes32(i + 1); }
         return abi.encode(gs);
@@ -138,10 +146,15 @@ contract ProductionHarness is DeployLive {
 }
 
 contract DeployLiveProductionTest is DeployLiveSafeFixture {
+    function setUp() public { vm.setEnv("SP_COMMIT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); }
     function test_ProductionPathN3() public { _productionPath(false, false); }
     function test_TicketsReachSafeWithSeparateRecipient() public { _productionPath(true, false); }
     function test_ProductionPathAgentsEnabled() public { _productionPath(false, true); }
     function _productionPath(bool separate, bool agents) internal {
+        // The whole multi-transaction deployment runs inside one test frame and reads full artifact
+        // JSON into EVM memory; on Amsterdam that frame alone hits MemoryOOG. Real broadcasts are
+        // separate transactions (each well under the EIP-7825 cap); gas is not what this test checks.
+        vm.pauseGasMetering();
         string memory outputDir = separate ? "cache/deploylive-tests/separate/" : agents ? "cache/deploylive-tests/agents/" : "cache/deploylive-tests/";
         string memory configPath = string.concat(outputDir, "config.round6-fixture.json");
         vm.createDir(outputDir, true);
@@ -176,6 +189,7 @@ contract DeployLiveProductionTest is DeployLiveSafeFixture {
         h.run();
         VmSafe.AccountAccess[] memory records = vm.stopAndReturnStateDiff();
         string memory config = vm.readFile(configPath);
+        assertEq(vm.parseJsonString(config, ".commit"), vm.envString("SP_COMMIT"));
         assertEq(vm.parseJsonUint(config, ".deployerCodeLength"), 0);
         assertEq(vm.parseJsonString(config, ".artifactDirectory"), "out");
         assertEq(vm.parseJsonString(config, ".artifactCompileSettings.Registry.evmVersion"), "cancun");
