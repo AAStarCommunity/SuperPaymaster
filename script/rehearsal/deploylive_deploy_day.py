@@ -5,6 +5,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 
@@ -69,10 +70,36 @@ def stamp_path(env):
     return out.with_name(out.name + '.build-stamp.json')
 
 
+def print_command(command):
+    hidden = False
+    safe = []
+    for word in command:
+        safe.append('<redacted>' if hidden else str(word))
+        hidden = word in ('--rpc-url', '--account', '--private-key', '--password')
+    print('COMMAND ' + shlex.join(safe), flush=True)
+
+
+def clean_build_directories(env):
+    targets = []
+    for key, default in (('FOUNDRY_OUT', 'out'), ('FOUNDRY_CACHE_PATH', 'cache'),
+                         ('DEFAULT_ARTIFACTS_OUT', 'out'), ('DEFAULT_CACHE_PATH', 'cache')):
+        raw = Path(env.get(key, default))
+        target = (ROOT / raw).resolve()
+        require('..' not in raw.parts and target != ROOT and target.is_relative_to(ROOT)
+                and not (ROOT / raw).is_symlink(), 'unsafe build directory: ' + key)
+        require(not target.exists() or target.is_dir(), 'build target is not a directory: ' + key)
+        targets.append(target)
+    build_paths(env)
+    for target in targets:
+        if target.exists():
+            shutil.rmtree(target)
+
+
 def build(env, production):
     out, cache = build_paths(env)
     identity = forge_identity(env)
     check_pin(identity, production)
+    clean_build_directories(env)
     stamp = stamp_path(env)
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.unlink(missing_ok=True)
@@ -81,10 +108,12 @@ def build(env, production):
     release_env = dict(env, FOUNDRY_OUT=str(release_out), FOUNDRY_CACHE_PATH=str(release_cache))
     release_stamp = release_out.with_name(release_out.name + '.build-stamp.json')
     release_stamp.unlink(missing_ok=True)
+    print_command([identity['path'], 'build', '--offline', '--evm-version', 'cancun'])
     release_result = subprocess.run([identity['path'], 'build', '--offline', '--evm-version', 'cancun'], cwd=ROOT, env=release_env)
     require(release_result.returncode == 0, 'Cancun build failed')
     release_record = dict(forge=identity, out=str(release_out), cache=str(release_cache), evmVersion='cancun')
     release_stamp.write_text(json.dumps(release_record, indent=2) + '\n')
+    print_command([identity['path'], 'build', '--offline', '--evm-version', 'prague'])
     result = subprocess.run([identity['path'], 'build', '--offline', '--evm-version', 'prague'], cwd=ROOT, env=env)
     require(result.returncode == 0, 'Prague build failed')
     require(forge_identity(env) == identity, 'build forge changed during build')
@@ -189,11 +218,21 @@ def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100):
         require(real > 0 and real <= simulated <= real * (1 + tolerance), 'gas mismatch: ' + tx['contractName'])
 
 
-def broadcast_gates(env, plan, rpc, second_rpc, emit=print):
+def price_sources(env, production, chain, second, fork):
+    mode = env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain')
+    require(mode in ('chain', 'fork'), 'invalid price source')
+    require(not production or mode == 'chain', 'production refuses fork price source')
+    return (fork, fork) if mode == 'fork' else (chain, second)
+
+
+def broadcast_gates(env, plan, rpc, second_rpc, emit=print, price_rpcs=None):
     # This input must equal DeployLive's fixed initializer; do not silently invent a threshold.
     threshold = integer(env['PRICE_STALENESS_THRESHOLD'])
     require(threshold == 4200, 'PRICE_STALENESS_THRESHOLD differs from DeployLive initializer')
-    block, _ = price_window(plan, rpc, second_rpc, env['ETH_USD_FEED'], threshold, emit)
+    primary, secondary = price_rpcs or (rpc, second_rpc)
+    block, _ = price_window(plan, primary, secondary, env['ETH_USD_FEED'], threshold, emit)
+    if price_rpcs is not None:
+        block = rpc('eth_getBlockByNumber', 'latest', False)['number']
     gas_crosscheck(plan, rpc, block, float(env.get('DEPLOYLIVE_GAS_TOLERANCE', '0.05')), emit,
                    multiplier=integer(env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130')))
-    price_window(plan, rpc, second_rpc, env['ETH_USD_FEED'], threshold, emit)
+    price_window(plan, primary, secondary, env['ETH_USD_FEED'], threshold, emit)

@@ -1,3 +1,63 @@
+# Round 2 copy-paste sequence (Sepolia)
+
+Load the approved, fixed deployment inputs first, including absolute pinned `FORGE`,
+`DEPLOYER_ADDRESS`, `ENV`, and the RPC variables described below. Put the approved
+DVT export at `$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json` after setup. Do not change inputs or send a deployer transaction
+between prediction and deployment. Changes require new prediction and PoPs.
+The source must be committed and clean before prediction/deployment.
+
+Common setup (evidence lives outside the directories cleaned by build):
+
+```sh
+export DEFAULT_ARTIFACTS_OUT=out DEFAULT_CACHE_PATH=cache
+export FOUNDRY_OUT=cache/deploylive-rehearsal-out FOUNDRY_CACHE_PATH=cache/deploylive-rehearsal-cache
+export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200 DEPLOYLIVE_HARDFORK=amsterdam
+export CREATION_PINS=deployments/creation-pins.11155111.json
+export DEPLOYLIVE_EVIDENCE_DIR="$PWD/deployments/live/deploy-day-evidence"
+export PATH="$(dirname "$FORGE"):$PATH"
+mkdir -p "$DEPLOYLIVE_EVIDENCE_DIR"
+python3 script/rehearsal/deploylive_fork_deploy.py build
+```
+
+Rehearsal needs a loopback forward proxy because anvil cannot read the fork URL
+from env or a file; a formal launcher is a tracked follow-up, outside this PR.
+With the separately provisioned proxy listening on port 18545, start the fork
+in another terminal (the loopback URL contains no upstream credentials):
+
+```sh
+anvil --fork-url http://127.0.0.1:18545 --port 8545 --chain-id 11155111 --hardfork amsterdam
+```
+
+Rehearsal continuation:
+
+```sh
+export DEPLOYLIVE_RPC=http://127.0.0.1:8545 DEPLOYLIVE_PRICE_SOURCE=fork
+python3 script/rehearsal/deploylive_fork_deploy.py predict --evidence "$DEPLOYLIVE_EVIDENCE_DIR"
+python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
+export GUARDIANS="$(cat "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex")"
+unset DEPLOYLIVE_POP_REQUEST_OUT
+python3 script/rehearsal/deploylive_fork_deploy.py deploy "$DEPLOYLIVE_RPC" "$DEPLOYER_ADDRESS"
+python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
+```
+
+Production continuation instead (retain the approved production `DEPLOYLIVE_RPC`):
+
+```sh
+export DEPLOYLIVE_PRICE_SOURCE=chain
+python3 script/rehearsal/deploylive_fork_deploy.py predict --production --evidence "$DEPLOYLIVE_EVIDENCE_DIR"
+python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
+export GUARDIANS="$(cat "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex")"
+unset DEPLOYLIVE_POP_REQUEST_OUT
+python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
+python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
+```
+
+`DEPLOYLIVE_PRICE_SOURCE` defaults to `chain`; `fork` selects the fork head/feed
+only for the price gate and is refused in production. Gas checks still require
+two configured real-chain endpoints. Deploy retains the complete build, gate,
+broadcast and checker flow. Build empties all four configured artifact/cache
+directories; keep inputs and evidence outside them.
+
 # Deploy-day corrections (2026-11-19; required before rc.8)
 
 The checker now has **183 + 2N** rows: **187 for N=2**, **189 for N=3**.
@@ -47,7 +107,7 @@ export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200
 export DEPLOYLIVE_GAS_TOLERANCE=0.05
 export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia; select the verified matching OP hardfork for OP
 mkdir -p deployments/live "$DEPLOYLIVE_EVIDENCE_DIR"
-python3 script/rehearsal/deploylive_fork_deploy.py --production "$DEPLOYER_ADDRESS"
+python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
 ```
 
 The driver performs the two builds, a fresh dry run, all gates below, then this
@@ -82,7 +142,7 @@ dry-run JSON and the real simulation result in evidence.
   was supported only by Alchemy; corroborate the second endpoint using the
   block-header fields `blockAccessListHash` and `slotNumber`, at the same block.
 - Anvil fork URLs must come from a file or environment, never the command
-  line. Use the launcher's environment/config-file input; even
+  line. Provision the loopback forward proxy described above; even
   `anvil --fork-url "$RPC"` expands the URL into process arguments and is forbidden. Do not weaken gas limits to make a run pass.
 - The EIP-7825 positive control is a **fixed rehearsal step**: a 20M-gas loop
   CREATE capped at **16,777,216** must fail. Archive the command, bytecode,

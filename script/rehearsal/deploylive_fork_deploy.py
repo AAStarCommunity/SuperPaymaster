@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Guarded deployment. Fork: RPC DEPLOYER [--stop]; live: --production DEPLOYER."""
+import argparse
+import hashlib
+import shutil
 import json
 import os
 from pathlib import Path
@@ -8,7 +11,7 @@ import sys
 from urllib.request import Request, build_opener, ProxyHandler
 from deploylive_runtime import clean_source_commit
 from deploylive_rehearse import RPC, ROOT, require, guard_bls_verbosity, NoRedirect
-from deploylive_deploy_day import build, verify_build, config_path, checker_pass, broadcast_gates
+from deploylive_deploy_day import build, verify_build, config_path, checker_pass, broadcast_gates, price_sources, print_command
 
 
 class ReadOnlyRPC:
@@ -28,7 +31,61 @@ class ReadOnlyRPC:
             raise RuntimeError('STOP read-only ' + method + ' failed (endpoint details redacted)') from None
 
 
+def stage(action, argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--production', action='store_true')
+    parser.add_argument('--evidence')
+    args = parser.parse_args(argv)
+    env = dict(os.environ)
+    price_sources(env, args.production, None, None, None)
+    env.setdefault('FOUNDRY_OUT', 'cache/deploylive-rehearsal-out')
+    env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
+    if action == 'build':
+        build(env, True)
+        return
+    required = ('DEPLOYLIVE_RPC', 'DEPLOYER_ADDRESS', 'ENV', 'ENTRY_POINT', 'ETH_USD_FEED',
+                'SIMPLE_ACCOUNT_FACTORY', 'CREATION_PINS', 'GOVERNANCE_OWNER', 'GUARDIAN_ADDRESS',
+                'SP_GUARDIAN', 'GENESIS_AASTAR_OPERATOR', 'APNTS_CAP', 'GUARDIAN_N',
+                'GUARDIAN_MIN_THRESHOLD', 'GUARDIAN_DEFAULT_THRESHOLD', 'DEPLOYLIVE_HARDFORK',
+                'GUARDIAN_SLASH_THRESHOLD_0', 'GUARDIAN_SLASH_THRESHOLD_1', 'GUARDIAN_SLASH_THRESHOLD_2',
+                'SLASH_POLICY_ADMIN', 'X402_OWNER', 'REPUTATION_OWNER', 'MPC_OWNER',
+                'PAYMASTER_FACTORY_OWNER', 'DEPLOYER_GTOKEN_RECIPIENT')
+    for key in required:
+        require(bool(env.get(key)), 'missing input ' + key)
+    require(bool(args.evidence), 'missing --evidence')
+    evidence = (ROOT / args.evidence).resolve()
+    require(evidence.is_relative_to(ROOT), 'evidence must be inside worktree')
+    guard_bls_verbosity([], env)
+    env.update(SP_COMMIT=clean_source_commit(), DEPLOYLIVE_REHEARSAL='0' if args.production else '1',
+               DEPLOYLIVE_EVM_VERSION='prague', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
+    binary = verify_build(env, True)
+    request = ROOT / 'cache/deploylive-prediction/pop-request.json'
+    request.parent.mkdir(parents=True, exist_ok=True)
+    request.unlink(missing_ok=True)
+    config_path(env).parent.mkdir(parents=True, exist_ok=True)
+    env['DEPLOYLIVE_POP_REQUEST_OUT'] = str(request.relative_to(ROOT))
+    command = [binary, 'script', '--offline', 'contracts/script/v3/DeployLive.s.sol:DeployLive',
+               '--rpc-url', env['DEPLOYLIVE_RPC'], '--sender', env['DEPLOYER_ADDRESS'],
+               '--slow', '--evm-version', 'prague', '--hardfork', env['DEPLOYLIVE_HARDFORK'],
+               '--gas-estimate-multiplier', env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130'), '-vv']
+    if not args.production:
+        command.append('--unlocked')
+    print_command(command)
+    result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True)
+    require(result.returncode == 0 and request.is_file(), 'prediction failed or no fresh request')
+    evidence.mkdir(parents=True, exist_ok=True)
+    destination = evidence / 'pop-request.json'
+    if destination != request:
+        shutil.copyfile(request, destination)
+    print('SHA256 ' + hashlib.sha256(destination.read_bytes()).hexdigest() + ' ' + str(destination))
+
+
 def main():
+    if sys.argv[1:2] in (['build'], ['predict']):
+        return stage(sys.argv[1], sys.argv[2:])
+    if sys.argv[1:2] == ['deploy']:
+        del sys.argv[1]
+
     production = sys.argv[1:2] == ['--production']
     if production:
         require(len(sys.argv) == 3, 'usage: --production DEPLOYER; RPCs from environment')
@@ -38,6 +95,7 @@ def main():
         url, deployer = sys.argv[1:3]
         stop = sys.argv[3:] == ['--stop']
         require(len(sys.argv) == 3 or stop, 'unknown argument')
+    price_sources(os.environ, production, None, None, None)
     guard_bls_verbosity([], os.environ)
     commit = clean_source_commit()
     rpc = ReadOnlyRPC(url) if production else RPC(url)
@@ -76,6 +134,7 @@ def main():
         plan_path = ROOT / f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
         plan_path.unlink(missing_ok=True)
         dry_env = dict(env, DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
+        print_command(command)
         dry = subprocess.run(command, cwd=ROOT, env=dry_env, capture_output=True, text=True)
         (evidence/'forge.dry.stdout.log').write_text(dry.stdout)
         (evidence/'forge.dry.stderr.log').write_text(dry.stderr)
@@ -90,7 +149,10 @@ def main():
             return read
         try:
             broadcast_gates(env, plan, recorded('primary', real), recorded('secondary', corroborating),
-                            lambda line: (lines.append(line), print(line)))
+                            lambda line: (lines.append(line), print(line)),
+                            price_rpcs=price_sources(env, production, recorded('primary', real),
+                                                    recorded('secondary', corroborating), recorded('fork', rpc))
+                            if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork' else None)
         finally:
             (evidence/'prebroadcast.log').write_text('\n'.join(lines) + '\n')
             (evidence/'prebroadcast.reads.json').write_text(json.dumps(reads, indent=2) + '\n')
@@ -101,6 +163,7 @@ def main():
         release_out = ROOT / env.get('DEFAULT_ARTIFACTS_OUT', 'out')
         record['releaseBuild'] = json.loads(release_out.with_name(release_out.name + '.build-stamp.json').read_text())
         (evidence/'forge.build-and-script.json').write_text(json.dumps(record, indent=2) + '\n')
+        print_command([binary, *command[1:], '--broadcast'])
         result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=env, capture_output=True, text=True)
         (evidence/'forge.stdout.log').write_text(result.stdout)
         (evidence/'forge.stderr.log').write_text(result.stderr)
