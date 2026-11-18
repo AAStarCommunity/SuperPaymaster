@@ -1,3 +1,0 @@
-load rc=0
-load rc=0
-load rc=0

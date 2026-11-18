@@ -62,7 +62,7 @@ overrides):
     sender itself never retries.
   - Stability: the full `test_manifest_send.py`, 10 runs per engine, with both engines' runs in parallel and a
     concurrent `test_manifest_exec.py` loop (three complete passes per engine during the runs). Result: 20/20 OK,
-    `HARNESS_RETRIES 0` in every run. Logs are in `manifest-send-evidence/stability-<engine>/`.
+    `HARNESS_RETRIES 0` in every run. Logs: `stability-<engine>/` in the evidence directory below.
 - **L2.** `--authorized-at` may not lead the clock by more than 300 s (`send_authorized_at_future`). It may not
   predate `pin.timestamp` (`send_authorized_at_before_pin`); that is the pin block's timestamp, which the packet hash
   covers. A file mtime is not used because copying resets it. Each rule has a negative test, plus boundary positives
@@ -80,7 +80,20 @@ overrides):
 
 ## Evidence (repository root, `A3A_ENGINE_DIR=<engine dir>`, both engines)
 
-Logs: `script/upgrade/manifest-send-evidence/<engine>/*.log` and `stability-<engine>/`; `engine.txt` shows `cast --version`. The `skipped=2` entries are tests added on main, not by this PR.
+The logs are not in this code PR. They live on branch `cc125/rc8-602-evidence` under
+`script/evidence/manifest-send-fc552d28/`: `<engine>/*.log`, `stability-<engine>/`, and `engine.txt` with `cast --version`.
+They are byte-identical to `script/upgrade/manifest-send-evidence/` at `fc552d28`. The evidence directory's `SHA256SUMS`
+lists all 50 files (check with `shasum -a 256 -c SHA256SUMS` inside it). The `skipped=2` entries are tests added on main, not by this PR.
+
+| File under `script/evidence/manifest-send-fc552d28/` | sha256 |
+|---|---|
+| `SHA256SUMS` | `8a977771f43a91321ef909949209a03f0280f51b25fbcc4841619e2fb2746b5b` |
+| `foundry-1.7.1/engine.txt` | `857461ab6326fb8748cb74aa1df227215f438b6e6355855c07d4a7970bfb3bef` |
+| `nightly-4e8874b/engine.txt` | `eb8d905b1284e95526717f87aa35655ca38fbdde01a71e4d8945fac3f900f920` |
+| `stability-foundry-1.7.1/engine.txt` | `06d59b694abe1f3e890e63b9b5027ffd4c8ed1b8028ca4922bb1b3cf37472bf1` |
+| `stability-foundry-1.7.1/summary.txt` | `5de46f6d95afe5f2c5308a58c19c368c05ce0307460308ac8b1b0a4d54215243` |
+| `stability-nightly-4e8874b/engine.txt` | `b6a8f3e06c59a9757a6fd1b418cb749564edb9dc8c174e554512f6d0d3e3e517` |
+| `stability-nightly-4e8874b/summary.txt` | `8077a053d298bcdfbbc9b4dbddf09b725ed940ce31bafb8d1cfdde8fee830d09` |
 
 ```text
 # foundry-1.7.1: cast Version: 1.7.1, Commit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8
