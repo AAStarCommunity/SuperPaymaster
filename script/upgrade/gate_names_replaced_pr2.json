@@ -55,10 +55,13 @@
   "manifest_",
   "manifest_step_",
   "manifest_tx_",
+  "old_owner_allowance_",
+  "old_owner_authority_",
   "old_owner_event_role_",
+  "old_owner_mapping_",
   "old_owner_role_",
   "old_owner_role_admin_",
   "readback_"
  ],
- "generated": "literals and prefixes raised (need/Gate/typed/exact_keys, through forwarding) at the base but not at the PR-2 head, by gate_name_scan.Scan over runtime_files()"
+ "generated": "literals and prefixes raised (need/Gate/typed/exact_keys, through forwarding) at the base but not at the PR-2 head, by gate_name_scan.generate_replaced()"
 }

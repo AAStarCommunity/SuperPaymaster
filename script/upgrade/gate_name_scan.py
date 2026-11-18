@@ -13,6 +13,10 @@ Matching is one-directional and exact: a consumer literal must equal a producer 
 with a producer prefix and be longer; a consumer prefix must equal a producer prefix.
 """
 import ast
+import hashlib
+import json
+import subprocess
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -272,3 +276,106 @@ class Scan:
             if not ok:
                 bad.append((kind, value, site))
         return bad
+
+    def uses(self):
+        """Every use of a caught gate name, classified as ('consumer'|'passthrough'|'reraise'|'unsupported', file, line, src).
+
+        consumer:    a comparison or need() handled by _consumers().
+        passthrough: the name is carried on without being matched (string concatenation into a message,
+                     a dict value, a dict()/Gate() argument other than Gate's name, a plain assignment, or
+                     trusted_gate(), which checks the name's shape for redaction, not its value).
+        reraise:     Gate(caught_name, ...), re-raising under the same name (adds no name).
+        unsupported: anything else (d[gate], d.get(gate), gate.startswith(...), match, a call into an
+                     unknown helper, ...); the scan cannot check it, so it must fail, not skip.
+        """
+        out = []
+        for f, tree in self.trees.items():
+            parent = {}
+            for node in ast.walk(tree):
+                for child in ast.iter_child_nodes(node):
+                    parent[id(child)] = node
+            for node in ast.walk(tree):
+                _, fn = self.owner[id(node)]
+                if isinstance(node, (ast.Subscript, ast.Call)):
+                    caught = self._gate_valued(node, None)
+                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                    caught = self._gate_valued(node, fn)
+                else:
+                    caught = False
+                if not caught:
+                    continue
+                p = parent.get(id(node))
+                kind = 'unsupported'
+                if isinstance(p, ast.Compare) and len(p.comparators) == 1:
+                    kind = 'consumer'
+                elif isinstance(p, ast.Call) and _name(p.func) == 'need' and node in p.args[1:3]:
+                    kind = 'consumer'
+                elif isinstance(p, ast.BinOp) and isinstance(p.op, ast.Add):
+                    kind = 'passthrough'
+                elif isinstance(p, ast.Dict) and node in p.values:
+                    kind = 'passthrough'
+                elif isinstance(p, ast.Assign) and p.value is node:
+                    kind = 'passthrough'
+                elif isinstance(p, ast.Call) and _name(p.func) in PASSTHROUGH_CALLS and node in p.args \
+                        and not (_name(p.func) == 'Gate' and p.args and p.args[0] is node):
+                    kind = 'passthrough'
+                elif isinstance(p, ast.Call) and _name(p.func) == 'Gate' and p.args and p.args[0] is node:
+                    kind = 'reraise'  # Gate(caught_name, ...): re-raises under the same name, adds none
+                elif isinstance(p, ast.keyword) and isinstance(parent.get(id(p)), ast.Call) \
+                        and _name(parent[id(p)].func) in PASSTHROUGH_CALLS:
+                    kind = 'passthrough'
+                out.append((kind, f, node.lineno, ast.unparse(p) if p is not None else ast.unparse(node)))
+        return out
+
+
+# Calls that carry a caught gate name on without matching it (see Scan.uses).
+PASSTHROUGH_CALLS = {'Gate', 'trusted_gate', 'dict'}
+
+# ---- frozen PR-2 records ---------------------------------------------------------------------------
+# These helpers import nothing from the executors (which shell out to cast at import time), so the
+# hygiene test can run before Foundry is installed.
+RENAMES_FILE = 'script/upgrade/gate_renames_pr2.json'
+RENAMED_COUNT = 77
+REPLACED_FILE = 'script/upgrade/gate_names_replaced_pr2.json'
+REPLACED_BASE = '4029a23e64744066d99c5d81d71bd39eedee7f5e'
+
+
+def defining_functions(source, name):
+    """Dotted names of the functions in which the string literal `name` occurs ('<module>' at top level)."""
+    owner = set()
+    def walk(node, fn):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            fn = node.name if fn is None else fn+'.'+node.name
+        if isinstance(node, ast.Constant) and node.value == name:
+            owner.add(fn or '<module>')
+        for child in ast.iter_child_nodes(node):
+            walk(child, fn)
+    walk(ast.parse(source), None)
+    return owner
+
+
+def sha256_file(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def generate_replaced(root=ROOT, base=REPLACED_BASE):
+    """The REPLACED_FILE content: names raised at `base` but not at the working tree, by this scanner."""
+    root = Path(root)
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = subprocess.run(['git', 'archive', base, 'script'], cwd=root, capture_output=True, check=True).stdout
+        subprocess.run(['tar', '-x', '-C', tmp], input=archive, check=True)
+        old, new = Scan(root=tmp), Scan(root=root)
+    lits = lambda s: {v for k, v, _ in s.producers if k == 'literal'}
+    pres = lambda s: {v for k, v, _ in s.producers if k == 'prefix'}
+    return dict(base=base, literals=sorted(lits(old)-lits(new)), prefixes=sorted(pres(old)-pres(new)),
+                generated='literals and prefixes raised (need/Gate/typed/exact_keys, through forwarding) at the '
+                          'base but not at the PR-2 head, by gate_name_scan.generate_replaced()')
+
+
+if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] == ['--write-replaced']:
+        (ROOT/REPLACED_FILE).write_text(json.dumps(generate_replaced(), indent=1)+'\n')
+        print('wrote', REPLACED_FILE)
+    else:
+        raise SystemExit('usage: gate_name_scan.py --write-replaced')
