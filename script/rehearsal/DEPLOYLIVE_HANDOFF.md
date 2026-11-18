@@ -21,7 +21,11 @@ carries no credential, such as a keyless public gateway, is allowed only when th
 `<KEY>_NO_CREDENTIAL=1` for it (`DEPLOYLIVE_SOURCE_RPC_NO_CREDENTIAL`, ...). The declaration is part of
 the input manifest (changing it after predict is an input change), it is recorded in
 `checker.PASS.json` as `noCredentialEndpoints`, and a declaration contradicted by a credential-like
-segment stops. Its host and full URL are still matched verbatim by every scan. This is the explicit load step
+segment stops. Its host and full URL are still matched verbatim by every scan.
+On deployment day the operator (the author) sets this declaration personally, and only after
+confirming that the URL really is a keyless public endpoint: the declaration turns off the
+start-up check that would otherwise refuse the URL, so a wrong declaration on a URL that does
+carry a short or letters-only key would let that key reach the evidence unmatched. This is the explicit load step
 (run from the worktree root in bash/zsh; the file contains literal assignments only):
 
 ```sh
