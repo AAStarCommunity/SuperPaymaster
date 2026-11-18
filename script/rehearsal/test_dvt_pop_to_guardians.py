@@ -47,7 +47,7 @@ class ConverterTest(unittest.TestCase):
         from types import SimpleNamespace
         args += ['--inputs', 'approved.inputs']
         stdout, stderr = io.StringIO(), io.StringIO()
-        with patch.object(sys, 'argv', args[1:]), patch.object(controls, 'load_inputs', return_value={}), patch.object(controls, 'evidence_dir', return_value=FIX), patch.object(controls, 'verify_manifest'), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with patch.object(sys, 'argv', args[1:]), patch.object(controls, 'load_inputs', return_value={}), patch.object(controls, 'evidence_dir', return_value=FIX), patch.object(controls, 'verify_manifest'), patch.object(controls, 'write_conversion'), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = self.c.main()
         result = SimpleNamespace(returncode=code, stdout=stdout.getvalue(), stderr=stderr.getvalue())
         self.assertEqual(result.returncode, 0, result.stderr)

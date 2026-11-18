@@ -213,6 +213,34 @@ def verify_manifest(env, evidence, request=None):
     return digest
 
 
+def write_conversion(evidence, export, request, guardians):
+    # Keep the exact approved bytes alongside their manifest-bound hashes.
+    digest = manifest_digest(evidence)
+    (evidence/'dvt-export.json').write_bytes(export)
+    (evidence/'guardians.hex').write_bytes(guardians)
+    write_json(evidence, 'conversion.json', dict(manifest=digest,
+        exportSha256=hashlib.sha256(export).hexdigest(),
+        requestSha256=hashlib.sha256(request).hexdigest(),
+        guardiansSha256=hashlib.sha256(guardians).hexdigest()))
+
+
+def verify_conversion(env, evidence):
+    digest = verify_manifest(env, evidence)
+    try:
+        record = json.loads((evidence/'conversion.json').read_text())
+        require(record.get('manifest') == digest, 'conversion manifest mismatch')
+        for key, name in (('export', 'dvt-export.json'), ('request', 'pop-request.json'), ('guardians', 'guardians.hex')):
+            require(record.get(key+'Sha256') == hashlib.sha256((evidence/name).read_bytes()).hexdigest(),
+                    'conversion digest mismatch: '+name)
+        return (evidence/'guardians.hex').read_text().strip()
+    except (OSError, ValueError, TypeError, AttributeError):
+        raise RuntimeError('conversion record missing or malformed') from None
+
+
+def plan_digest(plan):
+    return hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
 def forge_endpoint(command, env):
     return command, dict(env, ETH_RPC_URL=env['DEPLOYLIVE_RPC'])
 
@@ -233,7 +261,17 @@ def plan_diff(gated, actual, gas_bounds=None):
     left, right = gated['transactions'], actual['transactions']
     diff = []
     if len(left) != len(right): diff.append('transaction count mismatch')
+    for label, transactions in (('gated', left), ('compared', right)):
+        if transactions:
+            start = integer(transactions[0]['transaction']['nonce'])
+            for i, tx in enumerate(transactions):
+                if integer(tx['transaction']['nonce']) != start + i:
+                    diff.append(f'{label} index={i} nonce progression mismatch')
     for i, (a, b) in enumerate(zip(left, right)):
+        if a.get('transactionType') != b.get('transactionType'):
+            diff.append(f'index={i} field=transactionType')
+        if a['transaction'].get('type') != b['transaction'].get('type'):
+            diff.append(f'index={i} field=type')
         a, b = a['transaction'], b['transaction']
         for key in ('to', 'input', 'value', 'from', 'chainId', 'nonce'):
             if key not in a or key not in b or a[key] != b[key]: diff.append(f'index={i} field={key}')
@@ -264,8 +302,12 @@ def deployment_rule(env, evidence, transport, chain):
     return record
 
 
-def write_success(evidence, env, config, broadcast):
+def write_success(evidence, env, config, broadcast, gated_plan):
+    digest = plan_digest(gated_plan)
+    require(digest == plan_digest(json.loads((evidence/'gated-plan.json').read_text())),
+            'gated plan changed before checker PASS')
     write_json(evidence, 'checker.PASS.json', dict(status='PASS', manifest=manifest_digest(evidence),
+        gatedPlanSha256=digest,
         env=env['ENV'], config=str(config), broadcast=str(broadcast),
         configSha256=hashlib.sha256(config.read_bytes()).hexdigest(),
         broadcastSha256=hashlib.sha256(broadcast.read_bytes()).hexdigest()))
@@ -274,6 +316,8 @@ def write_success(evidence, env, config, broadcast):
 def archive_records(source):
     record = json.loads((source/'checker.PASS.json').read_text()) if (source/'checker.PASS.json').is_file() else {}
     require(record.get('status') == 'PASS' and record.get('manifest') == manifest_digest(source), 'archive requires current manifest-bound checker PASS')
+    require(record.get('gatedPlanSha256') == plan_digest(json.loads((source/'gated-plan.json').read_text())),
+            'archived gated plan differs from checker PASS')
     for key, name in (('config', 'config.'+record['env']+'.json'), ('broadcast', 'run-latest.json')):
         path = Path(record[key])
         require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(ROOT), 'missing deployment record')

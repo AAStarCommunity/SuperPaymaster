@@ -100,7 +100,8 @@ class Ddf5Test(unittest.TestCase):
         with self.assertRaises(RuntimeError): c.archive(self.root,self.root.parent/(self.root.name+'-archive'))
         config=self.root/'external-config.json'; config.write_text('{}')
         broadcast=self.root/'external-broadcast.json'; broadcast.write_text('{}')
-        c.write_success(self.root,self.env,config,broadcast)
+        (self.root/'gated-plan.json').write_text(FIX.read_text())
+        c.write_success(self.root,self.env,config,broadcast,json.loads(FIX.read_text()))
         dest=self.root.parent/(self.root.name+'-archive'); self.addCleanup(lambda: __import__('shutil').rmtree(dest,ignore_errors=True))
         c.archive(self.root,dest)
         for name in ('config.test.json','run-latest.json'):
@@ -125,14 +126,15 @@ class Ddf5Test(unittest.TestCase):
                 c.deployment_rule(env,self.root,lambda url: url,chain)
                 check.assert_called_once_with('a','b',self.root)
 
-    def driver(self, mutate=None, checker_ok=True, chain=11155111):
+    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None):
         import sys
         from types import SimpleNamespace
         plan=json.loads(FIX.read_text()); evidence=self.root
         self.env.update(FOUNDRY_VERBOSITY='2',FOUNDRY_OUT=str(evidence/'execution'),FOUNDRY_CACHE_PATH=str(evidence/'exec-cache'),DEPLOYLIVE_RPC='primary',DEPLOYLIVE_SOURCE_RPC='primary',DEPLOYLIVE_SECOND_RPC='secondary',
             DEPLOYLIVE_HARDFORK='amsterdam',DEPLOYLIVE_PRICE_SOURCE='chain',DEPLOYER_ACCOUNT='unused',
             DEPLOYER_ADDRESS=plan['transactions'][0]['transaction']['from'],DEFAULT_ARTIFACTS_OUT=str(evidence/'out'))
-        c.write_manifest(self.env,evidence); (evidence/'guardians.hex').write_text('0x00')
+        c.write_manifest(self.env,evidence)
+        c.write_conversion(evidence,b'{}',(evidence/'pop-request.json').read_bytes(),b'0x00')
         stamp=evidence/'out.build-stamp.json'; stamp.write_text('{"forge":{}}')
         cfg=evidence/'config.json'; cfg.write_text('{}')
         dry=evidence/f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
@@ -150,7 +152,7 @@ class Ddf5Test(unittest.TestCase):
             return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 189 passed, 0 failed, 189 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
             return hex(chain) if method=='eth_chainId' else '0x27'
-        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',['driver','--production',self.env['DEPLOYER_ADDRESS']]), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=[[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
+        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',['driver','--production',self.env['DEPLOYER_ADDRESS']]), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
             try: f.main()
             finally: self.calls=calls; self.rule=rule
 
@@ -158,7 +160,7 @@ class Ddf5Test(unittest.TestCase):
         self.driver()
         self.rule.assert_called_once()
         self.assertTrue((self.root/'checker.PASS.json').is_file())
-        self.assertEqual(json.loads((self.root/'postbroadcast.diff.json').read_text()),[])
+        self.assertEqual(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'],[])
 
     def test_driver_final_simulation_change_never_broadcasts(self):
         def mutate(plan,index):
@@ -171,14 +173,14 @@ class Ddf5Test(unittest.TestCase):
         def mutate(plan,index):
             if index==3: plan['transactions'][45]['transaction']['gas']='0x1'
         with self.assertRaisesRegex(RuntimeError,'post-broadcast diff'): self.driver(mutate)
-        self.assertTrue(json.loads((self.root/'postbroadcast.diff.json').read_text()))
+        self.assertTrue(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'])
         self.assertFalse((self.root/'checker.PASS.json').exists())
 
     def test_driver_malformed_broadcast_diff_is_evidence(self):
         def mutate(plan,index):
             if index==3: del plan['transactions']
         with self.assertRaises(RuntimeError): self.driver(mutate)
-        self.assertTrue(json.loads((self.root/'postbroadcast.diff.json').read_text()))
+        self.assertTrue(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'])
 
     def test_driver_checker_failure_prevents_pass(self):
         with self.assertRaisesRegex(RuntimeError,'checker'): self.driver(checker_ok=False)

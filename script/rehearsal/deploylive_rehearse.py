@@ -249,6 +249,16 @@ def governance(rpc, cfg, safe):
     impersonate(rpc, safe, action)
 
 
+def run_checker(url, path, deployer, safe, evidence, env):
+    from deploylive_controls import safe_logs
+    env = dict(env, DEPLOYLIVE_RPC=url, ETH_RPC_URL=url)
+    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'),
+                             str(path), deployer, safe], env=env, capture_output=True, text=True)
+    safe_logs(evidence, 'checker', result, env)
+    (evidence/'checker.log').write_text(result.stdout)
+    return result
+
+
 def main():
     args = sys.argv[1:]
     inputs = None
@@ -308,8 +318,7 @@ def main():
                 inventory_ok = inventory(rpc, cfg, lines.append)
                 (evidence/'failed-set.log').write_text('\n'.join(lines) + '\n')
                 require(inventory_ok, 'failed set holds external value or inventory is incomplete')
-            result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, safe], capture_output=True, text=True)
-            (evidence/'checker.log').write_text(result.stdout)
+            result = run_checker(url, path, deployer, safe, evidence, deploy_env)
             if mode == 'happy':
                 checker_pass(result)
             else:

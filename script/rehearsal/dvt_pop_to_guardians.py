@@ -139,15 +139,19 @@ def main():
     try:
         check(shutil.which('cast') is not None, 'cast_not_found: install foundry or add it to PATH')
         args = parser.parse_args()
-        from deploylive_controls import load_inputs, evidence_dir, verify_manifest
+        from deploylive_controls import load_inputs, evidence_dir, verify_manifest, write_conversion
         env = load_inputs(args.inputs)
         verify_manifest(env, evidence_dir(env), args.request)
         inputs = []
+        raw_inputs = []
         for path in (args.export, args.request):
             data = path.read_bytes()
             print(f'sha256 {path}: {hashlib.sha256(data).hexdigest()}', file=sys.stderr)
             inputs.append(json.loads(data))
-        print(convert(*inputs, args.sp_root))
+            raw_inputs.append(data)
+        guardians = convert(*inputs, args.sp_root)
+        write_conversion(evidence_dir(env), *raw_inputs, (guardians+'\n').encode())
+        print(guardians)
     except (Stop, RuntimeError, OSError, ValueError, TypeError, KeyError) as exc:
         print(str(exc) if isinstance(exc, Stop) else 'STOP input_read: ' + str(exc), file=sys.stderr)
         return 3

@@ -100,14 +100,17 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
 
 6. Have the approved DVT signing workflow place its address-bound export at
    `$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json`, then convert it. Signing is an
-   external prerequisite, not an improvised local helper. Expected: `CONVERT PASS`.
+   external prerequisite, not an improvised local helper. The converter writes
+   `guardians.hex` and `conversion.json`, binding the manifest digest and SHA256
+   of the exact export, request and guardian encoding. Expected: `CONVERT PASS`.
 
    ```sh
-   test -s "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" && PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . --inputs "$INPUTS" > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex" && echo 'CONVERT PASS'
+   test -s "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" && PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . --inputs "$INPUTS" && echo 'CONVERT PASS'
    ```
 
 7. Deploy and run the integrated checker. The driver reads generated `guardians.hex`;
-   it never rebuilds. Expected: `SUMMARY 189 passed, 0 failed, 189 total` for N=3,
+   it verifies the conversion record before planning, before the final simulation,
+   and immediately before broadcast. It never rebuilds. Expected: `SUMMARY 189 passed, 0 failed, 189 total` for N=3,
    then `PASS full deployment; post-deploy checker PASS`. N=2 has 187 rows.
    A config file or successful Forge exit alone is not acceptance.
 
@@ -116,7 +119,8 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    ```
 
 8. Copy evidence to a new external archive, including verified file copies and
-   `SHA256SUMS`. Archive requires this run’s manifest-bound `checker.PASS.json`,
+   `SHA256SUMS`. Archive verifies `gated-plan.json` against the canonical digest
+   in `checker.PASS.json`. Archive requires this run’s manifest-bound `checker.PASS.json`,
    copies `deployments/live/config.<ENV>.json` and the actual broadcast
    `run-latest.json` itself, and checks their PASS-time digests. Enter the full destination path when prompted; existing destinations
    and symlinks are refused. Expected: `ARCHIVE PASS`.
@@ -142,10 +146,14 @@ byte by byte against the creation pins (hashing all creation bytes) in DeployLiv
 preflight before broadcast; no separate artefact manifest is used.
 Deploy re-runs the dual-provider hardfork rule check before generating its plan.
 Immediately before broadcast it simulates again and compares count, order, sender,
-nonce, destination, calldata, value and chainId with the gated plan, then checks the
+consecutive nonces, transactionType, envelope type, destination, calldata, value and
+chainId with the gated plan, then checks the
 pending deployer nonce against the prediction. The post-broadcast comparison also
-requires each gas limit to equal its gated value (the accepted range is [limit, limit]).
-Success requires checker PASS and an empty `postbroadcast.diff.json`.
+requires each gas limit inside [real-chain need, block gas limit], with the lower
+bound raised above 2^24 when the total exceeds 90% of 2^24. Accepted differences
+are listed in `postbroadcast.gas.json`. Both diff records and `checker.PASS.json`
+bind the canonical gated-plan SHA256. Success requires checker PASS and an empty
+`diff` list in `postbroadcast.diff.json`.
 
 Remaining window: chain-head movement between the final simulation and broadcast
 can change gas estimates. The 1.3× margin plus the post-broadcast comparison cover
@@ -882,17 +890,19 @@ before RPC access and derive `SP_COMMIT` from HEAD themselves.
    `pin.block` and `pin.blockHash` name the same block: the PARENT of the simulated block, because EVM BLOCKHASH cannot read the current block. `pin.senders.deployer.nonce` is the deployer nonce at entry to `run()`. If the deployer sent a transaction in the latest block, a nonce read at `pin.block` differs and DVT refuses (fail-closed), so the operator re-runs the simulation. DVT can check `getBlock(pin.block).hash == pin.blockHash` directly.
 
    ```sh
-   python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . --inputs "$INPUTS" > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
+   python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . --inputs "$INPUTS"
    ```
 
    The converter prints both input SHA256 values to stderr and emits only
-   `abi.encode(GuardianInput[])` to stdout. Any named `STOP` exits 3. It checks
+   `abi.encode(GuardianInput[])` to stdout, and writes `guardians.hex` plus the
+   manifest-bound `conversion.json` in the evidence directory. Any named `STOP` exits 3. It checks
    the pinned source blob using read-only `git show`, the local source version,
    the domain, exact export keys, metadata, canonical calldata, slots and
    distinct accounts. `popDigests` is count-checked; curve membership and PoP
    validity are verified by the aggregator on chain, not by this converter.
-5. Repeat the source commit gate above, unset `DEPLOYLIVE_POP_REQUEST_OUT`, and broadcast DeployLive with
-   `GUARDIANS=$(cat guardians.hex)`, the same deployment inputs and artifacts,
+5. Repeat the source commit gate above, unset `DEPLOYLIVE_POP_REQUEST_OUT`, and run
+   `python3 script/rehearsal/deploylive_fork_deploy.py deploy --inputs "$INPUTS" --production`
+   with the same deployment inputs and artifacts,
    and **no intervening deployer transaction**. If the nonce or inputs move,
    discard the request and PoPs and repeat from step 1.
 6. Record `sha256sum "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"` (or

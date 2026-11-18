@@ -146,13 +146,13 @@ def main():
     env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
     path = config_path(env)
     path.parent.mkdir(parents=True, exist_ok=True)
+    from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success, gas_changes, verify_conversion, plan_digest
+    verify_manifest(env, evidence)
+    approved_env = dict(env)
+    env['GUARDIANS'] = verify_conversion(approved_env, evidence)
     build_paths(env)
     binary = verify_build(env, production)
     real, corroborating = gate_sources(env, production, chain)
-    from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success, gas_changes
-    verify_manifest(env, evidence)
-    approved_env = dict(env)
-    env['GUARDIANS'] = (evidence/'guardians.hex').read_text().strip()
     (evidence/'checker.PASS.json').unlink(missing_ok=True)
     deployment_rule(env, evidence, ReadOnlyRPC, chain)
     request = json.loads((evidence/REQUEST_NAME).read_text())
@@ -197,6 +197,7 @@ def main():
             (evidence/'prebroadcast.log').write_text('\n'.join(lines) + '\n')
             (evidence/'prebroadcast.reads.json').write_text(json.dumps(reads, indent=2) + '\n')
         (evidence/'gas-bounds.json').write_text(json.dumps(gas_bounds)+'\n')
+        require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
         binary = verify_build(env, production)
         from deploylive_deploy_day import stamp_path
         record = json.loads(stamp_path(env).read_text())
@@ -205,26 +206,29 @@ def main():
         record['releaseBuild'] = json.loads(release_out.with_name(release_out.name + '.build-stamp.json').read_text())
         (evidence/'forge.build-and-script.json').write_text(json.dumps(record, indent=2) + '\n')
         plan_path.unlink(missing_ok=True)
+        require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
         final = subprocess.run(command, cwd=ROOT, env=dry_env, capture_output=True, text=True)
         safe_logs(evidence, 'forge.final', final, env)
         require(final.returncode == 0 and plan_path.is_file(), 'final simulation failed')
         final_plan = json.loads(plan_path.read_text())
         diff = plan_diff(plan, final_plan)
-        (evidence/'prebroadcast.diff.json').write_text(json.dumps(diff)+'\n')
+        (evidence/'prebroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), diff=diff))+'\n')
         require(not diff, 'final simulation differs from gated plan')
         check_start_nonce(final_plan, request['pin']['senders']['deployer']['nonce'], rpc, deployer)
         verify_manifest(approved_env, evidence)
+        require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
         binary = verify_build(env, production)
         actual_path = ROOT / f'broadcast/DeployLive.s.sol/{chain}/run-latest.json'
         actual_path.unlink(missing_ok=True)
         print_command([binary, *command[1:], '--broadcast'])
+        require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
         result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=env, capture_output=True, text=True)
         safe_logs(evidence, 'forge', result, env)
         try:
             diff = plan_diff(plan, json.loads(actual_path.read_text()), gas_bounds)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
-        (evidence/'postbroadcast.diff.json').write_text(json.dumps(diff)+'\n')
+        (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), diff=diff))+'\n')
         require(not diff, 'post-broadcast diff is not empty; deployment NOT successful')
         changed = gas_changes(plan, json.loads(actual_path.read_text()), gas_bounds)
         (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
@@ -242,7 +246,7 @@ def main():
     (evidence/'checker.log').write_text(result.stdout)
     checker_pass(result)
     print(result.stdout, end='' if result.stdout.endswith('\n') else '\n')
-    write_success(evidence, env, path, actual_path)
+    write_success(evidence, env, path, actual_path, plan)
     print('PASS full deployment; post-deploy checker PASS')
 
 
@@ -283,8 +287,8 @@ def cli(argv=None):
             stage(args.action,flags)
             print(args.action.upper() + ' PASS')
         else:
-            from deploylive_controls import verify_manifest
-            verify_manifest(env, evidence)
+            from deploylive_controls import verify_conversion
+            verify_conversion(env, evidence)
             # GUARDIANS is generated from the approved DVT export after prediction.
             sys.argv = [sys.argv[0], 'deploy'] + (['--production', env['DEPLOYER_ADDRESS']] if args.production else [env['DEPLOYLIVE_RPC'], env['DEPLOYER_ADDRESS']])
             if args.stop: sys.argv.append('--stop')
