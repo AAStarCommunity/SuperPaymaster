@@ -1,0 +1,147 @@
+.......................................................................................................................................................STOP: manifest signing and sending are not implemented
+STOP: manifest signing and sending are not implemented
+....STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+STOP: test_fork_boundary
+STOP: final_artifact
+STOP: final_artifact
+.STOP: stage_not_final
+STOP: stage_not_final
+.STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+STOP: final_artifact
+.STOP: plan_hash
+STOP: plan_hash
+...STOP: simulation_stage
+..................L1_PROBE old_owner_clone_standard removed=red accepted
+L1_PROBE old_owner_clone_standard removed=red accepted
+L1_PROBE old_owner_clone_implementation removed=red caught_elsewhere:old_owner_clone_factory_nonce1
+L1_PROBE old_owner_clone_implementation removed=red caught_elsewhere:old_owner_clone_factory_nonce1
+L1_PROBE old_owner_clone_same_implementation removed=red accepted
+.L1_PROBE old_owner_clone_standard removed=red accepted
+L1_PROBE old_owner_clone_standard removed=red accepted
+L1_PROBE old_owner_clone_implementation removed=red accepted
+L1_PROBE old_owner_clone_factory_nonce1 removed=red accepted
+L1_PROBE old_owner_clone_implementation removed=red caught_elsewhere:old_owner_clone_factory_nonce1
+.L1_PROBE old_owner_log_partition removed=red accepted
+L1_PROBE old_owner_log_partition removed=red accepted
+L1_PROBE old_owner_log_limit removed=red accepted
+..L1_PROBE old_owner_endpoint_distinct removed=red accepted
+L1_PROBE old_owner_runtime_parity removed=red caught_elsewhere:old_owner_inventory
+.L1_PROBE old_owner_record_sha256 removed=red accepted
+L1_PROBE old_owner_record_commit removed=red accepted
+L1_PROBE old_owner_record_address removed=red caught_elsewhere:old_owner_record_plan_address
+L1_PROBE old_owner_record_receipt removed=red crash:IndexError
+L1_PROBE old_owner_record_source_commit removed=red accepted
+L1_PROBE old_owner_record_required removed=red crash:TypeError
+.....L1_PROBE old_owner_fork_pin removed=red accepted
+L1_PROBE old_owner_fork_head removed=red accepted
+L1_PROBE old_owner_fork_positive removed=red caught_elsewhere:old_owner_fork_negative
+L1_PROBE old_owner_fork_restore removed=red accepted
+..L1_PROBE old_owner_uncancelled_grants removed=red accepted
+L1_PROBE old_owner_log_partition removed=red caught_elsewhere:old_owner_history_old_filter
+.L1_PROBE old_owner_history_address removed=red accepted
+L1_PROBE old_owner_history_removed removed=red accepted
+L1_PROBE old_owner_history_signature removed=red caught_elsewhere:old_owner_history_positive
+L1_PROBE old_owner_history_canonical removed=red accepted
+L1_PROBE old_owner_history_log_range removed=red accepted
+L1_PROBE old_owner_history_positive removed=red accepted
+.L1_PROBE old_owner_immutable_not_old removed=red caught_elsewhere:old_owner_immutable_expected
+L1_PROBE old_owner_immutable_expected removed=red accepted
+L1_PROBE old_owner_immutable_not_old removed=red caught_elsewhere:old_owner_immutable_expectation_missing
+L1_PROBE old_owner_immutable_expectation_missing removed=red accepted
+L1_PROBE old_owner_immutable_ast removed=red crash:TypeError
+.L1_PROBE old_owner_immutable_address_encoding removed=red caught_elsewhere:old_owner_immutable_expected
+L1_PROBE old_owner_immutable_values removed=red crash:IndexError
+.....L1_PROBE old_owner_source_rule4 removed=red caught_elsewhere:old_owner_runtime_parity
+L1_PROBE old_owner_metadata_unmasked removed=red caught_elsewhere:old_owner_immutable_ast
+.L1_PROBE old_owner_source_rule4 removed=red accepted
+L1_PROBE old_owner_source_rule4 removed=red accepted
+L1_PROBE old_owner_source_rule4 removed=red accepted
+..L1_PROBE old_owner_authority_xPNTsToken_communityOwner removed=red caught_elsewhere:old_owner_control_xPNTsToken
+L1_PROBE old_owner_mapping_xPNTsToken_approvedFacilitators removed=red accepted
+L1_PROBE old_owner_mapping_xPNTsToken_autoApprovedSpenders removed=red accepted
+L1_PROBE old_owner_allowance_0x696a73701b104c6ccbbaaddd2216788ea08eab89_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf removed=red accepted
+L1_PROBE old_owner_authority_xPNTsToken_communityOwner removed=red caught_elsewhere:old_owner_control_xPNTsToken
+L1_PROBE old_owner_mapping_xPNTsToken_approvedFacilitators removed=red accepted
+L1_PROBE old_owner_mapping_xPNTsToken_autoApprovedSpenders removed=red accepted
+L1_PROBE old_owner_allowance_0xe6579a90dc498a710008de12119812d0fb7aa224_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf removed=red accepted
+.L1_PROBE old_owner_role_TimelockController_PROPOSER_ROLE removed=red caught_elsewhere:old_owner_event_role_TimelockController
+L1_PROBE old_owner_authority_SuperPaymaster_pendingOwner removed=red accepted
+L1_PROBE old_owner_mapping_Registry_authorized removed=red accepted
+L1_PROBE old_owner_role_admin_ROLE_COMMUNITY removed=red caught_elsewhere:old_owner_event_role_admin
+L1_PROBE old_owner_authority_GTokenStaking_owner removed=red caught_elsewhere:old_owner_control_GTokenStaking
+L1_PROBE old_owner_authority_GToken_owner removed=red caught_elsewhere:old_owner_control_GToken
+L1_PROBE old_owner_authority_xPNTsFactory_owner removed=red caught_elsewhere:old_owner_control_xPNTsFactory
+L1_PROBE old_owner_authority_xPNTsToken_communityOwner removed=red caught_elsewhere:old_owner_control_xPNTsToken
+L1_PROBE old_owner_authority_MySBT_daoMultisig removed=red caught_elsewhere:old_owner_control_MySBT
+L1_PROBE old_owner_authority_PaymasterFactory_owner removed=red caught_elsewhere:old_owner_control_PaymasterFactory
+L1_PROBE old_owner_mapping_GTokenStaking_authorizedSlashers removed=red accepted
+L1_PROBE old_owner_mapping_xPNTsFactory_isXPNTs removed=red accepted
+L1_PROBE old_owner_mapping_xPNTsToken_autoApprovedSpenders removed=red accepted
+L1_PROBE old_owner_role_Registry_0x7777777777777777777777777777777777777777777777777777777777777777 removed=red accepted
+L1_PROBE old_owner_role_admin_0x7777777777777777777777777777777777777777777777777777777777777777 removed=red accepted
+L1_PROBE old_owner_allowance_0x2222222222222222222222222222222222222222_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf removed=red accepted
+L1_PROBE old_owner_operator_treasury_0xb5600060e6de5e11d3636731964218e53caadf0e removed=red accepted
+L1_PROBE old_owner_operator removed=red accepted
+L1_PROBE old_owner_registry_user_roles removed=red accepted
+L1_PROBE old_owner_allowance_0x696a73701b104c6ccbbaaddd2216788ea08eab89_0x16df788ed4ed1fc384e52dc832a6a6c3a23bdebf removed=red accepted
+L1_PROBE old_owner_safe_owners removed=red accepted
+L1_PROBE old_owner_safe_modules removed=red caught_elsewhere:old_owner_fork_negative
+L1_PROBE old_owner_safe_guard removed=red caught_elsewhere:old_owner_fork_negative
+L1_PROBE old_owner_safe_fallback removed=red caught_elsewhere:old_owner_fallback_canonical
+..L1_PROBE old_owner_history_old_filter removed=red caught_elsewhere:old_owner_uncancelled_grants
+.ss..L1_PROBE old_owner_immutable_not_old removed=red caught_elsewhere:old_owner_immutable_expected
+L1_PROBE old_owner_immutable_expected removed=red accepted
+.L1_PROBE old_owner_control_GTokenStaking removed=red accepted
+L1_PROBE old_owner_control_GToken removed=red accepted
+L1_PROBE old_owner_control_xPNTsFactory removed=red accepted
+L1_PROBE old_owner_control_PaymasterFactory removed=red accepted
+L1_PROBE old_owner_control_MySBT removed=red accepted
+L1_PROBE old_owner_control_xPNTsToken removed=red accepted
+L1_PROBE old_owner_control_authority removed=red accepted
+L1_PROBE old_owner_control_registration removed=red accepted
+L1_PROBE old_owner_control_operator removed=red accepted
+L1_PROBE old_owner_mapping_control_path removed=red caught_elsewhere:old_owner_mapping_control_case
+L1_PROBE old_owner_control_safe removed=red accepted
+.L1_PROBE old_owner_runtime_length removed=red caught_elsewhere:old_owner_runtime_parity
+L1_PROBE proxy_runtime_all_parity_gates removed=red accepted
+L1_PROBE old_owner_runtime_length removed=red caught_elsewhere:old_owner_runtime_parity
+L1_PROBE proxy_runtime_all_parity_gates removed=red accepted
+..L1_PROBE old_owner_calldata_bytes removed=red caught_elsewhere:old_owner_calldata_argument
+.L1_PROBE old_owner_source_claim removed=red caught_elsewhere:old_owner_record_required
+..L1_PROBE old_owner_calldata_bytes removed=red accepted
+L1_PROBE old_owner_calldata_target removed=red accepted
+L1_PROBE old_owner_calldata_target removed=red accepted
+L1_PROBE old_owner_calldata_payload removed=red crash:IndexError
+.L1_PROBE old_owner_endpoint_distinct removed=red accepted
+L1_PROBE old_owner_endpoint_distinct removed=red accepted
+.L1_PROBE old_owner_uncancelled_grants removed=red accepted
+.L1_PROBE old_owner_role_extraction_empty removed=red accepted
+.L1_PROBE old_owner_role_extraction_empty removed=red accepted
+L1_PROBE old_owner_role_extraction_empty removed=red accepted
+..L1_PROBE old_owner_role_log_address removed=red accepted
+L1_PROBE old_owner_role_log_removed removed=red accepted
+L1_PROBE old_owner_role_log_topic removed=red accepted
+L1_PROBE old_owner_role_log_canonical removed=red accepted
+L1_PROBE old_owner_role_log_range removed=red accepted
+..L1_PROBE old_owner_fallback_canonical removed=red accepted
+L1_PROBE old_owner_module_page removed=red accepted
+.L1_PROBE old_owner_implementation removed=red accepted
+L1_PROBE old_owner_creation_before removed=red accepted
+.L1_PROBE unexpected_proxy removed=red accepted
+L1_PROBE unexpected_proxy removed=red accepted
+L1_PROBE old_owner_undeclared_clone removed=red caught_elsewhere:metadata_cbor
+............................................................
+----------------------------------------------------------------------
+Ran 287 tests in 282.616s
+
+OK (skipped=2)
