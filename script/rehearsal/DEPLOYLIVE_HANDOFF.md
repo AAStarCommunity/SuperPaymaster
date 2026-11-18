@@ -7,8 +7,14 @@ is a follow-up outside this change. No upstream URL goes on Anvil's command line
 Obtain the approved DVT export after prediction; PoPs bind this request and nonce.
 Do not send deployer transactions or change approved inputs between prediction and deploy.
 
+Run deploy day from a FRESH clone at the approved commit, never in a worktree that was used
+for a rehearsal: rehearsal and production configs share `deployments/live/config.<ENV>.json`.
+
 Prepare the ignored input file once, fill every required value from the approved
-manifest, and leave optional keys present but empty. This is the explicit load step
+manifest, and leave optional keys present but empty. Endpoint URLs never go into this
+file: `DEPLOYLIVE_RPC_FILE`, `DEPLOYLIVE_SOURCE_RPC_FILE` and `DEPLOYLIVE_SECOND_RPC_FILE`
+name files that each hold one URL, which the loader reads in-process. Any input value that
+starts with `http://`, `https://`, `ws://` or `wss://` is refused. This is the explicit load step
 (run from the worktree root in bash/zsh; the file contains literal assignments only):
 
 ```sh
@@ -45,7 +51,9 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
    B's `eth_config` -32601 is recorded, not a failure. Expectations live in
    `deployments/hardfork-expectations.json`; OP uses the documented unsupported
    `eth_config` / unpopulated-header-field rule and stops on unknown supported configs.
-   Expected: `HARDFORK PASS pinned block <number>`.
+   Expected: `HARDFORK PASS pinned block <number>`. That number is the **rule-check
+   block**: the block at which the hardfork rule was verified, and the fork block in a
+   rehearsal. It is NOT the PoP pin block (see step 5).
 
    ```sh
    python3 script/rehearsal/deploylive_fork_deploy.py hardfork-check --inputs "$INPUTS"
@@ -79,6 +87,10 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
 5. Predict. The driver writes `cache/deploylive-prediction/pop-request.json` and
    copies it to `$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json`.
    Expected final line: `PREDICT PASS` (preceded by the request SHA256).
+   The request's `pin.block` is the **PoP pin block**: the PARENT of the block the
+   prediction simulated on. On a real chain it follows the live head at prediction time and
+   is unrelated to the rule-check block of step 1. DVT verifies the PoP pin block
+   (`pin.block`, `pin.blockHash`, the deployer nonce at it), never the rule-check block.
 
    ```sh
    python3 script/rehearsal/deploylive_fork_deploy.py predict --inputs "$INPUTS"
@@ -161,7 +173,8 @@ Set all production inputs and endpoint variables through the approved input
 loading process. Do not put endpoint literals or secrets in commands or logs.
 `DEPLOYLIVE_RPC` is the broadcast endpoint; `DEPLOYLIVE_SOURCE_RPC` and
 `DEPLOYLIVE_SECOND_RPC` are two distinct real-chain endpoints for chain-price
-corroboration. Only `DEPLOYLIVE_SOURCE_RPC` is used by the single-endpoint gas gate;
+corroboration. In the inputs file each is given only as a `*_FILE` path; the loader
+reads the URL in-process and it never appears in output, STOP messages, config or evidence. Only `DEPLOYLIVE_SOURCE_RPC` is used by the single-endpoint gas gate;
 fork-price mode does not require `DEPLOYLIVE_SECOND_RPC`.
 `DEPLOYER_ACCOUNT` selects the already prepared keystore account.
 

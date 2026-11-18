@@ -90,6 +90,7 @@ class Ddf4Test(unittest.TestCase):
     def test_inputs_exact_keys_no_execution_and_commit(self):
         c=self.api(); template=c.TEMPLATE.read_text(); path=self.root/'approved.inputs'
         keys=c.input_keys(); values={k:'value' for k in keys}
+        values.update(self.endpoint_files(keys))
         self.assertNotIn('SP_COMMIT',keys)
         values['DEPLOYLIVE_EVIDENCE_DIR']=str(self.root/'evidence')
         values['DEFAULT_CACHE_PATH']=str(self.root/'build-cache')
@@ -106,6 +107,34 @@ class Ddf4Test(unittest.TestCase):
             write(altered)
             with self.assertRaises(RuntimeError): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
         self.assertIn('DEPLOYER_ACCOUNT',template)
+
+    def endpoint_files(self, keys):
+        out={}
+        for k in keys:
+            if k.endswith('_RPC_FILE'):
+                path=self.root/(k.lower()+'.url'); path.write_text('http://127.0.0.1:1/'+k.lower()+'\n'); out[k]=str(path)
+        return out
+
+    def test_endpoint_urls_only_via_files(self):
+        # DSR 2026-11-19: inputs never hold endpoint URLs; files are read in-process.
+        c=self.api(); path=self.root/'approved.inputs'; keys=c.input_keys()
+        self.assertTrue({'DEPLOYLIVE_RPC_FILE','DEPLOYLIVE_SOURCE_RPC_FILE','DEPLOYLIVE_SECOND_RPC_FILE'} <= keys)
+        self.assertFalse({'DEPLOYLIVE_RPC','DEPLOYLIVE_SOURCE_RPC','DEPLOYLIVE_SECOND_RPC'} & keys)
+        base={k:'value' for k in keys}; base.update(self.endpoint_files(keys))
+        base.update(DEPLOYLIVE_EVIDENCE_DIR=str(self.root/'evidence'),DEFAULT_CACHE_PATH=str(self.root/'build'))
+        write=lambda v: path.write_text('\n'.join(k+'='+json.dumps(x) for k,x in v.items()))
+        write(base); env=c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        self.assertEqual(env['DEPLOYLIVE_SOURCE_RPC'],'http://127.0.0.1:1/deploylive_source_rpc_file')
+        self.assertNotIn('DEPLOYLIVE_SOURCE_RPC_FILE',env)
+        for url in ('https://x.invalid/k','wss://x.invalid/k','HTTP://x.invalid/k'):
+            bad=dict(base,ENV=url); write(bad)
+            with self.assertRaisesRegex(RuntimeError,'must not contain endpoint URLs'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        for content in ('','not-a-url','http://a\nhttp://b'):
+            f=self.root/'bad.url'; f.write_text(content); write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(f)))
+            with self.assertRaisesRegex(RuntimeError,'must hold one URL'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(self.root/'missing.url')))
+        with self.assertRaises(RuntimeError) as e: c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        self.assertNotIn('127.0.0.1',str(e.exception))
 
     def test_handoff_paths_and_pinned_fork(self):
         text=(Path(__file__).parent/'DEPLOYLIVE_HANDOFF.md').read_text()
@@ -151,6 +180,7 @@ class Ddf4Test(unittest.TestCase):
     def test_inputs_empty_required_and_source_inventory(self):
         c=self.api(); path=self.root/'approved.inputs'
         values={k:'value' for k in c.input_keys()}
+        values.update(self.endpoint_files(c.input_keys()))
         values.update(ENV='',DEPLOYLIVE_EVIDENCE_DIR=str(self.root/'evidence'),DEFAULT_CACHE_PATH=str(self.root/'build'))
         path.write_text('\n'.join(k+'='+v for k,v in values.items()))
         with self.assertRaisesRegex(RuntimeError,'empty required input ENV'):

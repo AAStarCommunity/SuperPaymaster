@@ -18,6 +18,21 @@ def input_keys():
     return set(re.findall(r'^([A-Z][A-Z0-9_]*)=', TEMPLATE.read_text(), re.M))
 
 
+URL_KEYS = ('DEPLOYLIVE_RPC', 'DEPLOYLIVE_SOURCE_RPC', 'DEPLOYLIVE_SECOND_RPC', 'REHEARSAL_SOURCE_RPC')
+URL_SCHEME = re.compile(r'^\s*(https?|wss?)://', re.I)
+
+
+def read_endpoint_file(key, raw):
+    # Endpoint URLs carry credentials: they never appear in inputs, output, config or evidence.
+    path = Path(os.path.expanduser(raw))
+    try:
+        text = path.read_text().strip()
+    except OSError:
+        raise RuntimeError('unreadable endpoint file for ' + key) from None
+    require(text and '\n' not in text and URL_SCHEME.match(text) is not None, 'endpoint file for ' + key + ' must hold one URL')
+    return text
+
+
 def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
     path = Path(path).resolve()
     require(path.is_relative_to(ROOT), 'inputs must be inside worktree')
@@ -31,10 +46,11 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
         parts = shlex.split(raw, comments=True)
         require(len(parts) <= 1 and not any(c in raw for c in ('`', '$', '\n')), 'nonliteral input ' + key)
         values[key] = parts[0] if parts else ''
+        require(URL_SCHEME.match(values[key]) is None, 'inputs must not contain endpoint URLs; use ' + key + '_FILE')
     require(set(values) == input_keys(), 'input keys differ: missing=' + ','.join(sorted(input_keys()-set(values)))
             + ' extra=' + ','.join(sorted(set(values)-input_keys())))
     optional = {'AGENT_IDENTITY_REGISTRY', 'AGENT_REPUTATION_REGISTRY', 'AGENT_VALIDATION_REGISTRY',
-                'PRIVATE_KEY_ANNI', 'DEPLOY_TIME', 'REHEARSAL_BLS_SCALARS', 'REHEARSAL_SOURCE_RPC',
+                'PRIVATE_KEY_ANNI', 'DEPLOY_TIME', 'REHEARSAL_BLS_SCALARS', 'REHEARSAL_SOURCE_RPC_FILE',
                 'DEPLOYER_ACCOUNT', 'GUARDIANS'}
     for key in sorted(input_keys() - optional):
         require(bool(values[key]), 'empty required input ' + key)
@@ -43,7 +59,10 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
     require('SP_COMMIT' not in inherited or inherited['SP_COMMIT'] == commit, 'SP_COMMIT mismatch with clean HEAD')
     # Only execution context survives; deployment values always come from the approved file.
     env = {k: inherited[k] for k in ('PATH', 'HOME', 'TMPDIR', 'LANG') if k in inherited}
-    env.update({k:v for k,v in values.items() if v != ''})
+    env.update({k:v for k,v in values.items() if v != '' and not (k.endswith('_FILE') and k[:-5] in URL_KEYS)})
+    for key in URL_KEYS:
+        if values.get(key + '_FILE'):
+            env[key] = read_endpoint_file(key, values[key + '_FILE'])
     env['SP_COMMIT'] = commit
     evidence_dir(env)
     return env
