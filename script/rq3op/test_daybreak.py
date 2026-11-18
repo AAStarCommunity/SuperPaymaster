@@ -9,6 +9,10 @@ import plan_three_arm as q
 import test_three_arm as fixtures
 
 class Daybreak(unittest.TestCase):
+    def setUp(self):
+        auth=patch.object(q,'authenticate_checker',return_value={})
+        auth.start();self.addCleanup(auth.stop)
+
     def test_checker_is_executed_and_exact_count_required(self):
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
         for code,log in [(1,'SUMMARY 186 passed, 0 failed, 186 total'),(0,'SUMMARY 187 passed, 0 failed, 187 total'),(0,'SUMMARY 185 passed, 1 failed, 186 total'),(0,'PASS no summary'),(0,'SUMMARY 186 passed, 0 failed, 186 total\nSUMMARY 186 passed, 0 failed, 186 total')]:
@@ -168,7 +172,7 @@ class Generation(unittest.TestCase):
                 calls.append(command)
                 return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 186 passed, 0 failed, 186 total')
             def generate(block=None):
-                with patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
+                with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
                     return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])
             first=generate()
             forged=dict(f.cfg,superPaymaster=fixtures.address(999))

@@ -5,6 +5,7 @@ import re
 import runpy
 import subprocess
 import sys
+from pinned_tools import PinnedTools
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -29,8 +30,8 @@ def pin_command(command,block):
 def main():
     block,*arguments=sys.argv[1:]
     checker=ROOT/'script/rehearsal/deploylive_postdeploy_check.py'
-    run=subprocess.run
-    def pinned(command,*args,**kwargs):return run(pin_command(command,block),*args,**kwargs)
+    tools=PinnedTools()
+    def pinned(command,*args,**kwargs):return tools.run(pin_command(command,block),*args,**kwargs)
     subprocess.run=pinned
     sys.path.insert(0,str(checker.parent))
     sys.argv=[str(checker),*arguments]

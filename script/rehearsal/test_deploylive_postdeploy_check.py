@@ -48,7 +48,7 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         cfg = {k: addr(i + 1) for i, k in enumerate(keys)}
@@ -236,7 +236,7 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "balanceOf(address)(uint256)": out = "2056" if target == cfg['gToken'] and params[0] == safe else "110" if target == cfg['gToken'] and params[0] == cfg['staking'] else "0"
                 elif sig == "totalSupply()(uint256)": out = "2166"
                 elif sig == "getLockedStake(address,bytes32)(uint256)": out = "50" if params[1] == digest("PAYMASTER_SUPER") else "30" if params[1] == digest("DVT") else "0"
-                elif sig == "version()(string)": out = '"fixture"'
+                elif sig == "version()(string)": out = json.dumps(release_versions["SuperPaymaster"]) if release_versions and target==cfg["superPaymaster"] else '"fixture"'
                 else: self.fail(f"Unhandled {sig}")
                 if target == addr(777):
                     if authority_bad == "threshold" and sig == "getThreshold()(uint256)": out = "1"

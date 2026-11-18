@@ -108,3 +108,11 @@ test('send refuses setup and changed state without invoking transport',async()=>
  await assert.rejects(a.send(runtime(a),'SP',{functionName:'createAccount'}),/PLAN_SETUP_REQUIRED/);
  assert.equal(sent,0);
 });
+
+for (const token of ['X','Q','aPNTs']) test(`bind refuses T equal to ${token} in reapproved bundle`,()=>{
+ const original=adapter().plan;
+ const target=token==='aPNTs'?original.addresses.aPNTs:original.phaseC.addresses[token];
+ const changed=Buffer.from(String(bytes).replaceAll(original.phaseC.addresses.T,target));
+ const a=createFrozenPlan({readBundle:()=>changed,bundleSha256:createHash('sha256').update(changed).digest('hex'),account});
+ assert.throws(()=>a.bind(...binding(a),1n,34),{message:'PLAN_TASK_TOKEN_COLLISION'});
+});

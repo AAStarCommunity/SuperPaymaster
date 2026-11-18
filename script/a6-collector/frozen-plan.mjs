@@ -40,6 +40,7 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
     },
     bind(config,cfg,baselines,bMax,maxAttempts) {
       need(BigInt(bMax)===1n && maxAttempts<=pc.attempts,'PLAN_ALLOCATION');
+      need([pc.addresses.X,pc.addresses.Q,plan.addresses.aPNTs].every(token=>!same(pc.addresses.T,token)),'PLAN_TASK_TOKEN_COLLISION');
       const input=plan.externalInputs.data.phaseC;
       for(const [actual,expected] of [[config.sender,key],[config.operator,plan.deploymentContext.operator],
         [config.factory,plan.deploymentContext.accountFactory],[config.accounts.owner.address,input.accountOwner],

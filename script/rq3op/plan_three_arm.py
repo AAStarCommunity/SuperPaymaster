@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import re
+from pinned_tools import PinnedTools as pinned_tools
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'upgrade'))
 import manifest_exec as m
@@ -259,6 +260,8 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
             steps=local_steps,add=add,sp_deposit_before=ep_info[0],sp_stake=ep_info[2]+inputs['stakeWei'],
             worksheet=ws,baselines=baselines,policy='fresh',
             task_recipients=inputs['taskRecipients'] if i==0 else ())
+        a.need('C_task_token_distinct', all(pc['addresses']['T'].lower()!=token.lower() for token in
+               (pc['addresses']['X'],pc['addresses']['Q'],cfg['aPNTs'])), True)
         pc['addresses']['SP']=ctx['SP']
         comparators={key:pc['addresses'][label] for key,label in [('T','T'),('Q','Q'),('oracle','oracle'),('VerifyingPaymaster','VPM'),('TokenPaymaster','TPM')]}
         pc['fundingPolicy']=dict(operatorDeposit='shared',attemptAllocation=counts,owner='separate per S',
@@ -371,7 +374,7 @@ def address_table(cfg):
 
 
 def structured_checker(checker):
-    fields=('result','exitCode','passed','failed','total','summary','configSha256','commit','chainId','stdoutSha256','checkerSha256')
+    fields=('result','exitCode','passed','failed','total','summary','configSha256','commit','chainId','stdoutSha256','checkerSha256','tools','checkerFiles')
     result={k:checker[k] for k in fields if k in checker}
     if 'stdout' in checker:
         result['stdoutSha256']=hashlib.sha256(checker['stdout'].encode()).hexdigest()
@@ -391,20 +394,33 @@ def output_bytes(value, secrets=(), patterns=()):
     return raw
 
 
-def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=None):
+def authenticate_checker(cfg, tools):
+    hashes={}
+    for path in ('script/rehearsal/deploylive_postdeploy_check.py','script/rq3op/checker_runner.py'):
+        committed=tools.run(['git','show',cfg['commit']+':'+path],cwd=ROOT,capture_output=True)
+        actual=hashlib.sha256(inside(ROOT/path).read_bytes()).hexdigest()
+        a.need('rq3_checker_blob',committed.returncode==0 and
+               hashlib.sha256(committed.stdout).hexdigest()==actual,True)
+        hashes[path]=actual
+    return hashes
+
+
+def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=None,tools=None):
     import subprocess
     sys.path.insert(0,str(ROOT/'script/rehearsal'))
     from deploylive_runtime import clean_source_commit
-    a.need('rq3_source_commit',cfg['commit'],(commit_reader or clean_source_commit)())
+    tools=tools or pinned_tools()
+    a.need('rq3_source_commit',cfg['commit'],commit_reader() if commit_reader else clean_source_commit(git_runner=tools.run))
+    hashes=authenticate_checker(cfg,tools)
     checker=ROOT/'script/rehearsal/deploylive_postdeploy_check.py'
     executable=[str(ROOT/'script/rq3op/checker_runner.py'),block] if block else [str(checker)]
-    result=(runner or subprocess.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
-        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT)
+    result=(runner or tools.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
+        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=tools.env)
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
     expected=182+2*int(cfg['guardianN'])
     a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
         tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
-    return dict(result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
+    return dict(tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
         summary=f'SUMMARY {expected} passed, 0 failed, {expected} total',
         stdoutSha256=hashlib.sha256(result.stdout.encode()).hexdigest(),
         checkerSha256=hashlib.sha256(checker.read_bytes()).hexdigest(),
@@ -419,24 +435,25 @@ SYSTEM_SOURCES={
     'governanceOwner':None,'timelockController':None}
 
 
+RELEASE_NAMES=dict(superPaymaster='SuperPaymaster',registry='Registry',xPNTsFactoryV2='xPNTsFactoryV2',
+    staking='GTokenStaking',gToken='GTokenAuthorization',aPNTs='APNTsCapped')
+
+
 def verify_system(cfg,rpc,block):
-    for key,source in SYSTEM_SOURCES.items():
+    try:
+        versions=load(ROOT/'deployments/release-versions.rc8.json')
+    except (ValueError, OSError):
+        raise a.Gate('rq3_release_versions','invalid table','reviewed release table') from None
+    a.need('rq3_release_versions',set(versions),set(RELEASE_NAMES.values()))
+    for key in SYSTEM_SOURCES:
         address=cfg[key]
         code=rpc('eth_getCode',[address,block])
         a.need('rq3_system_code',isinstance(code,str) and bool(re.fullmatch(r'0x(?:[0-9a-fA-F]{2})+',code)),True)
-        if source:
-            text=inside(ROOT/'contracts/src'/source).read_text()
-            match=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)
-            if not match and 'SPReleaseVersion' in text:
-                release=inside(ROOT/'contracts/script/v3/SPReleaseVersion.sol').read_text()
-                match=re.search(r'constant\s+SP\s*=\s*"([^"]+)"',release)
-            if match:
-                raw=bytes.fromhex(a.call(rpc,address,'version()',block=block)[2:])
-                offset=int.from_bytes(raw[:32],'big');size=int.from_bytes(raw[offset:offset+32],'big')
-                actual=raw[offset+32:offset+32+size].decode()
-                a.need('rq3_system_version',actual,match[1])
-            else:
-                a.need('rq3_version_source','function version' not in text,True)
+        if key in RELEASE_NAMES:
+            raw=bytes.fromhex(a.call(rpc,address,'version()',block=block)[2:])
+            offset=int.from_bytes(raw[:32],'big');size=int.from_bytes(raw[offset:offset+32],'big')
+            actual=raw[offset+32:offset+32+size].decode()
+            a.need('rq3_system_version',actual,versions[RELEASE_NAMES[key]])
 
 
 def verify_calibration(cfg,cal,chain,rpc):
@@ -484,11 +501,17 @@ def funding_table(steps,safe_txs,rpc,block,pcs,mint,transfer,cfg):
 
 
 def generate(config_path,inputs_path,left,right,url,block=None,checker_runner=None,commit_reader=None):
+    tools=pinned_tools()
+    with tools.active():
+        return _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit_reader,tools)
+
+
+def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit_reader,tools):
     cfg=load(config_path);inputs=load(inputs_path)
     pair=Pair(left,right)
     if block:
         pair.head=pair('eth_getBlockByNumber',[block,False])
-    checker=run_checker(config_path,cfg,url,a.qty(pair('eth_chainId',[])),checker_runner,commit_reader,pair.head['number'])
+    checker=run_checker(config_path,cfg,url,a.qty(pair('eth_chainId',[])),checker_runner,commit_reader,pair.head['number'],tools)
     verify_system(cfg,pair,pair.head['number'])
     cal=load(inputs['calibration']);verify_calibration(cfg,cal,checker['chainId'],pair)
     def frozen(method,params):

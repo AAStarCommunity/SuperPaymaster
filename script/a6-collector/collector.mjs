@@ -50,7 +50,7 @@ import {
   keccak256, createPublicClient, http, encodeFunctionData, decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
+import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
 const formal = process.argv.includes('--formal') || rehearsal || process.argv.includes('--frozen-plan');
 // Do not even load the development key module in formal mode.
@@ -121,7 +121,11 @@ if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(ex
 const SPA = getAddress(cfg.superPaymaster);
 if (new Set([SPA, baselines.verifyingPaymaster.address, baselines.tokenPaymaster.address].map(a => getAddress(a).toLowerCase())).size !== 3) die('SP/VPM/TPM paymasters must be distinct');
 if (adapter) adapter.bind(formalInput,cfg,baselines,bMax,maxAttempts);
-const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
+if (adapter) {
+  const release=acquireBundlerLock(resolve(ROOT,'cache/3arm/collector-locks'),formalInput.chainId,formalInput.accounts.bundler.address);
+  process.once('exit',release);
+}
+const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
 let frozenArm;
 if (adapter) {
   const write = runtime.writeContract;

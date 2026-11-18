@@ -313,3 +313,17 @@ planned incoming funding and shortfall for experiment, genesis, every O and Safe
 Safe gas is a calibrated allowance for the emitted Safe transactions; the eventual
 executor must also hold signing gas. `funding.eth` and `funding.tokens` aggregate
 ETH obligations and token preparation amounts by token address.
+
+Round-2 execution trust: git and cast are resolved to absolute paths once at
+startup. Their paths, version output and SHA256 are recorded in `checker.tools`.
+All planner/checker subprocesses receive only a fixed tool-directory PATH plus
+/usr/bin:/bin and LC_ALL=C. Checker and runner bytes must match their git blobs
+at config.commit. Malicious replacement of executables on the operator machine
+is part of the trust root; these controls prevent accidental tool/config misuse.
+Expected on-chain versions come only from `deployments/release-versions.rc8.json`;
+CI compares that reviewed table with source literals.
+
+Frozen collector runs hold `cache/3arm/collector-locks/<chainId>/<bundler>.lock`
+until process exit. Active and stale locks are refused, never stolen. Both RPCs
+must agree on the initial pending nonce and on the expected next pending nonce
+immediately before each send. Legacy formal mode retains its fixed-block nonce.

@@ -3,7 +3,8 @@ import { request as httpsRequest } from 'node:https';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { rawArchive } from './evidence.mjs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { acquireLock } from '../rq3op/setup.mjs';
 // Formal-A6 slice 1. TODO(A6-SOP §2, §4, §5): identity registry, per-op
 // evidence index, exclusion validation and freeze/sampling manifest are later slices.
 import { readFileSync, openSync, writeSync, fsyncSync } from 'node:fs';
@@ -214,7 +215,7 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
     if (!response.ok || !data || data.id !== id || data.jsonrpc !== '2.0') throw new Error(`RPC ${endpoint} invalid response (redacted)`);
     if (data.error) { const e = new Error(`RPC ${endpoint} error ${Number(data.error.code)} (redacted)`); e.code = data.error.code; e.data = /^0x[0-9a-f]*$/i.test(data.error.data ?? '') ? data.error.data : undefined; throw e; }
     if (!('result' in data)) throw new Error(`RPC ${endpoint} missing result`);
-    if (method in STATE_TAG) {
+    if (method in STATE_TAG && tag !== 'pending') {
       // Re-read after the state response too: a reorg during the call invalidates the pin.
       const after = await request({ method: 'eth_getBlockByNumber', params: [tag, false] });
       if (!after?.hash || after.number !== tag || after.hash !== anchor.hash) throw new Error('fixed block unavailable or changed after state read');
@@ -243,7 +244,28 @@ export function castSigner(config, _role, run = execFileSync) {
     }, signTypedData: async () => { throw new Error('typed data signing is not used by A6'); } });
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+export function acquireBundlerLock(directory,chainId,address) {
+  return acquireLock(resolve(directory,BigInt(chainId).toString()),address);
+}
+
+export async function pendingSequence(clients,address) {
+  async function read(pair) {
+    const values=await Promise.all(pair.map(client=>client.getTransactionCount({address,blockTag:'pending'})));
+    if(values[0]!==values[1]) throw Error('PENDING_NONCE_DISAGREEMENT');
+    return values[0];
+  }
+  let expected=await read(clients);
+  return {async send(pair,submit) {
+    const nonce=await read(pair);
+    if(nonce!==expected) throw Error('PENDING_NONCE_CHANGED');
+    const result=await submit(nonce);
+    expected++;
+    return result;
+  }};
+}
+
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+  pendingNonce ||= frozenPlan;
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
   if (rehearsal) {
@@ -281,14 +303,16 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
     pin = number;
     return A;
   }
+  const sequence=frozenPlan ? await pendingSequence(publicClients,accounts.bundler.address) : null;
   return { pubA, pubB, accounts, archives, refreshPin,
     async writeContract(args) {
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
-      return wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
-        nonce: await pubA.getTransactionCount({ address: accounts.bundler.address }),
+      const submit=nonce=>wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
+        nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });
+      return sequence ? sequence.send(publicClients,submit) : submit(await pubA.getTransactionCount({address:accounts.bundler.address}));
     } };
 }
 
