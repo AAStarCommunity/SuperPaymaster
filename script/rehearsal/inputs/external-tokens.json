@@ -1,0 +1,93 @@
+{
+  "10": [
+    {
+      "label": "USDC (native)",
+      "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "decimals": 6
+    },
+    {
+      "label": "USDC.e (bridged)",
+      "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      "decimals": 6
+    },
+    {
+      "label": "USDT (bridged, Tether USD)",
+      "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+      "decimals": 6
+    },
+    {
+      "label": "USDT0 (USD\u20ae0)",
+      "address": "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+      "decimals": 6
+    },
+    {
+      "label": "DAI",
+      "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+      "decimals": 18
+    },
+    {
+      "label": "WETH",
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    {
+      "label": "OP",
+      "address": "0x4200000000000000000000000000000000000042",
+      "decimals": 18
+    }
+  ],
+  "11155111": [
+    {
+      "label": "USDC (Circle)",
+      "address": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      "decimals": 6
+    },
+    {
+      "label": "WETH",
+      "address": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+      "decimals": 18
+    },
+    {
+      "label": "WETH (second deployment)",
+      "address": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9",
+      "decimals": 18
+    }
+  ],
+  "31337": [
+    {
+      "label": "USDC (native)",
+      "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "decimals": 6
+    },
+    {
+      "label": "USDC.e (bridged)",
+      "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      "decimals": 6
+    },
+    {
+      "label": "USDT (bridged, Tether USD)",
+      "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+      "decimals": 6
+    },
+    {
+      "label": "USDT0 (USD\u20ae0)",
+      "address": "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+      "decimals": 6
+    },
+    {
+      "label": "DAI",
+      "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+      "decimals": 18
+    },
+    {
+      "label": "WETH",
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    {
+      "label": "OP",
+      "address": "0x4200000000000000000000000000000000000042",
+      "decimals": 18
+    }
+  ]
+}

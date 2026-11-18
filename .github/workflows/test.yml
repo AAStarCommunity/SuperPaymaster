@@ -55,7 +55,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           bash .github/scripts/detect-contract-changes.sh "test" \
-            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
+            '^(contracts/|singleton-paymaster/|deployments/|script/rehearsal/|docs/release/a3a-newpin-11995523/boot/plan\.json$|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
 
       - name: Install Foundry
         if: steps.changes.outputs.contract == 'true'
@@ -73,6 +73,12 @@ jobs:
       - name: Build
         if: steps.changes.outputs.contract == 'true'
         run: forge build --sizes --skip test
+
+      - name: Check reviewed production creation pins from a clean build
+        if: steps.changes.outputs.contract == 'true'
+        run: |
+          python3 script/rehearsal/creation_pins.py deployments/creation-pins.10.json --check
+          cmp deployments/creation-pins.10.json deployments/creation-pins.31337.json
 
       - name: Storage-layout drift guard (UUPS proxies — SuperPaymaster, Registry)
         # Fails if SuperPaymaster/Registry storage layout drifts from the committed
@@ -112,6 +118,12 @@ jobs:
         # verbosity < 3 disables vm.startDebugTraceRecording; OP-011 gates will fail closed.
         # Use -vvv, not -v: a CLI -v/-vv overrides foundry.toml `verbosity = 3`.
         run: forge test -vvv
+
+      - name: DeployLive Python rehearsals and local Anvil (a=0 and a=1)
+        if: steps.changes.outputs.contract == 'true'
+        env:
+          DEPLOYLIVE_LOCAL_TEST: '1'
+        run: python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
 
       - name: Check EIP-170 Contract Sizes
         if: steps.changes.outputs.contract == 'true'

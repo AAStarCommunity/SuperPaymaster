@@ -1013,6 +1013,110 @@ have not been re-run or extended to prove cap admission, zero-net admission abov
 or atomic rollback when positive net issuance exceeds the cap. Foundry unit/fuzz/invariant runs
 are executable regression evidence, not renewed symbolic proofs of these properties.
 
+## DeployLive round six: authority, implementation owners and failed sets (2026-11-18)
+
+The deployer is trusted during the ceremony; acceptance requires the final checker.
+BLSAggregator, DVTValidator, both xPNTs factories and AOAProtocolRegistry are owned
+by the declared Safe (code, no 7702 delegation, threshold >=2). Slash-policy,
+X402, reputation, channel and paymaster-factory/implementation owners are explicit
+required production choices; the DSR choices are respectively TL, Safe, TL, TL, TL.
+GOVERNOR_ADDRESS is forbidden on production. GToken owner is Safe; the entire
+remaining deployer balance goes to the declared recipient before TL CREATE, and
+the deployer retains neither GToken nor a staking allowance.
+
+A remaining GToken balance leaves the deployer a path back into a protocol role.
+It could re-approve staking and pay the 30 GToken ticket through the permissionless
+`registerRole` to register itself as COMMUNITY again. The handover therefore
+transfers the entire remainder to DEPLOYER_GTOKEN_RECIPIENT.
+
+**Implementation owners, read back in the local production-path fixture.** Registry
+and SuperPaymaster implementation owner() both return the deployer
+`0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38` in this fixture. These are independent
+implementation storage slots: proxy calls execute against proxy storage, whose
+owner is TL. The implementation initializers are disabled; direct implementation
+UUPS upgrades reject the non-proxy context, and the implementation owner cannot
+upgrade the proxy. The checker verifies binding and those rejection paths.
+SuperPaymasterAdmin's direct owner() is zero in the observed fixture; delegated
+administration reads the proxy's owner instead. PaymasterV4 implementation owner()
+is TL after handover. Its clones have their own initialized owner storage; owning
+the template does not confer ownership of existing clones. The v1 xPNTs template,
+v2 template and v2 extension have no owner() getter (reported explicitly as N/A);
+their communityOwner storage is separate from clone storage. None of these direct
+implementation owner slots grants authority over the proxies or clones. Authority
+over future PaymasterFactory implementation selection belongs to its configured
+factory owner and remains a separate trust boundary. Config records actual owner
+readbacks, including the implementation getter's absence.
+
+TL begins self-administered with P/E/C only for predicted H. H atomically accepts
+Registry/SP/APNTsCapped ownership, grants Safe P/E/C, revokes its own roles and
+raises the delay to 172800. H has a 16-byte reverting runtime. Its nonce is derived
+from the encoded 21-call handover list plus TL CREATE, not a magic +22 constant.
+Creation-bytecode pins are checked before broadcast, including exact selected
+artifact bytes and H's compiled creationCode.
+
+A failed H CREATE leaves scripted genesis/guardian registrations and public BLS
+keys in this set's Registry. Public keys are public and harmless. The code-less H
+alone retains TL's P/E/C, so nobody can propose or execute through TL. The normal
+checker must FAIL; the whole set is marked ABANDONED and never published. The
+failed-set inventory reads ETH and discovered token balances and lists historical
+and current registrations. Transfer-log discovery cannot identify a nonstandard
+token balance change that emits no Transfer event; unrestricted token-absence
+claims require an independently complete token inventory. A replacement set needs
+new predicted aggregator/DVT addresses and freshly generated guardian PoPs: old
+PoPs are void for its new popContext. DVT nodes keep scalars; SP receives only
+public keys and PoPs. No recovery or automatic merge/deployment is authorized.
+
+The N=3 local production-path fixture observed two mints (2000 and 199 GToken),
+140 locked in stakes, 74 received by the Safe treasury during registrations, and
+1985 transferred as the deployer remainder to the designated recipient. Staking
+and SP treasuries are set to Safe immediately after each contract exists; neither
+is reset in handover. The measured conservation is 2199 = 140 + 74 + 1985.
+A distinct recipient receives only the 1985 remainder.
+The final deployer balance and allowance are zero. This fixture mocks infrastructure
+and the BLS verification boundary; it is not evidence of a genuine-PoP fork run.
+See [the handoff](../../script/rehearsal/DEPLOYLIVE_HANDOFF.md) and validation report
+for the check formula, build/runtime evidence and outstanding operational limits.
+
+Round 6c adds direct external-token balances to the failed-set inventory. The
+explicit labeled list is grouped by eth_chainId (OP 10 and Sepolia 11155111); local
+fixtures supply a mock-token group. Unknown chains, code-less listed addresses,
+unreadable balances and any positive listed-token balance FAIL. Code is checked
+before balanceOf; no symbol() inference is used. Transfer-log discovery remains
+a fallback, but cannot see an unlisted non-standard token that emits no Transfer
+event. The explicit list improves coverage; it is not a proof about all tokens.
+
+## Round 7b — agent registries default OFF (DSR, 2026-11-18)
+
+OP launch uses a=0: identity and reputation inputs default to ZERO and
+DeployLive does not call setAgentRegistries. The three recorded OP registries are
+130 B EIP-1967 proxies owned by the unattributed EOA
+`0x547289319C3e6aedB179C0b8e8aF0B5ACd062603` (nonce 3).
+One implementation upgrade by that key could make isRegisteredAgent return true
+for anyone. SuperPaymaster calls it in validatePaymasterUserOp for eligibility
+(SuperPaymaster.sol:525/533), giving any account operator-funded sponsorship.
+setAgentRegistries is onlyOwner, so removing or changing SP's pointer takes the
+48 h timelock. The addresses remain recorded, non-binding information in
+external-deps.10.json; expected identity and reputation are ZERO.
+
+Production opt-in requires ENABLE_AGENT_REGISTRIES=1 and both
+AGENT_IDENTITY_REGISTRY and AGENT_REPUTATION_REGISTRY to be nonzero and equal the
+reviewed external-deps.<chainId>.json expectations. Nonzero addresses without
+the switch, a switch with either zero address, invalid switch values, and
+mismatched enabled addresses revert during preflight. OP's reviewed zero
+expectations therefore prevent opt-in without a reviewed dependency-file change.
+The switch and both values are logged; config records enableAgentRegistries and
+the actual agentIdentityRegistry / agentReputationRegistry pointers. The checker
+compares both on-chain getters against the expected file, including ZERO on OP.
+
+**Known testnet exposure:** Sepolia live SP
+`0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9` has
+agentIdentityRegistry = `0x8004A818BFB912233c491871b3d84c89A494BD9e` and
+agentReputationRegistry = `0x8004B663056A597Dffe9eCcC1965A193B7388713`.
+Both are 130 B proxies owned by the same EOA. The rc.8 Sepolia manifest does
+not call setAgentRegistries; the in-place upgrade keeps storage, so both pointers
+stay set after rc.8 on the testnet. These are owner-provided findings; this round
+performed no network verification.
+
 ## M-02 AUTO credit floor — Medium-1 follow-up
 
 Medium-1: setting thresholds to `[0,34,89,233,610]` and tier 2 to 200 ether

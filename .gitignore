@@ -165,3 +165,8 @@ script/gasless-tests/results/
 # Python bytecode (a3a executor / evidence scripts)
 __pycache__/
 *.pyc
+
+# DeployLive local rehearsal outputs
+out-*/
+deployments/config.round7-local.json
+deployments/config.round*-local*.json
