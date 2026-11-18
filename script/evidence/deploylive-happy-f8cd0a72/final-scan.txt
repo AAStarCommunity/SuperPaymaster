@@ -1,0 +1,5 @@
+needle classes: rpc=3 (url, host, 1 path/query fragments >=6 chars); scalar forms=12 (3 scalars x dec/hex64/0xhex/hex)
+/Users/jason/Dev/aastar/manifest-live/tmp-evidence/deploylive-happy-f8cd0a72: files=28 rpc_hits=0 bls_scalar_hits=0
+/Users/jason/Dev/aastar/sp-wt/rc8-dlr/broadcast: files=8 rpc_hits=0 bls_scalar_hits=0
+/Users/jason/Dev/aastar/sp-wt/rc8-dlr/cache: files=1119 rpc_hits=0 bls_scalar_hits=0
+TOTAL files=1155 rpc_hits=0 bls_scalar_hits=0 -> PASS

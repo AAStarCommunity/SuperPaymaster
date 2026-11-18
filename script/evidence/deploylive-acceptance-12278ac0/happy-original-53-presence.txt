@@ -1,0 +1,54 @@
+1	PRESENT-PASS	owner(superPaymaster) != deployer
+2	PRESENT-PASS	owner(registry) != deployer
+3	PRESENT-PASS	owner(staking) != deployer
+4	PRESENT-PASS	owner(gToken) != deployer
+5	PRESENT-PASS	owner(xPNTsFactoryV2) != deployer
+6	PRESENT-PASS	owner(aoaProtocolRegistry) != deployer
+7	PRESENT-PASS	owner(reputationSystem) != deployer
+8	PRESENT-PASS	owner(blsAggregator) != deployer
+9	PRESENT-PASS	owner(dvtValidator) != deployer
+10	PRESENT-PASS	roleConfigs[COMMUNITY].owner != deployer
+11	PRESENT-PASS	roleConfigs[ENDUSER].owner != deployer
+12	PRESENT-PASS	roleConfigs[PAYMASTER_AOA].owner != deployer
+13	PRESENT-PASS	roleConfigs[PAYMASTER_SUPER].owner != deployer
+14	PRESENT-PASS	roleConfigs[DVT].owner != deployer
+15	PRESENT-PASS	roleConfigs[ANODE].owner != deployer
+16	PRESENT-PASS	roleConfigs[KMS].owner != deployer
+17	PRESENT-PASS	isReputationSource(repSystem)
+18	PRESENT-PASS	isReputationSource(aggregator)
+19	PRESENT-PASS	isReputationSource(deployer) == false
+20	PRESENT-PASS	SP.treasury != deployer
+21	PRESENT-PASS	staking.treasury != deployer
+22	PRESENT-PASS	MySBT.daoMultisig != deployer
+23	PRESENT-PASS	aggregator.slashPolicyAdmin != deployer
+24	PRESENT-PASS	SP.guardian != deployer
+25	PRESENT-PASS	PolicyRegistry.guardian != deployer
+26	PRESENT-PASS	DVT.isValidator(deployer) == false
+27	PRESENT-PASS	TL.PROPOSER_ROLE(deployer) == false
+28	PRESENT-PASS	TL.EXECUTOR_ROLE(deployer) == false
+29	PRESENT-PASS	TL.CANCELLER_ROLE(deployer) == false
+30	PRESENT-PASS	TL.DEFAULT_ADMIN_ROLE(deployer) == false
+31	PRESENT-PASS	authorizedSlashers(aggregator) == false
+32	PRESENT-PASS	fraudProofVerifier == 0
+33	PRESENT-PASS	owner(superPaymaster) != aggregator
+34	PRESENT-PASS	owner(registry) != aggregator
+35	PRESENT-PASS	owner(staking) != aggregator
+36	PRESENT-PASS	owner(gToken) != aggregator
+37	PRESENT-PASS	owner(xPNTsFactoryV2) != aggregator
+38	PRESENT-PASS	owner(aoaProtocolRegistry) != aggregator
+39	PRESENT-PASS	owner(reputationSystem) != aggregator
+40	PRESENT-PASS	owner(blsAggregator) != aggregator
+41	PRESENT-PASS	owner(dvtValidator) != aggregator
+42	PRESENT-PASS	owner(xPNTsFactory) != aggregator
+43	PRESENT-PASS	owner(paymasterFactory) != aggregator
+44	PRESENT-PASS	owner(paymasterV4Impl) != aggregator
+45	PRESENT-PASS	owner(microPaymentChannel) != aggregator
+46	PRESENT-PASS	owner(x402Facilitator) != aggregator
+47	PRESENT-PASS	aggregator ETH balance == 0
+48	PRESENT-PASS	aggregator gToken balance == 0
+49	PRESENT-PASS	aggregator aPNTs balance == 0
+50	PRESENT-PASS	aggregator pnts balance == 0
+51	PRESENT-PASS	generic executeProposal(batchUpdateGlobalReputation) rejected with ForbiddenGenericSelector
+52	PRESENT-PASS	generic executeProposal(slash) rejected with ForbiddenGenericSelector
+53	PRESENT-PASS	generic executeProposal(slashByDVT) rejected with ForbiddenGenericSelector
+RESULT 53/53 original checks present exactly once with PASS

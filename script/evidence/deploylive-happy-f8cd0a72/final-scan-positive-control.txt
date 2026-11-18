@@ -1,0 +1,4 @@
+needle classes: rpc=3 (url, host, 1 path/query fragments >=6 chars); scalar forms=12 (3 scalars x dec/hex64/0xhex/hex)
+/Users/jason/Dev/aastar/manifest-live/tmp-evidence/keys/deploylive-happy-f8cd0a72: files=1 rpc_hits=0 bls_scalar_hits=9
+/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/ctrl2: files=1 rpc_hits=1 bls_scalar_hits=0
+TOTAL files=2 rpc_hits=1 bls_scalar_hits=9 -> FAIL

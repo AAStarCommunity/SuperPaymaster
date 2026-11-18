@@ -1,0 +1,39 @@
+{
+  "31337": [
+    {
+      "label": "USDC (native)",
+      "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "decimals": 6
+    },
+    {
+      "label": "USDC.e (bridged)",
+      "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      "decimals": 6
+    },
+    {
+      "label": "USDT (bridged, Tether USD)",
+      "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+      "decimals": 6
+    },
+    {
+      "label": "USDT0 (USD\u20ae0)",
+      "address": "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+      "decimals": 6
+    },
+    {
+      "label": "DAI",
+      "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+      "decimals": 18
+    },
+    {
+      "label": "WETH",
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18
+    },
+    {
+      "label": "OP",
+      "address": "0x4200000000000000000000000000000000000042",
+      "decimals": 18
+    }
+  ]
+}

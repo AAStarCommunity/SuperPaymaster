@@ -1,0 +1,7 @@
+anvil pid=49028 client=anvil/v1.7.1 chain=10
+forkBlockNumber 159693936 forkBlockHash 0xc27ff173e312120bff0552b05b951b3cd482417fef3fdca99b0bee06420fbb2b
+deployer code (as forked): 0xef01008a67b5020ee254ef48e3b6a04927f39baf7e408a
+deployer nonce: 26325
+Safe codehash: 0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c
+after anvil_setCode(deployer,0x): cast code = 0x
+pre-broadcast deployer code: 0x nonce: 26325 block: 159693936

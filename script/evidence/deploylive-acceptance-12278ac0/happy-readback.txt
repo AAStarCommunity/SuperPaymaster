@@ -1,0 +1,33 @@
+## transactions
+broadcast txs total=97 receipts=97 all_status_1=True
+tx before H CREATE (broadcast index of H) = 96; independently H nonce - start nonce = 96
+start nonce=26325 TL nonce=26399 H nonce=26421 TL->H distance=22; config handoverBootstrapNonce=26421 observedBootstrapNonce=26421
+deployer chain nonce now=26422
+all txs value 0: True
+## minDelay
+H block=159692455 tx=0xdede86333e3dee33d127350d8160c7211b85e96d5190be45acd8d0510046b27f
+minDelay at block 159692454 (before H) = 0
+minDelay at block 159692455 (H block, after) = 172800 [1.728e5]
+## TL roles (eth_getLogs rebuild + hasRole)
+TL logs total=33 role events=10
+DEFAULT_ADMIN_ROLE 0x0000000000000000000000000000000000000000000000000000000000000000: members(logs)=['0x2bdf813626aac0372d7e03ff0ce0c80289633dfd']; history=[('grant', '0x2bdf813626aac0372d7e03ff0ce0c80289633dfd', 159692433)]; hasRole(each seen)={'0x2bdf813626aac0372d7e03ff0ce0c80289633dfd': 'true'}; hasRole(named)={'deployer': 'false', 'H': 'false', 'safe': 'false', 'TL': 'true'}
+PROPOSER_ROLE 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1: members(logs)=['0x51edf11fdb0a4f66220efb8efa54eca77232e114']; history=[('grant', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1', 159692433), ('grant', '0x51edf11fdb0a4f66220efb8efa54eca77232e114', 159692455), ('revoke', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1', 159692455)]; hasRole(each seen)={'0x51edf11fdb0a4f66220efb8efa54eca77232e114': 'true', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1': 'false'}; hasRole(named)={'deployer': 'false', 'H': 'false', 'safe': 'true', 'TL': 'false'}
+EXECUTOR_ROLE 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63: members(logs)=['0x51edf11fdb0a4f66220efb8efa54eca77232e114']; history=[('grant', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1', 159692433), ('grant', '0x51edf11fdb0a4f66220efb8efa54eca77232e114', 159692455), ('revoke', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1', 159692455)]; hasRole(each seen)={'0x51edf11fdb0a4f66220efb8efa54eca77232e114': 'true', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1': 'false'}; hasRole(named)={'deployer': 'false', 'H': 'false', 'safe': 'true', 'TL': 'false'}
+CANCELLER_ROLE 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783: members(logs)=['0x51edf11fdb0a4f66220efb8efa54eca77232e114']; history=[('grant', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1', 159692433), ('grant', '0x51edf11fdb0a4f66220efb8efa54eca77232e114', 159692455), ('revoke', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1', 159692455)]; hasRole(each seen)={'0x51edf11fdb0a4f66220efb8efa54eca77232e114': 'true', '0xaa6d8b6df7a22d8342a3a056c6865545a47cfdd1': 'false'}; hasRole(named)={'deployer': 'false', 'H': 'false', 'safe': 'true', 'TL': 'false'}
+## owners
+registry 0x812d8DFD26F732bE41c0283cd1a14D8698f9F424 owner=0x2bdF813626aAc0372D7e03Ff0ce0C80289633DFD pendingOwner=0x0000000000000000000000000000000000000000
+superPaymaster 0x598731042CB7C1495106fe32F4ccF16412361068 owner=0x2bdF813626aAc0372D7e03Ff0ce0C80289633DFD pendingOwner=0x0000000000000000000000000000000000000000
+aPNTs 0x91670321fEffb204d5B7eb5BEAf80A7A83699454 owner=0x2bdF813626aAc0372D7e03Ff0ce0C80289633DFD pendingOwner=0x0000000000000000000000000000000000000000
+TL address=0x2bdF813626aAc0372D7e03Ff0ce0C80289633DFD; Safe=0x51eDf11fDb0A4F66220eFb8efA54Eca77232E114
+## H code
+H=0xaA6d8B6dF7A22D8342A3A056c6865545A47cfDd1 code=0x5f80fdfea164736f6c6343000821000a bytes=16
+## GToken accounting
+Safe receipts in order (from, amount): [('0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266', 30.0), ('0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266', 30.0), ('0x4151411f3def4852307e9e5795f197125d13954e', 5.0), ('0x4151411f3def4852307e9e5795f197125d13954e', 3.0), ('0x4151411f3def4852307e9e5795f197125d13954e', 3.0), ('0x4151411f3def4852307e9e5795f197125d13954e', 3.0), ('0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266', 1985.0)]
+Transfer events=13 mints=[2000.0, 199.0] sum=2199.0 burns=0.0
+staking: in=154.0 out=14.0 balance=140.0
+tickets to treasury=[30.0, 30.0, 5.0, 3.0, 3.0, 3.0] sum=74.0 (config ticketsToTreasury=74.0); remainder to recipient=[1985.0] (config 1985.0)
+locked stakes per config=[0.0, 0.0, 50.0, 30.0, 30.0, 30.0] sum=140.0
+totalSupply=2199.0 SafeBalance=2059.0 deployerBalance=0.0 deployerAllowance(staking)=0
+conservation: minted 2199.0 == staked 140.0 + tickets 74.0 + remainder 1985.0 = 2199.0 ; == totalSupply 2199.0 : True
+## agent registries
+agentIdentityRegistry()=0x0000000000000000000000000000000000000000 agentReputationRegistry()=0x0000000000000000000000000000000000000000
