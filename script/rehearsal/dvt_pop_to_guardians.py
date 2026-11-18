@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -24,6 +25,8 @@ def exact(obj, keys, gate):
     check(isinstance(obj, dict) and set(obj) == set(keys), gate)
 
 def command(args, gate, cwd=None):
+    if args[0] == 'cast' and shutil.which('cast') is None:
+        raise Stop('STOP cast_not_found: install foundry or add it to PATH')
     try:
         return subprocess.check_output(args, cwd=cwd, stderr=subprocess.PIPE).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
@@ -48,6 +51,8 @@ def source_version(data):
     return versions[0].decode()
 
 def convert(export, request, root):
+    if shutil.which('cast') is None:
+        raise Stop('STOP cast_not_found: install foundry or add it to PATH')
     exact(export, {'pop', 'aggregatorSourceVersion', 'popContext'}, 'export_keys')
     check(isinstance(request, dict) and request.get('schema') == 'deploylive-pop-request/1', 'request_schema')
     try:

@@ -18,7 +18,7 @@ def artifact_directory():
 
 def release_artifact(name):
     candidates = []
-    for path in (ROOT / artifact_directory() / (name + '.sol')).glob('*.json'):
+    for path in (ROOT / artifact_directory()).glob('**/' + name + '.sol/*.json'):
         obj = json.loads(path.read_text())
         metadata = obj.get('metadata', {})
         if isinstance(metadata, str): metadata = json.loads(metadata)

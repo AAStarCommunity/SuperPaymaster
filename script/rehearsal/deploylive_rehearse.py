@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from deploylive_runtime import clean_source_commit
+from deploylive_deploy_day import checker_pass, config_path
 from urllib.parse import urlsplit, unquote
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 
@@ -275,7 +276,11 @@ def main():
             command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), url, deployer]
             if mode == 'failure': command.append('--stop')
             result = subprocess.run(command, env=deploy_env, capture_output=True, text=True)
+            for line in getattr(result, 'stdout', '').splitlines():
+                if line.startswith('STOP '): print(line)
             require(result.returncode == 0, 'deployment failed')
+            if mode == 'happy':
+                require(path == config_path(deploy_env), 'production config must use deployments/live/config.<ENV>.json')
             cfg = json.loads(path.read_text())
             if mode == 'failure':
                 fail_bootstrap(rpc, cfg, deployer)
@@ -289,7 +294,10 @@ def main():
                 require(inventory_ok, 'failed set holds external value or inventory is incomplete')
             result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, safe], capture_output=True, text=True)
             (evidence/'checker.log').write_text(result.stdout)
-            require(result.returncode == (1 if mode == 'failure' else 0), 'unexpected checker result')
+            if mode == 'happy':
+                checker_pass(result)
+            else:
+                require(result.returncode == 1, 'unexpected checker result')
         elif mode == 'governance':
             governance(rpc, cfg, safe)
         elif mode == 'prepare':

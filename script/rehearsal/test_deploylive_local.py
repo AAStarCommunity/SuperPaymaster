@@ -85,8 +85,9 @@ class LocalForgeTest(unittest.TestCase):
                     rpc('anvil_setCode', address, '0x00')
                 rpc('evm_mine')
                 command = ['forge', 'script', '--offline', 'contracts/script/v3/DeployLive.s.sol:DeployLive', '--rpc-url', url, '--sender', sender, '--unlocked', '--broadcast', '--slow', '--evm-version', 'prague', '-vv']
+                config = ROOT / ('deployments/live/config.' + env['ENV'] + '.json')
+                config.parent.mkdir(parents=True, exist_ok=True)
                 run(command, 'local-deploy.log', env)
-                config = ROOT / ('deployments/config.' + env['ENV'] + '.json')
                 original = config.read_bytes()
                 run([sys.executable, 'script/rehearsal/deploylive_postdeploy_check.py', url, str(config), sender, env['GOVERNANCE_OWNER']], 'local-checker.log', env)
                 self.assertEqual(config.read_bytes(), original, 'checker must use exact forge config')

@@ -16,8 +16,8 @@ CAST = os.environ.get('CAST', 'cast')
 
 def creation_bytes(root, name, runs):
     candidates = set()
-    contract_dir = Path(root) / (name + '.sol')
-    paths = contract_dir.glob('*.json') if contract_dir.is_dir() else Path(root).rglob('*.json')
+    paths = list(Path(root).glob('**/' + name + '.sol/*.json'))
+    if not paths: paths = Path(root).rglob('*.json')
     for path in paths:
         obj = json.loads(path.read_text())
         metadata = obj.get('metadata', {})

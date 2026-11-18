@@ -1,3 +1,138 @@
+# Deploy-day corrections (2026-11-19; required before rc.8)
+
+The checker now has **183 + 2N** rows: **187 for N=2**, **189 for N=3**.
+The additional aggregate row checks all principal code reads for EIP-7702;
+its failure detail lists every affected address. Earlier counts below are historical.
+
+Production config is `deployments/live/config.<ENV>.json`. `deployments/live`
+is ignored, so writing the config does not dirty the source-commit gate.
+The driver creates the directory; for direct PoP simulations create it first.
+Local non-production chain-31337 behavior remains `deployments/config.<ENV>.json`.
+Pass the new production path explicitly to the checker and rehearsal driver:
+
+```sh
+python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
+```
+
+Success means **checker exit 0 AND its SUMMARY has failed == 0**. Forge can
+write a complete config before a later broadcast fails. Config existence, a
+successful simulation, and Forge's exit status alone are insufficient. Both
+drivers enforce the checker result; stopped-before-H mode is preparation for
+the expected-failure rehearsal, never a successful deployment.
+
+## Method (a): pinned nightly engine, identical builds and script
+
+The committed pin is `deployments/forge-deploy-pin.json`: nightly `4e8874b`,
+SHA256 `c1364206d29b027f75cde3c1de79e623e49f6b0076786b51f4623263568ff766`.
+Use an absolute `FORGE` path to that binary. The driver builds the whole tree
+with it twice: Cancun release artifacts, then Prague execution artifacts. It
+records `forge --version`, resolved binary path and SHA256 in build stamps next
+to both output directories, rechecks both stamps before each script invocation,
+and records build/script identity in `forge.build-and-script.json`. Production
+also enforces the committed pin. Never build with stable 1.7.1 then execute with
+nightly: that mixed build caused stale-cache recompilation and an unsuffixed
+TimelockController artifact with constructor decoding displaced by 49 bytes.
+
+Set all production inputs and endpoint variables through the approved input
+loading process. Do not put endpoint literals or secrets in commands or logs.
+`DEPLOYLIVE_RPC` is the broadcast endpoint; `DEPLOYLIVE_SOURCE_RPC` and
+`DEPLOYLIVE_SECOND_RPC` are two distinct real-chain endpoints for read-only gates.
+`DEPLOYER_ACCOUNT` selects the already prepared keystore account.
+
+```sh
+export DEFAULT_ARTIFACTS_OUT=out DEFAULT_CACHE_PATH=cache
+export FOUNDRY_OUT=cache/deploylive-rehearsal-out
+export FOUNDRY_CACHE_PATH=cache/deploylive-rehearsal-cache
+export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200
+export DEPLOYLIVE_GAS_TOLERANCE=0.05
+export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia; select the verified matching OP hardfork for OP
+mkdir -p deployments/live "$DEPLOYLIVE_EVIDENCE_DIR"
+python3 script/rehearsal/deploylive_fork_deploy.py --production "$DEPLOYER_ADDRESS"
+```
+
+The driver performs the two builds, a fresh dry run, all gates below, then this
+exact method-(a) broadcast command (shown for audit; run it through the driver
+so the gates and build stamps cannot be omitted):
+
+```sh
+"$FORGE" script --offline contracts/script/v3/DeployLive.s.sol:DeployLive \
+  --rpc-url "$DEPLOYLIVE_RPC" --sender "$DEPLOYER_ADDRESS" --slow \
+  --evm-version prague --hardfork "$DEPLOYLIVE_HARDFORK" \
+  --gas-estimate-multiplier 130 -vv --account "$DEPLOYER_ACCOUNT" --broadcast
+```
+
+Compilation target Prague and runtime hardfork Amsterdam are separate settings.
+The gas multiplier is forge's default 130 (`DEPLOYLIVE_GAS_MULTIPLIER`, passed to both
+forge and the gate). With 100 the broadcast limits would equal the raw estimates. Under
+EIP-8037 a limit <= 2^24 leaves no state-gas reservoir, so the TOTAL gas counts against the
+2^24 regular cap: the Paymaster CREATE totals 16,771,708, which is 5,508 below the cap. The gate
+recovers forge's estimate as ceil(limit x 100 / multiplier) before comparing it with the real-chain
+eth_simulateV1 gas. For every transaction it also requires limit <= the block gas limit, and, for a
+limit <= 2^24, a total gas <= 90% of 2^24. Measured on the Sepolia fork (2026-11-19): the largest
+regular-gas portion is 807,489 (SP implementation), against 60,155,369 total. Keep the full
+dry-run JSON and the real simulation result in evidence.
+
+## Fixed pre-broadcast and fork rehearsal gates
+
+- **Fix ALL inputs before generating the PoP request.** Write the request inside
+  the worktree, e.g. `cache/ddf/pop-request.json` (Forge `fs_permissions`), then
+  copy it to evidence. Fixing an input or changing the deployer nonce afterwards
+  requires a fresh request and fresh PoPs.
+- Verify the active hardfork at the pinned head. In the rehearsal, `eth_config`
+  was supported only by Alchemy; corroborate the second endpoint using the
+  block-header fields `blockAccessListHash` and `slotNumber`, at the same block.
+- Anvil fork URLs must come from a file or environment, never the command
+  line. Use the launcher's environment/config-file input; even
+  `anvil --fork-url "$RPC"` expands the URL into process arguments and is forbidden. Do not weaken gas limits to make a run pass.
+- The EIP-7825 positive control is a **fixed rehearsal step**: a 20M-gas loop
+  CREATE capped at **16,777,216** must fail. Archive the command, bytecode,
+  capped gas, receipt/error and hardfork/header evidence. A control that succeeds
+  invalidates the rehearsal's cap enforcement.
+- The driver derives the zero-based `price_init_index` from the fresh dry-run
+  `SuperPaymaster.updatePrice()` transaction; it never assumes 45. It reads the
+  feed `latestRoundData().updatedAt`, head and 100-block-old header from two
+  endpoints at the same fixed blocks. Require
+  `(price_init_index × measured_block_time) × 3 + (head.timestamp − updatedAt) ≤ 4200`.
+  Every term and remaining margin go to `prebroadcast.log`. A negative margin
+  stops with **wait for the next feed update**. Equality passes.
+  Sepolia rehearsal: heartbeat ~1 h, limit 4,200 s, #46 of 97 (index 45),
+  ~12 s/block → 540 s (~9 min), ×3 = 1,620 s; maximum acceptable feed age 2,580 s.
+  OP example: ~2 s/block and index 45 → 90 s, ×3 = 270 s; maximum age 3,930 s.
+  The repository's parameter guide lists an OP ETH/USD heartbeat of 1,200 s.
+  These are planning examples: the gate measures block time and actual feed age
+  and derives the index again for each chain and planned sequence.
+- Before broadcasting, submit **the full sequence**, in order, to real-chain
+  `eth_simulateV1`, one transaction per simulated block. Compare the seven large
+  CREATEs (Registry, xPNTsFactory, MySBT, SuperPaymaster, xPNTsTokenV2Ext,
+  xPNTsTokenV2, BLSAggregator) and TimelockHandoverBootstrap H against Forge.
+  H must see all predecessor state; never use isolated `eth_estimateGas` for H.
+  Unsupported simulation, incomplete/reverting results, real gas above Forge,
+  or Forge more than 5% above real gas **STOP** the run. The tolerance is an
+  explicit input, recorded per comparison; operators may tighten it below 5%.
+  A mismatch is evidence to investigate, not permission to widen the limit.
+- The checker rejects EIP-7702 delegation code (`0xef0100`) for every configured
+  or live-read principal: guardians, GUARDIAN_ADDRESS, SP_GUARDIAN, genesis,
+  GToken recipient, Safe signers, authority inputs and accounting beneficiaries.
+  Ordinary contract code, including a Safe, passes this delegation check.
+  The existing deployer-empty-code and Safe-specific checks remain in force.
+
+For the final Sepolia-fork run, use the same build/output variables above,
+set `REHEARSAL_SOURCE_RPC` to the source endpoint and supply the rehearsal's
+`REHEARSAL_BLS_SCALARS` for the evidence scrubber. Run:
+
+```sh
+python3 script/rehearsal/deploylive_rehearse.py happy "$FORK_RPC" \
+  "deployments/live/config.$ENV.json" "$DEPLOYER_ADDRESS" "$GOVERNANCE_OWNER"
+```
+
+Main session: on a fresh Sepolia fork, rerun the positive control and full PoP
+flow using the final committed head and pinned binary; archive request/export
+hashes, both build stamps, dry-run sequence, dual-endpoint price reads,
+`eth_simulateV1` requests/results, per-transaction gas/receipt table, Forge logs,
+and final checker output. Exercise a failing checker with the config still
+present and confirm the driver exits nonzero. Keep real endpoints in environment
+or files. The sandbox change author runs no Anvil, RPC or keystore commands.
+
 # Round 9 acceptance corrections
 
 The checker has **182 + 2N** rows: **186 for N=2**, **188 for N=3**.
@@ -556,9 +691,9 @@ before RPC access and derive `SP_COMMIT` from HEAD themselves.
 
 ## DeployLive PoP request and DVT export conversion
 
-1. Freeze the final SP head and deployment inputs. At the selected pin block,
+1. Fix ALL inputs before generating the PoP request; freeze the final SP head and deployment inputs. At the selected pin block,
    simulate DeployLive with `SP_COMMIT="$(git rev-parse HEAD)"` and
-   `DEPLOYLIVE_POP_REQUEST_OUT=<request.json>`. Keep the same deployer and nonce
+   `DEPLOYLIVE_POP_REQUEST_OUT=cache/ddf/pop-request.json`. Keep the same deployer and nonce
    for the subsequent deployment. `GUARDIANS` may be absent in this mode; all
    other production preflight inputs remain required. The script actually
    deploys through DVTValidator and BLSAggregator in simulation, writes their

@@ -250,6 +250,10 @@ class CheckerTest(unittest.TestCase):
                         out = replacement
                         if sig == "getRoleConfig(bytes32)": out = "0x" + "0" * (64 * 11) + replacement[2:].zfill(64) + "0" * 64
             else: self.fail(f"Non-read-only command: {kind}")
+            if kind == "code" and isinstance(mutation, tuple) and mutation[0] == "delegation":
+                target = cfg[mutation[1]] if mutation[1] in cfg else addr(301)
+                if isinstance(target, list): target = target[0]
+                if args[0].lower() == target.lower(): out = "0xef0100" + "12"*20
             return SimpleNamespace(returncode=rc, stdout=out if rc == 0 else "", stderr=out if rc else "")
         original_open = builtins.open
         def fixture_open(path, *args, **kwargs):
@@ -584,3 +588,19 @@ class CheckerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class DeployDayPrincipalTest(unittest.TestCase):
+    run_checker = CheckerTest.run_checker
+    def test_delegation_principal_kinds(self):
+        for key in ('guardians', 'expectedGuardian', 'expectedSPGuardian', 'genesisOperator',
+                    'deployerGTokenRecipient', 'SLASH_POLICY_ADMIN', 'X402_OWNER', 'REPUTATION_OWNER',
+                    'MPC_OWNER', 'PAYMASTER_FACTORY_OWNER', 'safeOwner', 'stakeAccounts', 'ticketTreasuries', 'gTokenMintRecipients'):
+            with self.subTest(principal=key):
+                rc, out = self.run_checker(('delegation', key))
+                self.assertEqual(rc, 1, out)
+                self.assertRegex(out, r'FAIL  .*7702')
+
+    def test_safe_code_control(self):
+        rc, out = self.run_checker(real_proxy=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn('PASS  principals exclude EIP-7702', out)

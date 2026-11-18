@@ -10,6 +10,7 @@ import creation_pins as pins
 import deploylive_fork_deploy as fork
 import deploylive_rehearse as rehearsal
 import deploylive_runtime as runtime
+import deploylive_deploy_day as day
 
 ROOT = rehearsal.ROOT
 OUTPUT = ROOT/'cache/deploylive-tests/round9'
@@ -39,8 +40,18 @@ class Round9Test(unittest.TestCase):
 
     def run_fork(self, chain, extra=()):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
-        env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT)}
-        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')) as run:
+        env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
+               'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
+               'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'safe'}
+        stamp = OUTPUT/'out.build-stamp.json'
+        stamp.write_text('{"forge":{}}')
+        def invoke(command, **kwargs):
+            if 'script' in command:
+                plan = OUTPUT/f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
+                plan.parent.mkdir(parents=True, exist_ok=True)
+                plan.write_text('{"transactions":[]}')
+            return SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')
+        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(chain)), patch.object(fork, 'broadcast_gates'), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
             fork.main()
         return rpc, run
 

@@ -1,52 +1,126 @@
 #!/usr/bin/env python3
-"""Guarded fresh deployment; supply production inputs in the process environment."""
+"""Guarded deployment. Fork: RPC DEPLOYER [--stop]; live: --production DEPLOYER."""
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+from urllib.request import Request, build_opener, ProxyHandler
 from deploylive_runtime import clean_source_commit
-from deploylive_rehearse import RPC, ROOT, require, guard_bls_verbosity
+from deploylive_rehearse import RPC, ROOT, require, guard_bls_verbosity, NoRedirect
+from deploylive_deploy_day import build, verify_build, config_path, checker_pass, broadcast_gates
+
+
+class ReadOnlyRPC:
+    def __init__(self, url):
+        self.url = url
+        self.opener = build_opener(ProxyHandler({}), NoRedirect())
+
+    def __call__(self, method, *params):
+        require(method in ('eth_chainId', 'eth_getBlockByNumber', 'eth_call', 'eth_simulateV1'), 'read-only RPC method required')
+        try:
+            payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
+            with self.opener.open(Request(self.url, payload, {'Content-Type':'application/json'}), timeout=120) as response:
+                result = json.load(response)
+            require('error' not in result, 'RPC failed')
+            return result['result']
+        except Exception:
+            raise RuntimeError('STOP read-only ' + method + ' failed (endpoint details redacted)') from None
 
 
 def main():
-    require(len(sys.argv) in (3, 4), 'usage: RPC DEPLOYER [--stop]')
-    url, deployer = sys.argv[1:3]
-    stop = sys.argv[3:] == ['--stop']
-    require(len(sys.argv) == 3 or stop, 'unknown argument')
+    production = sys.argv[1:2] == ['--production']
+    if production:
+        require(len(sys.argv) == 3, 'usage: --production DEPLOYER; RPCs from environment')
+        url, deployer, stop = os.environ['DEPLOYLIVE_RPC'], sys.argv[2], False
+    else:
+        require(len(sys.argv) in (3, 4), 'usage: RPC DEPLOYER [--stop]')
+        url, deployer = sys.argv[1:3]
+        stop = sys.argv[3:] == ['--stop']
+        require(len(sys.argv) == 3 or stop, 'unknown argument')
     guard_bls_verbosity([], os.environ)
     commit = clean_source_commit()
-    rpc = RPC(url)
+    rpc = ReadOnlyRPC(url) if production else RPC(url)
     chain = int(rpc('eth_chainId'), 16)
-    require(chain == 31337 if stop else chain in (10, 31337), 'failure requires chain 31337; happy requires chain 10 or 31337')
+    require(chain == 31337 if stop else chain in (10, 31337, 11155111), 'unsupported deployment chain')
+    require(not production or chain in (10, 11155111), 'production chain required')
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir(), 'evidence directory required')
-    env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
+    env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='0' if production else '1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
     env.setdefault('FOUNDRY_OUT', 'cache/deploylive-rehearsal-out')
     env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
-    require((ROOT / env['FOUNDRY_OUT']).resolve() != (ROOT / env.get('DEFAULT_ARTIFACTS_OUT', 'out')).resolve(), 'execution output must differ from release artifacts')
-    name = env.get('ENV', '')
-    require(name and all(c.isalnum() or c in '-_' for c in name), 'set a rehearsal ENV name')
-    # OP's default mnemonic accounts may carry EIP-7702 delegation.
-    rpc('anvil_setCode', deployer, '0x')
-    rpc('anvil_impersonateAccount', deployer)
-    try:
+    path = config_path(env)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    build(env, production)
+    binary = verify_build(env, production)
+    # Both endpoints are real-chain read-only sources, including during fork rehearsals.
+    source = env['DEPLOYLIVE_SOURCE_RPC']
+    second = env['DEPLOYLIVE_SECOND_RPC']
+    require(source != second, 'two distinct real-chain endpoints required')
+    real, corroborating = ReadOnlyRPC(source), ReadOnlyRPC(second)
+    require(real('eth_chainId') == corroborating('eth_chainId'), 'source chain mismatch')
+    require(not production or int(real('eth_chainId'), 16) == chain, 'broadcast/source chain mismatch')
+    hardfork = env['DEPLOYLIVE_HARDFORK']
+    require(not production or chain != 11155111 or hardfork == 'amsterdam', 'Sepolia requires hardfork amsterdam')
+    command = [binary, 'script', '--offline', 'contracts/script/v3/DeployLive.s.sol:DeployLive',
+               '--rpc-url', url, '--sender', deployer, '--slow', '--evm-version', 'prague',
+               '--hardfork', hardfork, '--gas-estimate-multiplier', env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130'), '-vv']
+    if production:
+        command += ['--account', env['DEPLOYER_ACCOUNT']]
+    else:
+        command += ['--unlocked']
+        rpc('anvil_setCode', deployer, '0x')
+        rpc('anvil_impersonateAccount', deployer)
         rpc('anvil_setBalance', deployer, hex(10**22))
-        result = subprocess.run([
-            os.environ.get('FORGE', 'forge'), 'script', '--offline',
-            'contracts/script/v3/DeployLive.s.sol:DeployLive', '--rpc-url', url,
-            '--sender', deployer, '--unlocked', '--broadcast', '--slow', '--evm-version', 'prague', '-vv'],
-            cwd=ROOT, env=env, capture_output=True, text=True)
+    try:
+        plan_path = ROOT / f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
+        plan_path.unlink(missing_ok=True)
+        dry_env = dict(env, DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
+        dry = subprocess.run(command, cwd=ROOT, env=dry_env, capture_output=True, text=True)
+        (evidence/'forge.dry.stdout.log').write_text(dry.stdout)
+        (evidence/'forge.dry.stderr.log').write_text(dry.stderr)
+        require(dry.returncode == 0 and plan_path.is_file(), 'dry run failed or no fresh planned sequence')
+        plan = json.loads(plan_path.read_text())
+        lines, reads = [], []
+        def recorded(label, transport):
+            def read(method, *params):
+                result = transport(method, *params)
+                reads.append(dict(endpoint=label, method=method, params=params, result=result))
+                return result
+            return read
+        try:
+            broadcast_gates(env, plan, recorded('primary', real), recorded('secondary', corroborating),
+                            lambda line: (lines.append(line), print(line)))
+        finally:
+            (evidence/'prebroadcast.log').write_text('\n'.join(lines) + '\n')
+            (evidence/'prebroadcast.reads.json').write_text(json.dumps(reads, indent=2) + '\n')
+        binary = verify_build(env, production)
+        from deploylive_deploy_day import stamp_path
+        record = json.loads(stamp_path(env).read_text())
+        record['scriptForge'] = record['forge']
+        release_out = ROOT / env.get('DEFAULT_ARTIFACTS_OUT', 'out')
+        record['releaseBuild'] = json.loads(release_out.with_name(release_out.name + '.build-stamp.json').read_text())
+        (evidence/'forge.build-and-script.json').write_text(json.dumps(record, indent=2) + '\n')
+        result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=env, capture_output=True, text=True)
         (evidence/'forge.stdout.log').write_text(result.stdout)
         (evidence/'forge.stderr.log').write_text(result.stderr)
-        require(result.returncode == 0, 'deployment failed')
+        require(result.returncode == 0, 'deployment failed; config existence is not success')
     finally:
-        rpc('anvil_stopImpersonatingAccount', deployer)
-    print('PASS deployment stopped before H' if stop else 'PASS full deployment')
+        if not production:
+            rpc('anvil_stopImpersonatingAccount', deployer)
+    if stop:
+        print('PREPARED stopped before H; deployment is not successful')
+        return
+    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=env, capture_output=True, text=True)
+    (evidence/'checker.log').write_text(result.stdout)
+    checker_pass(result)
+    print('PASS full deployment; post-deploy checker PASS')
 
 
 if __name__ == '__main__':
     try:
         main()
-    except Exception:
-        print('FAIL deployment (details redacted)')
+    except Exception as error:
+        # Only our STOP diagnostics are safe to print; transport and subprocess errors may contain URLs.
+        print(str(error) if isinstance(error, RuntimeError) and str(error).startswith('STOP ') else 'FAIL deployment (details redacted)')
         sys.exit(1)
