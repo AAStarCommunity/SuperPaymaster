@@ -55,7 +55,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           bash .github/scripts/detect-contract-changes.sh "test" \
-            '^(contracts/|singleton-paymaster/|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
+            '^(contracts/|singleton-paymaster/|deployments/creation-pins\.[0-9]+\.json$|script/rehearsal/creation_pins\.py$|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
 
       - name: Install Foundry
         if: steps.changes.outputs.contract == 'true'
@@ -73,6 +73,12 @@ jobs:
       - name: Build
         if: steps.changes.outputs.contract == 'true'
         run: forge build --sizes --skip test
+
+      - name: Check reviewed production creation pins from a clean build
+        if: steps.changes.outputs.contract == 'true'
+        run: |
+          python3 script/rehearsal/creation_pins.py deployments/creation-pins.10.json --check
+          cmp deployments/creation-pins.10.json deployments/creation-pins.31337.json
 
       - name: Storage-layout drift guard (UUPS proxies — SuperPaymaster, Registry)
         # Fails if SuperPaymaster/Registry storage layout drifts from the committed
