@@ -876,12 +876,12 @@
           "internalType": "bytes1"
         },
         {
-          "name": "name",
+          "name": "domainName",
           "type": "string",
           "internalType": "string"
         },
         {
-          "name": "version",
+          "name": "domainVersion",
           "type": "string",
           "internalType": "string"
         },

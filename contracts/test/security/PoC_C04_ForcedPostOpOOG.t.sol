@@ -20,6 +20,7 @@ import {xPNTsTokenV2} from "src/tokens/v2/xPNTsTokenV2.sol";
 contract C04OOGRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
+    uint256[1] public levelThresholds = [uint256(13)];
     function creditTierConfig(uint256) external pure returns (uint256) { return 0; }
 
     function setRole(bytes32 role, address account, bool value) external {

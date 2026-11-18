@@ -141,7 +141,7 @@ contract xPNTsFactoryV2 is Ownable, IVersioned {
     uint256 public constant APNTS_PRICE_DELTA_BPS = 3000; // ±30% per update
 
     function version() external pure override returns (string memory) {
-        return "xPNTsFactory-3.0.2-v2";
+        return "xPNTsFactory-3.0.3-v2";
     }
 
     // ====================================
