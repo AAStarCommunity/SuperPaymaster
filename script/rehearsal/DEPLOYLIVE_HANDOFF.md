@@ -14,7 +14,14 @@ Prepare the ignored input file once, fill every required value from the approved
 manifest, and leave optional keys present but empty. Endpoint URLs never go into this
 file: `DEPLOYLIVE_RPC_FILE`, `DEPLOYLIVE_SOURCE_RPC_FILE` and `DEPLOYLIVE_SECOND_RPC_FILE`
 name regular, non-symlink files owned by the operator, mode 0600 or narrower, with exactly one physical URL line, which the loader reads in-process. Any input value that
-starts with `http://`, `https://`, `ws://` or `wss://` is refused. This is the explicit load step
+starts with `http://`, `https://`, `ws://` or `wss://` is refused.
+Each endpoint file passes a start-up self-check: the scanner must find a credential-like
+segment in the URL (>=16 characters, or >=8 with both letters and digits). An endpoint that truly
+carries no credential, such as a keyless public gateway, is allowed only when the operator sets
+`<KEY>_NO_CREDENTIAL=1` for it (`DEPLOYLIVE_SOURCE_RPC_NO_CREDENTIAL`, ...). The declaration is part of
+the input manifest (changing it after predict is an input change), it is recorded in
+`checker.PASS.json` as `noCredentialEndpoints`, and a declaration contradicted by a credential-like
+segment stops. Its host and full URL are still matched verbatim by every scan. This is the explicit load step
 (run from the worktree root in bash/zsh; the file contains literal assignments only):
 
 ```sh

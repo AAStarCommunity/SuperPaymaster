@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shlex
 import time
+from urllib.parse import urlsplit
 import stat
 from deploylive_deploy_day import ROOT, require, integer, redact_error
 from deploylive_runtime import clean_source_commit
@@ -22,7 +23,7 @@ URL_KEYS = ('DEPLOYLIVE_RPC', 'DEPLOYLIVE_SOURCE_RPC', 'DEPLOYLIVE_SECOND_RPC', 
 URL_SCHEME = re.compile(r'^\s*(https?|wss?)://', re.I)
 
 
-def read_endpoint_file(key, raw):
+def read_endpoint_file(key, raw, no_credential=False):
     # Endpoint URLs carry credentials: they never appear in inputs, output, config or evidence.
     path = Path(os.path.expanduser(raw))
     try:
@@ -34,12 +35,20 @@ def read_endpoint_file(key, raw):
     except OSError:
         raise RuntimeError('unreadable endpoint file for ' + key) from None
     require(text and '\n' not in text and URL_SCHEME.match(text) is not None, 'endpoint file for ' + key + ' must hold one URL')
-    # Start-up self-check: the scanner must be able to recognise this URL's credential.
+    # Start-up self-check: the scanner must be able to recognise this URL's credential. An endpoint
+    # the operator explicitly declares credential-free (<KEY>_NO_CREDENTIAL=1) is allowed without
+    # one; its host and full URL are still matched verbatim. A declaration contradicted by a
+    # credential-like segment stops.
     from deploylive_rehearse import credential_fragments
+    if no_credential:
+        extra = credential_fragments(text) - {text, urlsplit(text).hostname or ''}
+        require(not extra, 'endpoint ' + key + ' is declared credential-free but has a credential-like segment')
+        return text
     try:
         credential_fragments(text, strict=True)
     except RuntimeError:
-        raise RuntimeError('endpoint file for ' + key + ' has no credential-like segment; scanner cannot guard it') from None
+        raise RuntimeError('endpoint file for ' + key + ' has no credential-like segment; scanner cannot guard it; '
+                           'if it truly has none, declare ' + key + '_NO_CREDENTIAL=1') from None
     return text
 
 
@@ -62,7 +71,7 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
             + ' extra=' + ','.join(sorted(set(values)-input_keys())))
     optional = {'AGENT_IDENTITY_REGISTRY', 'AGENT_REPUTATION_REGISTRY', 'AGENT_VALIDATION_REGISTRY',
                 'PRIVATE_KEY_ANNI', 'DEPLOY_TIME', 'REHEARSAL_BLS_SCALARS', 'REHEARSAL_SOURCE_RPC_FILE',
-                'DEPLOYER_ACCOUNT', 'GUARDIANS'}
+                'DEPLOYER_ACCOUNT', 'GUARDIANS'} | {k + '_NO_CREDENTIAL' for k in URL_KEYS}
     for key in sorted(input_keys() - optional):
         require(bool(values[key]), 'empty required input ' + key)
     inherited = os.environ if inherited is None else inherited
@@ -72,8 +81,12 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
     env = {k: inherited[k] for k in ('PATH', 'HOME', 'TMPDIR', 'LANG') if k in inherited}
     env.update({k:v for k,v in values.items() if v != '' and not (k.endswith('_FILE') and k[:-5] in URL_KEYS)})
     for key in URL_KEYS:
+        flag = values.get(key + '_NO_CREDENTIAL', '')
+        require(flag in ('', '1'), key + '_NO_CREDENTIAL must be empty or 1')
         if values.get(key + '_FILE'):
-            env[key] = read_endpoint_file(key, values[key + '_FILE'])
+            env[key] = read_endpoint_file(key, values[key + '_FILE'], no_credential=flag == '1')
+        else:
+            require(flag == '', key + '_NO_CREDENTIAL set without ' + key + '_FILE')
     env['SP_COMMIT'] = commit
     evidence_dir(env)
     return env
@@ -352,6 +365,7 @@ def write_success(evidence, env, config, broadcast, gated_plan):
             'gated plan changed before checker PASS')
     write_json(evidence, 'checker.PASS.json', dict(status='PASS', manifest=manifest_digest(evidence),
         gatedPlanSha256=digest,
+        noCredentialEndpoints=sorted(k for k in URL_KEYS if env.get(k + '_NO_CREDENTIAL') == '1'),
         env=env['ENV'], config=str(config), broadcast=str(broadcast),
         configSha256=hashlib.sha256(config.read_bytes()).hexdigest(),
         broadcastSha256=hashlib.sha256(broadcast.read_bytes()).hexdigest()))

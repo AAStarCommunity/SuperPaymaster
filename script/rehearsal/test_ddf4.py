@@ -91,6 +91,7 @@ class Ddf4Test(unittest.TestCase):
     def test_inputs_exact_keys_no_execution_and_commit(self):
         c=self.api(); template=c.TEMPLATE.read_text(); path=self.root/'approved.inputs'
         keys=c.input_keys(); values={k:'value' for k in keys}
+        values.update({k:'' for k in keys if k.endswith('_NO_CREDENTIAL')})  # only '' or '1' accepted
         values.update(self.endpoint_files(keys))
         self.assertNotIn('SP_COMMIT',keys)
         values['DEPLOYLIVE_EVIDENCE_DIR']=str(self.root/'evidence')
@@ -122,6 +123,7 @@ class Ddf4Test(unittest.TestCase):
         self.assertTrue({'DEPLOYLIVE_RPC_FILE','DEPLOYLIVE_SOURCE_RPC_FILE','DEPLOYLIVE_SECOND_RPC_FILE'} <= keys)
         self.assertFalse({'DEPLOYLIVE_RPC','DEPLOYLIVE_SOURCE_RPC','DEPLOYLIVE_SECOND_RPC'} & keys)
         base={k:'value' for k in keys}; base.update(self.endpoint_files(keys))
+        base.update({k:'' for k in keys if k.endswith('_NO_CREDENTIAL')})
         base.update(DEPLOYLIVE_EVIDENCE_DIR=str(self.root/'evidence'),DEFAULT_CACHE_PATH=str(self.root/'build'))
         write=lambda v: path.write_text('\n'.join(k+'='+json.dumps(x) for k,x in v.items()))
         write(base); env=c.load_inputs(path,{},commit_reader=lambda:'a'*40)

@@ -106,7 +106,9 @@ class Ddf5Test(unittest.TestCase):
         config=self.root/'external-config.json'; config.write_text('{}')
         broadcast=self.root/'external-broadcast.json'; broadcast.write_text('{}')
         (self.root/'gated-plan.json').write_text(FIX.read_text())
-        c.write_success(self.root,self.env,config,broadcast,json.loads(FIX.read_text()))
+        c.write_success(self.root,dict(self.env,DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1'),config,broadcast,json.loads(FIX.read_text()))
+        # The operator's credential-free declaration is recorded in the PASS record (DSR 2026-11-19).
+        self.assertEqual(json.loads((self.root/'checker.PASS.json').read_text())['noCredentialEndpoints'],['DEPLOYLIVE_SECOND_RPC'])
         dest=self.root.parent/(self.root.name+'-archive'); self.addCleanup(lambda: __import__('shutil').rmtree(dest,ignore_errors=True))
         c.archive(self.root,dest)
         for name in ('config.test.json','run-latest.json'):
