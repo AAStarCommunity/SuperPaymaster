@@ -8,11 +8,20 @@ import re
 import shlex
 import shutil
 import subprocess
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 PIN = ROOT / 'deployments/forge-deploy-pin.json'
 LARGE_CREATES = ('Registry', 'xPNTsFactory', 'MySBT', 'SuperPaymaster',
                  'xPNTsTokenV2Ext', 'xPNTsTokenV2', 'BLSAggregator', 'TimelockHandoverBootstrap')
+
+
+def redact_error(error):
+    text = re.sub(r'(?i)bearer\s+[^\s,}]+', 'Bearer <redacted>', str(error))
+    text = re.sub(r"https?://[^\s\"'<>]+", '<redacted-url>', text, flags=re.I)
+    text = re.sub(r"(?i)((?:api[_-]?key|token|password|secret|authorization|private[_-]?key)[\"']?\s*[:=]\s*[\"']?)([^\s,}\"']+)",
+                  r'\1<redacted>', text)
+    return text
 
 
 def require(ok, message):
@@ -46,9 +55,8 @@ def forge_identity(env):
 
 
 def check_pin(identity, production):
-    if production:
-        pin = json.loads(PIN.read_text())
-        require(pin['commit'] in identity['version'] and identity['sha256'] == pin['sha256'], 'deploy engine pin mismatch')
+    pin = json.loads(PIN.read_text())
+    require(pin['commit'] in identity['version'] and identity['sha256'] == pin['sha256'], 'deploy engine pin mismatch')
 
 
 def build_paths(env):
@@ -145,9 +153,44 @@ def verify_build(env, production):
     return identity['path']
 
 
-def price_window(plan, rpc, corroborating_rpc, feed, threshold, emit=print):
+def contract_name(name):
+    profiles = tomllib.loads((ROOT / 'foundry.toml').read_text())['profile']
+    names = set(profiles)
+    for profile in profiles.values():
+        names.update(p['name'] for p in profile.get('additional_compiler_profiles', []))
+    base, dot, suffix = (name or '').rpartition('.')
+    return base if dot and suffix in names else name
+
+
+def large_creates(plan):
+    targets = [(i, tx) for i, tx in enumerate(plan['transactions'])
+               if tx.get('transactionType') == 'CREATE' and contract_name(tx.get('contractName')) in LARGE_CREATES]
+    require(sorted(contract_name(tx['contractName']) for _, tx in targets) == sorted(LARGE_CREATES),
+            'large CREATE inventory incomplete or duplicated')
+    return targets
+
+
+def superpaymaster_proxy(plan):
+    implementations = [tx['contractAddress'].lower() for tx in plan['transactions']
+                       if tx.get('transactionType') == 'CREATE' and contract_name(tx.get('contractName')) == 'SuperPaymaster']
+    require(len(implementations) == 1, 'planned SP implementation must occur exactly once')
+    proxies = [tx['contractAddress'] for tx in plan['transactions']
+               if tx.get('transactionType') == 'CREATE' and contract_name(tx.get('contractName')) == 'ERC1967Proxy'
+               and tx.get('arguments') and tx['arguments'][0].lower() == implementations[0]]
+    require(len(proxies) == 1, 'planned SP proxy must occur exactly once')
+    return proxies[0]
+
+
+def price_window(plan, rpc, corroborating_rpc, feed, threshold, emit=print, sp_proxy=None):
+    if corroborating_rpc is rpc:
+        corroborating_rpc = None
+    proxy = sp_proxy or superpaymaster_proxy(plan)
+    selector = subprocess.check_output(['cast', 'sig', 'updatePrice()'], text=True).strip().lower()
+    require(bool(re.fullmatch(r'0x[0-9a-f]{8}', selector)), 'invalid updatePrice selector')
     indices = [i for i, tx in enumerate(plan['transactions'])
-               if tx.get('function') == 'updatePrice()' and tx.get('contractName') == 'SuperPaymaster']
+               if tx.get('transactionType') == 'CALL'
+               and (tx['transaction'].get('to') or '').lower() == proxy.lower()
+               and (tx['transaction'].get('input') or tx['transaction'].get('data') or '')[:10].lower() == selector]
     require(len(indices) == 1, 'planned SP.updatePrice must occur exactly once')
     head = rpc('eth_getBlockByNumber', 'latest', False)
     block = head['number']
@@ -156,11 +199,12 @@ def price_window(plan, rpc, corroborating_rpc, feed, threshold, emit=print):
     old = rpc('eth_getBlockByNumber', hex(old_number), False)
     data = {'to': feed, 'data': '0xfeaf968c'}  # latestRoundData()
     raw = rpc('eth_call', data, block)
-    other_head = corroborating_rpc('eth_getBlockByNumber', block, False)
-    other_old = corroborating_rpc('eth_getBlockByNumber', hex(old_number), False)
-    other_raw = corroborating_rpc('eth_call', data, block)
-    require(all(head[k] == other_head[k] and old[k] == other_old[k] for k in ('number', 'hash', 'timestamp'))
-            and raw == other_raw, 'price endpoints disagree at fixed block')
+    if corroborating_rpc is not None:
+        other_head = corroborating_rpc('eth_getBlockByNumber', block, False)
+        other_old = corroborating_rpc('eth_getBlockByNumber', hex(old_number), False)
+        other_raw = corroborating_rpc('eth_call', data, block)
+        require(all(head[k] == other_head[k] and old[k] == other_old[k] for k in ('number', 'hash', 'timestamp'))
+                and raw == other_raw, 'price endpoints disagree at fixed block')
     require(isinstance(raw, str) and re.fullmatch(r'0x[0-9a-fA-F]{320}', raw), 'invalid feed round')
     values = [int(raw[i:i+64], 16) for i in range(2, len(raw), 64)]
     updated = values[3]
@@ -173,6 +217,8 @@ def price_window(plan, rpc, corroborating_rpc, feed, threshold, emit=print):
     margin_hundredths = threshold * 100 - (indices[0] * elapsed * 3 + age * 100)
     margin = margin_hundredths / 100
     emit(f'PRICE price_init_index={indices[0]} block_time={block_time:g} factor=3 head.timestamp={head_time} updatedAt={updated} age={age} threshold={threshold} margin={margin:g}')
+    if corroborating_rpc is None:
+        emit('PRICE corroboration not applicable on a fork; single fork endpoint')
     require(margin_hundredths >= 0, 'wait for the next feed update')
     return block, block_time
 
@@ -184,24 +230,36 @@ CAP_FRACTION = 0.9  # a limit <= the cap leaves no state-gas reservoir: total ga
 def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100):
     require(math.isfinite(tolerance) and 0 <= tolerance <= .05, 'gas tolerance must be between 0 and 0.05')
     require(type(multiplier) is int and 100 <= multiplier <= 200, 'gas multiplier must be an integer percentage 100..200')
-    emit(f'GAS tolerance={tolerance:g} multiplier={multiplier}')
+    emit(f'GAS single-endpoint real-chain tolerance={tolerance:g} multiplier={multiplier}')
     txs = plan['transactions']
-    targets = [(i, tx) for i, tx in enumerate(txs) if tx.get('transactionType') == 'CREATE' and tx.get('contractName') in LARGE_CREATES]
-    require(sorted(tx['contractName'] for _, tx in targets) == sorted(LARGE_CREATES), 'large CREATE inventory incomplete or duplicated')
+    targets = large_creates(plan)
+    try:
+        head = rpc('eth_getBlockByNumber', block, False)
+    except Exception as error:
+        raise RuntimeError('STOP eth_simulateV1 full-sequence support required; head read: ' + redact_error(error)) from None
     # One sequential block per transaction mirrors --slow and stays below a single block's gas budget.
     blocks = []
-    for tx in txs:
-        call = {k:v for k,v in tx['transaction'].items() if k in ('from', 'to', 'value', 'input', 'data', 'gas', 'nonce') and v is not None}
+    for i, tx in enumerate(txs):
+        call = {k:v for k,v in tx['transaction'].items() if k in ('from', 'to', 'value', 'input', 'data', 'gas', 'nonce', 'maxFeePerGas', 'maxPriorityFeePerGas') and v is not None}
         if 'input' in call: call['data'] = call.pop('input')
+        # Default tip is 1 gwei; preserve each planned fee independently when supplied.
+        call.setdefault('maxPriorityFeePerGas', hex(1_000_000_000))
+        if 'maxFeePerGas' not in call:
+            require('baseFeePerGas' in head, 'head missing baseFeePerGas for simulation fees')
+            call['maxFeePerGas'] = hex(2 * integer(head['baseFeePerGas']) + integer(call['maxPriorityFeePerGas']))
+        emit(f"GAS fees index={i} maxFeePerGas={call['maxFeePerGas']} maxPriorityFeePerGas={call['maxPriorityFeePerGas']}")
         blocks.append({'calls':[call]})
     try:
         result = rpc('eth_simulateV1', {'blockStateCalls':blocks, 'validation':True, 'traceTransfers':False}, block)
-    except Exception:
-        raise RuntimeError('STOP eth_simulateV1 full-sequence support required; endpoint failed or unsupported') from None
+    except Exception as error:
+        raise RuntimeError('STOP eth_simulateV1 full-sequence support required; ' + redact_error(error)) from None
     require(isinstance(result, list) and len(result) == len(blocks), 'eth_simulateV1 incomplete sequence')
     calls = [r['calls'][0] for r in result if len(r.get('calls', [])) == 1]
-    require(len(calls) == len(txs) and all(integer(c.get('status', 0)) == 1 and not c.get('error') for c in calls), 'eth_simulateV1 sequence reverted/incomplete')
-    block_gas_limit = integer(rpc('eth_getBlockByNumber', block, False)['gasLimit'])
+    require(len(calls) == len(txs), 'eth_simulateV1 sequence incomplete')
+    for i, call in enumerate(calls):
+        require(integer(call.get('status', 0)) == 1 and not call.get('error'),
+                f'eth_simulateV1 sequence reverted index={i}: ' + redact_error(json.dumps(call.get('error', call))))
+    block_gas_limit = integer(head['gasLimit'])
     for i, tx in enumerate(txs):
         limit, real = integer(tx['transaction']['gas']), integer(calls[i]['gasUsed'])
         name = tx.get('contractName') or str(i)

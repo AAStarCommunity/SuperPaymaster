@@ -42,7 +42,7 @@ class DeployDayTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT/'cache/ddf') as tmp:
             env = {'FOUNDRY_OUT':tmp+'/out', 'FOUNDRY_CACHE_PATH':tmp+'/cache', 'DEFAULT_ARTIFACTS_OUT':tmp+'/release', 'DEFAULT_CACHE_PATH':tmp+'/release-cache'}
             identity = dict(path='/forge', version='forge 4e8874b nightly', sha256='a'*64)
-            with patch.object(d, 'forge_identity', return_value=identity), patch.object(d.subprocess, 'run', return_value=SimpleNamespace(returncode=0)):
+            with patch.object(d, 'forge_identity', return_value=identity), patch.object(d.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), patch.object(d, 'check_pin'):
                 d.build(env, False)
                 d.verify_build(env, False)
                 for key in identity:
@@ -59,14 +59,14 @@ class DeployDayTest(unittest.TestCase):
 
     def plan(self):
         rows = [dict(transactionType='CREATE', contractName=n, transaction={'from':'0x1', 'input':'0x6000', 'gas':'0x64', 'nonce':hex(i)}) for i,n in enumerate(d.LARGE_CREATES)]
-        rows.insert(2, dict(transactionType='CALL', contractName='SuperPaymaster', function='updatePrice()', transaction={'to':'0x2','input':'0x1234','gas':'0x64'}))
+        rows.insert(2, dict(transactionType='CALL', contractName='SuperPaymaster', function='updatePrice()', transaction={'to':'0x2','input':subprocess.check_output(['cast', 'sig', 'updatePrice()'], text=True).strip(),'gas':'0x64'}))
         return dict(transactions=rows)
 
     def rpc(self, updated=1000, real=100, gas_limit=200_000_000, reals=None):
         def transport(method, *args):
             if method == 'eth_getBlockByNumber':
                 number = 200 if args[0] == 'latest' else int(args[0],16)
-                return dict(number=hex(number), hash='0xabc', timestamp=hex(1000+(number-100)*12), gasLimit=hex(gas_limit))
+                return dict(number=hex(number), hash='0xabc', timestamp=hex(1000+(number-100)*12), gasLimit=hex(gas_limit), baseFeePerGas='0x64')
             if method == 'eth_call':
                 self.assertEqual(args[1], '0xc8')
                 return '0x'+''.join(f'{v:064x}' for v in [1,100,1,updated,1])
@@ -83,16 +83,16 @@ class DeployDayTest(unittest.TestCase):
     def test_price_pass_boundary_and_margin(self):
         lines=[]
         # Index 2, measured 12s: required 72 + age 1200 = 1272.
-        d.price_window(self.plan(), self.rpc(), self.rpc(), '0xfeed', 1272, lines.append)
+        d.price_window(self.plan(), self.rpc(), self.rpc(), '0xfeed', 1272, lines.append, sp_proxy='0x2')
         self.assertIn('price_init_index=2', lines[0])
         for term in ('block_time=12', 'age=1200', 'threshold=1272', 'margin=0', 'factor=3'):
             self.assertIn(term, lines[0])
         with self.assertRaisesRegex(RuntimeError, 'wait for the next feed update'):
-            d.price_window(self.plan(), self.rpc(), self.rpc(), '0xfeed', 1271, lines.append)
+            d.price_window(self.plan(), self.rpc(), self.rpc(), '0xfeed', 1271, lines.append, sp_proxy='0x2')
 
     def test_price_endpoint_disagreement(self):
         with self.assertRaisesRegex(RuntimeError, 'endpoints disagree'):
-            d.price_window(self.plan(), self.rpc(), self.rpc(updated=1001), '0xfeed', 4200)
+            d.price_window(self.plan(), self.rpc(), self.rpc(updated=1001), '0xfeed', 4200, sp_proxy='0x2')
 
     def test_gas_sequence_and_tolerance(self):
         for real in (100, 96):

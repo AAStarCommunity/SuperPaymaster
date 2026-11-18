@@ -1,7 +1,9 @@
-# Round 2 copy-paste sequence (Sepolia)
+# Round 3 copy-paste sequence (Sepolia)
 
 Load the approved, fixed deployment inputs first, including absolute pinned `FORGE`,
-`DEPLOYER_ADDRESS`, `ENV`, and the RPC variables described below. Put the approved
+`DEPLOYER_ADDRESS`, `ENV`, and the RPC variables described below. Set
+`CAST_1_7_1` to the absolute path of cast 1.7.1 (Foundry 1.7.1, the CI engine).
+The converter ABI output is engine-independent, but its cast version is pinned anyway. Put the approved
 DVT export at `$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json` after setup. Do not change inputs or send a deployer transaction
 between prediction and deployment. Changes require new prediction and PoPs.
 The source must be committed and clean before prediction/deployment.
@@ -15,6 +17,7 @@ export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200 DEPLOYLIVE_HARDFORK=am
 export CREATION_PINS=deployments/creation-pins.11155111.json
 export DEPLOYLIVE_EVIDENCE_DIR="$PWD/deployments/live/deploy-day-evidence"
 export PATH="$(dirname "$FORGE"):$PATH"
+"$CAST_1_7_1" --version | head -1 | grep -Eq '^cast Version: 1\.7\.1(-|$)' || { echo 'STOP converter requires cast 1.7.1'; exit 1; }
 mkdir -p "$DEPLOYLIVE_EVIDENCE_DIR"
 python3 script/rehearsal/deploylive_fork_deploy.py build
 ```
@@ -33,7 +36,7 @@ Rehearsal continuation:
 ```sh
 export DEPLOYLIVE_RPC=http://127.0.0.1:8545 DEPLOYLIVE_PRICE_SOURCE=fork
 python3 script/rehearsal/deploylive_fork_deploy.py predict --evidence "$DEPLOYLIVE_EVIDENCE_DIR"
-python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
+PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
 export GUARDIANS="$(cat "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex")"
 unset DEPLOYLIVE_POP_REQUEST_OUT
 python3 script/rehearsal/deploylive_fork_deploy.py deploy "$DEPLOYLIVE_RPC" "$DEPLOYER_ADDRESS"
@@ -45,7 +48,7 @@ Production continuation instead (retain the approved production `DEPLOYLIVE_RPC`
 ```sh
 export DEPLOYLIVE_PRICE_SOURCE=chain
 python3 script/rehearsal/deploylive_fork_deploy.py predict --production --evidence "$DEPLOYLIVE_EVIDENCE_DIR"
-python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
+PATH="$(dirname "$CAST_1_7_1"):$PATH" python3 script/rehearsal/dvt_pop_to_guardians.py "$DEPLOYLIVE_EVIDENCE_DIR/dvt-export.json" "$DEPLOYLIVE_EVIDENCE_DIR/pop-request.json" --sp-root . > "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex"
 export GUARDIANS="$(cat "$DEPLOYLIVE_EVIDENCE_DIR/guardians.hex")"
 unset DEPLOYLIVE_POP_REQUEST_OUT
 python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
@@ -53,9 +56,25 @@ python3 script/rehearsal/deploylive_postdeploy_check.py "$DEPLOYLIVE_RPC" "deplo
 ```
 
 `DEPLOYLIVE_PRICE_SOURCE` defaults to `chain`; `fork` selects the fork head/feed
-only for the price gate and is refused in production. Gas checks still require
-two configured real-chain endpoints. Deploy retains the complete build, gate,
-broadcast and checker flow. Build empties all four configured artifact/cache
+only for the price gate and is refused in production. Fork price uses exactly ONE
+endpoint (`DEPLOYLIVE_RPC`); it prints that corroboration is not applicable on a fork.
+Chain price uses `DEPLOYLIVE_SOURCE_RPC` and a distinct `DEPLOYLIVE_SECOND_RPC`.
+The gas gate is **single-endpoint**, always using the REAL chain via
+`DEPLOYLIVE_SOURCE_RPC`, independently of `DEPLOYLIVE_PRICE_SOURCE`. It never uses
+the fork: the recorded anvil run fails at index 3 with `-38013 GasFloorMoreThanGasLimit`,
+even with fees. The real Alchemy diagnostic reports 97 successful calls.
+Tenderly HTTP 429 receives three retries after 1, 2 and 4 seconds; exhaustion
+STOPs with HTTP 429 and its message. RPC STOPs retain codes/messages with URLs
+and credentials redacted. There is no gas corroboration or endpoint failover.
+
+Every simulation call retains planned `maxFeePerGas` and `maxPriorityFeePerGas`.
+A missing priority fee defaults to 1 gwei; a missing max fee is twice the fixed
+head's `baseFeePerGas` plus that priority fee. Both fees are recorded per call in
+`prebroadcast.log` and requests, and `validation: true` remains mandatory.
+
+`deploy` never rebuilds: it verifies both build stamps and refuses a missing or
+mismatched stamp. Run `build` once before prediction. Build, prediction and deploy
+all enforce the committed forge pin in rehearsal and production. Build empties all four configured artifact/cache
 directories; keep inputs and evidence outside them.
 
 # Deploy-day corrections (2026-11-19; required before rc.8)
@@ -88,15 +107,17 @@ Use an absolute `FORGE` path to that binary. The driver builds the whole tree
 with it twice: Cancun release artifacts, then Prague execution artifacts. It
 records `forge --version`, resolved binary path and SHA256 in build stamps next
 to both output directories, rechecks both stamps before each script invocation,
-and records build/script identity in `forge.build-and-script.json`. Production
-also enforces the committed pin. Never build with stable 1.7.1 then execute with
+and records build/script identity in `forge.build-and-script.json`. Rehearsal and
+production both enforce the committed pin. Never build with stable 1.7.1 then execute with
 nightly: that mixed build caused stale-cache recompilation and an unsuffixed
 TimelockController artifact with constructor decoding displaced by 49 bytes.
 
 Set all production inputs and endpoint variables through the approved input
 loading process. Do not put endpoint literals or secrets in commands or logs.
 `DEPLOYLIVE_RPC` is the broadcast endpoint; `DEPLOYLIVE_SOURCE_RPC` and
-`DEPLOYLIVE_SECOND_RPC` are two distinct real-chain endpoints for read-only gates.
+`DEPLOYLIVE_SECOND_RPC` are two distinct real-chain endpoints for chain-price
+corroboration. Only `DEPLOYLIVE_SOURCE_RPC` is used by the single-endpoint gas gate;
+fork-price mode does not require `DEPLOYLIVE_SECOND_RPC`.
 `DEPLOYER_ACCOUNT` selects the already prepared keystore account.
 
 ```sh
@@ -110,7 +131,8 @@ mkdir -p deployments/live "$DEPLOYLIVE_EVIDENCE_DIR"
 python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
 ```
 
-The driver performs the two builds, a fresh dry run, all gates below, then this
+The build stage performs the two builds. Deploy verifies their stamps, runs a
+fresh dry run and all gates below, then this
 exact method-(a) broadcast command (shown for audit; run it through the driver
 so the gates and build stamps cannot be omitted):
 
@@ -149,9 +171,12 @@ dry-run JSON and the real simulation result in evidence.
   capped gas, receipt/error and hardfork/header evidence. A control that succeeds
   invalidates the rehearsal's cap enforcement.
 - The driver derives the zero-based `price_init_index` from the fresh dry-run
-  `SuperPaymaster.updatePrice()` transaction; it never assumes 45. It reads the
+  `SuperPaymaster.updatePrice()` transaction by the computed calldata selector and
+  SP proxy destination, never by Forge function/name labels or an assumed 45.
+  The proxy is linked to its implementation by the planned proxy constructor. It reads the
   feed `latestRoundData().updatedAt`, head and 100-block-old header from two
-  endpoints at the same fixed blocks. Require
+  endpoints at the same fixed blocks in chain mode, or the single fork endpoint
+  in fork mode. Require
   `(price_init_index × measured_block_time) × 3 + (head.timestamp − updatedAt) ≤ 4200`.
   Every term and remaining margin go to `prebroadcast.log`. A negative margin
   stops with **wait for the next feed update**. Equality passes.
@@ -187,7 +212,7 @@ python3 script/rehearsal/deploylive_rehearse.py happy "$FORK_RPC" \
 
 Main session: on a fresh Sepolia fork, rerun the positive control and full PoP
 flow using the final committed head and pinned binary; archive request/export
-hashes, both build stamps, dry-run sequence, dual-endpoint price reads,
+hashes, both build stamps, dry-run sequence, price reads (dual-endpoint on chain, single-endpoint on fork),
 `eth_simulateV1` requests/results, per-transaction gas/receipt table, Forge logs,
 and final checker output. Exercise a failing checker with the config still
 present and confirm the driver exits nonzero. Keep real endpoints in environment

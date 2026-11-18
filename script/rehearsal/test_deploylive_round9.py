@@ -51,7 +51,7 @@ class Round9Test(unittest.TestCase):
                 plan.parent.mkdir(parents=True, exist_ok=True)
                 plan.write_text('{"transactions":[]}')
             return SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')
-        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(chain)), patch.object(fork, 'broadcast_gates'), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
+        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(10 if chain == 31337 else chain)), patch.object(fork, 'broadcast_gates'), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
             fork.main()
         return rpc, run
 

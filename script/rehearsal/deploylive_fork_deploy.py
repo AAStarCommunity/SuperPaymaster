@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
+from urllib.error import HTTPError
 from urllib.request import Request, build_opener, ProxyHandler
 from deploylive_runtime import clean_source_commit
 from deploylive_rehearse import RPC, ROOT, require, guard_bls_verbosity, NoRedirect
-from deploylive_deploy_day import build, verify_build, config_path, checker_pass, broadcast_gates, price_sources, print_command
+from deploylive_deploy_day import build, verify_build, config_path, checker_pass, broadcast_gates, price_sources, print_command, redact_error, build_paths
 
 
 class ReadOnlyRPC:
@@ -21,14 +23,41 @@ class ReadOnlyRPC:
 
     def __call__(self, method, *params):
         require(method in ('eth_chainId', 'eth_getBlockByNumber', 'eth_call', 'eth_simulateV1'), 'read-only RPC method required')
-        try:
-            payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
-            with self.opener.open(Request(self.url, payload, {'Content-Type':'application/json'}), timeout=120) as response:
-                result = json.load(response)
-            require('error' not in result, 'RPC failed')
-            return result['result']
-        except Exception:
-            raise RuntimeError('STOP read-only ' + method + ' failed (endpoint details redacted)') from None
+        payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
+        for attempt in range(4):
+            try:
+                with self.opener.open(Request(self.url, payload, {'Content-Type':'application/json'}), timeout=120) as response:
+                    result = json.load(response)
+                require('error' not in result, 'read-only ' + method + ': ' + redact_error(json.dumps(result.get('error'))))
+                return result['result']
+            except HTTPError as error:
+                if error.code == 429 and attempt < 3:
+                    error.close()
+                    time.sleep(2 ** attempt)
+                    continue
+                detail = f'HTTP {error.code} {error.reason}'
+                try:
+                    detail += ' ' + error.read().decode('utf-8', errors='replace')
+                finally:
+                    error.close()
+                raise RuntimeError('STOP read-only ' + method + ': ' + redact_error(detail)) from None
+            except Exception as error:
+                raise RuntimeError('STOP read-only ' + method + ': ' + redact_error(error)) from None
+
+
+def gate_sources(env, production, chain):
+    # Gas always uses this real-chain source, independently of the price mode.
+    real = ReadOnlyRPC(env['DEPLOYLIVE_SOURCE_RPC'])
+    real_chain = int(real('eth_chainId'), 16)
+    require(real_chain in (10, 11155111), 'gas source must be a real deployment chain')
+    require(not production or real_chain == chain, 'broadcast/source chain mismatch')
+    if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork':
+        return real, None
+    second = env['DEPLOYLIVE_SECOND_RPC']
+    require(env['DEPLOYLIVE_SOURCE_RPC'] != second, 'two distinct real-chain endpoints required')
+    corroborating = ReadOnlyRPC(second)
+    require(real_chain == int(corroborating('eth_chainId'), 16), 'source chain mismatch')
+    return real, corroborating
 
 
 def stage(action, argv):
@@ -109,15 +138,9 @@ def main():
     env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
     path = config_path(env)
     path.parent.mkdir(parents=True, exist_ok=True)
-    build(env, production)
+    build_paths(env)
     binary = verify_build(env, production)
-    # Both endpoints are real-chain read-only sources, including during fork rehearsals.
-    source = env['DEPLOYLIVE_SOURCE_RPC']
-    second = env['DEPLOYLIVE_SECOND_RPC']
-    require(source != second, 'two distinct real-chain endpoints required')
-    real, corroborating = ReadOnlyRPC(source), ReadOnlyRPC(second)
-    require(real('eth_chainId') == corroborating('eth_chainId'), 'source chain mismatch')
-    require(not production or int(real('eth_chainId'), 16) == chain, 'broadcast/source chain mismatch')
+    real, corroborating = gate_sources(env, production, chain)
     hardfork = env['DEPLOYLIVE_HARDFORK']
     require(not production or chain != 11155111 or hardfork == 'amsterdam', 'Sepolia requires hardfork amsterdam')
     command = [binary, 'script', '--offline', 'contracts/script/v3/DeployLive.s.sol:DeployLive',
@@ -151,7 +174,7 @@ def main():
             broadcast_gates(env, plan, recorded('primary', real), recorded('secondary', corroborating),
                             lambda line: (lines.append(line), print(line)),
                             price_rpcs=price_sources(env, production, recorded('primary', real),
-                                                    recorded('secondary', corroborating), recorded('fork', rpc))
+                                                    None, recorded('fork', ReadOnlyRPC(url)))
                             if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork' else None)
         finally:
             (evidence/'prebroadcast.log').write_text('\n'.join(lines) + '\n')
@@ -184,6 +207,6 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
-        # Only our STOP diagnostics are safe to print; transport and subprocess errors may contain URLs.
-        print(str(error) if isinstance(error, RuntimeError) and str(error).startswith('STOP ') else 'FAIL deployment (details redacted)')
+        # Preserve diagnostics while removing endpoint URLs and credentials.
+        print('STOP deployment: ' + redact_error(error))
         sys.exit(1)
