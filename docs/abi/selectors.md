@@ -1610,6 +1610,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x1e82e519` | `CallerNotCommunity()` | Registry |
 | `0x1fb09b80` | `NonceAlreadyUsed()` | X402Facilitator |
 | `0x204cba09` | `StakingNotConfigured()` | BLSAggregator |
+| `0x20717de0` | `IssuanceCapExceeded(uint256,uint256,uint256)` | xPNTsTokenV2 |
 | `0x225d0a58` | `InitFailed(bytes)` | PaymasterFactory |
 | `0x227bc153` | `MathOverflowedMulDiv()` | SuperPaymaster |
 | `0x23b87dad` | `ChannelAlreadyClosed()` | MicroPaymentChannel |
