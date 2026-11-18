@@ -1,0 +1,350 @@
+{
+  "sp": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+  "at": "2026-11-18T01:17:14.118Z",
+  "endpoints": [
+    {
+      "label": "archive(Alchemy)",
+      "ok": true
+    },
+    {
+      "label": "second(Tenderly)",
+      "ok": true
+    }
+  ],
+  "crossCheck": {
+    "allLogs": {
+      "archive": 497,
+      "second": 497,
+      "identical": true
+    },
+    "registryGrants": {
+      "archive": 5,
+      "second": 5,
+      "identical": true
+    }
+  },
+  "state": {
+    "version": "SuperPaymaster-5.4.2",
+    "APNTS_TOKEN": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
+    "pendingAPNTsToken": "0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7",
+    "pendingAPNTsEta": null,
+    "operators": [
+      {
+        "operator": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+        "aPNTsBalance": "844540702843415794600",
+        "isConfigured": true,
+        "isPaused": false,
+        "xPNTsToken": "0xE6579A90dc498a710008de12119812D0FB7aA224",
+        "treasury": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9"
+      },
+      {
+        "operator": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+        "aPNTsBalance": "1690008712737068326800",
+        "isConfigured": true,
+        "isPaused": false,
+        "xPNTsToken": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
+        "treasury": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    ],
+    "registry": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+    "superHolders": {
+      "fromStorage": [
+        "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+        "0xb5600060e6de5E11D3636731964218E53caadf0E",
+        "0xF92DC383c74eA30d7791b929d5872daD18679516",
+        "0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00",
+        "0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94"
+      ],
+      "storageCount": "5",
+      "getRoleUserCount": "5",
+      "everRegistered": [
+        "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+        "0xb5600060e6de5E11D3636731964218E53caadf0E",
+        "0xF92DC383c74eA30d7791b929d5872daD18679516",
+        "0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00",
+        "0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94"
+      ],
+      "registryDeployBlock": 11151002
+    },
+    "outsideList": [
+      {
+        "operator": "0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C",
+        "isConfigured": false,
+        "superHolder": false,
+        "everRegistered": false
+      },
+      {
+        "operator": "0xF92DC383c74eA30d7791b929d5872daD18679516",
+        "isConfigured": false,
+        "superHolder": true,
+        "everRegistered": true
+      },
+      {
+        "operator": "0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00",
+        "isConfigured": false,
+        "superHolder": true,
+        "everRegistered": true
+      },
+      {
+        "operator": "0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94",
+        "isConfigured": false,
+        "superHolder": true,
+        "everRegistered": true
+      }
+    ],
+    "pendingDebts": []
+  },
+  "pinnedBlock": {
+    "number": 12158083,
+    "hash": "0x35997ceca184b69f408df7445df7a82f2e0083ba9a5e8e9254fc3ff62ee52503",
+    "finalized": [
+      12158083,
+      12158083
+    ]
+  },
+  "deployBlock": {
+    "archive": 11151016,
+    "second": 11151016
+  },
+  "range": {
+    "from": 11151016,
+    "to": 12158083
+  },
+  "events": {
+    "unclassified": 0,
+    "operatorArgs": 39,
+    "OperatorConfigured": 4,
+    "OperatorDeposited": 5,
+    "DebtRecordFailed": 0,
+    "PendingDebtRetried": 0,
+    "PendingDebtCleared": 0,
+    "APNTsTokenChangeQueued": 3,
+    "APNTsTokenChangeCancelled": 1,
+    "APNTsTokenChangeExecuted": 0,
+    "OperatorPaused": 2,
+    "OperatorUnpaused": 2
+  },
+  "topic0Table": [
+    {
+      "topic0": "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+      "count": 3,
+      "firstBlock": 11151016,
+      "signature": "Upgraded(address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+      "count": 1,
+      "firstBlock": 11151016,
+      "signature": "OwnershipTransferred(address,address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2",
+      "count": 1,
+      "firstBlock": 11151016,
+      "signature": "Initialized(uint64)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990",
+      "count": 1,
+      "firstBlock": 11151029,
+      "signature": "XPNTsFactoryUpdated(address,address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4",
+      "count": 4,
+      "firstBlock": 11151032,
+      "signature": "BLSAggregatorUpdated(address,address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec",
+      "count": 3,
+      "firstBlock": 11151034,
+      "signature": "AgentRegistriesUpdated(address,address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
+      "count": 429,
+      "firstBlock": 11151035,
+      "signature": "PriceUpdated(int256,uint256)",
+      "class": "historical",
+      "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+    },
+    {
+      "topic0": "0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1",
+      "count": 4,
+      "firstBlock": 11151052,
+      "signature": "OperatorConfigured(address,address,address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4",
+      "count": 5,
+      "firstBlock": 11151054,
+      "signature": "OperatorDeposited(address,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+      "count": 9,
+      "firstBlock": 11155147,
+      "signature": "TransactionSponsored(address,address,uint256,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d",
+      "count": 4,
+      "firstBlock": 11209698,
+      "signature": "BLSAggregatorQueued(address,uint48)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960",
+      "count": 3,
+      "firstBlock": 11223329,
+      "signature": "SlashQueued(address)",
+      "class": "historical",
+      "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+    },
+    {
+      "topic0": "0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040",
+      "count": 3,
+      "firstBlock": 11223331,
+      "signature": "OperatorSlashed(address,uint256,uint8)",
+      "class": "historical",
+      "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+    },
+    {
+      "topic0": "0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821",
+      "count": 6,
+      "firstBlock": 11223331,
+      "signature": "ReputationUpdated(address,uint256)",
+      "class": "historical",
+      "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+    },
+    {
+      "topic0": "0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88",
+      "count": 2,
+      "firstBlock": 11223331,
+      "signature": "SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x18e257fa1330af492bc6ba2454ed697ff9a225a325b2ba1c8f436508e7b102c2",
+      "count": 1,
+      "firstBlock": 11228202,
+      "signature": "BlsSlashCooldownPrimed(uint48)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed",
+      "count": 1,
+      "firstBlock": 11228308,
+      "signature": "OperatorMinTxIntervalUpdated(address,uint48)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da",
+      "count": 2,
+      "firstBlock": 11228309,
+      "signature": "OperatorPaused(address)",
+      "class": "historical",
+      "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+    },
+    {
+      "topic0": "0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885",
+      "count": 2,
+      "firstBlock": 11228310,
+      "signature": "OperatorUnpaused(address)",
+      "class": "historical",
+      "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+    },
+    {
+      "topic0": "0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa",
+      "count": 2,
+      "firstBlock": 11228313,
+      "signature": "OperatorWithdrawn(address,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a",
+      "count": 2,
+      "firstBlock": 11228317,
+      "signature": "TreasuryUpdated(address,address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e",
+      "count": 1,
+      "firstBlock": 11228323,
+      "signature": "ProtocolRevenueWithdrawn(address,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2",
+      "count": 2,
+      "firstBlock": 11228334,
+      "signature": "APNTsPriceUpdated(uint256,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3",
+      "count": 2,
+      "firstBlock": 11228337,
+      "signature": "ProtocolFeeUpdated(uint256,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c",
+      "count": 3,
+      "firstBlock": 11631008,
+      "signature": "APNTsTokenChangeQueued(address,uint256)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    },
+    {
+      "topic0": "0xde82ad51cc1336e141528846e966b9e7f7ae89a78ebb71d1f0da0d851592d8ee",
+      "count": 1,
+      "firstBlock": 12032398,
+      "signature": "APNTsTokenChangeCancelled(address)",
+      "class": "current-abi",
+      "source": "abis/SuperPaymaster.full.json"
+    }
+  ],
+  "unclassifiedTopic0": [],
+  "positiveControl": {
+    "pinnedBlockUnchanged": true,
+    "endpointsReturnIdenticalRegistryGrants": true,
+    "everyHolderEverRegistered": true,
+    "operatorConfiguredEventsFound": true,
+    "everyEventOperatorReadsConfigured": true,
+    "noUnclassifiedTopic0": true,
+    "endpointsReturnIdenticalLogs": true,
+    "roleMembersSlotMatchesView": true,
+    "noConfiguredOperatorOutsideList": true
+  },
+  "endpointLabelNote": "endpoint labels rewritten to provider names after the run (the raw run printed the second host); no other field changed"
+}

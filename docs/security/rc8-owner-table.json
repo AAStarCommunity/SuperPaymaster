@@ -1,0 +1,2369 @@
+{
+  "schema": "rc8-owner-table/v1",
+  "title": "rc.8 owner / role table v1",
+  "roleConfigFn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+  "identities": {
+    "D": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+    "SAFE": "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf",
+    "SAFE_APPROVER": "0xE3D28Aa77c95d5C098170698e5ba68824BFC008d",
+    "SAFE_EXECUTOR": "0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C",
+    "TL48": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+    "OLD_TL": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+    "ANNI": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+    "ZERO": "0x0000000000000000000000000000000000000000",
+    "A7": null,
+    "AOA_REGISTRY": null,
+    "XPNTS_FACTORY_V2": null,
+    "AGG_4_11": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D",
+    "AGG_4_3": "0x174b60bB462b00550F0EC7Bc35Fe39dDB6310158",
+    "AGG_4_3_IND": "0xf44E7E51EFFa867114BE48fA92411fE216b1A285",
+    "AGG_4_1_A": "0x893b8fb7B3d203C288b481400fE05Ade5edD6d11",
+    "AGG_4_1_B": "0xF51c029879685Ced8fbCfa4b647c2eAe50Cd8B13",
+    "SP": "0x09DF0d2e3722EC0e401fE3819E64278a42ae4DE9",
+    "REGISTRY": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+    "DVT": "0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e",
+    "COMMITTEE": "0x7ac7E9d471742FA4397Beef0B5b11fbD22D196a9",
+    "CAPPED": "0x9Eb17FAc022557F64924aA2F9E018dB3A330e1E7",
+    "STAKING": "0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e",
+    "GTOKEN": "0x4c09aE57503Aa1E2A43b05621A38DbdD43b0Aa08",
+    "MYSBT": "0x4867B4302bf4C7818b71F55E53A3520Ee1855Aa7",
+    "XPNTS_FACTORY_V1": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2",
+    "REPSYS": "0x4Ec2D49D75D5D4206B64387A7d6a6C3c5c90fB5A",
+    "PM_FACTORY": "0xA936F8e3d682B0eCf280E6f5c05fF4204ee87180",
+    "PMV4_IMPL": "0xa4683e383af87069a2782A72031C329807F2E5A9",
+    "APNTS_PMV4": "0xf3948753ff21D33f6A5f516621FFF245B23efa0e",
+    "PNTS_PMV4": "0xC827747674ab6397c319e284f650D07d8c2a4a46",
+    "MPC": "0x37578b70B231CC0Eda5991CA633ae99eb35f3818",
+    "X402": "0xfe1DB01e1d6622e722B92ed5993af61325DB92aF",
+    "LIVENESS": "0x02d841F7905aFb4424DBA71680D27C0F75d36BE7",
+    "XPNTS_FACTORY_CC28": "0x9f426568f16e81144F3eBf6F07e497fB9f160d11",
+    "POLICY_REGISTRY": "0x29253bF61310B63866dfb9E9f464B6d95E09f2C1",
+    "APNTS": "0x696A73701b104c6cCBbAadDD2216788ea08EaB89",
+    "PNTS": "0xE6579A90dc498a710008de12119812D0FB7aA224"
+  },
+  "aggregators": [
+    "A7",
+    "AGG_4_11",
+    "AGG_4_3",
+    "AGG_4_3_IND",
+    "AGG_4_1_B",
+    "AGG_4_1_A"
+  ],
+  "aggregatorAllowList": [],
+  "roles": [
+    {
+      "constant": "ROLE_COMMUNITY",
+      "name": "COMMUNITY",
+      "id": "0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "0",
+      "configured": true
+    },
+    {
+      "constant": "ROLE_ENDUSER",
+      "name": "ENDUSER",
+      "id": "0x0c34ecc75d3bf122e0609d2576e167f53fb42429262ce8c9b33cab91ff670e3a",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "0",
+      "configured": true
+    },
+    {
+      "constant": "ROLE_PAYMASTER_AOA",
+      "name": "PAYMASTER_AOA",
+      "id": "0xf86d13979a91272f2c54c4147e588ecbeaad32dd1e0a5332a77356847049a70e",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "30000000000000000000",
+      "configured": true
+    },
+    {
+      "constant": "ROLE_PAYMASTER_SUPER",
+      "name": "PAYMASTER_SUPER",
+      "id": "0x2024516755f401845808190bb830b0e4523d0df0845503cab52130a794699a0f",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "50000000000000000000",
+      "configured": true
+    },
+    {
+      "constant": "ROLE_DVT",
+      "name": "DVT",
+      "id": "0x3b5016dc6721b132ddcb7027030b137a739df81e419695dae0899a866c1c514d",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "30000000000000000000",
+      "configured": true
+    },
+    {
+      "constant": "ROLE_ANODE",
+      "name": "ANODE",
+      "id": "0x3aa2e9509f29532b71f822e18bcde843a8070a508d564188ec8a6adf59eff28a",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "20000000000000000000",
+      "configured": true
+    },
+    {
+      "constant": "ROLE_KMS",
+      "name": "KMS",
+      "id": "0x6fb2b25080d21c908f32ff8ff99eb1d552c210854f7de48a40406764c09c68f8",
+      "description": "",
+      "owner": "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "isActive": true,
+      "minStake": "100000000000000000000",
+      "configured": true
+    }
+  ],
+  "rows": [
+    {
+      "id": "sp.version",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "SuperPaymaster-5.5.0",
+      "step": "manifest B (upgradeToAndCall)",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "SuperPaymaster-5.4.2"
+      }
+    },
+    {
+      "id": "sp.owner",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "TL48",
+      "step": "manifest A17 (transferOwnership)",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "sp.pendingOwner",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "pendingOwner (namespaced slot)",
+      "read": {
+        "storage": "0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00"
+      },
+      "expected": "ZERO",
+      "step": "manifest A17",
+      "readback": "eth_getStorageAt(Ownable2StepNamespaced pending-owner slot); pendingOwner() reverts on 5.4.2",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "sp.treasury",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "treasury",
+      "read": {
+        "fn": "function treasury() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "treasury()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "sp.guardian",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "guardian",
+      "read": {
+        "fn": "function guardian() view returns (address)"
+      },
+      "expected": "unknown until the 5.5.0 upgrade (no setGuardian step)",
+      "step": "none",
+      "readback": "guardian() (getter is new in 5.5.0)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Read back at step 13 after the upgrade; must be neither D nor an aggregator.",
+      "notes": null,
+      "current": {
+        "error": "reverted or absent: The contract function \"guardian\" reverted."
+      }
+    },
+    {
+      "id": "sp.blsAggregator",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "BLS_AGGREGATOR",
+      "read": {
+        "fn": "function BLS_AGGREGATOR() view returns (address)"
+      },
+      "expected": "A7",
+      "step": "manifest B (pendingBLSAgg -> execute)",
+      "readback": "BLS_AGGREGATOR()",
+      "kind": "wiring",
+      "aggAllowed": true,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+      }
+    },
+    {
+      "id": "sp.proxyAdmin",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "EIP-1967 admin slot",
+      "read": {
+        "storage": "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"
+      },
+      "expected": "ZERO",
+      "step": "n/a (UUPS: upgrade authority is owner)",
+      "readback": "eth_getStorageAt(EIP-1967 admin slot)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "sp.impl",
+      "contract": "SuperPaymaster (UUPS proxy)",
+      "address": "SP",
+      "slot": "EIP-1967 implementation",
+      "read": {
+        "storage": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+      },
+      "expected": "A1 implementation",
+      "step": "manifest A1 + B",
+      "readback": "eth_getStorageAt(EIP-1967 implementation slot)",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xe25f88dbeaFc64200270A948Df8e9dd2F9b22C27"
+      }
+    },
+    {
+      "id": "reg.version",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "Registry-5.9.0",
+      "step": "manifest A6.upgrade",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "Registry-5.8.0"
+      }
+    },
+    {
+      "id": "reg.owner",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "TL48",
+      "step": "manifest D.registry.transfer + D.registry_execute (TL48 acceptOwnership)",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.pendingOwner",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "pendingOwner (namespaced slot)",
+      "read": {
+        "storage": "0xdb5a3168abaa6147a9f3a4cb66016161119d4d50b6393344d27120286f742a00"
+      },
+      "expected": "ZERO",
+      "step": "manifest D.registry_execute",
+      "readback": "eth_getStorageAt(Ownable2StepNamespaced pending-owner slot) = manifest PENDING_OWNER_SLOT; pendingOwner() reverts on 5.8.0",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "reg.roleOwner.COMMUNITY",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[COMMUNITY].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:COMMUNITY"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"COMMUNITY\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.roleOwner.ENDUSER",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[ENDUSER].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:ENDUSER"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"ENDUSER\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.roleOwner.PAYMASTER_AOA",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[PAYMASTER_AOA].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:PAYMASTER_AOA"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"PAYMASTER_AOA\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.roleOwner.PAYMASTER_SUPER",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[PAYMASTER_SUPER].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:PAYMASTER_SUPER"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"PAYMASTER_SUPER\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.roleOwner.DVT",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[DVT].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:DVT"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"DVT\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.roleOwner.ANODE",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[ANODE].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:ANODE"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"ANODE\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.roleOwner.KMS",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "roleConfigs[KMS].owner",
+      "read": {
+        "fn": "function getRoleConfig(bytes32) view returns ((uint256 minStake,uint256 ticketPrice,uint32 slashThreshold,uint32 slashBase,uint32 slashInc,uint32 slashMax,uint16 exitFeePercent,bool isActive,uint256 minExitFee,string description,address owner,uint256 roleLockDuration))",
+        "args": [
+          "$keccak:KMS"
+        ],
+        "pick": "owner"
+      },
+      "expected": "D",
+      "step": "none (A16 only freezes PAYMASTER_SUPER isActive)",
+      "readback": "getRoleConfig(keccak256(\"KMS\")).owner",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The role owner can rewrite minStake, ticket price, slash parameters, exit fee, isActive and the role owner itself (configureRole).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "reg.reputationSources",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "isReputationSource set",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)",
+              "args": {
+                "previousOwner": "0x0000000000000000000000000000000000000000"
+              },
+              "member": "newOwner"
+            },
+            {
+              "event": "event ReputationSourceUpdated(address indexed source, bool isActive)",
+              "member": "source"
+            }
+          ],
+          "check": {
+            "fn": "function isReputationSource(address) view returns (bool)",
+            "args": [
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "REPSYS",
+        "A7",
+        "D"
+      ],
+      "step": "manifest A9.new (A7 true), A9.old (AGG_4_11 false); D: none",
+      "readback": "isReputationSource(x) for every seed and named identity",
+      "kind": "authority",
+      "aggAllowed": true,
+      "exception": "GAP for D: the manifest never calls setReputationSource(D,false) (DeployLive does, _wireReputationSources). The aggregator A7 is an allow-listed source by design (verifyAndExecute reputation branch).",
+      "notes": "Registry.initialize sets isReputationSource[_owner] WITHOUT emitting ReputationSourceUpdated, so a ReputationSourceUpdated replay misses the initial owner. The set is seeded from OwnershipTransferred(0 -> owner) (the initialize owner) plus every ReputationSourceUpdated, plus every named identity, and membership is decided by the isReputationSource state read. Registry deploy block 11151002.",
+      "current": {
+        "value": [
+          "0x4Ec2D49D75D5D4206B64387A7d6a6C3c5c90fB5A",
+          "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D",
+          "0xb5600060e6de5E11D3636731964218E53caadf0E"
+        ],
+        "seeds": [
+          {
+            "event": "OwnershipTransferred",
+            "address": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+            "fromBlock": 11151002,
+            "filter": {
+              "previousOwner": "0x0000000000000000000000000000000000000000"
+            },
+            "logs": 1,
+            "members": [
+              "0xb5600060e6de5E11D3636731964218E53caadf0E"
+            ]
+          },
+          {
+            "event": "ReputationSourceUpdated",
+            "address": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+            "fromBlock": 11151002,
+            "filter": null,
+            "logs": 4,
+            "members": [
+              "0x4Ec2D49D75D5D4206B64387A7d6a6C3c5c90fB5A",
+              "0xb5600060e6de5E11D3636731964218E53caadf0E",
+              "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+            ]
+          }
+        ],
+        "deployBlock": 11151002,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "reg.blsAggregator",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "blsAggregator",
+      "read": {
+        "fn": "function blsAggregator() view returns (address)"
+      },
+      "expected": "A7",
+      "step": "manifest A8.registry",
+      "readback": "blsAggregator()",
+      "kind": "wiring",
+      "aggAllowed": true,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+      }
+    },
+    {
+      "id": "reg.proxyAdmin",
+      "contract": "Registry (UUPS proxy)",
+      "address": "REGISTRY",
+      "slot": "EIP-1967 admin slot",
+      "read": {
+        "storage": "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"
+      },
+      "expected": "ZERO",
+      "step": "n/a (UUPS)",
+      "readback": "eth_getStorageAt(EIP-1967 admin slot)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "a7.version",
+      "contract": "BLSAggregator 4.14.x (new, A7)",
+      "address": "A7",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "BLSAggregator-4.14.1",
+      "step": "manifest A7",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "error": "not deployed at the pinned block (address assigned at deploy)"
+      }
+    },
+    {
+      "id": "a7.owner",
+      "contract": "BLSAggregator 4.14.x (new, A7)",
+      "address": "A7",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "manifest D.aggregator.transfer",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "error": "not deployed at the pinned block (address assigned at deploy)"
+      }
+    },
+    {
+      "id": "a7.slashPolicyAdmin",
+      "contract": "BLSAggregator 4.14.x (new, A7)",
+      "address": "A7",
+      "slot": "slashPolicyAdmin",
+      "read": {
+        "fn": "function slashPolicyAdmin() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "manifest D.aggregator.admin",
+      "readback": "slashPolicyAdmin()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "error": "not deployed at the pinned block (address assigned at deploy)"
+      }
+    },
+    {
+      "id": "agg_4_11.version",
+      "contract": "BLSAggregator 4.11.0 (current)",
+      "address": "AGG_4_11",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "BLSAggregator-4.11.0"
+      }
+    },
+    {
+      "id": "agg_4_11.owner",
+      "contract": "BLSAggregator 4.11.0 (current)",
+      "address": "AGG_4_11",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "manifest D.old_aggregator.transfer",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "agg_4_11.slashPolicyAdmin",
+      "contract": "BLSAggregator 4.11.0 (current)",
+      "address": "AGG_4_11",
+      "slot": "slashPolicyAdmin",
+      "read": {
+        "fn": "function slashPolicyAdmin() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "manifest D.old_aggregator.admin",
+      "readback": "slashPolicyAdmin()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "agg_4_3.version",
+      "contract": "BLSAggregator 4.3.0 (previous)",
+      "address": "AGG_4_3",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "BLSAggregator-4.3.0"
+      }
+    },
+    {
+      "id": "agg_4_3.owner",
+      "contract": "BLSAggregator 4.3.0 (previous)",
+      "address": "AGG_4_3",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "agg_4_3_ind.owner",
+      "contract": "BLSAggregator 4.3.0 (independent A')",
+      "address": "AGG_4_3_IND",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "agg_4_1_b.owner",
+      "contract": "BLSAggregator 4.1.0 (0xF51c)",
+      "address": "AGG_4_1_B",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "agg_4_1_a.owner",
+      "contract": "BLSAggregator 4.1.0 (0x893b)",
+      "address": "AGG_4_1_A",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "agg_4_3.slashPolicyAdmin",
+      "contract": "BLSAggregator 4.3.0 (previous)",
+      "address": "AGG_4_3",
+      "slot": "slashPolicyAdmin",
+      "read": {
+        "fn": "function slashPolicyAdmin() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "slashPolicyAdmin() (may be absent in 4.3.0)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "dvt.version",
+      "contract": "DVTValidator",
+      "address": "DVT",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "DVTValidator-0.6.0"
+      }
+    },
+    {
+      "id": "dvt.owner",
+      "contract": "DVTValidator",
+      "address": "DVT",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "manifest D.dvt.transfer",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "dvt.blsAggregator",
+      "contract": "DVTValidator",
+      "address": "DVT",
+      "slot": "BLS_AGGREGATOR",
+      "read": {
+        "fn": "function BLS_AGGREGATOR() view returns (address)"
+      },
+      "expected": "A7",
+      "step": "manifest A8.dvt",
+      "readback": "BLS_AGGREGATOR()",
+      "kind": "wiring",
+      "aggAllowed": true,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+      }
+    },
+    {
+      "id": "dvt.validators",
+      "contract": "DVTValidator",
+      "address": "DVT",
+      "slot": "isValidator set",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event ValidatorAdded(address indexed v)",
+              "member": "v"
+            },
+            {
+              "event": "event RoleRegistered(bytes32 indexed roleId, address indexed user, uint256 burnAmount, uint256 timestamp)",
+              "address": "REGISTRY",
+              "args": {
+                "roleId": "$keccak:DVT"
+              },
+              "member": "user"
+            }
+          ],
+          "check": {
+            "fn": "function isValidator(address) view returns (bool)",
+            "args": [
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "ANNI",
+        "SAFE_EXECUTOR",
+        "D"
+      ],
+      "step": "none",
+      "readback": "isValidator(x) for every ValidatorAdded, every Registry RoleRegistered(DVT) user and every named identity (AGG-NOT-DVT-VALIDATOR)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP for D (no removeValidator step).",
+      "notes": "DVTValidator 0.6.0 addValidator emits NO event (ValidatorAdded is 0.7.0+), so the event seed is empty by construction. 0.6.0 addValidator requires the candidate to hold ROLE_DVT, so every Registry RoleRegistered(DVT) user is seeded; premise: no validator was set other than through addValidator.",
+      "current": {
+        "value": [
+          "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+          "0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C",
+          "0xb5600060e6de5E11D3636731964218E53caadf0E"
+        ],
+        "seeds": [
+          {
+            "event": "ValidatorAdded",
+            "address": "0x568b1486BFE036e603eA11f0D03Dc47fa62c9E0e",
+            "fromBlock": 11209693,
+            "filter": null,
+            "logs": 0,
+            "members": []
+          },
+          {
+            "event": "RoleRegistered",
+            "address": "0xf5Bf37ca83AfdAab73691bA7eCcDfA69b8708E71",
+            "fromBlock": 11151002,
+            "filter": {
+              "roleId": "$keccak:DVT"
+            },
+            "logs": 21,
+            "members": [
+              "0xb5600060e6de5E11D3636731964218E53caadf0E",
+              "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+              "0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C",
+              "0x084b5F85A5149b03aDf9396C7C94D8B8F328FB36",
+              "0x75c7A90b80A2fd0030fF220AC1C8a74492ebFB66",
+              "0x64788A3f79Db44Aa08b166851F42a8d3A8748D60",
+              "0xCa23b643243E74F3A7502EAfa6cfB509b5E49b7C",
+              "0x18420702995DAD45BE6C3344621e22Af0C55f613",
+              "0xF85e760D4C08c79FE9C5DE6b16483F6C0A6fF9C0",
+              "0x6F7D30f2A018d9F24E9Ff6CbE8abBfAfbDD6F96E",
+              "0x09a0ca08cFf72F8Dc62585B107364dEa52e75c93",
+              "0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3",
+              "0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f",
+              "0xD904A706E355D6b48bAeDBec472CE94BC6981601",
+              "0xfAcCC5629b1447b3728cbFaee68e80cf9b503C08",
+              "0xE6a3AB1e8B89A6cF91BFA5Dc70c15E996f73a631",
+              "0xDAaeCdaDF2e407682861Cc927D3Abd988f11F577",
+              "0x85744FD1F11E0B9408beF314968eED277258ce68",
+              "0xA5924206B809Db98c760e5459bCe225Bd4207b66",
+              "0xA9eD1d0635E97063973a1846613f8F84D331e415",
+              "0xF36C9317765634E4995CE1e7210b5738225425b0"
+            ]
+          }
+        ],
+        "deployBlock": 11209693,
+        "candidates": 52
+      }
+    },
+    {
+      "id": "committee.version",
+      "contract": "committee",
+      "address": "COMMITTEE",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "error": "reverted or absent: The contract function \"version\" reverted."
+      }
+    },
+    {
+      "id": "committee.owner",
+      "contract": "committee",
+      "address": "COMMITTEE",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "manifest D.committee.transfer",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "committee.blsAggregator",
+      "contract": "committee",
+      "address": "COMMITTEE",
+      "slot": "blsAggregator",
+      "read": {
+        "fn": "function blsAggregator() view returns (address)"
+      },
+      "expected": "A7",
+      "step": "manifest A8.committee",
+      "readback": "blsAggregator()",
+      "kind": "wiring",
+      "aggAllowed": true,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+      }
+    },
+    {
+      "id": "aoa.owner",
+      "contract": "AOAProtocolRegistry (new, A3.create)",
+      "address": "AOA_REGISTRY",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "TL48",
+      "step": "manifest D.protocol.transfer",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "error": "not deployed at the pinned block (address assigned at deploy)"
+      }
+    },
+    {
+      "id": "xpntsV2.owner",
+      "contract": "xPNTsFactoryV2 (new, A4.factory)",
+      "address": "XPNTS_FACTORY_V2",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "TL48",
+      "step": "manifest D.factory.transfer",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "error": "not deployed at the pinned block (address assigned at deploy)"
+      }
+    },
+    {
+      "id": "capped.version",
+      "contract": "APNTsCapped",
+      "address": "CAPPED",
+      "slot": "version",
+      "read": {
+        "fn": "function version() view returns (string)"
+      },
+      "expected": "unchanged",
+      "step": "a3a S3",
+      "readback": "version()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "APNTsCapped-1.0.0"
+      }
+    },
+    {
+      "id": "capped.owner",
+      "contract": "APNTsCapped",
+      "address": "CAPPED",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "TL48",
+      "step": "a3a S4 (transferOwnership) + S6b (TL48 acceptOwnership)",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B"
+      }
+    },
+    {
+      "id": "capped.pendingOwner",
+      "contract": "APNTsCapped",
+      "address": "CAPPED",
+      "slot": "pendingOwner",
+      "read": {
+        "fn": "function pendingOwner() view returns (address)"
+      },
+      "expected": "ZERO",
+      "step": "a3a S6b",
+      "readback": "pendingOwner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "id": "capped.minter",
+      "contract": "APNTsCapped",
+      "address": "CAPPED",
+      "slot": "minter",
+      "read": {
+        "fn": "function minter() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "a3a S3 (constructor)",
+      "readback": "minter()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+      }
+    },
+    {
+      "id": "capped.capGuardian",
+      "contract": "APNTsCapped",
+      "address": "CAPPED",
+      "slot": "capGuardian",
+      "read": {
+        "fn": "function capGuardian() view returns (address)"
+      },
+      "expected": "SAFE",
+      "step": "a3a S3 (constructor)",
+      "readback": "capGuardian()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+      }
+    },
+    {
+      "id": "tl48.minDelay",
+      "contract": "TimelockController (TL48)",
+      "address": "TL48",
+      "slot": "minDelay",
+      "read": {
+        "fn": "function getMinDelay() view returns (uint256)"
+      },
+      "expected": "172800",
+      "step": "a3a S2 (constructor)",
+      "readback": "getMinDelay()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "172800"
+      }
+    },
+    {
+      "id": "tl48.role.DEFAULT_ADMIN",
+      "contract": "TimelockController (TL48)",
+      "address": "TL48",
+      "slot": "DEFAULT_ADMIN_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "0x0000000000000000000000000000000000000000000000000000000000000000"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "TL48"
+      ],
+      "step": "a3a S2 (constructor)",
+      "readback": "hasRole(DEFAULT_ADMIN_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": [
+          "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+            "fromBlock": 12032424,
+            "filter": {
+              "role": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "logs": 1,
+            "members": [
+              "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B"
+            ]
+          }
+        ],
+        "deployBlock": 12032424,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "tl48.role.PROPOSER",
+      "contract": "TimelockController (TL48)",
+      "address": "TL48",
+      "slot": "PROPOSER_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "$keccak:PROPOSER_ROLE"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "$keccak:PROPOSER_ROLE",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "SAFE"
+      ],
+      "step": "a3a S2 (constructor)",
+      "readback": "hasRole(PROPOSER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": [
+          "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+            "fromBlock": 12032424,
+            "filter": {
+              "role": "$keccak:PROPOSER_ROLE"
+            },
+            "logs": 1,
+            "members": [
+              "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+            ]
+          }
+        ],
+        "deployBlock": 12032424,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "tl48.role.EXECUTOR",
+      "contract": "TimelockController (TL48)",
+      "address": "TL48",
+      "slot": "EXECUTOR_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "$keccak:EXECUTOR_ROLE"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "$keccak:EXECUTOR_ROLE",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "SAFE"
+      ],
+      "step": "a3a S2 (constructor)",
+      "readback": "hasRole(EXECUTOR_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": [
+          "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+            "fromBlock": 12032424,
+            "filter": {
+              "role": "$keccak:EXECUTOR_ROLE"
+            },
+            "logs": 1,
+            "members": [
+              "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+            ]
+          }
+        ],
+        "deployBlock": 12032424,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "tl48.role.CANCELLER",
+      "contract": "TimelockController (TL48)",
+      "address": "TL48",
+      "slot": "CANCELLER_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "$keccak:CANCELLER_ROLE"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "$keccak:CANCELLER_ROLE",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "SAFE"
+      ],
+      "step": "a3a S2 (constructor)",
+      "readback": "hasRole(CANCELLER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": [
+          "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0xCCdF8e0D29Fb2c3061910D79484a2b653757C34B",
+            "fromBlock": 12032424,
+            "filter": {
+              "role": "$keccak:CANCELLER_ROLE"
+            },
+            "logs": 1,
+            "members": [
+              "0x16dF788ed4ed1Fc384e52dC832A6a6C3A23bdEBf"
+            ]
+          }
+        ],
+        "deployBlock": 12032424,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "safe.owners",
+      "contract": "Safe (2-of-3)",
+      "address": "SAFE",
+      "slot": "owners",
+      "read": {
+        "fn": "function getOwners() view returns (address[])"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "getOwners()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": [
+          "0xF7Bf79AcB7F3702b9DbD397d8140ac9DE6Ce642C",
+          "0xE3D28Aa77c95d5C098170698e5ba68824BFC008d",
+          "0xD6E95a852D68F99759Bf47e77D84FCC8D6F93494"
+        ]
+      }
+    },
+    {
+      "id": "safe.threshold",
+      "contract": "Safe (2-of-3)",
+      "address": "SAFE",
+      "slot": "threshold",
+      "read": {
+        "fn": "function getThreshold() view returns (uint256)"
+      },
+      "expected": "2",
+      "step": "-",
+      "readback": "getThreshold()",
+      "kind": "info",
+      "aggAllowed": false,
+      "exception": null,
+      "notes": null,
+      "current": {
+        "value": "2"
+      }
+    },
+    {
+      "id": "staking.owner",
+      "contract": "GTokenStaking",
+      "address": "STAKING",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "staking.treasury",
+      "contract": "GTokenStaking",
+      "address": "STAKING",
+      "slot": "treasury",
+      "read": {
+        "fn": "function treasury() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "treasury()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "staking.slashers",
+      "contract": "GTokenStaking",
+      "address": "STAKING",
+      "slot": "authorizedSlashers set",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event SlasherAuthorizationUpdated(address indexed slasher, bool authorized)",
+              "member": "slasher"
+            }
+          ],
+          "check": {
+            "fn": "function authorizedSlashers(address) view returns (bool)",
+            "args": [
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "AGG_4_11",
+        "AGG_4_1_B"
+      ],
+      "step": "none",
+      "readback": "authorizedSlashers(x) for every SlasherAuthorizationUpdated and named identity; must be false for every aggregator generation",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "VIOLATION as written: two aggregator generations (4.11.0 and 4.1.0 0xF51c) are authorized staking slashers and no manifest step revokes them (setAuthorizedSlasher(x,false)); A7 must also read false.",
+      "notes": null,
+      "current": {
+        "value": [
+          "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D",
+          "0xF51c029879685Ced8fbCfa4b647c2eAe50Cd8B13"
+        ],
+        "seeds": [
+          {
+            "event": "SlasherAuthorizationUpdated",
+            "address": "0x472297B557c1d0F030f281a5Bb8A535f6c5AB65e",
+            "fromBlock": 11151005,
+            "filter": null,
+            "logs": 10,
+            "members": [
+              "0x893b8fb7B3d203C288b481400fE05Ade5edD6d11",
+              "0xF51c029879685Ced8fbCfa4b647c2eAe50Cd8B13",
+              "0xb5600060e6de5E11D3636731964218E53caadf0E",
+              "0xf44E7E51EFFa867114BE48fA92411fE216b1A285",
+              "0x174b60bB462b00550F0EC7Bc35Fe39dDB6310158",
+              "0xEaeC2F512eA50708211fa95533e4dBb60e3d2E5D"
+            ]
+          }
+        ],
+        "deployBlock": 11151005,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "gtoken.owner",
+      "contract": "GToken",
+      "address": "GTOKEN",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "The owner is also the minter (mint is onlyOwner).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "mysbt.daoMultisig",
+      "contract": "MySBT",
+      "address": "MYSBT",
+      "slot": "daoMultisig",
+      "read": {
+        "fn": "function daoMultisig() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "daoMultisig()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "xpntsV1.owner",
+      "contract": "xPNTsFactory v1",
+      "address": "XPNTS_FACTORY_V1",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": "FACTORY of aPNTs/pNTs (mint and auto-approved spender on them).",
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "repsys.owner",
+      "contract": "ReputationSystem",
+      "address": "REPSYS",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "GAP: no manifest or DeployLive step moves this off D on Sepolia; a step or a written exception is required before the tag.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "pmFactory.owner",
+      "contract": "PaymasterFactory",
+      "address": "PM_FACTORY",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "pmv4Impl.owner",
+      "contract": "PaymasterV4 implementation",
+      "address": "PMV4_IMPL",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "apntsPmv4.owner",
+      "contract": "PaymasterV4 (aPNTs)",
+      "address": "APNTS_PMV4",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "pntsPmv4.owner",
+      "contract": "PaymasterV4 (pNTs, Mycelium)",
+      "address": "PNTS_PMV4",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "ANNI",
+      "step": "-",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Community-owned (Mycelium operator); unchanged.",
+      "notes": null,
+      "current": {
+        "value": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9"
+      }
+    },
+    {
+      "id": "mpc.owner",
+      "contract": "MicroPaymentChannel",
+      "address": "MPC",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "x402.owner",
+      "contract": "X402Facilitator",
+      "address": "X402",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "liveness.owner",
+      "contract": "LivenessRegistry",
+      "address": "LIVENESS",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "cc28.owner",
+      "contract": "xPNTsFactoryCC28 (test factory)",
+      "address": "XPNTS_FACTORY_CC28",
+      "slot": "owner",
+      "read": {
+        "fn": "function owner() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "owner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "policy.timelock",
+      "contract": "PolicyRegistry",
+      "address": "POLICY_REGISTRY",
+      "slot": "timelock (immutable)",
+      "read": {
+        "fn": "function timelock() view returns (address)"
+      },
+      "expected": "OLD_TL",
+      "step": "none",
+      "readback": "timelock()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564"
+      }
+    },
+    {
+      "id": "policy.guardian",
+      "contract": "PolicyRegistry",
+      "address": "POLICY_REGISTRY",
+      "slot": "guardian",
+      "read": {
+        "fn": "function guardian() view returns (address)"
+      },
+      "expected": "D",
+      "step": "none",
+      "readback": "guardian()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": "0xb5600060e6de5E11D3636731964218E53caadf0E"
+      }
+    },
+    {
+      "id": "oldtl.role.DEFAULT_ADMIN",
+      "contract": "TimelockController (old)",
+      "address": "OLD_TL",
+      "slot": "DEFAULT_ADMIN_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "0x0000000000000000000000000000000000000000000000000000000000000000"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "OLD_TL",
+        "D"
+      ],
+      "step": "none",
+      "readback": "hasRole(DEFAULT_ADMIN_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": [
+          "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+          "0xb5600060e6de5E11D3636731964218E53caadf0E"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+            "fromBlock": 11151057,
+            "filter": {
+              "role": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "logs": 2,
+            "members": [
+              "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+              "0xb5600060e6de5E11D3636731964218E53caadf0E"
+            ]
+          }
+        ],
+        "deployBlock": 11151057,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "oldtl.role.PROPOSER",
+      "contract": "TimelockController (old)",
+      "address": "OLD_TL",
+      "slot": "PROPOSER_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "$keccak:PROPOSER_ROLE"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "$keccak:PROPOSER_ROLE",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "D"
+      ],
+      "step": "none",
+      "readback": "hasRole(PROPOSER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": [
+          "0xb5600060e6de5E11D3636731964218E53caadf0E"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+            "fromBlock": 11151057,
+            "filter": {
+              "role": "$keccak:PROPOSER_ROLE"
+            },
+            "logs": 1,
+            "members": [
+              "0xb5600060e6de5E11D3636731964218E53caadf0E"
+            ]
+          }
+        ],
+        "deployBlock": 11151057,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "oldtl.role.EXECUTOR",
+      "contract": "TimelockController (old)",
+      "address": "OLD_TL",
+      "slot": "EXECUTOR_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "$keccak:EXECUTOR_ROLE"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "$keccak:EXECUTOR_ROLE",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "D"
+      ],
+      "step": "none",
+      "readback": "hasRole(EXECUTOR_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": [
+          "0xb5600060e6de5E11D3636731964218E53caadf0E"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+            "fromBlock": 11151057,
+            "filter": {
+              "role": "$keccak:EXECUTOR_ROLE"
+            },
+            "logs": 1,
+            "members": [
+              "0xb5600060e6de5E11D3636731964218E53caadf0E"
+            ]
+          }
+        ],
+        "deployBlock": 11151057,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "oldtl.role.CANCELLER",
+      "contract": "TimelockController (old)",
+      "address": "OLD_TL",
+      "slot": "CANCELLER_ROLE holders",
+      "read": {
+        "set": {
+          "seeds": [
+            {
+              "event": "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+              "args": {
+                "role": "$keccak:CANCELLER_ROLE"
+              },
+              "member": "account"
+            }
+          ],
+          "check": {
+            "fn": "function hasRole(bytes32,address) view returns (bool)",
+            "args": [
+              "$keccak:CANCELLER_ROLE",
+              "$member"
+            ]
+          }
+        }
+      },
+      "expected": [
+        "D"
+      ],
+      "step": "none",
+      "readback": "hasRole(CANCELLER_ROLE, x) for every RoleGranted account and every named identity (no enumeration getter)",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Legacy (not an rc.8 contract): the owner may stay with the deployer as a written exception iff step 13 reads back no privilege of this contract, or of its owner through it, on any rc.8 contract.",
+      "notes": null,
+      "current": {
+        "value": [
+          "0xb5600060e6de5E11D3636731964218E53caadf0E"
+        ],
+        "seeds": [
+          {
+            "event": "RoleGranted",
+            "address": "0x86C86c789EDc099801cc6a5F48334F1D67dC9564",
+            "fromBlock": 11151057,
+            "filter": {
+              "role": "$keccak:CANCELLER_ROLE"
+            },
+            "logs": 1,
+            "members": [
+              "0xb5600060e6de5E11D3636731964218E53caadf0E"
+            ]
+          }
+        ],
+        "deployBlock": 11151057,
+        "candidates": 34
+      }
+    },
+    {
+      "id": "apnts.communityOwner",
+      "contract": "aPNTs (xPNTs v1)",
+      "address": "APNTS",
+      "slot": "communityOwner",
+      "read": {
+        "fn": "function communityOwner() view returns (address)"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "communityOwner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Community token; owner set by the community.",
+      "notes": null,
+      "current": {
+        "value": "0x51C00187e940FA5cbAD256cbB2A5fDb173A09708"
+      }
+    },
+    {
+      "id": "apnts.factory",
+      "contract": "aPNTs (xPNTs v1)",
+      "address": "APNTS",
+      "slot": "FACTORY",
+      "read": {
+        "fn": "function FACTORY() view returns (address)"
+      },
+      "expected": "XPNTS_FACTORY_V1",
+      "step": "-",
+      "readback": "FACTORY()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Community token; minting authority with communityOwner.",
+      "notes": null,
+      "current": {
+        "value": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2"
+      }
+    },
+    {
+      "id": "pnts.communityOwner",
+      "contract": "pNTs (xPNTs v1)",
+      "address": "PNTS",
+      "slot": "communityOwner",
+      "read": {
+        "fn": "function communityOwner() view returns (address)"
+      },
+      "expected": "unchanged",
+      "step": "-",
+      "readback": "communityOwner()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Community token; owner set by the community.",
+      "notes": null,
+      "current": {
+        "value": "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9"
+      }
+    },
+    {
+      "id": "pnts.factory",
+      "contract": "pNTs (xPNTs v1)",
+      "address": "PNTS",
+      "slot": "FACTORY",
+      "read": {
+        "fn": "function FACTORY() view returns (address)"
+      },
+      "expected": "XPNTS_FACTORY_V1",
+      "step": "-",
+      "readback": "FACTORY()",
+      "kind": "authority",
+      "aggAllowed": false,
+      "exception": "Community token; minting authority with communityOwner.",
+      "notes": null,
+      "current": {
+        "value": "0x67422d2e44a33c8dA99b3b776841bF316bD209a2"
+      }
+    }
+  ],
+  "readAt": {
+    "chainId": 11155111,
+    "block": 12158083,
+    "hash": "0x35997ceca184b69f408df7445df7a82f2e0083ba9a5e8e9254fc3ff62ee52503",
+    "endpoints": [
+      "Alchemy",
+      "Tenderly"
+    ],
+    "rule": "every value read on both endpoints at this block and required to be identical"
+  },
+  "inventory": {
+    "path": "script/evidence/rc8-owner-table/inventory-12158083.json",
+    "sha256": "81b744fd7fec44bbb0da068d8b22a903654410f70b7db869bb46fa249576e081",
+    "configuredOperators": [
+      "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+      "0xb5600060e6de5E11D3636731964218E53caadf0E"
+    ],
+    "superRoleHolders": [
+      "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+      "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "0xF92DC383c74eA30d7791b929d5872daD18679516",
+      "0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00",
+      "0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94"
+    ],
+    "everRegisteredSuper": [
+      "0xEcAACb915f7D92e9916f449F7ad42BD0408733c9",
+      "0xb5600060e6de5E11D3636731964218E53caadf0E",
+      "0xF92DC383c74eA30d7791b929d5872daD18679516",
+      "0x2e72A258FD9e1C69B2B2bB6ED8bC7E94773f7b00",
+      "0x368f8Cb8cCA42174B03156cEa761BaE31cEE5C94"
+    ],
+    "registryDeployBlock": 11151002,
+    "topic0Table": [
+      {
+        "topic0": "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+        "count": 3,
+        "firstBlock": 11151016,
+        "signature": "Upgraded(address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+        "count": 1,
+        "firstBlock": 11151016,
+        "signature": "OwnershipTransferred(address,address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2",
+        "count": 1,
+        "firstBlock": 11151016,
+        "signature": "Initialized(uint64)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x05ba7ce38b27f49ba3b81247ac7a13b30021ce3e90f633a2498fa9d1a0957990",
+        "count": 1,
+        "firstBlock": 11151029,
+        "signature": "XPNTsFactoryUpdated(address,address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x019f532f6e08ee8944dc2e7ac40f3c97ad4a20618aee847ddf7c502821c7dad4",
+        "count": 4,
+        "firstBlock": 11151032,
+        "signature": "BLSAggregatorUpdated(address,address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x92f63be5e4bfac76f996bbbee86c4933f30141307811e42d6977a697dd8fc3ec",
+        "count": 3,
+        "firstBlock": 11151034,
+        "signature": "AgentRegistriesUpdated(address,address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xdb6fb3cf4cc5fb760bcd63b958a53b2396776dff32c063188e864296541e76bd",
+        "count": 429,
+        "firstBlock": 11151035,
+        "signature": "PriceUpdated(int256,uint256)",
+        "class": "historical",
+        "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+      },
+      {
+        "topic0": "0x823c9466affb5a8646bc5f7e6304f72a4622cc01af819ec2f51b1130a725c6d1",
+        "count": 4,
+        "firstBlock": 11151052,
+        "signature": "OperatorConfigured(address,address,address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x06653c045d0a3144153a51ac6909baae43b8d5b67184cb74e988b72858727fe4",
+        "count": 5,
+        "firstBlock": 11151054,
+        "signature": "OperatorDeposited(address,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xcde7e91a718e2439d8ff2a679ad52713e82a37b72622fb530c8c41039fdd5bf0",
+        "count": 9,
+        "firstBlock": 11155147,
+        "signature": "TransactionSponsored(address,address,uint256,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x0b969f7dbdbaad518bf93d6f72458e8fd633fe345297219a90f56b035d14468d",
+        "count": 4,
+        "firstBlock": 11209698,
+        "signature": "BLSAggregatorQueued(address,uint48)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x75c311f3c3abe120497595cc3441171c6dcfdc922b816a2f4944f4f4daa67960",
+        "count": 3,
+        "firstBlock": 11223329,
+        "signature": "SlashQueued(address)",
+        "class": "historical",
+        "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+      },
+      {
+        "topic0": "0xa7503227727e36abb7f0ecf24f626347ccc20233c48c554d49d7d2077a1a3040",
+        "count": 3,
+        "firstBlock": 11223331,
+        "signature": "OperatorSlashed(address,uint256,uint8)",
+        "class": "historical",
+        "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+      },
+      {
+        "topic0": "0xfc577563f1b9a0461e24abef1e1fcc0d33d3d881f20b5df6dda59de4aae2c821",
+        "count": 6,
+        "firstBlock": 11223331,
+        "signature": "ReputationUpdated(address,uint256)",
+        "class": "historical",
+        "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+      },
+      {
+        "topic0": "0xa49f25e6b37dc7492af788d36761dc1b25f8fb6dcc448fb5637dc828725f0d88",
+        "count": 2,
+        "firstBlock": 11223331,
+        "signature": "SlashExecutedWithProof(address,uint8,uint256,bytes32,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x18e257fa1330af492bc6ba2454ed697ff9a225a325b2ba1c8f436508e7b102c2",
+        "count": 1,
+        "firstBlock": 11228202,
+        "signature": "BlsSlashCooldownPrimed(uint48)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x4419a541734858dec04cd4ea31aff7b399a0b82dc61f30cc777c1907dc8102ed",
+        "count": 1,
+        "firstBlock": 11228308,
+        "signature": "OperatorMinTxIntervalUpdated(address,uint48)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xc5437eb8dd091f69800961953f2bb0bc16ae1ff2d3e52caa96796db65f8271da",
+        "count": 2,
+        "firstBlock": 11228309,
+        "signature": "OperatorPaused(address)",
+        "class": "historical",
+        "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+      },
+      {
+        "topic0": "0xae02c1bd695006b6d891af37fdeefea45a10ebcc17071e3471787db4f1772885",
+        "count": 2,
+        "firstBlock": 11228310,
+        "signature": "OperatorUnpaused(address)",
+        "class": "historical",
+        "source": "SuperPaymaster ABI at tags v5.4.0-beta.1-redeploy / v5.4.1-rc.1 / v5.4.2 (4-argument OperatorConfigured: up to v5.3.2)"
+      },
+      {
+        "topic0": "0x4eea589c35918e3c4d8e0371a062a1d544e41d78fb522381678923b9cd6e6dfa",
+        "count": 2,
+        "firstBlock": 11228313,
+        "signature": "OperatorWithdrawn(address,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x4ab5be82436d353e61ca18726e984e561f5c1cc7c6d38b29d2553c790434705a",
+        "count": 2,
+        "firstBlock": 11228317,
+        "signature": "TreasuryUpdated(address,address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xf7595c4fd7fa675e456dd9520ac8266c06d237d52900fc573bccc85b7c177c9e",
+        "count": 1,
+        "firstBlock": 11228323,
+        "signature": "ProtocolRevenueWithdrawn(address,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xfcc60d1b1dedb59d33b8eef97db5a70c8f8f8523c70d6a027dbf676f1290f8d2",
+        "count": 2,
+        "firstBlock": 11228334,
+        "signature": "APNTsPriceUpdated(uint256,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xb404cac19fb1cbeff98d325795b08886e3cd8fe8cb1a2f193aac66f13fb239c3",
+        "count": 2,
+        "firstBlock": 11228337,
+        "signature": "ProtocolFeeUpdated(uint256,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0x98f60c65a2b39c6b97ac2ab59944af0f43d99c0d1756339e5c607fd64341971c",
+        "count": 3,
+        "firstBlock": 11631008,
+        "signature": "APNTsTokenChangeQueued(address,uint256)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      },
+      {
+        "topic0": "0xde82ad51cc1336e141528846e966b9e7f7ae89a78ebb71d1f0da0d851592d8ee",
+        "count": 1,
+        "firstBlock": 12032398,
+        "signature": "APNTsTokenChangeCancelled(address)",
+        "class": "current-abi",
+        "source": "abis/SuperPaymaster.full.json"
+      }
+    ]
+  }
+}
