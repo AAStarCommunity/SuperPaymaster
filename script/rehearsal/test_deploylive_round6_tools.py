@@ -38,10 +38,14 @@ class Round6ToolsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=OUTPUT) as tmp:
             path = Path(tmp)/'nested'; path.mkdir()
             evidence = path/'receipt.bin'
-            for leak in ('https://rpc.example/private/path', 'rpc.example', 'private', 'path', '0x' + f'{123456789:064x}', '123456789'):
+            for leak in ('https://rpc.example/private/path', 'rpc.example', 'private', '0x' + f'{123456789:064x}', '123456789'):
                 evidence.write_bytes(leak.encode())
                 with self.subTest(leak=leak), self.assertRaises(RuntimeError):
                     r.scan_evidence(Path(tmp), 'https://rpc.example/private/path', [123456789])
+            # Fragments shorter than deploylive_rehearse.MIN_FRAGMENT (6) are not needles, like the
+            # fixed final scan: 'path' alone is ordinary text, not a secret.
+            evidence.write_bytes(b'path')
+            r.scan_evidence(Path(tmp), 'https://rpc.example/private/path', [123456789])
             evidence.write_text('PASS receipt redacted')
             r.scan_evidence(Path(tmp), 'https://rpc.example/private/path', [123456789])
 
