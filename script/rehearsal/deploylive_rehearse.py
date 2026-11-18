@@ -34,13 +34,19 @@ def guard_bls_verbosity(args, env, default=3):
     require(verbosity < 3, 'BLS rehearsal refuses forge verbosity >= 3')
 
 
+MIN_FRAGMENT = 6
+
+
 def scan_evidence(directory, rpc_url, scalars):
     directory = Path(directory).resolve()
     require(directory.is_dir(), 'evidence directory must exist')
     url = urlsplit(rpc_url)
     needles = {rpc_url, url.hostname or ''}
-    needles.update(fragment for fragment in unquote(url.path).split('/') if fragment)
-    needles.update(fragment for fragment in re.split(r'[=&]', unquote(url.query)) if fragment)
+    # Path/query fragments count only from MIN_FRAGMENT characters, like the fixed final scan: a
+    # short segment such as a provider's API-version prefix ("v2") is not a secret and occurs in
+    # ordinary logs, which made every Alchemy-backed run fail. The full URL and host still count.
+    needles.update(fragment for fragment in unquote(url.path).split('/') if len(fragment) >= MIN_FRAGMENT)
+    needles.update(fragment for fragment in re.split(r'[=&]', unquote(url.query)) if len(fragment) >= MIN_FRAGMENT)
     for scalar in scalars:
         n = int(str(scalar), 16 if str(scalar).startswith('0x') else 10)
         require(n > 0, 'invalid rehearsal scalar')

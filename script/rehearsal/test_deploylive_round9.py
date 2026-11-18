@@ -76,3 +76,13 @@ class Round9Test(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=OUTPUT) as tmp:
             with patch.object(Path, 'is_relative_to', return_value=False):
                 rehearsal.scan_evidence(tmp, 'https://source.invalid/token', [123456789])
+
+
+class ScanFragmentTests(unittest.TestCase):
+    def test_short_path_segment_is_not_a_needle_but_a_long_one_is(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp)/'forge.stdout.log').write_text('compiling v2 artifacts\n')
+            rehearsal.scan_evidence(tmp, 'https://rpc.provider.example/v2/abcdef123456', [123456789])
+            (Path(tmp)/'leak.log').write_text('key abcdef123456 leaked\n')
+            with self.assertRaises(BaseException):
+                rehearsal.scan_evidence(tmp, 'https://rpc.provider.example/v2/abcdef123456', [123456789])
