@@ -31,6 +31,8 @@ CASES += [(L, 'test_live_'+g, g) for g in tests.LIVE_CASES]
 CASES += [(L, 'test_precheck_'+g, g.split('__')[0]) for g in tests.PRECHECK_CASES]
 CASES += [(L, 'test_funding_'+g, g.split('__')[0]) for g in tests.FUNDING_CASES]
 CASES += [
+    (P, 'test_build_C_chain_binding', 'C_chain_binding'),
+    (P, 'test_build_C_task_token_distinct', 'C_task_token_distinct'),
     (P, 'test_pin_price_zero', 'C_price_bound'),
     (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary'),
     (P, 'test_stage_c_prefix_must_end_in_phase_c', 'prefix_boundary_last'),

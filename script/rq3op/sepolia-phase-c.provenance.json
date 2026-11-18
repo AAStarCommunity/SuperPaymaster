@@ -1,0 +1,7 @@
+{
+  "file": "script/rq3op/sepolia-phase-c.json",
+  "sha256": "5c9b6c4430a68a911f06f087983a533e93fbbd8c5fb0bef2376ae1351c3c4796",
+  "generatedBy": "the ORIGINAL script/upgrade/manifest_exec.py at commit a6139689 (before the Phase C refactor), loaded as a separate module by script/rq3op/test_regression.py",
+  "fixture": "script/upgrade/test_manifest_exec.py ManifestTests.setUp (legacy Sepolia manifest inputs)",
+  "rule": "Never regenerate this file from the current code. test_regression.py rebuilds the expected bytes from a6139689 on every run and pins this sha256."
+}

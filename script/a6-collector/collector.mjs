@@ -1,3 +1,4 @@
+import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 import { rehearsalTpmRefresh } from './rehearsal-refresh.mjs';
 import { traceTPM } from './trace-policy.mjs';
 import { revalidateAnchors, requireDecodedPreflight, waitAfterInclusion } from './formal.mjs';
@@ -547,7 +548,7 @@ let previousInclusion = null;
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
-  const st = { row: { kind: 'attempt', ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
+  const st = { row: { kind: 'attempt', spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {
@@ -656,6 +657,15 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   row.observedUserOpEvent = observedUoe ? {...observedUoe.args, logIndex:observedUoe.logIndex, txHash:rcA.logs.find(l => l.logIndex === observedUoe.logIndex)?.transactionHash} : null;
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [], prefundTooLow: cls.prefundTooLow ?? [] });
+  if (arm === 'SP') {
+    try {
+      row.spBranch = settlementBranch(logs, {token:spToken, user:sender, hash:expectedHash,
+        planned:'balance', topics:Object.fromEntries(Object.entries(settlementSignatures).map(([k,v])=>[k,keccak256(toHex(v))]))});
+    } catch (error) {
+      row.spBranch = error.branch;
+      throw new Stop('SP_BRANCH_MISMATCH', 22, {branch:row.spBranch});
+    }
+  } else row.spBranch = null;
   if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle));
   if (traceEnabled) {
     try {

@@ -1,0 +1,72 @@
+{
+  "source": {
+    "kind": "<estimate or measured>",
+    "blockHash": "<calibration block hash>",
+    "evidenceSha256": "<raw calibration evidence SHA256>"
+  },
+  "arms": {
+    "SP": {
+      "postOp": "<gas units>",
+      "call": "<gas units>",
+      "verification": "<gas units>",
+      "paymasterVerification": "<gas units>",
+      "preVerification": "<gas units>",
+      "outer": "<gas units>"
+    },
+    "VPM": {
+      "call": "<gas units>",
+      "verification": "<gas units>",
+      "paymasterVerification": "<gas units>",
+      "postOp": "<gas units>",
+      "preVerification": "<gas units>",
+      "outer": "<gas units>"
+    },
+    "TPM": {
+      "call": "<gas units>",
+      "verification": "<gas units>",
+      "paymasterVerification": "<gas units>",
+      "postOp": "<gas units>",
+      "preVerification": "<gas units>",
+      "outer": "<gas units>"
+    }
+  },
+  "ownerPreparation": {
+    "C9.allowance": "<gas units>",
+    "C9.total": "<gas units>",
+    "C9.mode": "<gas units>",
+    "C18.approve": "<gas units>"
+  },
+  "ownerMaintenance": [],
+  "bundlerMaintenance": [],
+  "setup": {
+    "C2.approve": "<gas units; maximum across senders with source evidence>",
+    "C2.deposit": "<gas units; maximum across senders with source evidence>",
+    "C3.deploy": "<gas units; maximum across senders with source evidence>",
+    "C3.configure": "<gas units; maximum across senders with source evidence>",
+    "C5": "<gas units; maximum across senders with source evidence>",
+    "C6": "<gas units; maximum across senders with source evidence>",
+    "C7": "<gas units; maximum across senders with source evidence>",
+    "C8": "<gas units; maximum across senders with source evidence>",
+    "C20": "<gas units; maximum across senders with source evidence>",
+    "C9.allowance": "<gas units; maximum across senders with source evidence>",
+    "C9.total": "<gas units; maximum across senders with source evidence>",
+    "C9.mode": "<gas units; maximum across senders with source evidence>",
+    "C18.approve": "<gas units; maximum across senders with source evidence>",
+    "C10": "<gas units; maximum across senders with source evidence>",
+    "C11.S": "<gas units; maximum across senders with source evidence>",
+    "C11.R": "<gas units; maximum across senders with source evidence>",
+    "C12": "<gas units; maximum across senders with source evidence>",
+    "C13.token": "<gas units; maximum across senders with source evidence>",
+    "C13.oracle": "<gas units; maximum across senders with source evidence>",
+    "C14": "<gas units; maximum across senders with source evidence>",
+    "C15": "<gas units; maximum across senders with source evidence>",
+    "C16.vpm": "<gas units; maximum across senders with source evidence>",
+    "C16.tpm": "<gas units; maximum across senders with source evidence>",
+    "C17.sp": "<gas units; maximum across senders with source evidence>",
+    "C17.vpm": "<gas units; maximum across senders with source evidence>",
+    "C17.tpm": "<gas units; maximum across senders with source evidence>",
+    "C18.mint": "<gas units; maximum across senders with source evidence>",
+    "C19": "<gas units; maximum across senders with source evidence>",
+    "C11.extra.0": "<gas units; maximum across senders with source evidence>"
+  }
+}

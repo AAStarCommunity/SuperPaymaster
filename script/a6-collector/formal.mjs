@@ -137,7 +137,8 @@ export function feePause(block, cap) {
 }
 
 const STATE_TAG = { eth_call: 1, eth_getCode: 1, eth_getBalance: 1, eth_getStorageAt: 2, eth_getTransactionCount: 1, eth_getProof: 2, eth_estimateGas: 1 };
-export function guardRequest(method, params) {
+export function guardRequest(method, params, {pendingNonce = false} = {}) {
+  if (pendingNonce && method === 'eth_getTransactionCount' && /^0x[0-9a-f]{40}$/i.test(params[0] ?? '') && params[1] === 'pending') return;
   if (/^(anvil_|hardhat_|evm_)/.test(method)) throw new Error('development RPC forbidden in formal mode');
   if (method in STATE_TAG && !/^0x[0-9a-f]+$/i.test(params[STATE_TAG[method]] ?? '')) throw new Error(`${method} requires a fixed block number`);
   if (method === 'eth_getLogs' && (!/^0x[0-9a-f]+$/i.test(params[0]?.fromBlock ?? '') || !/^0x[0-9a-f]+$/i.test(params[0]?.toBlock ?? ''))) throw new Error('eth_getLogs requires fixed blocks');
@@ -146,7 +147,7 @@ export function guardRequest(method, params) {
 
 /** Transport owns serialization: base64 preserves exact request and response bytes,
  * including whitespace, invalid JSON and error responses. No endpoint URL is stored. */
-export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets = [], secretPatterns = [], rehearsal = false }) {
+export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets = [], secretPatterns = [], rehearsal = false, pendingNonce = false }) {
   const credentials = [...credentialFragments([url]), ...secrets];
   const sensitive = bytes => credentials.some(s=>s && bytes.includes(s)) || secretPatterns.some(p=>new RegExp(p).test(bytes));
   let sequence = 0;
@@ -160,7 +161,7 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
     }
   }
   async function perform({ method, params = [] }) {
-    if (!(rehearsal && ['anvil_setStorageAt','evm_mine'].includes(method))) guardRequest(method, params);
+    if (!(rehearsal && ['anvil_setStorageAt','evm_mine'].includes(method))) guardRequest(method, params, {pendingNonce});
     let anchor = null;
     if (rehearsal && ['anvil_setStorageAt','evm_mine'].includes(method)) {
       const block = await request({method:'eth_getBlockByNumber',params:['latest',false]});
@@ -242,7 +243,7 @@ export function castSigner(config, _role, run = execFileSync) {
     }, signTypedData: async () => { throw new Error('typed data signing is not used by A6'); } });
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
   if (rehearsal) {
@@ -254,7 +255,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
   } else resolved = await resolveEndpoints(a, b, resolver);
   const archives = ['A', 'B'].map((endpoint, i) => {
     const archive = rawArchive(dirname(outPath), endpoint);
-    const rpc = archivedRpc({ rehearsal, url: i ? b : a, endpoint, fetchImpl: fetchImpl ?? ((url,options)=>pinnedFetch(url,options,resolved[i])), append: archive.append, secrets: credentialFragments([a,b]), secretPatterns: config.secretPatterns ?? [] });
+    const rpc = archivedRpc({ rehearsal, pendingNonce, url: i ? b : a, endpoint, fetchImpl: fetchImpl ?? ((url,options)=>pinnedFetch(url,options,resolved[i])), append: archive.append, secrets: credentialFragments([a,b]), secretPatterns: config.secretPatterns ?? [] });
     return { ...rpc, ...archive };
   });
   let pin;

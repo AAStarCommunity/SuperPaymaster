@@ -203,6 +203,26 @@ class PhaseCTests(unittest.TestCase):
         path.write_text(json.dumps(data or self.data))
         return m.build_plan(pin or self.pin, m.external(path, stage), stage)
 
+    def test_build_C_chain_binding(self):
+        build_phase_c = m.build_phase_c
+        def wrong_chain(**kwargs):
+            add = kwargs['add']
+            def bad_add(*args, **kw):
+                step = add(*args, **kw)
+                step['tx']['chainId'] = hex(kwargs['chain_id']+1)
+                return step
+            return build_phase_c(**dict(kwargs, add=bad_add))
+        with patch.object(m, 'build_phase_c', side_effect=wrong_chain):
+            self.stop('C_chain_binding', lambda: self.build(stage='c'))
+
+    def test_build_C_task_token_distinct(self):
+        build_phase_c = m.build_phase_c
+        def same_token(**kwargs):
+            context = dict(kwargs['context'], comparators={'T': a.create_address(kwargs['factory'], 1)})
+            return build_phase_c(**dict(kwargs, context=context, policy='fresh', worksheet=copy.deepcopy(self.pc)))
+        with patch.object(m, 'build_phase_c', side_effect=same_token):
+            self.stop('C_task_token_distinct', lambda: self.build(stage='c'))
+
     def test_full_plan_expands_every_row(self):
         ids = self.pc['steps']
         self.assertEqual(ids, ['C1_approve', 'C1_exec', 'C2.approve', 'C2.deposit', 'C3.deploy', 'C3.configure', 'C5',

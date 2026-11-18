@@ -1,0 +1,75 @@
+{
+  "experiment": "<experiment address>",
+  "genesis": "<config.genesisOperator>",
+  "bundler": "<bundler address>",
+  "verifyingSigner": "<verifying signer>",
+  "gasFactor": {
+    "numerator": "<DSR input>",
+    "denominator": "<DSR input>"
+  },
+  "feeFactor": {
+    "numerator": "<DSR input>",
+    "denominator": "<DSR input>"
+  },
+  "priorityRule": {
+    "blocks": "<recent block count, e.g. 20>",
+    "percentile": 50
+  },
+  "feeCeiling": "<wei ceiling>",
+  "stakeWei": "<bundler required wei>",
+  "unstakeDelay": "<bundler required seconds>",
+  "checkerEvidence": "cache/3arm/checker-pass.json",
+  "calibration": "cache/3arm/calibration.json",
+  "fixturePins": "script/rq3op/fixture-pins.json",
+  "baselineSha256": {
+    "VerifyingPaymaster": "44cbe5cdf0a66afef9ac6d24d2cd8c40ee9a5151ae7f60f0db7da2d9faa81547",
+    "TokenPaymaster": "e54501a6b56462767094e1830e5a76ea86bdd89ee84935b7e8f9b37c26606961"
+  },
+  "accounts": [
+    {
+      "account": "<S0>",
+      "accountOwner": "<O0>",
+      "salt": 0,
+      "accountImplementation": "<reviewed implementation>",
+      "runtimeKeccak": {
+        "accountFactory": "<reviewed runtime keccak>",
+        "accountImplementation": "<reviewed runtime keccak>",
+        "account": "<reviewed runtime keccak>",
+        "VerifyingPaymaster": "<reviewed runtime keccak>",
+        "TokenPaymaster": "<reviewed runtime keccak>"
+      }
+    },
+    {
+      "account": "<S1>",
+      "accountOwner": "<O1>",
+      "salt": 1,
+      "accountImplementation": "<reviewed implementation>",
+      "runtimeKeccak": {
+        "accountFactory": "<reviewed runtime keccak>",
+        "accountImplementation": "<reviewed runtime keccak>",
+        "account": "<reviewed runtime keccak>",
+        "VerifyingPaymaster": "<reviewed runtime keccak>",
+        "TokenPaymaster": "<reviewed runtime keccak>"
+      }
+    },
+    {
+      "account": "<S2>",
+      "accountOwner": "<O2>",
+      "salt": 2,
+      "accountImplementation": "<reviewed implementation>",
+      "runtimeKeccak": {
+        "accountFactory": "<reviewed runtime keccak>",
+        "accountImplementation": "<reviewed runtime keccak>",
+        "account": "<reviewed runtime keccak>",
+        "VerifyingPaymaster": "<reviewed runtime keccak>",
+        "TokenPaymaster": "<reviewed runtime keccak>"
+      }
+    }
+  ],
+  "taskRecipients": [
+    {
+      "address": "0xE8Eaad6A4802300F33E53c40e65863CCcDA6898b",
+      "amount": 10000
+    }
+  ]
+}
