@@ -418,6 +418,8 @@ contract SPMockAPNTs is ERC20 {
 
 contract SPMockRegistry is IRegistry {
     mapping(bytes32 => mapping(address => bool)) private _roles;
+    uint256[1] public levelThresholds = [uint256(13)];
+    function creditTierConfig(uint256) external pure returns (uint256) { return 0; }
 
     function hasRole(bytes32 role, address account) external view returns (bool) { return _roles[role][account]; }
     function setRole(bytes32 role, address account, bool val) external { _roles[role][account] = val; }

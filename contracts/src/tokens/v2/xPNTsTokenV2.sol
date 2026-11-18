@@ -5,6 +5,7 @@ pragma solidity 0.8.33;
 import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import { IVersioned } from "src/interfaces/IVersioned.sol";
 import { IxPNTsTokenV2 } from "./IxPNTsTokenV2.sol";
+import { ICreditTierSource } from "./ICreditTierSource.sol";
 import { xPNTsV2Base } from "./xPNTsV2Base.sol";
 
 /**
@@ -45,7 +46,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
     }
 
     function version() external pure override returns (string memory) {
-        return "XPNTs-4.0.2";
+        return "XPNTs-4.0.3";
     }
 
     // ---------------------------------------------------------------------
@@ -346,7 +347,7 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
         if (r.epoch != policyEpoch || r.requestedCap == 0) return 0;
         uint256 cap = r.requestedCap;
         if (cap > PROTOCOL_CREDIT_CEILING) cap = PROTOCOL_CREDIT_CEILING;
-        uint256 tier = _tierOf(user);
+        uint256 tier = p == POLICY_AUTO ? _autoTierOf(user) : _tierOf(user);
         if (tier < cap) cap = tier;
         if (p == POLICY_MANUAL && r.approvedCap < cap) cap = r.approvedCap;
         return cap;
@@ -361,6 +362,20 @@ contract xPNTsTokenV2 is xPNTsV2Base, IVersioned {
         );
         if (!ok || ret.length != 32) return 0;
         return abi.decode(ret, (uint256));
+    }
+
+    /// @dev AUTO grants only reputation-derived credit above the reputation-0 floor.
+    ///      Both source reads are bounded STATICCALLs; any failure or underflow returns 0.
+    function _autoTierOf(address user) internal view returns (uint256) {
+        uint256 tier = _tierOf(user);
+        if (tier == 0) return 0;
+        address src = creditTierSource;
+        (bool ok, bytes memory ret) = src.staticcall{gas: TIER_SOURCE_GAS}(
+            abi.encodeWithSelector(ICreditTierSource.creditFloor.selector)
+        );
+        if (!ok || ret.length != 32) return 0;
+        uint256 floor = abi.decode(ret, (uint256));
+        return tier > floor ? tier - floor : 0;
     }
 
     // ---------------------------------------------------------------------

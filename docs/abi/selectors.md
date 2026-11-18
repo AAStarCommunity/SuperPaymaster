@@ -556,6 +556,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x5bb5bf0c` | `verifyCommunityMembership(address,address)` | MySBT |
 | `0x5bb70f6f` | `creditReservationOf(bytes32,address)` | xPNTsTokenV2 |
 | `0x5c445412` | `levelThresholds(uint256)` | Registry |
+| `0x5c445412` | `levelThresholds(uint256)` | IRegistryCreditLimit |
 | `0x5c60da1b` | `implementation()` | xPNTsFactoryV2 |
 | `0x5c60da1b` | `implementation()` | xPNTsFactory |
 | `0x5c7c4b5f` | `configureOperator(address,address)` | ISuperPaymaster |
@@ -1095,6 +1096,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xaf43e2d1` | `EXCHANGE_RATE_MAX()` | xPNTsToken |
 | `0xaf567e26` | `DRYRUN_VERSION_MISMATCH()` | SuperPaymasterLens |
 | `0xaf5eda02` | `creditTierConfig(uint256)` | Registry |
+| `0xaf5eda02` | `creditTierConfig(uint256)` | IRegistryCreditLimit |
 | `0xb08ec5ca` | `XPNTS_FACTORY()` | X402Facilitator |
 | `0xb0d691fe` | `entryPoint()` | BasePaymasterUpgradeable |
 | `0xb0d691fe` | `entryPoint()` | SuperPaymaster |
@@ -1325,6 +1327,8 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0xd4278e33` | `PROTOCOL_REGISTRY()` | xPNTsTokenV2 |
 | `0xd4278e33` | `PROTOCOL_REGISTRY()` | xPNTsTokenV2Ext |
 | `0xd4278e33` | `PROTOCOL_REGISTRY()` | xPNTsV2Base |
+| `0xd44b6730` | `creditFloor()` | GlobalTierSource |
+| `0xd44b6730` | `creditFloor()` | ICreditTierSource |
 | `0xd49bdad0` | `renounceFactory()` | xPNTsTokenV2Ext |
 | `0xd49bdad0` | `renounceFactory()` | xPNTsToken |
 | `0xd4c38f52` | `withdrawFacilitatorEarnings(address)` | X402Facilitator |

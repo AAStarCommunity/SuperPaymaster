@@ -71,6 +71,8 @@ contract MalformedLockToken {
 contract AdvRegistry {
     mapping(bytes32 => mapping(address => bool)) public roles;
     mapping(address => uint256) public creditLimit;
+    uint256[1] public levelThresholds = [uint256(13)];
+    function creditTierConfig(uint256) external pure returns (uint256) { return 0; }
     function setRole(bytes32 role, address a, bool v) external { roles[role][a] = v; }
     function hasRole(bytes32 role, address a) external view returns (bool) { return roles[role][a]; }
     function getRoleConfig(bytes32) external pure returns (IRegistry.RoleConfig memory config) { config.minStake = 0; }
