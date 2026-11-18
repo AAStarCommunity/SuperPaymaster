@@ -1031,7 +1031,7 @@ class ManifestTests(unittest.TestCase):
                            '--plan', str(artifact)])
         self.assertEqual(code, 1)
         failure = json.loads((out/'FAILURE.json').read_text())
-        expected = {'sidecar':'plan_hash', 'final':'stage_not_final'}.get(tamper, 'test_fork_boundary')
+        expected = {'sidecar':'plan_hash', 'final':'stage_not_final_load_artifact'}.get(tamper, 'test_fork_boundary')
         self.assertEqual(failure['gate'], expected)
         if tamper:
             fork.assert_not_called()
@@ -1610,9 +1610,9 @@ class ManifestTests(unittest.TestCase):
         plan = copy.deepcopy(self.plan)
         step = next(s for s in plan['steps'] if s['id'].startswith('A14.'))
         step['tx']['data'] = a.calldata('setOperatorPaused(address,bool)', u.DEPLOYER, 'false')
-        with assert_stop(self, 'manifest_tx_data') as caught:
+        with assert_stop(self, 'manifest_tx_field_data') as caught:
             m.validate_plan(plan, self.inputs)
-        self.assertEqual(caught.exception.record['gate'], 'manifest_tx_data')
+        self.assertEqual(caught.exception.record['gate'], 'manifest_tx_field_data')
 
     def test_unpause_only_in_activation_batch(self):
         # DSR Q4: setOperatorPaused(op,false) for any op appears only in the 6c/6d activation batch, and only for D.
@@ -2070,10 +2070,10 @@ class ManifestTests(unittest.TestCase):
         self.assert_timelock_build_gate('old_timelock_block', lambda p: p['oldTimelock']['reads'][0].update(block='0x123'))
 
     def test_old_timelock_replay_reads(self):
-        self.assert_timelock_build_gate('old_timelock_replay', lambda p: p['oldTimelock']['reads'][0].update(target=u.SP))
+        self.assert_timelock_build_gate('old_timelock_replay_reads', lambda p: p['oldTimelock']['reads'][0].update(target=u.SP))
 
     def test_old_timelock_replay_owners(self):
-        self.assert_timelock_build_gate('old_timelock_replay', lambda p: p['oldTimelock']['approvalOwners'].clear())
+        self.assert_timelock_build_gate('old_timelock_replay_owners', lambda p: p['oldTimelock']['approvalOwners'].clear())
 
     def test_old_timelock_unused(self):
         self.assert_timelock_build_gate('old_timelock_unused', lambda p: p['oldTimelock']['reads'].append(copy.deepcopy(p['oldTimelock']['reads'][0])))
@@ -2162,7 +2162,8 @@ class ManifestTests(unittest.TestCase):
         rpc, token, _ = self.approval_rpc(pin['stateBlock'], amount=0, malformed=not invalid_range)
         if invalid_range:
             pin['oldOwnerIsolation']['inventory']['deployedSources'] = [dict(target=token, creationBlock=0)]
-        with assert_stop(self, 'old_timelock_approval_history'):
+        gate = 'old_timelock_approval_history_creation' if invalid_range else 'old_timelock_approval_history_log'
+        with assert_stop(self, gate):
             m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
 
     def test_old_timelock_approval_history_range(self):
@@ -2188,7 +2189,10 @@ class ManifestTests(unittest.TestCase):
         m.validate_old_timelock(pin)
 
     def test_old_timelock_log_replay(self):
-        for mutation in ('omit', 'mismatch', 'unused', 'owners'):
+        for mutation, gate in (('omit', 'old_timelock_replay_reads'),
+                               ('mismatch', 'old_timelock_replay_reads'),
+                               ('unused', 'old_timelock_unused'),
+                               ('owners', 'old_timelock_replay_owners')):
             pin = copy.deepcopy(self.pin)
             rpc, token, _ = self.approval_rpc(pin['stateBlock'], amount=0)
             pin['oldTimelock'] = m.old_timelock_holds_nothing(rpc, pin, pin['stateBlock'])
@@ -2199,10 +2203,10 @@ class ManifestTests(unittest.TestCase):
             if mutation == 'unused': rows.append(copy.deepcopy(rows[index]))
             if mutation == 'owners': pin['oldTimelock']['approvalOwners'][token] = []
             with self.subTest(mutation=mutation):
-                with assert_stop(self, 'old_timelock_unused' if mutation == 'unused' else 'old_timelock_replay') as caught:
+                with assert_stop(self, gate) as caught:
                     m.validate_old_timelock(pin)
                 self.assertEqual(caught.exception.record['gate'],
-                    'old_timelock_unused' if mutation == 'unused' else 'old_timelock_replay')
+                    gate)
 
     def check_closing_inventory(self, new_role=False):
         block = '0x200'
@@ -2631,8 +2635,8 @@ class ManifestTests(unittest.TestCase):
     def test_built_aggregator_version_required(self):
         build = dict(ART, aggregatorVersion='BLSAggregator-4.11.0')
         with patch.object(m.subprocess, 'run', return_value=SimpleNamespace(stdout='', returncode=0)):
-            with assert_stop(self, 'built_aggregator_version') as caught: REAL_RELEASE_GATE(self.inputs, build, self.pin)
-        self.assertEqual(caught.exception.record['gate'], 'built_aggregator_version')
+            with assert_stop(self, 'built_aggregator_version_release_gate') as caught: REAL_RELEASE_GATE(self.inputs, build, self.pin)
+        self.assertEqual(caught.exception.record['gate'], 'built_aggregator_version_release_gate')
 
     def test_cached_build_current_head_required(self):
         def run(cmd, **kwargs):
@@ -3164,7 +3168,9 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(caught.exception.record['gate'], 'evidence_finding_path_canonical')
 
     def test_slither_raw_rederived_gate(self):
-        for attack in ('drop', 'hash', 'move'):
+        for attack, gate in (('drop', 'evidence_slither_rederived_findings'),
+                             ('hash', 'evidence_slither_rederived_file'),
+                             ('move', 'evidence_slither_rederived_findings')):
             value = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
             self.raw_findings(value, [('hidden', 'High', 'contracts/src/SuperPaymaster.sol')])
             if attack == 'hash':
@@ -3173,9 +3179,9 @@ class ManifestTests(unittest.TestCase):
                 value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
                     files=['contracts/lib/Fake.sol'], classification='unclassified')]
             with self.subTest(attack=attack):
-                with assert_stop(self, 'evidence_slither_rederived') as caught:
+                with assert_stop(self, gate) as caught:
                     m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-                self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                self.assertEqual(caught.exception.record['gate'], gate)
 
     def test_raw_absolute_mapping_rejected(self):
         for field in ('filename_relative', 'filename_absolute', 'filename_short'):
@@ -3195,9 +3201,9 @@ class ManifestTests(unittest.TestCase):
                         item['elements'][0]['source_mapping'].update(mapping)
                     ref = self.file_ref('slither.raw', raw)
                     value['rawReport']['sha256'] = ref['sha256']
-                    with assert_stop(self, 'evidence_slither_rederived') as caught:
+                    with assert_stop(self, 'evidence_slither_rederived_filename') as caught:
                         m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived_filename')
 
     def test_raw_report_symlink_escape_rejected(self):
         for parent in (False, True):
@@ -3210,9 +3216,9 @@ class ManifestTests(unittest.TestCase):
                 link.symlink_to(Path(external) if parent else outside, target_is_directory=parent)
                 value['rawReport']['path'] = link.name + ('/report.json' if parent else '')
                 with patch.object(m, 'reviewed_file', wraps=m.reviewed_file) as reviewed:
-                    with assert_stop(self, 'evidence_slither_rederived') as caught:
+                    with assert_stop(self, 'evidence_slither_rederived_path_containment') as caught:
                         m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived')
+                    self.assertEqual(caught.exception.record['gate'], 'evidence_slither_rederived_path_containment')
                     reviewed.assert_not_called()
 
     def test_outside_high_medium_allowed(self):
@@ -3233,9 +3239,9 @@ class ManifestTests(unittest.TestCase):
                 m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
             self.assertEqual(caught.exception.record['gate'], 'evidence_scope_files')
         original['scope']['files'] = ['contracts/lib/Base.sol']
-        with assert_stop(self, 'evidence_scope_recomputed') as caught:
+        with assert_stop(self, 'evidence_scope_recomputed_validate_evidence_details') as caught:
             m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
-        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed_validate_evidence_details')
         with patch.object(m, 'rebuild_commit', return_value=dict(commit=ART['commit'], scope=copy.deepcopy(original['scope']))):
             m.validate_evidence_details(original, 'slither', Path(self.tmp.name))
         original['scope']['files'] = ART['scope']['files']
@@ -3250,9 +3256,9 @@ class ManifestTests(unittest.TestCase):
         value['scope']['files'] = ['contracts/lib/Fabricated.sol']
         value['findings']['outOfScope'] = [dict(id='hidden', impact='High',
             files=['contracts/src/SuperPaymaster.sol'], classification='unclassified')]
-        with assert_stop(self, 'evidence_scope_recomputed') as caught:
+        with assert_stop(self, 'evidence_scope_recomputed_validate_evidence_details') as caught:
             m.validate_evidence_details(value, 'slither', Path(self.tmp.name))
-        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed')
+        self.assertEqual(caught.exception.record['gate'], 'evidence_scope_recomputed_validate_evidence_details')
 
     def test_finding_ids_unique_across_scope_partitions(self):
         original = json.loads(Path(self.data['releaseEvidence']['slither']['path']).read_text())
@@ -3523,7 +3529,8 @@ class SafeGovernanceTests(unittest.TestCase):
                 self.setUp()
                 log = self.chain['E755']['a']['receipt']['logs'][1]
                 value = a.ZERO32 if field.endswith('Hash') else hex(a.qty(log[field]) + 2)
-                self.stop('safe_gap_log_' + field, lambda: log.update({field:value}))
+                gate = 'safe_gap_log_logIndex_sequence' if field == 'logIndex' else 'safe_gap_log_' + field
+                self.stop(gate, lambda: log.update({field:value}))
 
     def test_receipt_index_bound_to_mined_transaction(self):
         # Receipt and all logs moved together to another index: only the mined tx binds it.
@@ -3532,17 +3539,17 @@ class SafeGovernanceTests(unittest.TestCase):
                 receipt = self.chain['E755'][endpoint]['receipt']
                 receipt['transactionIndex'] = '0x0'
                 for log in receipt['logs']: log['transactionIndex'] = '0x0'
-        self.stop('safe_gap_receipt_identity', move)
+        self.stop('safe_gap_receipt_identity_fields', move)
 
     def test_malformed_trace_gates(self):
         cases = [
             ('shape', 'safe_gap_trace_account_shape'), ('unknown', 'safe_gap_trace_account_shape'),
             ('balance', 'safe_gap_trace_balance'), ('nonce', 'safe_gap_trace_nonce'),
-            ('storage_list', 'safe_gap_trace_storage'), ('storage_key', 'safe_gap_trace_storage'),
-            ('storage_value', 'safe_gap_trace_storage'), ('code', 'safe_gap_trace_code'),
+            ('storage_list', 'safe_gap_trace_storage_mapping'), ('storage_key', 'safe_gap_trace_storage_key'),
+            ('storage_value', 'safe_gap_trace_storage_value'), ('code', 'safe_gap_trace_code'),
             ('missing_sender', 'safe_gap_sender_pre_balance'),
-            ('missing_miner', 'safe_gap_miner_balance'), ('miner_equal', 'safe_gap_miner_balance'),
-            ('miner_less', 'safe_gap_miner_balance'), ('miner_invalid', 'safe_gap_trace_balance')]
+            ('missing_miner', 'safe_gap_miner_balance_post'), ('miner_equal', 'safe_gap_miner_balance_delta'),
+            ('miner_less', 'safe_gap_miner_balance_delta'), ('miner_invalid', 'safe_gap_trace_balance')]
         for case, gate in cases:
             with self.subTest(case=case):
                 self.setUp()
@@ -3614,13 +3621,13 @@ class SafeGovernanceTests(unittest.TestCase):
         self.stop('safe_gap_packet', lambda: self.inputs['data']['safeGovernanceGaps'][0].update(sha256='1'*64))
 
     def test_pin_owner_controls(self):
-        self.stop('safe_gap_pin_owners', lambda: self.pin['safe'].update(owners=sorted(a.safe_owners(hex(12060358)))))
+        self.stop('safe_gap_pin_owners_pin', lambda: self.pin['safe'].update(owners=sorted(a.safe_owners(hex(12060358)))))
         self.setUp()
-        self.stop('safe_gap_owner_eoa', lambda: self.pin['safe']['codes'].update({a.APPROVER:'0xef0100'+'11'*20}))
+        self.stop('safe_gap_owner_eoa_pin', lambda: self.pin['safe']['codes'].update({a.APPROVER:'0xef0100'+'11'*20}))
         self.setUp()
-        self.stop('safe_gap_pin_nonce', lambda: self.pin.update(safeNonce=5))
+        self.stop('safe_gap_pin_nonce_pin', lambda: self.pin.update(safeNonce=5))
         self.setUp()
-        self.stop('safe_gap_pin_threshold', lambda: self.pin['safe'].update(threshold=1))
+        self.stop('safe_gap_pin_threshold_pin', lambda: self.pin['safe'].update(threshold=1))
 
     def test_live_owner_code_on_one_endpoint(self):
         self.verify()
@@ -3628,9 +3635,9 @@ class SafeGovernanceTests(unittest.TestCase):
         def delegated(method, params):
             if method == 'eth_getCode' and params[0] == a.APPROVER: return '0xef0100'+'11'*20
             return original(method, params)
-        with assert_stop(self, 'safe_gap_owner_eoa') as caught:
+        with assert_stop(self, 'safe_gap_owner_eoa_live') as caught:
             m.governance_evidence(self.pin, self.inputs, [self.rpc('a'), delegated])
-        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_eoa')
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_owner_eoa_live')
 
     def test_dual_identity_and_sender_balance(self):
         self.stop('safe_gap_dual_identity', lambda: self.chain['E755']['b']['block'].update(miner='0x'+'22'*20))
@@ -3654,7 +3661,7 @@ class SafeGovernanceTests(unittest.TestCase):
                     def shift():
                         diff, miner = self.chain[key]['a']['diff'], self.chain[key]['a']['block']['miner']
                         diff['post'][miner]['balance'] = hex(int(diff['post'][miner]['balance'], 16) + delta)
-                    self.stop('safe_gap_miner_balance', shift)
+                    self.stop('safe_gap_miner_balance_delta', shift)
 
     def test_base_fee_required_and_agreed(self):
         self.stop('safe_gap_base_fee', lambda: self.chain['A100']['a']['block'].pop('baseFeePerGas'))
@@ -3699,7 +3706,7 @@ class SafeGovernanceTests(unittest.TestCase):
                 priority_fee = a.qty(item['receipt']['gasUsed']) * (
                     a.qty(item['receipt']['effectiveGasPrice']) - a.qty(item['block']['baseFeePerGas']))
                 item['diff']['post'][miner]['balance'] = hex(priority_fee)
-                self.stop('safe_gap_miner_balance',
+                self.stop('safe_gap_miner_balance_delta',
                           lambda: item['diff']['post'][miner].update(balance=hex(priority_fee + 1)))
 
     def test_block_transaction_membership(self):
@@ -3805,9 +3812,9 @@ class SafeGovernanceTests(unittest.TestCase):
 
     def test_log_bytes_and_removed_controls(self):
         for key, index, field, value, gate in [
-                ('A100', 0, 'data', '0x00', 'safe_gap_log_data'),
-                ('E755', 0, 'data', '0x00', 'safe_gap_log_data'),
-                ('E755', 1, 'data', '0x00', 'safe_gap_log_data'),
+                ('A100', 0, 'data', '0x00', 'safe_gap_log_data_approval'),
+                ('E755', 0, 'data', '0x00', 'safe_gap_log_data_swap_execution'),
+                ('E755', 1, 'data', '0x00', 'safe_gap_log_data_swap_tail'),
                 ('E755', 0, 'removed', True, 'safe_gap_log_removed')]:
             with self.subTest(key=key, index=index, field=field):
                 self.setUp()
@@ -3826,8 +3833,8 @@ class SafeGovernanceTests(unittest.TestCase):
 
     def test_independent_chain_state(self):
         for endpoint in ('a', 'b'):
-            for field, gate in [('owners', 'safe_gap_pin_owners'), ('threshold', 'safe_gap_pin_threshold'),
-                                ('nonce', 'safe_gap_pin_nonce'), ('code', 'safe_gap_owner_eoa')]:
+            for field, gate in [('owners', 'safe_gap_pin_owners_live'), ('threshold', 'safe_gap_pin_threshold_live'),
+                                ('nonce', 'safe_gap_pin_nonce_live'), ('code', 'safe_gap_owner_eoa_live')]:
                 with self.subTest(endpoint=endpoint, field=field):
                     self.setUp()
                     def mutate():
@@ -3840,11 +3847,11 @@ class SafeGovernanceTests(unittest.TestCase):
 
     def test_mined_and_receipt_controls(self):
         for part, field, value, gate in [
-                ('tx', 'hash', a.ZERO32, 'safe_gap_hash'),
+                ('tx', 'hash', a.ZERO32, 'safe_gap_hash_check_governance'),
                 ('block', 'number', '0x1', 'safe_gap_block_number'),
                 ('receipt', 'logs', {}, 'safe_gap_logs_shape'),
-                ('receipt', 'gasUsed', None, 'safe_gap_gas_used'),
-                ('receipt', 'effectiveGasPrice', None, 'safe_gap_gas_price')]:
+                ('receipt', 'gasUsed', None, 'safe_gap_gas_used_check_governance'),
+                ('receipt', 'effectiveGasPrice', None, 'safe_gap_gas_price_check_governance')]:
             with self.subTest(part=part, field=field):
                 self.setUp()
                 self.stop(gate, lambda: self.chain['A99']['a'][part].update({field:value}))
@@ -3879,12 +3886,13 @@ class SafeGovernanceTests(unittest.TestCase):
     def test_list_and_endpoint_controls(self):
         with assert_stop(self, 'safe_gap_list') as caught: m.governance_entries(dict(data=dict(safeGovernanceGaps={})))
         self.assertEqual(caught.exception.record['gate'], 'safe_gap_list')
-        for check in (m.check_governance, m.governance_evidence):
+        for check, gate in ((m.check_governance, 'safe_gap_endpoints_check_governance'),
+                            (m.governance_evidence, 'safe_gap_endpoints_governance_evidence')):
             with self.subTest(check=check.__name__):
-                with assert_stop(self, 'safe_gap_endpoints') as caught:
+                with assert_stop(self, gate) as caught:
                     if check == m.check_governance: check([self.rpc('a')], self.pin, self.inputs)
                     else: check(self.pin, self.inputs, [self.rpc('a')])
-                self.assertEqual(caught.exception.record['gate'], 'safe_gap_endpoints')
+                self.assertEqual(caught.exception.record['gate'], gate)
         inputs = copy.deepcopy(self.inputs)
         inputs['data']['safeGovernanceGaps'] = inputs['data']['safeGovernanceGaps'][:2]
         with assert_stop(self, 'safe_gap_swap_required') as caught:
@@ -3895,9 +3903,9 @@ class SafeGovernanceTests(unittest.TestCase):
         # The nested verifier repeats this guard. Isolate the collection boundary
         # so removing its own check cannot hide behind the same downstream gate.
         with patch.object(m, 'check_governance', side_effect=AssertionError('delegated invalid endpoints')):
-            with assert_stop(self, 'safe_gap_endpoints') as caught:
+            with assert_stop(self, 'safe_gap_endpoints_governance_evidence') as caught:
                 m.governance_evidence(self.pin, self.inputs, [self.rpc('a')])
-        self.assertEqual(caught.exception.record['gate'], 'safe_gap_endpoints')
+        self.assertEqual(caught.exception.record['gate'], 'safe_gap_endpoints_governance_evidence')
 
     def test_evidence_controls(self):
         self.verify()
@@ -4624,7 +4632,7 @@ class F05ExecuteB4Gates(F05Fixture):
 class F05BuildPlanGates(F05Fixture):
     def test_stake_not_unlocking(self):
         self.pin['withdrawTime'] = 1
-        self.stop('stake_not_unlocking', lambda:m.build_plan(self.pin, self.inputs))
+        self.stop('stake_not_unlocking_build_plan', lambda:m.build_plan(self.pin, self.inputs))
 
 
 class F05CollectGates(F05Fixture):
@@ -4640,7 +4648,7 @@ class F05CollectGates(F05Fixture):
             if sig == 'version()': return a.cast('abi-encode', 'c(string)', 'Registry-5.8.0')
             if sig == 'getDepositInfo(address)':
                 return '0x'+''.join(format(x, '064x') for x in (10**18, 1, 10**18, 86400,
-                    int(gate == 'stake_not_unlocking')))
+                    int(gate == 'stake_not_unlocking_collect')))
             raise AssertionError(sig)
         def address(rpc, target, sig, *args):
             if sig == 'blsAggregator()': return OLD
@@ -4665,7 +4673,7 @@ class F05CollectGates(F05Fixture):
 
     def test_anni_eoa(self): self.check('anni_eoa')
 
-    def test_stake_not_unlocking(self): self.check('stake_not_unlocking')
+    def test_stake_not_unlocking(self): self.check('stake_not_unlocking_collect')
 
     def test_collect_callsite_source_single_read_shared_with_audit(self):
         source = copy.deepcopy(self.pin['oldOwnerIsolation']['callsiteTargetSource'])
@@ -5108,7 +5116,7 @@ class DiscoveryTests(unittest.TestCase):
         def missing(method,params):
             if method == 'eth_call' and params[0]['data'] == a.calldata('getAllTokens()'): return isolation_tests.raw([32,0])
             return original(method,params)
-        self.gate('old_owner_factory_enumeration',lambda:m.current_discovery(missing,m.discovery_coverage(self.plan,set()),self.block))
+        self.gate('old_owner_factory_enumeration_discover_targets',lambda:m.current_discovery(missing,m.discovery_coverage(self.plan,set()),self.block))
 
 
 DISCOVERY_GATES = ('discovery_step_table', 'discovery_unlisted_effect', 'discovery_factory_prediction',
