@@ -104,15 +104,16 @@ def stage(action, argv):
     if not args.production:
         command.append('--unlocked')
     from deploylive_controls import forge_endpoint, safe_logs, write_manifest
-    command, env = forge_endpoint(command, env)
+    command, forge_env = forge_endpoint(command, env)
     print_command(command)
-    result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True)
-    require(result.returncode == 0 and request.is_file(), 'prediction failed or no fresh request')
+    result = subprocess.run(command, cwd=ROOT, env=forge_env, capture_output=True, text=True)
     evidence.mkdir(parents=True, exist_ok=True)
+    # Logs are written (after the redaction scan) whether or not the step succeeded.
+    safe_logs(evidence, 'forge.predict', result, env)
+    require(result.returncode == 0 and request.is_file(), 'prediction failed or no fresh request; see forge.predict.* in evidence')
     destination = evidence / REQUEST_NAME
     if destination != request:
         shutil.copyfile(request, destination)
-    safe_logs(evidence, 'forge.predict', result, env)
     write_manifest(env, evidence)
     print('SHA256 ' + hashlib.sha256(destination.read_bytes()).hexdigest() + ' ' + str(destination))
 
@@ -162,7 +163,8 @@ def main():
                '--sender', deployer, '--slow', '--evm-version', 'prague',
                '--hardfork', hardfork, '--gas-estimate-multiplier', env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130'), '-vv']
     env['DEPLOYLIVE_RPC'] = url
-    command, env = forge_endpoint(command, env)
+    env['ETH_RPC_URL'] = url  # for the checker and cast (both read ETH_RPC_URL from env)
+    command, forge_env = forge_endpoint(command, env)
     if production:
         command += ['--account', env['DEPLOYER_ACCOUNT']]
     else:
@@ -173,7 +175,7 @@ def main():
     try:
         plan_path = ROOT / f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
         plan_path.unlink(missing_ok=True)
-        dry_env = dict(env, DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
+        dry_env = dict(forge_env, DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
         print_command(command)
         dry = subprocess.run(command, cwd=ROOT, env=dry_env, capture_output=True, text=True)
         safe_logs(evidence, 'forge.dry', dry, env)
@@ -222,7 +224,7 @@ def main():
         actual_path.unlink(missing_ok=True)
         print_command([binary, *command[1:], '--broadcast'])
         require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
-        result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=env, capture_output=True, text=True)
+        result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=forge_env, capture_output=True, text=True)
         safe_logs(evidence, 'forge', result, env)
         try:
             diff = plan_diff(plan, json.loads(actual_path.read_text()), gas_bounds)

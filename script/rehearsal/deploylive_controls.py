@@ -241,8 +241,18 @@ def plan_digest(plan):
     return hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+FORGE_RPC_ALIAS = 'deploylive'
+FORGE_RPC_ENV = 'DEPLOYLIVE_FORGE_RPC_URL'
+
+
 def forge_endpoint(command, env):
-    return command, dict(env, ETH_RPC_URL=env['DEPLOYLIVE_RPC'])
+    """forge script's --rpc-url has no env binding, so the URL reaches forge only through the
+    foundry.toml [rpc_endpoints] alias `deploylive` = "${DEPLOYLIVE_FORGE_RPC_URL}". Every other
+    endpoint variable is removed from forge's environment."""
+    require('--rpc-url' not in command and '--fork-url' not in command, 'forge command already names an endpoint')
+    forge_env = {k: v for k, v in env.items() if k not in URL_KEYS and k not in ('ETH_RPC_URL', FORGE_RPC_ENV)}
+    forge_env[FORGE_RPC_ENV] = env['DEPLOYLIVE_RPC']
+    return [*command, '--rpc-url', FORGE_RPC_ALIAS], forge_env
 
 
 def safe_logs(evidence, prefix, result, env):

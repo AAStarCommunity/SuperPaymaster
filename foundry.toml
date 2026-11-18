@@ -182,3 +182,9 @@ via_ir = true
 [[profile.tokens.compilation_restrictions]]
 paths = "contracts/src/core/Registry.sol"
 max_optimizer_runs = 200
+
+# DeployLive deploy-day endpoint alias. forge script's --rpc-url has no env binding; the driver
+# passes `--rpc-url deploylive` and sets DEPLOYLIVE_FORGE_RPC_URL, so the URL is never in argv.
+# Unreferenced aliases are not expanded: build/test/CI do not need the variable.
+[rpc_endpoints]
+deploylive = "${DEPLOYLIVE_FORGE_RPC_URL}"

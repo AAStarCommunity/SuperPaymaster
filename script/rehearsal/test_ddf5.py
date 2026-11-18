@@ -77,8 +77,11 @@ class Ddf5Test(unittest.TestCase):
             self.assertFalse((self.root/'forge.stdout.log').exists())
 
     def test_argv_has_no_endpoint(self):
+        # Behaviour change (acceptance at 6146e343): forge script ignores ETH_RPC_URL, so the URL
+        # goes through the foundry.toml alias and DEPLOYLIVE_FORGE_RPC_URL instead.
         cmd,env=c.forge_endpoint(['forge','script'],{'DEPLOYLIVE_RPC':'https://rpc.invalid/secret'})
-        self.assertFalse(any('https://' in arg for arg in cmd)); self.assertEqual(env['ETH_RPC_URL'],'https://rpc.invalid/secret')
+        self.assertFalse(any('https://' in arg for arg in cmd)); self.assertEqual(cmd[-2:],['--rpc-url','deploylive'])
+        self.assertEqual(env['DEPLOYLIVE_FORGE_RPC_URL'],'https://rpc.invalid/secret'); self.assertNotIn('ETH_RPC_URL',env)
 
     def test_endpoint_permissions_type_owner_lines(self):
         p=self.root/'rpc'; p.write_text('https://rpc.invalid\n'); p.chmod(0o600)
