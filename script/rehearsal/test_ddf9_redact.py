@@ -36,6 +36,12 @@ class RedactTest(unittest.TestCase):
             c.safe_logs(evidence, 'checker2', SimpleNamespace(stdout=text + 'k3yAbc123def456\n', stderr=''), env, after_broadcast=True)
             self.assertNotIn('k3yAbc123def456', (evidence/'checker2.stdout.log').read_text())
             self.assertTrue((evidence/'REDACTED_AFTER_BROADCAST').exists())
+            # A later redaction appends; both streams stay recorded and reach the PASS record.
+            c.safe_logs(evidence, 'checker3', SimpleNamespace(stdout='', stderr='k3yAbc123def456'), env, after_broadcast=True)
+            self.assertEqual((evidence/'REDACTED_AFTER_BROADCAST').read_text(), 'checker2.stdout\nchecker3.stderr\n')
+            self.assertEqual(c.redacted_streams(evidence), ['checker2.stdout', 'checker3.stderr'])
+        with tempfile.TemporaryDirectory(dir=base) as tmp:
+            self.assertEqual(c.redacted_streams(Path(tmp)), [])
 
     def test_assignments_still_redacted(self):
         for raw in ('token=abc123', 'TOKEN: abc123', 'access_token = "abc123"', 'api_key=abc123',

@@ -292,8 +292,8 @@ def forge_endpoint(command, env):
 def safe_logs(evidence, prefix, result, env, after_broadcast=False):
     from deploylive_rehearse import scan_content
     logs = []
-    redacted = False
-    for content in (result.stdout, result.stderr):
+    redacted = []
+    for suffix, content in zip(('stdout', 'stderr'), (result.stdout, result.stderr)):
         try:
             require(redact_error(content) == content and not re.search(r'(?i)(?:https?|wss?)://', content), 'raw output contains credentials; refusing write')
             for key in URL_KEYS:
@@ -306,10 +306,12 @@ def safe_logs(evidence, prefix, result, env, after_broadcast=False):
             # Once transactions may have been sent, preserve evidence and continue the diff.
             # Redact the entire affected stream, including endpoint fragments and scalar encodings.
             content = 'REDACTED: sensitive output after broadcast\n'
-            redacted = True
+            redacted.append(prefix + '.' + suffix)
         logs.append(content)
     if redacted:
-        (evidence/'REDACTED_AFTER_BROADCAST').write_text(prefix+'\n')
+        # Append: a later redaction (e.g. the checker after forge) must not hide an earlier one.
+        with (evidence/'REDACTED_AFTER_BROADCAST').open('a') as marker:
+            marker.write(''.join(stream + '\n' for stream in redacted))
     for suffix, content in zip(('stdout', 'stderr'), logs):
         (evidence/(prefix+'.'+suffix+'.log')).write_text(content)
 
@@ -359,6 +361,11 @@ def deployment_rule(env, evidence, transport, chain):
     return record
 
 
+def redacted_streams(evidence):
+    marker = evidence/'REDACTED_AFTER_BROADCAST'
+    return sorted(set(marker.read_text().split())) if marker.is_file() else []
+
+
 def write_success(evidence, env, config, broadcast, gated_plan):
     digest = plan_digest(gated_plan)
     require(digest == plan_digest(json.loads((evidence/'gated-plan.json').read_text())),
@@ -366,6 +373,9 @@ def write_success(evidence, env, config, broadcast, gated_plan):
     write_json(evidence, 'checker.PASS.json', dict(status='PASS', manifest=manifest_digest(evidence),
         gatedPlanSha256=digest,
         noCredentialEndpoints=sorted(k for k in URL_KEYS if env.get(k + '_NO_CREDENTIAL') == '1'),
+        # Streams whose post-broadcast output was replaced by the redaction placeholder: a PASS
+        # whose checker output is not in evidence says so.
+        redactedStreams=redacted_streams(evidence),
         env=env['ENV'], config=str(config), broadcast=str(broadcast),
         configSha256=hashlib.sha256(config.read_bytes()).hexdigest(),
         broadcastSha256=hashlib.sha256(broadcast.read_bytes()).hexdigest()))
