@@ -37,7 +37,7 @@ test('H gate authorization required, unique, expiring and consumed',()=>temp(pat
  assert.throws(()=>c.authorizationEntry(path,digest,step,10,{number:101n,timestamp:102n}),/transaction not authorized/);
 }));
 
-for(const version of ['1.2.0','1.5.0','unknown'])test('M2 refuses unimplemented domain '+version,async()=>{
+for(const version of ['1.2.0','1.3.0','1.4.0','1.5.0','unknown'])test('M2 refuses unsupported Safe VERSION '+version,async()=>{
  const read=async()=>encodeAbiParameters([{type:'string'}],[version]);
  await assert.rejects(c.safeSigning(step,10,pin,read),/unsupported Safe VERSION/);
 });
@@ -50,12 +50,12 @@ test('M2 reads nonce and version at pinned block',async()=>{
 });
 for(const mutation of ['nonce','event','gas','refund','expired-execution','before-gate','at-expiry','two-hours'])test('M2 execution timing and hash: '+mutation,async()=>{
  const hash='0x'+'ef'.repeat(32),safeHash='0x69c955960061a19c54e8456a0a73f453cd4d7dc193b7d65cdfd2db59695aea65';
- const auth={recordDigest:'a'.repeat(64),version:'1.3.0',safe,chainId:'10',blockNumber:'99',blockHash:pin.hash,blockTimestamp:'100',expiresAtTimestamp:'86500',transaction:{...transaction},safeTxHash:safeHash};
+ const auth={recordDigest:'a'.repeat(64),version:'1.4.1',safe,chainId:'10',blockNumber:'99',blockHash:pin.hash,blockTimestamp:'100',expiresAtTimestamp:'86500',transaction:{...transaction},safeTxHash:safeHash};
  const clearance={authorizationDigest:auth.recordDigest,blockNumber:'100',blockHash:pin.hash,expiresAtTimestamp:'86500'};
  const args=[to,1n,'0x1234',0,0n,0n,0n,zero,zero,'0x'];
- const receipt={transactionHash:hash,status:'0x1',blockNumber:'0x65',blockHash:pin.hash,logs:[{address:safe,topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)')],data:encodeAbiParameters([{type:'bytes32'},{type:'uint256'}],[safeHash,0n])}]};
+ const receipt={transactionHash:hash,status:'0x1',blockNumber:'0x65',blockHash:pin.hash,logs:[{address:safe,topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)'),safeHash],data:encodeAbiParameters([{type:'uint256'}],[0n])}]};
  if(mutation==='nonce')auth.transaction.nonce='8';
- if(mutation==='event')receipt.logs[0].data='0x'+'00'.repeat(64);
+ if(mutation==='event')receipt.logs[0].topics[1]='0x'+'00'.repeat(32);
  if(mutation==='gas')args[4]=1n;
  if(mutation==='refund')args[8]=to;
  let timestamp=102n;
@@ -102,3 +102,10 @@ test('recording head and renewed authorization use inclusive timestamp expiry',(
  c.appendAuthorization(path,{...a,blockNumber:'43301',blockTimestamp:'86501',expiresAtTimestamp:String(86501n+c.AUTH_WINDOW_SECONDS)});
  assert.equal(c.authorizationEntry(path,digest,step,10,{number:43302n,timestamp:86503n}).blockTimestamp,'86501');
 }));
+test('1.3.0 unindexed ExecutionSuccess layout is refused (no real receipt backs it)',()=>{
+ const h='0x'+'ab'.repeat(32);
+ const ev13={topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)')],data:encodeAbiParameters([{type:'bytes32'},{type:'uint256'}],[h,0n])};
+ assert.throws(()=>c.safeEventHash(ev13,'1.3.0'),/unsupported Safe VERSION or event layout/);
+ assert.throws(()=>c.safeEventHash(ev13,'1.4.1'),/unsupported Safe VERSION or event layout/);
+ assert.deepEqual([...c.SUPPORTED_SAFE_VERSIONS],['1.4.1']);
+});

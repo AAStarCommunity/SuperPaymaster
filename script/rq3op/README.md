@@ -494,13 +494,14 @@ nonce read from `nonce()` at that pinned block and all ten SafeTx fields.
 zero (the zero address for address fields), unless explicitly set in the reviewed
 plan. Do not let the UI substitute different gas/refund parameters.
 
-Supported `VERSION()` values are exactly 1.3.0 and 1.4.1. The signing hash
+The only supported `VERSION()` value is 1.4.1 (`SUPPORTED_SAFE_VERSIONS` in completion.mjs). The signing hash
 uses the EIP-712 `EIP712Domain(uint256 chainId,address verifyingContract)` and
 `SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)`
-type hashes, dynamic-data keccak256, and the `0x1901` prefix. Other versions stop,
-including 1.4.0, whose event layout is not proven by this checkout. The authorized
-VERSION selects the event layout: 1.3.0 reads txHash from the first data word;
-1.4.1 reads topics[1]. A Safe ExecutionFailure always refuses recording.
+type hashes, dynamic-data keccak256, and the `0x1901` prefix. Every other version stops,
+including 1.3.0 and 1.4.0: no real receipt in this checkout proves their event layout.
+1.4.1 reads txHash from topics[1], pinned by the real Sepolia test-Safe receipt
+`docs/release/a3a-testsafe-12025632/live/S5b/receipt.json`. **Adding a version requires a
+real receipt of that version as a test fixture**; a synthetic layout test is not enough. A Safe ExecutionFailure always refuses recording.
 The SHA-256 transaction digest also binds Safe, chain and all signing fields.
 
 An authorization records `blockNumber`, `blockHash`, `blockTimestamp`, and

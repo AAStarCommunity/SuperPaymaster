@@ -92,11 +92,16 @@ export function safeTxHash(safe,chainId,transaction){
  const struct=keccak256(encodeAbiParameters([{type:'bytes32'},...fields.map(([,type])=>({type:type==='bytes'?'bytes32':type}))],[typeHash,...fields.map(([name,type])=>type==='bytes'?keccak256(transaction[name]):type.startsWith('uint')?BigInt(transaction[name]):transaction[name])]));
  return keccak256(concat(['0x1901',domain,struct]));
 }
+// Safe VERSION() values this tool signs and records for. Each entry must be backed by a REAL receipt
+// fixture of its ExecutionSuccess layout (DSR: a synthetic layout test let the wrong 1.4.1 decoding
+// through). 1.4.1 is pinned by docs/release/a3a-testsafe-12025632/live/S5b/receipt.json; 1.3.0 and
+// 1.4.0 have no real receipt in this repository and are refused.
+export const SUPPORTED_SAFE_VERSIONS=Object.freeze(['1.4.1']);
 const getters=parseAbi(['function nonce() view returns (uint256)','function VERSION() view returns (string)']);
 export async function safeSigning(step,chainId,pin,read){
  const get=async functionName=>decodeFunctionResult({abi:getters,functionName,data:await read('eth_call',[{to:step.from,data:encodeFunctionData({abi:getters,functionName})},'0x'+BigInt(pin.number).toString(16)])});
  const version=await get('VERSION');
- if(!['1.3.0','1.4.1'].includes(version))throw Error('unsupported Safe VERSION');
+ if(!SUPPORTED_SAFE_VERSIONS.includes(version))throw Error('unsupported Safe VERSION');
  const transaction={...safeTransaction(step),...Object.fromEntries(['safeTxGas','baseGas','gasPrice'].map(k=>[k,String(step[k]??0)])),gasToken:step.gasToken??zero,refundReceiver:step.refundReceiver??zero,nonce:String(await get('nonce'))};
  return {safe:step.from,chainId:String(chainId),version,transaction,transactionSha256:sha({safe:step.from,chainId:String(chainId),transaction}),safeTxHash:safeTxHash(step.from,chainId,transaction)};
 }
@@ -115,7 +120,6 @@ export async function emitSafe(step,digest,{gate,authorize,emit}) {
  emit(output);return output;
 }
 export function safeEventHash(event,version) {
- if(version==='1.3.0' && event.topics.length===1 && /^0x[0-9a-fA-F]{128}$/.test(event.data))return event.data.slice(0,66);
  if(version==='1.4.1' && event.topics.length===2 && /^0x[0-9a-fA-F]{64}$/.test(event.topics[1]) && /^0x[0-9a-fA-F]{64}$/.test(event.data))return event.topics[1];
  throw Error('unsupported Safe VERSION or event layout');
 }
