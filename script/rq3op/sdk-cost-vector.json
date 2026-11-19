@@ -10,5 +10,20 @@
   },
   "a0": "144032920514403321468",
   "Amax": "160409463576890979119",
-  "Xmax": "213879284769187972106"
+  "Xmax": "213879284769187972106",
+  "unsafeIntegerVector": {
+    "why": "sdkMaxCostPerOp above 2^53 with a non-zero low bit: a plain JSON.parse rounds it (9007199254740993 -> 9007199254740992) and the rounded value still passes an integer check; both sides must parse losslessly (DSR 2026-11-19)",
+    "inputs": {
+      "maxCost": "9007199254740993",
+      "priceCap": "350000000000",
+      "priceDecimals": 8,
+      "aPNTsPriceUSD": "29999999999999999",
+      "protocolFeeBPS": 137,
+      "validationBufferBPS": 1000,
+      "exchangeRate": "1333333333333333333"
+    },
+    "a0": "1050839913053115885028",
+    "Amax": "1170320411167255161156",
+    "Xmax": "1560427214889673547818"
+  }
 }

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { parseAbi, keccak256, toHex } from 'viem';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const parse = bytes => JSON.parse(String(bytes), (_key,value,context) => typeof value === 'number' && !Number.isSafeInteger(value) ? BigInt(context.source) : value);
+export const parse = bytes => JSON.parse(String(bytes), (_key,value,context) => typeof value === 'number' && !Number.isSafeInteger(value) ? BigInt(context.source) : value);
 function canonical(value) {
   if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return '['+value.map(canonical).join(',')+']';

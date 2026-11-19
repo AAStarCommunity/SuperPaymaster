@@ -69,6 +69,16 @@ class Round3(unittest.TestCase):
         v=json.loads((q.ROOT/'script/rq3op/sdk-cost-vector.json').read_text())
         self.assertEqual(q.cost_bounds(**v['inputs']),tuple(int(v[k]) for k in ('a0','Amax','Xmax')))
 
+    def test_shared_unsafe_integer_vector(self):
+        # Above 2^53 with a non-zero low bit (DSR 2026-11-19): Python ints are exact; the JS side is pinned in
+        # script/a6-collector/unsafe-integer.test.mjs.
+        v=json.loads((q.ROOT/'script/rq3op/sdk-cost-vector.json').read_text())['unsafeIntegerVector']
+        self.assertGreater(int(v['inputs']['maxCost']),2**53)
+        self.assertEqual(q.cost_bounds(**v['inputs']),tuple(int(v[k]) for k in ('a0','Amax','Xmax')))
+        # The planner serializes it as a JSON number whose digits are exactly the decimal string.
+        text=json.dumps({'maxCostPerOpWei':int(v['inputs']['maxCost'])})
+        self.assertIn(v['inputs']['maxCost'],text)
+
     def test_pin_schema(self):
         for mutate in (lambda p:p.update(extra=1),lambda p:p.pop('codehash'),lambda p:p.update(codehash=''),
                        lambda p:p.update(version='0.6'),lambda p:p.update(chainIds=[1]),lambda p:p.update(chainIds=[10,10,11155111])):
