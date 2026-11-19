@@ -79,6 +79,10 @@ def sdk_live(inputs,pc):
     a0,amax,xmax=cost_bounds(inputs['sdkMaxCostPerOp'],**fields)
     n=inputs['sdkRuns']*(4+inputs['sdkMaxOps'])
     return dict(fields,maxCostPerOpWei=inputs['sdkMaxCostPerOp'],a0=a0,Amax=amax,Xmax=xmax,
+        # Xmax is computed at priceCap, so a validation-time lock stays <= Xmax iff cachedPrice <= priceCap; the SDK
+        # signs only while cachedPrice <= priceCap*(1-priceHeadroomBPS/10000) (rc.8 updatePrice has no per-update
+        # deviation cap, so the price can move between signing and validation).
+        priceHeadroomBPS=inputs['sdkPriceHeadroomBPS'],
         sdkRuns=inputs['sdkRuns'],sdkMaxOps=inputs['sdkMaxOps'],opsPerUser=n,
         perUserCap=(n+m.PC_BETA)*xmax,perUserFloor=(n+1)*xmax,
         # 'cleared' (exact literal; the SDK runner refuses any other value) only once the planner is given the
@@ -194,6 +198,7 @@ def check_inputs(cfg, inputs, checker):
                who.lower() not in excluded and type(amount) is int and 0<amount<2**256,True)
         excluded.add(who.lower())
     a.need('rq3_sdk_inputs',all(type(inputs.get(k)) is int and inputs[k]>0 for k in ('sdkRuns','sdkMaxOps','sdkMaxCostPerOp')) and inputs['sdkMaxOps']<=32,True)
+    a.need('rq3_sdk_price_headroom',type(inputs.get('sdkPriceHeadroomBPS')) is int and 0<=inputs['sdkPriceHeadroomBPS']<10000,True)
     commit=inputs.get('sdkCostCapCommit')
     a.need('rq3_sdk_cost_cap_commit',commit is None or (isinstance(commit,str) and bool(re.fullmatch('[0-9a-f]{40}',commit))),True)
     recipients=inputs.get('taskRecipients')

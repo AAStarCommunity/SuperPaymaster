@@ -79,6 +79,14 @@ class Round3(unittest.TestCase):
         text=json.dumps({'maxCostPerOpWei':int(v['inputs']['maxCost'])})
         self.assertIn(v['inputs']['maxCost'],text)
 
+    def test_price_headroom_required_and_recorded(self):
+        self.assertEqual(self.build()['shared']['sdkLive']['priceHeadroomBPS'],1000)
+        for bad in (None,-1,10000,1.5,'10',True):
+            self.setUp()
+            if bad is None: self.inputs.pop('sdkPriceHeadroomBPS')
+            else: self.inputs['sdkPriceHeadroomBPS']=bad
+            with self.subTest(bad=bad): self.stop('rq3_sdk_price_headroom',self.build)
+
     def test_plan_never_emits_floats(self):
         # SDK #470 refuses a bundle with any exponent or fraction; the planner refuses to write a float.
         self.assertFalse(q.contains_float(self.build()))
