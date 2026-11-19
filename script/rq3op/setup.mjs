@@ -1,6 +1,6 @@
 // RQ3 setup only. formal.mjs owns endpoint validation, archiving and cast keystore signing.
 import { parse } from '../a6-collector/frozen-plan.mjs';
-import {json,completionEntry,appendCompletion,verifyReceipt,emitSafe} from './completion.mjs';
+import {json,completionEntry,appendCompletion,verifyReceipt,emitSafe,canonical,appendAuthorization,authorizationEntry,safeSigning,AUTH_WINDOW_SECONDS} from './completion.mjs';
 export {emitSafe} from './completion.mjs';
 import { readFileSync, appendFileSync, mkdirSync, openSync, closeSync, unlinkSync, writeFileSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -128,6 +128,12 @@ export async function main(args=process.argv.slice(2),deps={}) {
     if(json(values[0])!==json(values[1])) throw Error('setup read disagreement');
     return values[0];
   };
+  const refreshPin=async()=>{
+    const selected=await runtime.refreshPin();
+    const header=await pairRead('eth_getBlockByNumber',[`0x${selected.number.toString(16)}`,false]);
+    if(header.hash!==selected.hash || BigInt(header.number)!==selected.number)throw Error('setup anchor changed');
+    return {...selected,timestamp:BigInt(header.timestamp)};
+  };
   const read=async(method,params)=>{
     if(!['eth_chainId','eth_getBlockByNumber','eth_call','eth_getCode','eth_getStorageAt','eth_getTransactionCount','eth_getBalance'].includes(method)) throw Error('setup non-read gate request');
     if(method==='eth_getBlockByNumber' && params[0]==='latest') params=[`0x${pin.number.toString(16)}`,false];
@@ -136,34 +142,54 @@ export async function main(args=process.argv.slice(2),deps={}) {
   };
   const checkAnchor=deps.anchor ?? (async()=>{
     const head=await read('eth_getBlockByNumber',[`0x${pin.number.toString(16)}`,false]);
-    if(head.hash!==pin.hash) throw Error('setup anchor changed');
+    if(head.hash!==pin.hash || (pin.timestamp!==undefined && BigInt(head.timestamp)!==pin.timestamp)) throw Error('setup anchor changed');
   });
   const gate=deps.gate ?? gateWorker;
   const precheck=async()=>{
-    pin=await runtime.refreshPin();
+    pin=safe?await refreshPin():await runtime.refreshPin();
     const chains=await pairRead('eth_chainId',[]);
     if(BigInt(chains)!==BigInt(bundle.chainId))throw Error('setup chain mismatch');
     const entry=completionEntry(completionPath,digest,step.id);
     const completion=entry?await verifyReceipt(pairRead,step,entry.txHash,safe,entry):null;
     if(completion && BigInt(completion.blockNumber)>pin.number)throw Error('completion after pinned head');
+    if(entry){
+      const head=pin;
+      pin={number:BigInt(entry.blockNumber),hash:entry.blockHash};
+      const observed=await gate(bundle,index,'readback',entry.timestamp,read,{safe});
+      await checkAnchor();
+      if(canonical(observed)!==canonical(entry.readback))throw Error('completion readback mismatch');
+      pin=head;
+    }
     const state=await gate(bundle,index,'precheck',0,read,{safe,completion});
     await checkAnchor();return state;
   };
   const recordCompletion=async hash=>{
-    if(completionEntry(completionPath,digest,step.id))throw Error('completion already recorded');
+    if(completionEntry(completionPath,digest,step.id))throw Error(safe?'transaction not authorized by the gate':'completion already recorded');
     if(BigInt(await pairRead('eth_chainId',[]))!==BigInt(bundle.chainId))throw Error('setup chain mismatch');
-    const receipt=await verifyReceipt(pairRead,step,hash,safe);
+    let authorization;
+    if(safe){
+      pin=await refreshPin();
+      authorization=authorizationEntry(completionPath,digest,step,bundle.chainId,pin);
+      await checkAnchor();
+    }
+    const receipt=await verifyReceipt(pairRead,step,hash,safe,null,authorization);
+    if(safe && BigInt(receipt.blockNumber)>pin.number)throw Error('completion after pinned head');
     pin=await runtime.pubA.getBlock({blockNumber:BigInt(receipt.blockNumber)});
     if(pin.hash!==receipt.blockHash)throw Error('receipt block changed');
     const readback=await gate(bundle,index,'readback',receipt.timestamp,read,{safe});
     await checkAnchor();
-    const entry={id:step.id,bundleSha256:digest,...receipt,readback};
+    const entry={id:step.id,bundleSha256:digest,...receipt,readback,...(safe?{authorization,authorizationDigest:authorization.recordDigest}:{})};
     appendCompletion(completionPath,entry);return entry;
   };
   let result;
   if(recording) result=await recordCompletion(transactionHash);
   else if(safe) {
-    result=await emitSafe(step,digest,{gate:precheck,emit:deps.emit??(v=>process.stdout.write(json(v)+'\n'))});
+    result=await emitSafe(step,digest,{gate:precheck,authorize:async result=>{
+      const signing=await safeSigning(step,bundle.chainId,pin,read);
+      await checkAnchor();
+      const entry={...result,...signing,type:'AUTHORIZATION',blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(pin.timestamp+AUTH_WINDOW_SECONDS)};
+      return appendAuthorization(completionPath,entry);
+    },emit:deps.emit??(v=>process.stdout.write(json(v)+'\n'))});
     if(result.status==='already-satisfied')(deps.emitStatus??(s=>process.stdout.write(s+'\n')))('already-satisfied');
   } else result=await executeStep(step,{
     signer:runtime.accounts.bundler,expected,

@@ -29,7 +29,7 @@ test('Safe entry gate emits only initial transaction',async()=>{
  const step={id:'C1',to:'0x'+'11'.repeat(20),value:'0x0',data:'0x1234',operation:0};
  for(const status of ['initial','already-satisfied','STOP']){
   const emitted=[];
-  const deps={gate:async()=>{if(status==='STOP')throw Error('STOP');return {status};},emit:v=>emitted.push(v)};
+  const deps={authorize:async()=>({}),gate:async()=>{if(status==='STOP')throw Error('STOP');return {status};},emit:v=>emitted.push(v)};
   if(status==='STOP')await assert.rejects(setup.emitSafe(step,'a'.repeat(64),deps));
   else await setup.emitSafe(step,'a'.repeat(64),deps);
   assert.equal(emitted.length,status==='initial'?1:0);

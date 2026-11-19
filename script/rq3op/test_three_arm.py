@@ -113,7 +113,7 @@ class ThreeArm(unittest.TestCase):
         steps=result['steps']; self.assertEqual(sum(s['id'].endswith('/C2.deposit') for s in steps),1)
         self.assertFalse(any(s['tx']['from']==self.cfg['deployer'] for s in steps))
         self.assertTrue(all(s['requiredSignatures']==2 for s in result['safeTransactions']))
-        self.assertEqual({s['id'] for s in result['safeTransactions']},{'C1','SP.stake.schedule','SP.stake.execute'})
+        self.assertEqual([s['id'] for s in result['safeTransactions']],['C1','SP.stake.schedule','SP.stake.execute'])
         self.assertEqual(result['timelockOperation']['delay'],172800)
         for p in plans:
             self.assertEqual(p['phaseC']['spPostOp'],600000)
