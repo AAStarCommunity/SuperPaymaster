@@ -119,7 +119,7 @@ class CheckerTest(unittest.TestCase):
             if name is None or cfg[key] == ZERO: continue
             obj = fixture_artifact(name)
             runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
-            creation_hashes[obj['bytecode']['object']] = pins[name]
+            if name in pins: creation_hashes[obj['bytecode']['object']] = pins[name]
         from runtime_pins import masked_code
         runtime_pins = json.loads((CHECKER.parents[2]/'deployments/runtime-pins.31337.json').read_text())['artifacts']
         for name, pin in runtime_pins.items():
@@ -642,10 +642,15 @@ class DeployDayPrincipalTest(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertIn('FAIL  runtime staking', output)
 
+    def test_readback_admin_runtime_tampered(self):
+        code, output = self.run_checker('runtime_spAdminImpl')
+        self.assertEqual(code, 1, output)
+        self.assertIn('FAIL  runtime spAdminImpl', output)
+
     def test_readback_row_count(self):
         code, output = self.run_checker()
         self.assertEqual(code, 0, output)
-        self.assertIn('SUMMARY 232 passed, 0 failed, 232 total', output)
+        self.assertIn('SUMMARY 234 passed, 0 failed, 234 total', output)
 
     def test_readback_version_tampered(self):
         code, output = self.run_checker(('staking', 'version()(string)', [], '"wrong"'))

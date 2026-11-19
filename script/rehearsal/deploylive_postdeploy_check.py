@@ -176,7 +176,7 @@ def read_code(address):
     if rc: raise ValueError('code unreadable')
     return code
 for key, ok in runtime_rows(CFG, mapping, runtime_pins.get('artifacts', {}), read_code):
-    check("runtime " + key, ok and runtime_pins_ok, "release runtime pin; compiler immutable references masked")
+    check("runtime " + key, ok and runtime_pins_ok, "exact EIP-1167 clone of config.xPNTsTokenV2Impl" if key == "pnts" else "release runtime pin; compiler immutable references masked")
 versions = json.loads((ROOT/'deployments/release-versions.rc8.json').read_text())
 for key, name in mapping.items():
     name = PROXY_ABI.get(key, name)

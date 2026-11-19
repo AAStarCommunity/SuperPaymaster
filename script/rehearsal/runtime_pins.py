@@ -44,6 +44,9 @@ def artifact_pins(directory, creation_file):
         obj = release_artifact(name, directory)
         if keccak(obj['bytecode']['object']) != creation[name]: raise ValueError('creation pin mismatch: ' + name)
         artifacts[name] = runtime_pin(obj['deployedBytecode'], 200 if name in ('Registry', 'TimelockHandoverBootstrap') else 500)
+    admin = release_artifact('SuperPaymasterAdmin', directory)
+    artifacts['SuperPaymasterAdmin'] = dict(runtime_pin(admin['deployedBytecode'], 500),
+                                           creationPin='embedded in SuperPaymaster')
     return dict(schema='runtime-pins/1', compiler=dict(solc='0.8.33', viaIR=True, evmVersion='cancun'),
                 creationPinsSha256='0x' + hashlib.sha256(creation_file.read_bytes()).hexdigest(), artifacts=artifacts)
 

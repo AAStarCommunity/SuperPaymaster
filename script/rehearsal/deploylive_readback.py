@@ -26,6 +26,11 @@ def checksum(address):
     return subprocess.check_output(['cast', 'to-check-sum-address', address], text=True).strip()
 
 
+def eip1167_target(code):
+    match = re.fullmatch(r'0x363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3', code.lower())
+    return checksum('0x' + match[1]) if match else None
+
+
 def carries_address(field):
     return field['type'].startswith('address') or any(carries_address(c) for c in field.get('components', []))
 
@@ -89,10 +94,12 @@ def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
         if key not in config: raise ValueError('missing contract config key: ' + key)
         address = checksum(config[key])
         item = dict(configKey=key, address=address, artifact=name)
-        fields = ('codeLength', 'runtimeKeccak', 'maskedRuntimeKeccak', 'maskedMatchesPin', 'immutables', 'version', 'addressGetters', 'unreadable', 'erc1967')
+        fields = ('codeLength', 'runtimeKeccak', 'maskedRuntimeKeccak', 'maskedMatchesPin', 'immutables', 'version', 'addressGetters', 'unreadable', 'erc1967', 'eip1167Target', 'eip1167TemplateMatches')
         if address == ZERO:
             item.update(dict.fromkeys(fields)); contracts.append(item); continue
         code = invoke('code', address).lower()
+        target = eip1167_target(code)
+        item.update(eip1167Target=target, eip1167TemplateMatches=True if target else None)
         pin = pins[name] if name else None
         item.update(codeLength=str(len(bytes.fromhex(code.removeprefix('0x')))), runtimeKeccak=keccak(code),
                     maskedRuntimeKeccak=keccak(masked_code(pin, code)) if pin else None,
@@ -130,9 +137,15 @@ def write(path, record):
 def runtime_rows(config, mapping, pins, code):
     rows = []
     for key, name in mapping.items():
-        if name is None: continue
+        if name is None and key != 'pnts': continue
         try:
-            ok = config[key].lower() == ZERO or matches_pin(pins[name], code(config[key]))
+            if config[key].lower() == ZERO:
+                ok = True
+            elif key == 'pnts':
+                target = eip1167_target(code(config[key]))
+                ok = target is not None and target.lower() == config['xPNTsTokenV2Impl'].lower()
+            else:
+                ok = matches_pin(pins[name], code(config[key]))
         except (ValueError, KeyError, TypeError):
             ok = False
         rows.append((key, ok))

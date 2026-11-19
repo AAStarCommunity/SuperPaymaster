@@ -15,11 +15,11 @@ class Daybreak(unittest.TestCase):
 
     def test_checker_is_executed_and_exact_count_required(self):
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
-        for code,log in [(1,'SUMMARY 232 passed, 0 failed, 232 total'),(0,'SUMMARY 233 passed, 0 failed, 233 total'),(0,'SUMMARY 231 passed, 1 failed, 232 total'),(0,'PASS no summary'),(0,'SUMMARY 232 passed, 0 failed, 232 total\nSUMMARY 232 passed, 0 failed, 232 total')]:
+        for code,log in [(1,'SUMMARY 234 passed, 0 failed, 234 total'),(0,'SUMMARY 235 passed, 0 failed, 235 total'),(0,'SUMMARY 233 passed, 1 failed, 234 total'),(0,'PASS no summary'),(0,'SUMMARY 234 passed, 0 failed, 234 total\nSUMMARY 234 passed, 0 failed, 234 total')]:
             with self.assertRaises(q.a.Gate):
                 q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout=log),commit_reader=lambda:cfg['commit'])
-        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 232 passed, 0 failed, 232 total'),commit_reader=lambda:cfg['commit'])
-        self.assertEqual(result['total'],232)
+        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 234 passed, 0 failed, 234 total'),commit_reader=lambda:cfg['commit'])
+        self.assertEqual(result['total'],234)
         self.assertNotIn('stdout',result)
     def test_dirty_or_wrong_commit_refused(self):
         with self.assertRaises(q.a.Gate):
@@ -177,7 +177,7 @@ class Generation(unittest.TestCase):
             calls=[]
             def runner(command,**kwargs):
                 calls.append(command)
-                return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 232 passed, 0 failed, 232 total')
+                return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 234 passed, 0 failed, 234 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
                     return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])

@@ -3,7 +3,7 @@
   "registryImpl": "Registry",
   "superPaymaster": "ERC1967Proxy",
   "spImpl": "SuperPaymaster",
-  "spAdminImpl": null,
+  "spAdminImpl": "SuperPaymasterAdmin",
   "staking": "GTokenStaking",
   "gToken": "GTokenAuthorization",
   "sbt": "MySBT",

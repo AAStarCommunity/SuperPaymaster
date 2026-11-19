@@ -37,6 +37,10 @@ class RuntimePinsTest(unittest.TestCase):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             obj = json.loads(path.read_text())
+            admin = obj['artifacts']['SuperPaymasterAdmin']
+            self.assertEqual(admin['creationPin'], 'embedded in SuperPaymaster')
+            self.assertEqual(admin['optimizerRuns'], '500')
+            self.assertNotIn('SuperPaymasterAdmin', json.loads((path.parent/'creation-pins.10.json').read_text()))
             obj['artifacts']['Registry']['maskedRuntimeKeccak'] = '0x' + '00'*32
             path.write_text(json.dumps(obj))
             result = subprocess.run(command, capture_output=True, text=True)
