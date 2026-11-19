@@ -164,7 +164,7 @@ class Ddf5Test(unittest.TestCase):
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
                 return SimpleNamespace(returncode=0,stdout=output(argv) if output else '',stderr='')
             if checker_ok: (evidence/'readback.json').write_text('{}')
-            return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 234 passed, 0 failed, 234 total' if checker_ok else 'FAIL checker',stderr='')
+            return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 238 passed, 0 failed, 238 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
             return hex(chain) if method=='eth_chainId' else '0x27'
         with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver','primary',self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):

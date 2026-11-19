@@ -11,5 +11,6 @@
     "agentReputationRegistry": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
     "agentValidationRegistry": "0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58",
     "comment": "owner 0x547289319C3e6aedB179C0b8e8aF0B5ACd062603 is an EOA, unattributed; upgradeable proxies; setting them lets that key decide sponsorship eligibility; changing SP's pointer takes the 48 h timelock"
-  }
+  },
+  "ethSentinel": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 }

@@ -437,7 +437,7 @@ def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=N
     result=(runner or tools.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
         cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=tools.env)
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
-    expected=230+2*int(cfg['guardianN'])  # 27 pinned runtimes + 1 clone, 24 versions, runtime-pin binding
+    expected=234+2*int(cfg['guardianN'])  # prior rows + coverage, snapshot policy, hash recheck, second provider
     a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
         tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
     return dict(tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
@@ -459,12 +459,16 @@ RELEASE_NAMES=dict(superPaymaster='SuperPaymaster',registry='Registry',xPNTsFact
     staking='GTokenStaking',gToken='GTokenAuthorization',aPNTs='APNTsCapped')
 
 
+DEPLOYED_RELEASE_NAMES = frozenset('AOAProtocolRegistry APNTsCapped BLSAggregator DVTValidator GTokenAuthorization GTokenStaking GlobalTierSource MicroPaymentChannel MySBT Paymaster PaymasterFactory PolicyRegistry Registry ReputationSystem SuperPaymaster SuperPaymasterLens X402Facilitator xPNTsFactory xPNTsFactoryV2 xPNTsToken xPNTsTokenV2'.split())
+SOURCE_ONLY_RELEASE_NAMES = frozenset({"GToken"})
+
+
 def verify_system(cfg,rpc,block):
     try:
         versions=load(ROOT/'deployments/release-versions.rc8.json')
     except (ValueError, OSError):
         raise a.Gate('rq3_release_versions','invalid table','reviewed release table') from None
-    a.need('rq3_release_versions',set(RELEASE_NAMES.values()).issubset(versions),True)
+    a.need('rq3_release_versions',set(versions) == DEPLOYED_RELEASE_NAMES | SOURCE_ONLY_RELEASE_NAMES,True)
     for key in SYSTEM_SOURCES:
         address=cfg[key]
         code=rpc('eth_getCode',[address,block])

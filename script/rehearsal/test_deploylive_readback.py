@@ -11,17 +11,15 @@ class ReadbackTest(unittest.TestCase):
         def read(sig):
             if sig.startswith('reverting'): raise ValueError('reverted')
             return [address]
-        values, unreadable = m.address_getters(abi, read, {})
-        self.assertEqual(values['target'], {'value': address, 'resolvesTo': None})
-        self.assertEqual(values['reverting'], {'value': None, 'resolvesTo': None})
-        self.assertEqual(unreadable, ['reverting'])
+        with self.assertRaises(ValueError):
+            m.address_getters(abi, read, {})
 
     def test_tuple_array_shape(self):
         m = importlib.import_module('deploylive_readback')
         address = '0x' + '12' * 20
         field = {'type': 'tuple[]', 'components': [{'name': 'who', 'type': 'address'}, {'name': 'count', 'type': 'uint256'}]}
-        self.assertEqual(m.project(field, [[address, 7]], {address: 'config:registry'}),
-                         ([{'who': address}], [{'who': 'config:registry'}]))
+        self.assertEqual(m.project(field, [[address, 7]], {address: ['config:registry']}),
+                         ([{'who': address}], [{'who': ['config:registry']}]))
 
     def test_provider_rejects_url(self):
         m = importlib.import_module('deploylive_readback')
@@ -88,31 +86,10 @@ class CollectTest(unittest.TestCase):
             cfg.write_text(json.dumps(config))
             pin = runtime_pin({'object': '0x6000'}, 500)
             pins.write_text(json.dumps({'artifacts': {name: pin for name in mapping.values() if name}}))
-            with patch.object(m, 'release_artifact', return_value={'abi': abi}):
-                result = m.collect(cfg, config, 31337, dict(number='0x2a', hash='0x'+'12'*32, timestamp='0x1234'), 'Fixture', {}, pins, cast)
-            m.write(output, result)
-            self.assertEqual(result['schema'], 'deploylive-readback/1')
-            self.assertEqual({r['configKey'] for r in result['contracts']}, set(mapping))
-            for item in result['contracts']:
-                if item['configKey'] == clone_key:
-                    self.assertEqual(item['eip1167Target'], m.checksum('0x' + 'ab'*20))
-                    self.assertIs(item['eip1167TemplateMatches'], True)
-                else:
-                    self.assertIsNone(item['eip1167Target'])
-                    self.assertIsNone(item['eip1167TemplateMatches'])
-                if item['configKey'] == 'spAdminImpl':
-                    self.assertEqual(item['artifact'], 'SuperPaymasterAdmin')
-                    self.assertEqual(item['version'], 'fixture')
-                    self.assertTrue(item['addressGetters'])
-                if item['artifact']:
-                    self.assertEqual(item['maskedMatchesPin'], item['configKey'] != clone_key)
-                    self.assertEqual(item['addressGetters']['unknown']['resolvesTo'], None)
-                    self.assertEqual(item['unreadable'], ['reverting'])
-                if item['configKey'] in ('superPaymaster', 'registry'): self.assertTrue(item['addressGetters'])
-            self.assertEqual(result['chainId'], '31337')
-            self.assertEqual(result['block']['number'], '42')
-            self.assertEqual(result['wiring']['TL.minDelay'], '4200')
-            self.assertNotIn('://', output.read_text())
+            # Unknown and reverting getters must never produce a publishable record.
+            with patch.object(m, 'release_artifact', return_value={'abi': abi}), self.assertRaises(ValueError):
+                m.collect(cfg, config, 31337, dict(number='0x2a', hash='0x'+'12'*32, timestamp='0x1234'), 'Fixture', {}, pins, cast)
+            self.assertFalse(output.exists())
 
 class CloneTest(unittest.TestCase):
     def test_generic_clone_detection(self):

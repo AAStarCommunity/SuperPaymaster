@@ -15,6 +15,7 @@ import builtins
 import sys
 import subprocess
 import unittest
+import tempfile
 from unittest.mock import patch
 from types import SimpleNamespace
 
@@ -53,7 +54,7 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False, capture_record=None):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         keys += "spAdminImpl xPNTsTokenV1Impl xPNTsTokenV2Impl xPNTsTokenV2Ext globalTierSource superPaymasterLens".split()
@@ -75,6 +76,10 @@ class CheckerTest(unittest.TestCase):
         from creation_pins import release_names
         cfg.update(artifactDirectory='out', deployerCodeLength=0,
                    artifactCompileSettings={n: dict(evmVersion='cancun', viaIR=True, optimizerRuns=200 if n in ('Registry', 'TimelockHandoverBootstrap') else 500) for n in release_names()})
+        cfg.update(priceFeed=op_deps['ethUsdFeed'] if op else addr(100), entryPoint=op_deps['entryPoint'],
+                   agentIdentityRegistry=addr(103) if agents else ZERO, agentReputationRegistry=addr(104) if agents else ZERO,
+                   paymasterV4ImplOwner=tl, spAdminImplOwner=ZERO)
+        if op: cfg.pop('expectedGovernor')
         authority_bad = None
         if isinstance(mutation, tuple) and mutation[0] == "authority":
             cfg[mutation[1]] = addr(777)
@@ -110,7 +115,7 @@ class CheckerTest(unittest.TestCase):
         runtime_codes = {}
         creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
         pins = json.loads((CHECKER.parents[2]/'deployments/creation-pins.31337.json').read_text())
-        selected = lru_cache(maxsize=None)(select_release_artifact)
+        selected = lru_cache(maxsize=None)(select_release_artifact) if isinstance(mutation, tuple) and mutation[0] in ('creation', 'settings') else fixture_artifact
         # Use the checker's own artifact selection. A glob over out/<Name>.sol/*.json also matches other
         # contracts compiled from the same source file (out/Registry.sol/IGuardianExitGate.json has the
         # same runs/evmVersion); filesystem order then decided which runtime the fake chain served, and
@@ -129,23 +134,73 @@ class CheckerTest(unittest.TestCase):
         for name, pin in pins.items():
             creation_hashes[fixture_artifact(name)['bytecode']['object']] = pin
         if mutation == "missing_commit": del cfg["commit"]
+        calldata_inputs = {}
+        block_reads = []
+        seen_reads = set()
+        abi_signatures = {}
+        from deploylive_readback import abi_type
+        for key, name in mapping.items():
+            name = PROXY_ABI.get(key, name)
+            if name:
+                for f in fixture_artifact(name)['abi']:
+                    if f.get('type') == 'function':
+                        input_sig = f['name'] + '(' + ','.join(map(abi_type, f['inputs'])) + ')'
+                        abi_signatures[(cfg[key].lower(), input_sig)] = input_sig + ('(' + ','.join(map(abi_type, f['outputs'])) + ')' if f['outputs'] else '')
+        # Getter simulation is independent of the committed policy.
+        extra_addresses = {
+            'EXTENSION': 'spAdminImpl', 'GTOKEN': 'gToken', 'GTOKEN_STAKING': 'staking', 'MYSBT': 'sbt',
+            'REGISTRY': 'registry', 'SUPERPAYMASTER': 'superPaymaster', 'SUPER_PAYMASTER': 'superPaymaster',
+            'BLS_AGGREGATOR': 'blsAggregator', 'blsAggregator': 'blsAggregator', 'DVT_VALIDATOR': 'dvtValidator',
+            'mySBT': 'sbt', 'factory': 'xPNTsFactory', 'XPNTS_FACTORY': 'xPNTsFactory',
+            'xpntsFactory': 'xPNTsFactoryV2', 'defaultTierSource': 'globalTierSource', 'PROTOCOL_REGISTRY': 'aoaProtocolRegistry'}
+        immutable_sp = {'REGISTRY', 'ETH_USD_PRICE_FEED', 'entryPoint', 'EXTENSION'}
         def fake_run(cmd, **kwargs):
             if cmd[0] == "git":
                 return SimpleNamespace(returncode=0, stdout=(" M file\n" if git_dirty else "") if cmd[-1] == "--porcelain" else "a" * 40 + "\n")
             self.assertEqual(cmd[0], "cast")
             self.assertNotIn("--rpc-url", cmd)
-            self.assertEqual(kwargs["env"]["ETH_RPC_URL"], "https://secret.invalid/private-token")
+            self.assertIn(kwargs["env"]["ETH_RPC_URL"], ("https://secret.invalid/private-token", "https://independent.invalid/secret"))
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
-            if check_blocks and kind in ('call', 'code', 'storage', 'balance'):
-                self.assertEqual(args[-2:], ['--block', '0x2a'])
-            if check_blocks and kind == 'rpc' and args[0] == 'eth_call': self.assertEqual(args[-1], '0x2a')
+            if kind == 'rpc' and args[0] in ('eth_getCode', 'eth_getStorageAt', 'eth_getBalance', 'eth_call'):
+                read_key = (kwargs['env']['ETH_RPC_URL'], *args)
+                self.assertNotIn(read_key, seen_reads, 'state read collected more than once')
+                seen_reads.add(read_key)
+                self.assertEqual(json.loads(args[-1]), {'blockHash': '0x'+'12'*32, 'requireCanonical': True})
             if check_blocks and kind == 'rpc' and args[0] == 'eth_getLogs': self.assertEqual(json.loads(args[1])['toBlock'], '0x2a')
-            if '--block' in args:
-                self.assertEqual(args[-2:], ['--block', '0x2a'])
-                args = args[:-2]
+            def response(out, rc=0): return SimpleNamespace(returncode=rc, stdout=out if not rc else '', stderr=out if rc else '')
+            if kind == 'to-check-sum-address': return response(args[0])
+            if kind == 'decode-abi':
+                payload = json.loads(args[1])
+                if '--json' in args:
+                    if isinstance(payload, dict): return response(json.dumps(payload['values']))
+                    value = payload
+                    if value.startswith('"'): value = json.loads(value)
+                    elif re.fullmatch(r'[0-9]+', value): value = int(value)
+                    elif value.startswith('['): value = re.findall(r'0x[0-9a-fA-F]{40}', value)
+                    return response(json.dumps([value]))
+                return response(payload['text'] if isinstance(payload, dict) else payload)
+            if kind == 'rpc' and args[0] in ('eth_getCode', 'eth_getStorageAt', 'eth_getBalance'):
+                subkind = {'eth_getCode':'code', 'eth_getStorageAt':'storage', 'eth_getBalance':'balance'}[args[0]]
+                result = fake_run(['cast', subkind, *[('0' if subkind == 'storage' and a == '0x0' else a) for a in args[1:-1]]], **kwargs)
+                if result.returncode: return result
+                return response(json.dumps(hex(int(result.stdout)) if subkind == 'balance' else result.stdout))
+            if kind == 'rpc' and args[0] == 'eth_call' and 'from' not in json.loads(args[1]):
+                q = json.loads(args[1]); target = q['to']; input_sig, *params = calldata_inputs[q['data']]
+                sig = abi_signatures.get((target.lower(), input_sig), input_sig)
+                safe_signatures = {'getThreshold()':'(uint256)', 'getOwners()':'(address[])', 'getModulesPaginated(address,uint256)':'(address[],address)', 'owner()':'(address)'}
+                if input_sig in safe_signatures and (target.lower(),input_sig) not in abi_signatures: sig += safe_signatures[input_sig]
+                if input_sig in ('getRoleConfig(bytes32)', 'operators(address)'): sig = input_sig
+                result = fake_run(['cast','call',target,sig,*params], **kwargs)
+                if result.returncode: return result
+                # Raw ABI consumers keep their raw bytes; decoded consumers get a fixture envelope.
+                encoded = result.stdout if input_sig in ('getRoleConfig(bytes32)', 'operators(address)') else json.dumps(result.stdout)
+                if input_sig.startswith(('eip712Domain(', 'getMetadata(', 'getSupportedTokensInfo(')):
+                    encoded = result.stdout
+                return response(json.dumps(encoded))
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
                 return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.invalid/private-token")
             out, rc = "", 0
+            if kind == 'calldata': calldata_inputs[digest('|'.join(args))] = args
             if kind in ("keccak", "calldata", "sig", "abi-encode"):
                 out = creation_hashes.get(args[0], digest("|".join(args))) if kind == "keccak" else digest("|".join(args))
             elif kind == "code" and args[0] == deployer:
@@ -160,7 +215,10 @@ class CheckerTest(unittest.TestCase):
                 if mutation == "safe_guard" and slot == digest("guard_manager.guard.address"): value = "777"
                 if args[0] == addr(777) and authority_bad == "guard" and slot == digest("guard_manager.guard.address"): value = "777"
                 out = "0x" + value.zfill(64)
+            elif kind == "storage" and mutation in ('slot_registry', 'slot_superPaymaster') and args[0] == cfg[mutation[5:]]: out = '0x'+'00'*32
+            elif kind == "storage" and mutation == 'second_slot' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'): out = '0x'+'00'*32
             elif kind == "storage": out = "0x" + cfg["registryImpl" if args[0] == cfg["registry"] else "spImpl"][2:].zfill(64)
+            elif kind == "code" and mutation == 'second_runtime' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'): out = '0x6001'
             elif kind == "code":
                 out = "0x" if mutation in ("absent_h", "half_handover") and args[0] == h else "0x60806040525f80fd"
                 if args[0] in runtime_codes:
@@ -172,7 +230,11 @@ class CheckerTest(unittest.TestCase):
                 if args[0] == h and mutation in ("absent_h", "half_handover"): out = "0x"
                 if args[0] == safe and mutation == "delegated_safe": out = "0xef0100" + "00" * 20
             elif kind == "rpc":
+                if args[0] == 'anvil_nodeInfo': return response('{}', 1)
                 if args[0] == "eth_getBlockByNumber":
+                    block_reads.append(args[1])
+                    if mutation == 'reorg' and len(block_reads) > 1: return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
+                    if mutation == 'second_header' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'): return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
                     return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a', hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
                 if args[0] == "eth_chainId":
                     return SimpleNamespace(returncode=0, stdout=('"0xa"' if op else '"0x7a69"') if mutation != "unknown_chain" else '"0xf423f"', stderr="")
@@ -225,7 +287,20 @@ class CheckerTest(unittest.TestCase):
                     out = json.dumps(logs)
             elif kind == "call":
                 target, sig, *params = args
-                if sig == "getModulesPaginated(address,uint256)(address[],address)": out = ("[" + addr(777) + "]" if mutation == "safe_modules" else "[]") + "\n" + addr(1)
+                if mutation == 'getter_revert' and target == cfg['globalTierSource'] and sig.startswith('REGISTRY('): return response('revert', 1)
+                if mutation == 'version_revert' and target == cfg['staking'] and sig.startswith('version('): return response('revert', 1)
+                getter = sig.split('(')[0]
+                key = next((k for k in mapping if cfg[k].lower() == target.lower()), '')
+                if getter == 'eip712Domain': out = json.dumps(dict(values=['0x0f', '', '1', 31337, target, '0x'+'00'*32, []], text='domain'))
+                elif getter == 'getMetadata': out = json.dumps(dict(values=['', '', '', '', ZERO], text='metadata'))
+                elif getter == 'getSupportedTokensInfo': out = json.dumps(dict(values=[[], [], []], text='tokens'))
+                elif getter in ('getSupportedTokens', 'getAllTokens'): out = '[]'
+                elif getter == 'ETH_SENTINEL': out = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+                elif getter == 'implementation': out = cfg['xPNTsTokenV2Impl' if key == 'xPNTsFactoryV2' else 'xPNTsTokenV1Impl']
+                elif getter == 'EXTENSION' and key == 'xPNTsTokenV2Impl': out = cfg['xPNTsTokenV2Ext']
+                elif getter in extra_addresses: out = cfg[extra_addresses[getter]]
+                elif getter in ('FACTORY','SUPERPAYMASTER_ADDRESS','community','communityOwner','creditTierSource','emergencyRevokedAddress','pendingSP','pendingStandby','pendingTierSource','standbySP','reputationCalculator','pendingAPNTsToken','pendingBLSAgg','pendingFraudProofVerifier'): out = ZERO
+                elif sig == "getModulesPaginated(address,uint256)(address[],address)": out = ("[" + addr(777) + "]" if mutation == "safe_modules" else "[]") + "\n" + addr(1)
                 elif sig == "getThreshold()(uint256)": out = "1" if mutation == "threshold_one" else "2"
                 elif sig == "getOwners()(address[])" and mutation == "owners_error":
                     rc, out = 1, "error " + addr(301) + " " + addr(302)
@@ -246,6 +321,7 @@ class CheckerTest(unittest.TestCase):
                 elif sig in ("slashPolicyAdmin()(address)", "timelock()(address)"): out = tl
                 elif sig == "guardian()(address)": out = cfg["expectedSPGuardian"] if target == cfg["superPaymaster"] else cfg["expectedGuardian"]
                 elif sig == "APNTS_TOKEN()(address)": out = cfg["aPNTs"]
+                elif sig == "ethUsdPriceFeed()(address)": out = ZERO
                 elif sig == "registry()(address)": out = cfg["registry"]
                 elif sig == "cap()(uint256)": out = str(2**200) if mutation in ("hex_numbers", "decimal_strings") else "1000"
                 elif sig == "priceStalenessThreshold()(uint256)": out = "4200"
@@ -266,6 +342,10 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "getLockedStake(address,bytes32)(uint256)": out = "50" if params[1] == digest("PAYMASTER_SUPER") else "30" if params[1] == digest("DVT") else "0"
                 elif sig == "version()(string)": out = json.dumps(release_versions["SuperPaymaster"]) if release_versions and target==cfg["superPaymaster"] else json.dumps(versions.get(PROXY_ABI.get(next((k for k in mapping if cfg[k] == target), ''), mapping.get(next((k for k in mapping if cfg[k] == target), ''))), 'fixture'))
                 else: self.fail(f"Unhandled {sig}")
+                if mutation == 'getter_unaccounted' and key == 'globalTierSource' and getter == 'REGISTRY': out = addr(999)
+                if key in ('spImpl','spAdminImpl') and getter not in immutable_sp | {'version'}: out = deployer if getter == 'owner' and key == 'spImpl' else ZERO
+                if key == 'registryImpl' and getter in ('GTOKEN_STAKING','MYSBT','SUPER_PAYMASTER','blsAggregator'): out = ZERO
+                if key == 'paymasterV4Impl' and getter in ('entryPoint','ethUsdPriceFeed','treasury'): out = ZERO
                 if target == addr(777):
                     if authority_bad == "threshold" and sig == "getThreshold()(uint256)": out = "1"
                     if authority_bad == "owner" and sig == "getOwners()(address[])": out = "[" + deployer + ", " + addr(302) + "]"
@@ -289,6 +369,7 @@ class CheckerTest(unittest.TestCase):
             return original_open(path, *args, **kwargs)
         original_read = Path.read_text
         def fixture_read(path, *args, **kwargs):
+            if path.name == 'second-fixture' and mutation == 'second_missing': raise OSError('missing fixture endpoint')
             raw = original_read(path, *args, **kwargs)
             if path.name == 'safe-official.json' and not real_proxy:
                 obj = json.loads(raw); obj['proxyCodehashes'] = [digest('0x6000')]; return json.dumps(obj)
@@ -301,8 +382,11 @@ class CheckerTest(unittest.TestCase):
             if isinstance(mutation, tuple) and mutation[0] == 'settings' and path.parent.name == mutation[1] + '.sol':
                 obj = json.loads(raw); obj['metadata']['settings']['optimizer']['runs'] = 200; return json.dumps(obj)
             return raw
+        endpoint_dir = tempfile.TemporaryDirectory(dir=CHECKER.parents[2]/'cache')
+        endpoint_file = Path(endpoint_dir.name)/'second-fixture'
+        endpoint_file.write_text('https://secret.invalid/private-token' if mutation == 'second_same' else 'https://independent.invalid/secret')
         output = io.StringIO()
-        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch('deploylive_runtime.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.collect', return_value={}), patch('deploylive_readback.write'), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture')), contextlib.redirect_stdout(output):
+        with endpoint_dir, patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch('deploylive_readback.release_artifact', side_effect=selected), patch('deploylive_runtime.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.checksum', side_effect=lambda a: addr(int(a,16))), patch('deploylive_readback.sha', return_value='0x'+'ab'*32), patch('deploylive_readback.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.write', side_effect=lambda path, record: capture_record.append(record) if capture_record is not None else None), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture'), DEPLOYLIVE_ENDPOINT_PROVIDER='Fixture', DEPLOYLIVE_SECOND_RPC_FILE=str(endpoint_file)), contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())
@@ -650,7 +734,7 @@ class DeployDayPrincipalTest(unittest.TestCase):
     def test_readback_row_count(self):
         code, output = self.run_checker()
         self.assertEqual(code, 0, output)
-        self.assertIn('SUMMARY 234 passed, 0 failed, 234 total', output)
+        self.assertIn('SUMMARY 238 passed, 0 failed, 238 total', output)
 
     def test_readback_version_tampered(self):
         code, output = self.run_checker(('staking', 'version()(string)', [], '"wrong"'))

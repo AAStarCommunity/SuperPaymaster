@@ -96,4 +96,4 @@ class Round2(unittest.TestCase):
             rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=versions)
         self.assertEqual(rc,1,out)
         self.assertIn('sp="SuperPaymaster-5.5.3"',out)
-        self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  runtime spImpl'])
+        self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  readback snapshot policy', 'FAIL  runtime spImpl'])

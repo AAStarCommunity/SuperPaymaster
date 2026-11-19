@@ -85,6 +85,7 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
         require(flag in ('', '1'), key + '_NO_CREDENTIAL must be empty or 1')
         if values.get(key + '_FILE'):
             env[key] = read_endpoint_file(key, values[key + '_FILE'], no_credential=flag == '1')
+            if key == 'DEPLOYLIVE_SECOND_RPC': env[key + '_FILE'] = values[key + '_FILE']
         else:
             require(flag == '', key + '_NO_CREDENTIAL set without ' + key + '_FILE')
     env['SP_COMMIT'] = commit
