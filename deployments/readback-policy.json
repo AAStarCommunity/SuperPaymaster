@@ -930,6 +930,10 @@
           "config:gToken"
         ],
         "why": "Constructor caches address(this) in GTokenAuthorization; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "_cap": {
+        "expectedUint": "21000000000000000000000000",
+        "why": "contracts/script/v3/DeployLive.s.sol:175 passes uint256(21_000_000 * 1e18); this is GToken cap, not APNTs expectedCap."
       }
     },
     "GTokenStaking": {
@@ -954,7 +958,14 @@
         "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
       }
     },
-    "MicroPaymentChannel": {},
+    "MicroPaymentChannel": {
+      "_cachedThis": {
+        "allowed": [
+          "config:microPaymentChannel"
+        ],
+        "why": "contracts/lib/solady/src/utils/EIP712.sol:54 stores uint256(uint160(address(this))); require zero high twelve bytes and direct channel address."
+      }
+    },
     "MySBT": {
       "REGISTRY": {
         "allowed": [

@@ -88,6 +88,11 @@ def address_immutable(kind):
     return kind in ('address', 'address payable') or kind.startswith('contract ')
 
 
+def bound_immutable(name, kind, rule):
+    return (address_immutable(kind) or (kind == 'uint256' and name in ('_cachedThis', '_cap'))
+            or (kind == 'bytes32' and 'codehashOf' in rule))
+
+
 def validate_immutable_policy(pins, policy, config, deps):
     entries = policy['immutableBindings']
     if set(entries) != set(pins): raise ValueError('immutable artifact coverage')
@@ -98,11 +103,14 @@ def validate_immutable_policy(pins, policy, config, deps):
             if not all(isinstance(v, str) and v for v in description): raise ValueError('untyped immutable')
             if ref['id'] in typed and typed[ref['id']] != description: raise ValueError('inconsistent immutable type')
             typed[ref['id']] = description
-        names = [name for name, kind in typed.values() if address_immutable(kind) or
-                 (kind == 'bytes32' and 'codehashOf' in entries[artifact].get(name, {}))]
+        names = [name for name, kind in typed.values() if bound_immutable(name, kind, entries[artifact].get(name, {}))]
         if len(names) != len(set(names)) or set(entries[artifact]) != set(names):
             raise ValueError('immutable policy coverage: ' + artifact)
-        for rule in entries[artifact].values():
+        for name, rule in entries[artifact].items():
+            if name == '_cap':
+                if set(rule) != {'expectedUint', 'why'} or not isinstance(rule['why'], str) or not rule['why'].strip() or not isinstance(rule['expectedUint'], str) or not re.fullmatch(r'0|[1-9][0-9]*', rule['expectedUint']) or int(rule['expectedUint']) >= 2**256:
+                    raise ValueError('uint immutable policy reason/form')
+                continue
             if 'codehashOf' in rule:
                 label = rule['codehashOf']
                 if set(rule) != {'codehashOf', 'why'} or not isinstance(rule['why'], str) or not rule['why'].strip():
@@ -124,16 +132,21 @@ def validate_immutable_policy(pins, policy, config, deps):
 def immutable_bindings(pin, code, entries, labels):
     raw = bytes.fromhex(code.removeprefix('0x'))
     words, bindings = {}, {}
-    expected = {r['name'] for r in pin['immutableRanges'] if address_immutable(r['type']) or (r['type'] == 'bytes32' and 'codehashOf' in entries.get(r['name'], {}))}
+    expected = {r['name'] for r in pin['immutableRanges'] if bound_immutable(r['name'], r['type'], entries.get(r['name'], {}))}
     if set(entries) != expected: raise ValueError('immutable policy coverage')
     for ref in pin['immutableRanges']:
         if ref['name'] not in expected: continue
         start, length = int(ref['start']), int(ref['length'])
         word = raw[start:start + length]
-        if start < 0 or length != 32 or len(word) != 32 or (address_immutable(ref['type']) and any(word[:12])): raise ValueError('noncanonical address immutable')
+        if start < 0 or length != 32 or len(word) != 32 or ((address_immutable(ref['type']) or ref['name'] == '_cachedThis') and any(word[:12])): raise ValueError('noncanonical address immutable')
         if ref['id'] in words and word != words[ref['id']]: raise ValueError('inconsistent immutable references')
         words[ref['id']] = word
         name = ref['name']
+        if 'expectedUint' in entries[name]:
+            value = str(int.from_bytes(word, 'big'))
+            if value != entries[name]['expectedUint']: raise ValueError('immutable binding failed: ' + name)
+            bindings[name] = dict(value=value, expectedUint=entries[name]['expectedUint'], policyMatches=True)
+            continue
         if 'codehashOf' in entries[name]:
             bindings[name] = dict(value='0x' + word.hex(), codehashOf=entries[name]['codehashOf'], policyMatches=True)
             continue
@@ -345,6 +358,10 @@ def validate_record(record, config, policy):
         if set(item['immutableBindings']) != set(expected_bindings): raise ValueError('record immutable coverage')
         for name, result in item['immutableBindings'].items():
             rule = expected_bindings[name]
+            if 'expectedUint' in rule:
+                if result != dict(value=rule['expectedUint'], expectedUint=rule['expectedUint'], policyMatches=True):
+                    raise ValueError('record uint immutable mismatch: ' + name)
+                continue
             if 'codehashOf' in rule:
                 if not codehash_binding_matches(record, item, name, rule):
                     raise ValueError('record immutable codehash mismatch: ' + name)

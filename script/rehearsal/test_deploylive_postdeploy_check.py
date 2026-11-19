@@ -179,8 +179,9 @@ class CheckerTest(unittest.TestCase):
             raw = bytearray.fromhex(runtime_codes[cfg[key]].removeprefix('0x'))
             for ref in runtime_pins[name]['immutableRanges']:
                 field, kind = ref.get('name', ''), ref.get('type', '')
-                if kind not in ('address', 'address payable') and not kind.startswith('contract '): continue
-                if field in ('__self', '_cachedThis'): value = cfg[key]
+                if kind not in ('address', 'address payable') and not kind.startswith('contract ') and field not in ('_cachedThis', '_cap'): continue
+                if field == '_cap': value = hex(21_000_000 * 10**18)
+                elif field in ('__self', '_cachedThis'): value = cfg[key]
                 elif field == 'implementation': value = cfg['xPNTsTokenV2Impl' if key == 'xPNTsFactoryV2' else 'xPNTsTokenV1Impl']
                 elif field == 'EXTENSION': value = cfg['xPNTsTokenV2Ext' if key == 'xPNTsTokenV2Impl' else 'spAdminImpl']
                 elif field == 'ETH_USD_PRICE_FEED': value = op_deps['ethUsdFeed'] if op else addr(100)
@@ -787,7 +788,7 @@ class DeployDayPrincipalTest(unittest.TestCase):
     def test_readback_row_count(self):
         code, output = self.run_checker()
         self.assertEqual(code, 0, output)
-        self.assertIn('SUMMARY 240 passed, 0 failed, 240 total', output)
+        self.assertIn('SUMMARY 242 passed, 0 failed, 242 total', output)
 
     def test_readback_version_tampered(self):
         code, output = self.run_checker(('staking', 'version()(string)', [], '"wrong"'))

@@ -437,7 +437,7 @@ def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=N
     result=(runner or tools.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
         cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=tools.env)
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
-    expected=234+2*int(cfg['guardianN'])  # prior rows + coverage, snapshot policy, hash recheck, second provider
+    expected=238+2*int(cfg['guardianN'])  # includes two codehash rows and cap/channel self-address rows
     a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
         tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
     return dict(tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,

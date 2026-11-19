@@ -631,6 +631,11 @@ for field in ('implementationCodehash', 'extensionCodehash'):
     factory = next((c for c in record['contracts'] if c['configKey'] == 'xPNTsFactoryV2'), None) if record else None
     check('immutable xPNTsFactoryV2.' + field,
           bool(factory and codehash_binding_matches(record, factory, field, rule)), rule['codehashOf'])
+for key, field in (('gToken', '_cap'), ('microPaymentChannel', '_cachedThis')):
+    item = next((c for c in record['contracts'] if c['configKey'] == key), None) if record else None
+    binding = item['immutableBindings'].get(field) if item else None
+    check('immutable ' + key + '.' + field, bool(binding and binding.get('policyMatches') is True),
+          'deployment constructor expectation')
 assertions()
 second = None
 second_ok = chain == 31337
