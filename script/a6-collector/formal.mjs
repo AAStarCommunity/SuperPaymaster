@@ -266,7 +266,7 @@ export async function pendingSequence(clients,address) {
   }};
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
   pendingNonce ||= frozenPlan;
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
@@ -292,12 +292,12 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
     return target[key];
   } });
   const accounts = {};
-  for (const role of ['owner', 'bundler', 'verifyingSigner']) {
+  for (const role of readOnly ? [] : ['owner', 'bundler', 'verifyingSigner']) {
     accounts[role] = await createSigner(config.accounts[role], role);
     if (accounts[role].type !== 'local' || getAddress(accounts[role].address) !== getAddress(config.accounts[role].address)) throw new Error('injected signer identity mismatch');
   }
   const pubA = pinned(publicClients[0]), pubB = pinned(publicClients[1]);
-  const wallet = createWalletClient({ account: accounts.bundler, transport: custom(archives[0], { retryCount: 0 }) });
+  const wallet = readOnly ? null : createWalletClient({ account: accounts.bundler, transport: custom(archives[0], { retryCount: 0 }) });
   async function refreshPin() {
     const number = await pubA.getBlockNumber({ cacheTime: 0 });
     const [A, B] = await Promise.all([pubA.getBlock({ blockNumber: number }), pubB.getBlock({ blockNumber: number })]);
@@ -311,6 +311,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
+      if (!feesWithinRule(config.fees, config.feeRule, block.baseFeePerGas)) throw Error('signing head fee rule');
       const submit=nonce=>wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });

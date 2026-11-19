@@ -187,9 +187,8 @@ Before sending, a higher base fee stops execution; it does not revise the plan.
 | schedule SP `addStake(unstakeDelay)` batch | observed threshold | starts 172800-second delay |
 | execute the same batch | observed threshold | after 48 h; attach `stakeWei` ETH |
 
-These are four separate Safe transactions (four times the threshold in signature
-slots, not four distinct people). Even zero-deficit mint/transfer calls are output
-explicitly. The Safe nonce is not reserved: review/order these inner calls in the
+These are separate Safe transactions, each requiring the observed threshold.
+Zero-deficit mint/transfer calls are omitted because they have no planned state change. The Safe nonce is not reserved: review/order these inner calls in the
 Safe workflow. SP's owner must be TL48. The planner never schedules or sends them.
 The normal setup sender stops until the SP stake is active with sufficient amount
 and delay. SP EntryPoint `depositTo` is permissionless and remains a normal setup
@@ -213,9 +212,8 @@ node script/rq3op/setup.mjs cache/3arm/rq3-three-arm.10.json <reviewed-raw-file-
 ```
 
 `formal.mjs` supplies endpoint resolution, secret-redacted raw archives and
-`cast wallet sign --account` signing. The only opt-in change to that module allows
-archived pending nonce reads for setup; normal formal mode keeps its existing
-fixed-block restriction. The setup adapter signs the exact frozen gas, fee, nonce,
+`cast wallet sign --account` signing. Setup enables archived pending nonce reads; normal formal mode keeps its
+fixed-block restriction. Safe emission and completion recording use read-only mode. The setup adapter signs the exact frozen gas, fee, nonce,
 value and calldata. Both endpoints must agree on chain, pending nonce, reads and
 successful receipt. The Python gate worker executes the shared manifest's
 per-step checks and receipt-block readbacks through this archived transport.
@@ -397,8 +395,8 @@ immediately before each send. Legacy formal mode retains its fixed-block nonce.
 
 ### Round 3 SDK funding and formal gates
 
-All plans require integer `sdkRuns >= 1`, `sdkMaxOps` in `1..32`, and positive
-integer `sdkMaxCostPerOp` in wei. There is no warm-up; each operation has signBudget 1.
+All plans require integer `sdkRuns` in `1..10000`, `sdkMaxOps` in `1..32`, and
+integer `sdkMaxCostPerOp` in `1..10^18` wei; stricter downstream bounds are below. There is no warm-up; each operation has signBudget 1.
 `shared.sdkLive` records the pinned pricing and the exact rounded conversion used by
 phase C. With `N = sdkRuns * (4 + sdkMaxOps)`, every extra user's `xAmount` must be
 between `(N+1)*Xmax` and `(N+PC_BETA)*Xmax`, inclusive. `extraEndUsersXTotal` is the
@@ -413,3 +411,64 @@ its planning base and factor; the current base plus priority must also fit that 
 Pinned postOp minima must meet `docs/release/rq3-runtime-expectations.json`, checked
 against the release contract constant by an offline test. EntryPoint pin schema,
 version and chain list are exact; 31337 is reserved for offline/rehearsal fixtures.
+
+### Round 5 completion protocol and Safe handoff
+
+Every step uses a dual-endpoint pinned-head gate. A completion entry plus its
+freshly re-read successful receipt and matching current target state yields
+`already-satisfied`. Without an entry, only the exact initial state permits
+execution. All other combinations stop, including an unlogged target state,
+a missing/failed receipt, or drift after a recorded completion. No-effect calls are omitted during planning and consume no nonce. An unlogged
+step at its target stops even when its initial and target predicates are identical.
+
+The append-only, fsynced log is `<bundle-path>.completions.jsonl`, beside the
+bundle. Each entry binds the raw bundle SHA-256 and step id to the transaction
+hash, block number/hash, receipt status, block timestamp and exact readback values.
+The runner rechecks transaction identity and the canonical receipt block on both
+endpoints. C15 and SP scheduling use the verified receipt timestamp plus the
+planned delay for their target predicate. Keep this log with the reviewed bundle.
+
+Before owners sign each Safe transaction, run (index into `safeTransactions`):
+
+```sh
+node script/rq3op/setup.mjs safe <bundle> <digest> <index> - \
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs>
+```
+
+This read-only command regenerates and verifies the reviewed bundle, applies the
+same gate, then emits `{to,value,data,operation}` with its SHA-256 digest and the
+bundle digest. A completed step prints `already-satisfied` and emits no transaction;
+a STOP emits none. It constructs no signer. The Safe workflow uses the emitted
+CALL through `execTransaction`. After execution, record the receipt and readback:
+
+```sh
+node script/rq3op/setup.mjs safe-record <bundle> <digest> <index> - \
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> <execution-tx-hash>
+```
+
+The recorder verifies the Safe address, exact inner call and `ExecutionSuccess`
+event, then checks target state at the receipt block before appending. A successful
+outer receipt with a failed Safe inner call is refused. For an interrupted EOA
+send whose completion was not recorded, use the same command with `record` in
+place of `safe-record` and the index into `steps`. It checks every frozen transaction
+field and receipt-block readback before recording. Investigate the transaction
+before using this recovery command; rerunning the send will stop without a record.
+
+SDK-only `C8.extra.*` approve/role/mint steps require literal `sdkLive.status:
+"cleared"` and a lowercase 40-hex `sdkCostCapCommit`. Three-arm steps remain
+available for provisional plans. The input is `priceHeadroomBPS`; the old
+`sdkPriceHeadroomBPS` alias is refused, even when the new field is present.
+
+Operational bounds are `sdkRuns` in 1..10,000, `sdkMaxOps` in 1..32 and
+`sdkMaxCostPerOp` in 1..10^18 wei. These limit the declared experiment to 360,000
+operations per user and at most 1 ETH per operation before stricter token budgets.
+Every SDK converted result, per-user cap/floor, aggregate token funding, stake/ticket
+funding and ETH/gas funding total must fit uint256. Xmax must fit uint128 for token
+locks. `(N+PC_BETA)*Amax` must fit the extra users' existing 5,000 aPNTs allowance
+and total-cap defaults; the planner does not raise these caps. Existing Safe GToken,
+aPNTs supply-cap and sender ETH affordability checks still apply.
+
+Fee ceilings and factor components must be JSON integers. Both fee implementations
+run every case in `script/fee-rule-vectors.json`; formal signing rechecks the full
+frozen rule on its final refreshed head. Setup uses the collector's lossless parser;
+large integers cross the Python line protocol as tagged decimal strings.

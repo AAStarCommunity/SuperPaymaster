@@ -25,7 +25,7 @@ def observe(rpc,p):
     return words if isinstance(expected,list) else (int(raw,16) if isinstance(expected,int) else raw)
 
 
-def precheck_state(rpc,step):
+def precheck_state(rpc,step,completion=None):
     a.need('setup_predicates',bool(step.get('initial')) and bool(step.get('target')),True)
     reads={}
     def matches(predicates):
@@ -35,11 +35,16 @@ def precheck_state(rpc,step):
             if key not in reads: reads[key]=dict(predicate=p,observed=observe(rpc,p))
             good = (reads[key]['observed']==p.get('expected') and 'expected' in p) and good
         return good
-    if matches(step['target']) and not step.get('rerunStop'):
+    target=copy.deepcopy(step['target'])
+    if completion is not None:
+        for p in target:
+            if p['kind']=='eta': p['expected']=int(completion['timestamp'])+p['delay']
+    target_matches=matches(target)
+    if completion is not None and target_matches:
         return dict(reads=list(reads.values()),status='already-satisfied')
     initial=matches(step['initial'])
     result=dict(reads=list(reads.values()))
-    if initial: return dict(result,status='initial')
+    if completion is None and initial and not target_matches: return dict(result,status='initial')
     a.need('setup_state_STOP',dict(id=step['id'],**result), 'all target or all initial predicates')
 
 
@@ -96,5 +101,4 @@ class Projection:
         for p in target:
             if 'expected' in p:self.put(p)
         result=dict(initial=initial,target=target)
-        if any(p['kind']=='eta' for p in target):result['rerunStop']='Receipt-relative timestamp cannot be reconstructed exactly; STOP unless initial state remains.'
         return result

@@ -18,20 +18,24 @@ class Idempotence(unittest.TestCase):
     def test_three_cells_each_step(self):
         bundle=self.build()
         for step in bundle['steps']+bundle['safeTransactions']:
-            for state in ('initial','target','partial'):
+            target=copy.deepcopy(step['target'])
+            for p in target:
+                if p['kind']=='eta':p['expected']=123+p['delay']
+            for state in ('initial','target','unlogged-target','partial','logged-initial'):
                 with self.subTest(step=step['id'],state=state):
+                    source=step['initial'] if state in ('initial','logged-initial') else target
+                    completion=dict(timestamp=123) if state in ('target','logged-initial') else None
                     def read(rpc,p):
-                        source=step['initial'] if state=='initial' else step['target']
                         match=next((x for x in source if g.predicate_key(x)==g.predicate_key(p)),None)
-                        return copy.deepcopy(match.get('expected','unresolved timestamp')) if match and state!='partial' else 'unexpected'
+                        return copy.deepcopy(match['expected']) if match and state!='partial' else 'unexpected'
                     from unittest.mock import patch
                     with patch.object(g,'observe',side_effect=read):
-                        if state=='partial' or (state=='target' and step.get('rerunStop')):
-                            with self.assertRaises(a.Gate):g.precheck_state(None,step)
+                        same=step['initial']==target
+                        if state in ('partial','unlogged-target') or (not same and state=='logged-initial'):
+                            with self.assertRaises(a.Gate):g.precheck_state(None,step,completion)
                         else:
-                            result=g.precheck_state(None,step)
-                            expected='already-satisfied' if state=='target' or step['initial']==step['target'] else 'initial'
-                            self.assertEqual(result['status'],expected)
+                            result=g.precheck_state(None,step,completion)
+                            self.assertEqual(result['status'],'already-satisfied' if completion is not None else 'initial')
 
     def test_projected_operator_and_noop_nonce(self):
         bundle=self.build(); steps=bundle['steps']
@@ -39,11 +43,11 @@ class Idempotence(unittest.TestCase):
         operator=next(p for p in deploy['initial'] if p.get('signature')=='operators(address)')
         deposit=next(s for s in steps if s['id']=='0/C2.deposit')
         self.assertEqual(operator['expected'][m.OP['aPNTsBalance']],deposit['target'][0]['expected'])
-        for i,s in enumerate(steps):
-            if s['id'].endswith('/C9.mode'):
-                self.assertEqual(s['initial'],s['target'])
-                following=next(x for x in steps[i+1:] if x['tx']['from']==s['tx']['from'])
-                self.assertEqual(s['tx']['nonce'],following['tx']['nonce'])
+        self.assertFalse(any(s['id'].endswith('/C9.mode') for s in steps))
+        self.assertTrue(all(s['initial']!=s['target'] for s in steps+bundle['safeTransactions']))
+        for sender in {s['tx']['from'] for s in steps}:
+            nonces=[int(s['tx']['nonce'],16) for s in steps if s['tx']['from']==sender]
+            self.assertEqual(nonces,list(range(nonces[0],nonces[0]+len(nonces))))
 
     def test_extra_predicates_and_real_reads(self):
         who=t.address(900)
@@ -59,7 +63,7 @@ class Idempotence(unittest.TestCase):
             for state in ('initial','target'):
                 rpc=t.Fake()
                 for p in step[state]:rpc.set(p['target'],p['signature'],*p.get('args',[]),value=p['expected'])
-                self.assertEqual(g.precheck_state(rpc,step)['status'],'initial' if state=='initial' else 'already-satisfied')
+                self.assertEqual(g.precheck_state(rpc,step,{} if state=='target' else None)['status'],'initial' if state=='initial' else 'already-satisfied')
             first=step['target'][0]
             rpc.set(first['target'],first['signature'],*first.get('args',[]),value=999)
             with self.assertRaises(a.Gate) as caught:g.precheck_state(rpc,step)

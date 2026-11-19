@@ -75,7 +75,7 @@
   "extraEndUsers": [],
   "sdkRuns": "<SDK live E2E runs budgeted, >= 1>",
   "sdkMaxOps": "<SDK S3b maxOps, 1..32; default 8>",
-  "sdkPriceHeadroomBPS": "<int bps 0..9999: SDK signs only while cachedPrice <= priceCap*(1-h/10000)>",
+  "priceHeadroomBPS": "<int bps 0..9999: SDK signs only while cachedPrice <= priceCap*(1-h/10000)>",
   "sdkMaxCostPerOp": "<wei: SDK opMaxCostWei, the per-op cost cap the SDK enforces before signing>",
   "sdkCostCapCommit": "<optional 40-hex SDK commit with the pre-sign cost cap merged; without it sdkLive.status is provisional>"
 }

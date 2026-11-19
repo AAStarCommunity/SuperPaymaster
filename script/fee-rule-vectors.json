@@ -1,0 +1,138 @@
+[
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": 100,
+      "factor": {
+        "numerator": 2,
+        "denominator": 1
+      }
+    },
+    "current": 20,
+    "valid": true,
+    "name": "boundary"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": 100,
+      "factor": {
+        "numerator": 2,
+        "denominator": 1
+      }
+    },
+    "current": 21,
+    "valid": false,
+    "name": "priority overflow"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": "100",
+      "factor": {
+        "numerator": 2,
+        "denominator": 1
+      }
+    },
+    "current": 20,
+    "valid": false,
+    "name": "string ceiling"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": 100,
+      "factor": {
+        "numerator": "2",
+        "denominator": 1
+      }
+    },
+    "current": 20,
+    "valid": false,
+    "name": "string factor"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 22,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": 100,
+      "factor": {
+        "numerator": 2,
+        "denominator": 1
+      }
+    },
+    "current": 20,
+    "valid": false,
+    "name": "frozen drift"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": 100,
+      "factor": {
+        "numerator": 2,
+        "denominator": 0
+      }
+    },
+    "current": 20,
+    "valid": false,
+    "name": "zero denominator"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": true,
+      "factor": {
+        "numerator": 2,
+        "denominator": 1
+      }
+    },
+    "current": 20,
+    "valid": false,
+    "name": "bool ceiling"
+  },
+  {
+    "fees": {
+      "maxFeePerGas": 21,
+      "maxPriorityFeePerGas": 1
+    },
+    "rule": {
+      "baseFee": 10,
+      "ceiling": 100,
+      "factor": {
+        "numerator": 2,
+        "denominator": 1
+      }
+    },
+    "current": -1,
+    "valid": false,
+    "name": "negative base"
+  }
+]

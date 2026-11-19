@@ -7,6 +7,7 @@ function integer(value) {
   throw Error('invalid fee integer');
 }
 function expectedCap(baseFee, priorityFee, rule) {
+  if ([rule.ceiling,rule.factor.numerator,rule.factor.denominator].some(v=>typeof v!=='bigint' && (typeof v!=='number' || !Number.isSafeInteger(v)))) throw Error('invalid fee integer');
   const base=integer(baseFee), priority=integer(priorityFee), ceiling=integer(rule.ceiling);
   const n=integer(rule.factor.numerator), d=integer(rule.factor.denominator);
   if (base<0n || priority<0n || d<=0n || n<d || ceiling<=0n || ceiling>MAX_FEE) throw Error('invalid fee rule');

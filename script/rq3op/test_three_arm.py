@@ -54,7 +54,7 @@ class ThreeArm(unittest.TestCase):
         self.inputs = dict(experiment=address(100), genesis=self.cfg['genesisOperator'],
             bundler=address(101), verifyingSigner=address(102), gasFactor={'numerator':3,'denominator':2},
             feeFactor={'numerator':2,'denominator':1}, priorityRule={'blocks':5,'percentile':50},
-            sdkRuns=1, sdkMaxOps=1, sdkMaxCostPerOp=1, sdkPriceHeadroomBPS=1000, minTxInterval=60, extraEndUsers=[], taskRecipients=[], feeCeiling=20*10**9, stakeWei=10**18, unstakeDelay=86400,
+            sdkRuns=1, sdkMaxOps=1, sdkMaxCostPerOp=1, priceHeadroomBPS=1000, minTxInterval=60, extraEndUsers=[], taskRecipients=[], feeCeiling=20*10**9, stakeWei=10**18, unstakeDelay=86400,
             accounts=[dict(account=address(200+i),accountOwner=address(300+i),salt=i,
                 accountImplementation=t.PC_IMPL,runtimeKeccak=copy.deepcopy(t.PC_RUNTIMES)) for i in range(3)])
         self.cal = t.phase_c_inputs(lambda *args: {})['rehearsal']
@@ -112,7 +112,8 @@ class ThreeArm(unittest.TestCase):
             self.assertEqual(len({p['phaseC']['addresses'][key] for p in plans}),1)
         steps=result['steps']; self.assertEqual(sum(s['id'].endswith('/C2.deposit') for s in steps),1)
         self.assertFalse(any(s['tx']['from']==self.cfg['deployer'] for s in steps))
-        self.assertEqual([s['requiredSignatures'] for s in result['safeTransactions']],[2,2,2,2])
+        self.assertTrue(all(s['requiredSignatures']==2 for s in result['safeTransactions']))
+        self.assertEqual({s['id'] for s in result['safeTransactions']},{'C1','SP.stake.schedule','SP.stake.execute'})
         self.assertEqual(result['timelockOperation']['delay'],172800)
         for p in plans:
             self.assertEqual(p['phaseC']['spPostOp'],600000)

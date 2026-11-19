@@ -23,17 +23,28 @@ def associated_plan(bundle, index):
 
 
 def main():
-    request=json.loads(sys.stdin.readline()); bundle=request['bundle']
+    request=json.loads(sys.stdin.readline())
+    def restore(v):
+        if isinstance(v,dict):
+            if set(v)=={'$integer'}: return int(v['$integer'])
+            return {k:restore(x) for k,x in v.items()}
+        if isinstance(v,list): return [restore(x) for x in v]
+        return v
+    request=restore(request); bundle=request['bundle']
     # Receive the verified in-memory bundle; never reopen a mutable caller file.
-    plan,local=associated_plan(bundle,request['index'])
+    safe=request.get('safe',False)
+    if safe: plan,local=None,bundle['safeTransactions'][request['index']]
+    else: plan,local=associated_plan(bundle,request['index'])
     result=None
     if request['action']=='precheck':
-        result=precheck_state(rpc,local)
-        if result['status']=='initial':
+        result=precheck_state(rpc,local,request.get('completion'))
+        if result['status']=='initial' and not safe:
             q.pre_send(rpc,plan,local)
             q.m.phase_c_pre_send(rpc,plan,local,{},deployment=plan['deploymentContext'])
     elif request['action']=='readback':
-        for check in local['readbacks']: q.m.check_predicate(rpc,check,int(request['timestamp']))
+        for check in local['target']: q.m.check_predicate(rpc,check,int(request['timestamp']))
+        from setup_state import observe
+        result=[dict(predicate=p,observed=observe(rpc,p)) for p in local['target']]
     else: raise ValueError('unknown gate action')
     print(json.dumps(dict(done=True,result=result)),flush=True)
 

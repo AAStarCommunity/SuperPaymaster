@@ -14,7 +14,7 @@ export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false, formalSo
   // Synthetic archives preserve the source fee quote; no live fee estimate is invented.
   const quoted=template.gas ?? inv.gas;
   const fees={maxFeePerGas:String(quoted.maxFeePerGas),maxPriorityFeePerGas:String(quoted.maxPriorityFeePerGas)};
-  const feeRule={baseFee:String(BigInt(fees.maxFeePerGas)-BigInt(fees.maxPriorityFeePerGas)),factor:{numerator:1,denominator:1},ceiling:fees.maxFeePerGas};
+  const feeRule={baseFee:String(BigInt(fees.maxFeePerGas)-BigInt(fees.maxPriorityFeePerGas)),factor:{numerator:1,denominator:1},ceiling:Number(fees.maxFeePerGas)};
   const config={frozen:true,chainId:31337,operator:inv.superPaymaster.operator.address,factory:template.sender,sender:template.sender,salt:'0',bundlerGasLimit:'3000000',accounts:{owner:{name:'owner',address:template.sender},bundler:{name:'bundler',address:template.bundler},verifyingSigner:{name:'verifier',address:inv.verifyingSigner}},feeRule,fees,task:{token:inv.xPNTs.address,recipient:template.paymaster},gas:Object.fromEntries(['SP','VPM','TPM'].map(arm=>[arm,{callGasLimit:'100000',verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:String(arm==='SP'?inv.superPaymaster.minPostOpGas:inv.pmGas[arm].post)}]))};
   if (formalSource) {
     config.chainId=source[0].passport.chainId;

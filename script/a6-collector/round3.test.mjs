@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { feesWithinRule } from './fee-policy.mjs';
 import { requirePostGas } from './formal.mjs';
-const rule={baseFee:'101',factor:{numerator:3,denominator:2},ceiling:'160'};
+const rule={baseFee:'101',factor:{numerator:3,denominator:2},ceiling:160};
 const fees={maxFeePerGas:159n,maxPriorityFeePerGas:7n};
 test('formal requires bundle and digest before reading any config or keystore',()=>{
  for(const flags of [[],['--frozen-plan','/missing'],['--bundle-sha256','a'.repeat(64)]]) {

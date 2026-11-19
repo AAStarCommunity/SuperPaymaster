@@ -1,4 +1,7 @@
 // RQ3 setup only. formal.mjs owns endpoint validation, archiving and cast keystore signing.
+import { parse } from '../a6-collector/frozen-plan.mjs';
+import {json,completionEntry,appendCompletion,verifyReceipt,emitSafe} from './completion.mjs';
+export {emitSafe} from './completion.mjs';
 import { readFileSync, appendFileSync, mkdirSync, openSync, closeSync, unlinkSync, writeFileSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
@@ -30,18 +33,18 @@ export async function executeStep(step, deps) {
   const hash=await deps.send(transaction);
   const [A,B]=await Promise.all([deps.receipt(0,hash),deps.receipt(1,hash)]);
   if(A.status!=='success'||B.status!==A.status||B.blockHash!==A.blockHash||B.blockNumber!==A.blockNumber) throw Error('setup receipt mismatch or revert');
-  await deps.readback(A);
+  await deps.readback(A,hash);
   return {hash,receipt:A};
 }
 
-export async function gateWorker(bundle,index,action,timestamp,read) {
+export async function gateWorker(bundle,index,action,timestamp,read,options={}) {
   const child=spawn('python3',['-B',fileURLToPath(new URL('./gate_worker.py',import.meta.url))],{stdio:['pipe','pipe','pipe']});
-  child.stdin.write(JSON.stringify({bundle,index,action,timestamp:String(timestamp??0)})+'\n');
+  child.stdin.write(JSON.stringify({bundle,index,action,timestamp:String(timestamp??0),...options},(_,v)=>typeof v==='bigint'?{$integer:v.toString()}:v)+'\n');
   let done=false;
   try {
     for await (const line of createInterface({input:child.stdout})) {
-      const message=JSON.parse(line);
-      if(message.error) throw Object.assign(Error('setup gate: '+JSON.stringify(message.error)),{record:message.error});
+      const message=parse(line);
+      if(message.error) throw Object.assign(Error('setup gate: '+json(message.error)),{record:message.error});
       if(message.done) {done=true;return message.result;}
       const result=await read(message.method,message.params);
       child.stdin.write(JSON.stringify({result})+'\n');
@@ -70,15 +73,26 @@ export function associatedPlan(bundle,index) {
   return plan;
 }
 
+export function requireSDKClearance(bundle,step) {
+  if (/^\d+\/C8\.extra\.\d+\.(approve|role|mint)$/.test(step.id) &&
+      (bundle.shared.sdkLive?.status!=='cleared' || !/^[0-9a-f]{40}$/.test(bundle.shared.sdkLive?.sdkCostCapCommit??''))) throw Error('SDK live setup not cleared');
+}
+
 export async function main(args=process.argv.slice(2),deps={}) {
+  const mode=['safe','safe-record','record'].includes(args[0])?args.shift():'send';
+  const safe=mode.startsWith('safe'),recording=mode.endsWith('record');
+  const transactionHash=args[9];
   const [bundleArg,digest,indexArg,signersArg,rpcAFile,rpcBFile,logArg,configArg,inputsArg]=args;
   const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
   const inside=p=>{const path=resolve(p);if(!path.startsWith(root+'/'))throw Error('path outside worktree');const existing=(()=>{try{return realpathSync(path);}catch{return realpathSync(dirname(path));}})();if(!existing.startsWith(root+'/') && existing!==root)throw Error('path outside worktree');return path;};
   const bundlePath=inside(bundleArg), raw=readFileSync(bundlePath);
   if(createHash('sha256').update(raw).digest('hex')!==digest) throw Error('reviewed bundle digest mismatch');
-  const bundle=JSON.parse(raw),index=Number(indexArg);
-  if(!Number.isSafeInteger(index)||index<0||index>=bundle.steps.length) throw Error('setup index required');
-  const step=bundle.steps[index];
+  const bundle=parse(raw),index=Number(indexArg);
+  const selected=safe?bundle.safeTransactions:bundle.steps;
+  if(!Number.isSafeInteger(index)||index<0||index>=selected.length) throw Error('setup index required');
+  const step=selected[index];
+  requireSDKClearance(bundle,step);
+  const completionPath=inside(bundlePath+'.completions.jsonl');
   const experiment=bundle.shared.experiment;
   const lockDir=inside(root+'/cache/3arm');
   mkdirSync(lockDir+'/locks',{recursive:true});
@@ -94,41 +108,75 @@ export async function main(args=process.argv.slice(2),deps={}) {
   const regenerated=Buffer.from(await regenerate({config:configArg,inputs:inputsArg,bundle}));
   if(!raw.equals(regenerated)) throw Error('regenerated bundle bytes mismatch');
   if(createHash('sha256').update(regenerated).digest('hex')!==digest) throw Error('regenerated bundle digest mismatch');
-  const expected=JSON.parse(regenerated).steps[index];
-  associatedPlan(bundle,index);
-  const signers=JSON.parse(readFileSync(inside(signersArg),'utf8'));
-  const signerConfig=signers[step.tx.from.toLowerCase()];
-  if(!signerConfig||signerConfig.address.toLowerCase()!==step.tx.from.toLowerCase()) throw Error('keystore mapping missing');
+  const expected=(safe?parse(regenerated).safeTransactions:parse(regenerated).steps)[index];
+  if(!safe)associatedPlan(bundle,index);
+  const readOnly=safe||recording;
+  let signerConfig;
+  if(!readOnly){
+    const signers=JSON.parse(readFileSync(inside(signersArg),'utf8'));
+    signerConfig=signers[step.tx.from.toLowerCase()];
+    if(!signerConfig||signerConfig.address.toLowerCase()!==step.tx.from.toLowerCase()) throw Error('keystore mapping missing');
+  }
   const formalRuntime=deps.runtime ?? (await import('../a6-collector/formal.mjs')).formalRuntime;
-  const runtime=await formalRuntime({pendingNonce:true,config:{chainId:bundle.chainId,accounts:{owner:signerConfig,bundler:signerConfig,verifyingSigner:signerConfig}},
+  const runtime=await formalRuntime({readOnly,pendingNonce:!readOnly,config:{chainId:bundle.chainId,accounts:{owner:signerConfig,bundler:signerConfig,verifyingSigner:signerConfig}},
     rpcAFile:inside(rpcAFile),rpcBFile:inside(rpcBFile),outPath:inside(logArg)});
   let send=deps.send;
-  if(!send){const {createWalletClient,custom}=await import('viem');const wallet=createWalletClient({account:runtime.accounts.bundler,transport:custom(runtime.archives[0],{retryCount:0})});send=tx=>wallet.sendTransaction({...tx,chain:null,type:'eip1559'});}
+  if(!send && !readOnly){const {createWalletClient,custom}=await import('viem');const wallet=createWalletClient({account:runtime.accounts.bundler,transport:custom(runtime.archives[0],{retryCount:0})});send=tx=>wallet.sendTransaction({...tx,chain:null,type:'eip1559'});}
   let pin;
+  const pairRead=async(method,params)=>{
+    const values=await Promise.all(runtime.archives.map(r=>r.request({method,params})));
+    if(json(values[0])!==json(values[1])) throw Error('setup read disagreement');
+    return values[0];
+  };
   const read=async(method,params)=>{
     if(!['eth_chainId','eth_getBlockByNumber','eth_call','eth_getCode','eth_getStorageAt','eth_getTransactionCount','eth_getBalance'].includes(method)) throw Error('setup non-read gate request');
     if(method==='eth_getBlockByNumber' && params[0]==='latest') params=[`0x${pin.number.toString(16)}`,false];
     else if(['eth_call','eth_getCode','eth_getStorageAt','eth_getTransactionCount','eth_getBalance'].includes(method)) params=[...params.slice(0,-1),`0x${pin.number.toString(16)}`];
-    const values=await Promise.all(runtime.archives.map(r=>r.request({method,params})));
-    if(JSON.stringify(values[0])!==JSON.stringify(values[1])) throw Error('setup read disagreement');
-    return values[0];
+    return pairRead(method,params);
   };
   const checkAnchor=deps.anchor ?? (async()=>{
     const head=await read('eth_getBlockByNumber',[`0x${pin.number.toString(16)}`,false]);
     if(head.hash!==pin.hash) throw Error('setup anchor changed');
   });
-  const result=await executeStep(step,{
+  const gate=deps.gate ?? gateWorker;
+  const precheck=async()=>{
+    pin=await runtime.refreshPin();
+    const chains=await pairRead('eth_chainId',[]);
+    if(BigInt(chains)!==BigInt(bundle.chainId))throw Error('setup chain mismatch');
+    const entry=completionEntry(completionPath,digest,step.id);
+    const completion=entry?await verifyReceipt(pairRead,step,entry.txHash,safe,entry):null;
+    if(completion && BigInt(completion.blockNumber)>pin.number)throw Error('completion after pinned head');
+    const state=await gate(bundle,index,'precheck',0,read,{safe,completion});
+    await checkAnchor();return state;
+  };
+  const recordCompletion=async hash=>{
+    if(completionEntry(completionPath,digest,step.id))throw Error('completion already recorded');
+    if(BigInt(await pairRead('eth_chainId',[]))!==BigInt(bundle.chainId))throw Error('setup chain mismatch');
+    const receipt=await verifyReceipt(pairRead,step,hash,safe);
+    pin=await runtime.pubA.getBlock({blockNumber:BigInt(receipt.blockNumber)});
+    if(pin.hash!==receipt.blockHash)throw Error('receipt block changed');
+    const readback=await gate(bundle,index,'readback',receipt.timestamp,read,{safe});
+    await checkAnchor();
+    const entry={id:step.id,bundleSha256:digest,...receipt,readback};
+    appendCompletion(completionPath,entry);return entry;
+  };
+  let result;
+  if(recording) result=await recordCompletion(transactionHash);
+  else if(safe) {
+    result=await emitSafe(step,digest,{gate:precheck,emit:deps.emit??(v=>process.stdout.write(json(v)+'\n'))});
+    if(result.status==='already-satisfied')(deps.emitStatus??(s=>process.stdout.write(s+'\n')))('already-satisfied');
+  } else result=await executeStep(step,{
     signer:runtime.accounts.bundler,expected,
     chain:async i=>runtime.archives[i].request({method:'eth_chainId',params:[]}),
     pendingNonce:async i=>runtime.archives[i].request({method:'eth_getTransactionCount',params:[step.tx.from,'pending']}),
-    precheck:async()=>{pin=await runtime.refreshPin();const state=await (deps.gate ?? gateWorker)(bundle,index,'precheck',0,read);await checkAnchor();return state;},
+    precheck,
     send,
     receipt:async(i,hash)=>[runtime.pubA,runtime.pubB][i].waitForTransactionReceipt({hash}),
-    readback:async receipt=>{pin=await runtime.pubA.getBlock({blockNumber:receipt.blockNumber});await (deps.gate ?? gateWorker)(bundle,index,'readback',pin.timestamp,read);await checkAnchor();}
+    readback:async (receipt,hash)=>recordCompletion(hash)
   });
   appendFileSync(inside(logArg),JSON.stringify({id:step.id,bundleSha256:digest,...result},(_,v)=>typeof v==='bigint'?v.toString():v)+'\n');
   } catch(error) {
-    appendFileSync(inside(logArg),JSON.stringify({id:step.id,bundleSha256:digest,status:'stopped',error:error.record??{gate:'setup_execution_stopped'}})+'\n');
+    appendFileSync(inside(logArg),json({id:step.id,bundleSha256:digest,status:'stopped',error:error.record??{gate:'setup_execution_stopped'}})+'\n');
     throw error;
   } finally {release();}
 }

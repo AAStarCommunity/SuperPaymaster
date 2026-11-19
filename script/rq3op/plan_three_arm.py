@@ -78,11 +78,14 @@ def sdk_live(inputs,pc):
     fields={k:pc[k] for k in ('priceCap','priceDecimals','aPNTsPriceUSD','protocolFeeBPS','validationBufferBPS','exchangeRate')}
     a0,amax,xmax=cost_bounds(inputs['sdkMaxCostPerOp'],**fields)
     n=inputs['sdkRuns']*(4+inputs['sdkMaxOps'])
+    a.need('rq3_sdk_uint256',all(0<=v<2**256 for v in (a0,amax,xmax,(n+m.PC_BETA)*xmax,(n+1)*xmax)),True)
+    # Extra users retain the deployed token's 5,000 aPNTs allowance/total defaults.
+    a.need('rq3_sdk_downstream_budget',(n+m.PC_BETA)*amax<=5000*10**18 and xmax<2**128,True)
     return dict(fields,maxCostPerOpWei=inputs['sdkMaxCostPerOp'],a0=a0,Amax=amax,Xmax=xmax,
         # Xmax is computed at priceCap, so a validation-time lock stays <= Xmax iff cachedPrice <= priceCap; the SDK
         # signs only while cachedPrice <= priceCap*(1-priceHeadroomBPS/10000) (rc.8 updatePrice has no per-update
         # deviation cap, so the price can move between signing and validation).
-        priceHeadroomBPS=inputs['sdkPriceHeadroomBPS'],
+        priceHeadroomBPS=inputs['priceHeadroomBPS'],
         sdkRuns=inputs['sdkRuns'],sdkMaxOps=inputs['sdkMaxOps'],opsPerUser=n,
         perUserCap=(n+m.PC_BETA)*xmax,perUserFloor=(n+1)*xmax,
         # 'cleared' (exact literal; the SDK runner refuses any other value) only once the planner is given the
@@ -159,6 +162,14 @@ def fee_cap(base,priority,rule):
     return min(m.ceil_div(base*n,d)+priority,rule['ceiling'])
 
 
+def fees_within_rule(fees,rule,current):
+    try:
+        return (type(current) is int and current>=0 and
+                fees['maxFeePerGas']==fee_cap(rule['baseFee'],fees['maxPriorityFeePerGas'],rule) and
+                current+fees['maxPriorityFeePerGas']<=fees['maxFeePerGas'])
+    except (a.Gate,KeyError,TypeError): return False
+
+
 def check_inputs(cfg, inputs, checker):
     a.need('rq3_commit',bool(re.fullmatch('[0-9a-f]{40}',str(cfg.get('commit','')))),True)
     a.need('rq3_checker_pass',checker.get('result')=='PASS' and bool(re.fullmatch(
@@ -197,8 +208,9 @@ def check_inputs(cfg, inputs, checker):
         a.need('rq3_extra_endusers',isinstance(who,str) and bool(re.fullmatch('0x[0-9a-fA-F]{40}',who)) and
                who.lower() not in excluded and type(amount) is int and 0<amount<2**256,True)
         excluded.add(who.lower())
-    a.need('rq3_sdk_inputs',all(type(inputs.get(k)) is int and inputs[k]>0 for k in ('sdkRuns','sdkMaxOps','sdkMaxCostPerOp')) and inputs['sdkMaxOps']<=32,True)
-    a.need('rq3_sdk_price_headroom',type(inputs.get('sdkPriceHeadroomBPS')) is int and 0<=inputs['sdkPriceHeadroomBPS']<10000,True)
+    a.need('rq3_sdk_inputs',all(type(inputs.get(k)) is int and inputs[k]>0 for k in ('sdkRuns','sdkMaxOps','sdkMaxCostPerOp')) and inputs['sdkMaxOps']<=32 and inputs['sdkRuns']<=10000 and inputs['sdkMaxCostPerOp']<=10**18,True)
+    a.need('rq3_sdk_old_alias', 'sdkPriceHeadroomBPS' not in inputs, True)
+    a.need('rq3_sdk_price_headroom',type(inputs.get('priceHeadroomBPS')) is int and 0<=inputs['priceHeadroomBPS']<10000,True)
     commit=inputs.get('sdkCostCapCommit')
     a.need('rq3_sdk_cost_cap_commit',commit is None or (isinstance(commit,str) and bool(re.fullmatch('[0-9a-f]{40}',commit))),True)
     recipients=inputs.get('taskRecipients')
@@ -297,10 +309,6 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         for suffix in ('approve','role','mint'):
             value=cal['setup'].get(f'C8.extra.{j}.{suffix}')
             a.need('rq3_extra_calibration',type(value) is int and value>0,True)
-        a.need('rq3_extra_role_absent',a.word(rpc,cfg['registry'],'hasRole(bytes32,address)',
-               m.role_id('ENDUSER'),entry['address'],block=block),0)
-        if u.code(rpc,entry['address'],block)=='0x':
-            print(f"INFO extraEndUser {entry['address']} has no code; sponsor-funded RQ2 live E2E",file=sys.stderr)
     purposes={e['address']:['task recipient'] for e in inputs['taskRecipients']}
     for entry in extras:
         key=next((who for who in purposes if who.lower()==entry['address'].lower()),entry['address'])
@@ -399,7 +407,8 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
             tx=dict(to=target,data=data,value=hex(value),nonce=hex(counters[sender]),chainId=hex(chain),
                     maxFeePerGas=hex(fee),maxPriorityFeePerGas=hex(priority),gas=hex(limit),**{'from':who})
             state=projection.prepare(sid,checks)
-            if state['initial']!=state['target']: counters[sender]+=1
+            if state['initial']==state['target']: return {'tx':{'chainId':hex(chain)}}
+            counters[sender]+=1
             step=dict(**state,id=sid,sender=sender,tx=tx,readbacks=checks,**extra,
                       gasEvidence=dict(source=cal['source'],measurement=cal['ownerPreparation'][sid] if sender=='owner' else measured,
                                        factor=inputs['gasFactor'],limit=limit,block=head))
@@ -487,8 +496,8 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
                       [ep_info[0],1,ep_info[2]+inputs['stakeWei'],inputs['unstakeDelay'],0])])]
     for step,(initial,target) in zip(safe_txs,safe_states):
         step.update(initial=initial,target=target)
-        if step['id']=='SP.stake.schedule':
-            step['rerunStop']='Receipt-relative schedule timestamp; STOP unless timestamp is still zero.'
+        step['operation']=0
+    safe_txs=[s for s in safe_txs if s['initial']!=s['target']]
     # Funding cannot be accepted merely because value fits: include all frozen setup gas.
     for label,entry in senders.items():
         required=sum(a.qty(s['tx']['value'])+a.qty(s['tx']['gas'])*fee for s in all_steps if s['sender']==label)
@@ -499,6 +508,13 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
            len({pc['taskCallData'] for pc in pcs})==1,True)
     for pc in pcs:
         a.need('rq3_sdk_pricing',all(sdk[k]==pc[k] for k in ('priceCap','priceDecimals','aPNTsPriceUSD','protocolFeeBPS','validationBufferBPS','exchangeRate')),True)
+    excluded=addresses_in(cfg)|addresses_in({k:v for k,v in inputs.items() if k!='extraEndUsers'})|set().union(*(addresses_in(pc['addresses']) for pc in pcs))|{a.ZERO.lower(),m.DEAD.lower()}
+    for entry in extras:
+        a.need('rq3_extra_derived_exclusion',entry['address'].lower() not in excluded,True)
+        a.need('rq3_extra_role_absent',a.word(rpc,cfg['registry'],'hasRole(bytes32,address)',
+               m.role_id('ENDUSER'),entry['address'],block=block),0)
+        if u.code(rpc,entry['address'],block)=='0x':
+            print(f"INFO extraEndUser {entry['address']} has no code; sponsor-funded RQ2 live E2E",file=sys.stderr)
     shared=dict(sdkLive=sdk,extraEndUsersXTotal=sum(e['xAmount'] for e in extras),extraEndUsers=copy.deepcopy(extras),recipientPurposes=purposes,T=pcs[0]['addresses']['T'],R=m.DEAD,SP=ctx['SP'],chainId=chain,
                 commit=cfg['commit'],configSha256=digest(cfg),taskCallData=pcs[0]['taskCallData'],
                 taskRecipients=copy.deepcopy(inputs['taskRecipients']),experiment=inputs['experiment'])
@@ -506,6 +522,12 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
     funding['genesisGToken']=dict(address=ctx['operator'],stakeAndTickets=tickets,extraEndUsers=extra_tickets,
                                   held=genesis_held,safeTransfer=transfer)
     x=pcs[0]['addresses']['X'];funding['tokens'][x]+=sum(e['xAmount'] for e in extras)
+    def bounded(v):
+        if type(v) is int: return 0<=v<2**256
+        if isinstance(v,dict): return all(bounded(x) for x in v.values())
+        if isinstance(v,list): return all(bounded(x) for x in v)
+        return True
+    a.need('rq3_funding_uint256',bounded(funding) and bounded(shared),True)
     return dict(shared=shared,plans=plans,steps=all_steps,safeTransactions=safe_txs,timelockOperation=op,
                 configSha256=digest(cfg),commit=cfg['commit'],chainId=chain,checker=structured_checker(checker),funding=funding)
 
@@ -519,7 +541,7 @@ def pre_send(rpc,plan,step=None):
     a.need('rq3_send_stake',stake[1]==1 and stake[2]==plan['pin']['stake']+plan['deploymentContext']['stakeWei'] and
            stake[3]==plan['deploymentContext']['stakeDelay'] and stake[4]==0,True)
     a.need('rq3_send_chain',a.qty(rpc('eth_chainId',[])),plan['chainId'])
-    a.need('rq3_send_fee',pc['feeCap']==fee_cap(pc['feeRule']['baseFee'],pc['priorityCap'],pc['feeRule']) and a.qty(head['baseFeePerGas'])+pc['priorityCap']<=pc['feeCap'],True)
+    a.need('rq3_send_fee',fees_within_rule(dict(maxFeePerGas=pc['feeCap'],maxPriorityFeePerGas=pc['priorityCap']),pc['feeRule'],a.qty(head['baseFeePerGas'])),True)
     expected=pc['minTxInterval']
     if step is not None and plan['planIndex']==0:
         ids=[s['id'] for s in plan['steps']]

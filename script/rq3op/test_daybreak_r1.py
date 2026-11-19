@@ -83,8 +83,8 @@ class Round3(unittest.TestCase):
         self.assertEqual(self.build()['shared']['sdkLive']['priceHeadroomBPS'],1000)
         for bad in (None,-1,10000,1.5,'10',True):
             self.setUp()
-            if bad is None: self.inputs.pop('sdkPriceHeadroomBPS')
-            else: self.inputs['sdkPriceHeadroomBPS']=bad
+            if bad is None: self.inputs.pop('priceHeadroomBPS')
+            else: self.inputs['priceHeadroomBPS']=bad
             with self.subTest(bad=bad): self.stop('rq3_sdk_price_headroom',self.build)
 
     def test_plan_never_emits_floats(self):
