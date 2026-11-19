@@ -275,6 +275,7 @@ def governance(rpc, cfg, safe):
 def run_checker(url, path, deployer, safe, evidence, env):
     from deploylive_controls import safe_logs
     env = dict(env, DEPLOYLIVE_RPC=url, ETH_RPC_URL=url)
+    env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(evidence))
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'),
                              str(path), deployer, safe], env=env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env)

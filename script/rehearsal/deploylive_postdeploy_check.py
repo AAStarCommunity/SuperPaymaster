@@ -17,6 +17,9 @@ if len(sys.argv) == 4:
     sys.argv.insert(1, os.environ['ETH_RPC_URL'])
 RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
 results = []
+BLOCK = None
+READBACK = Path(os.environ.get("DEPLOYLIVE_EVIDENCE_DIR", os.environ.get("DEPLOYLIVE_LOCAL_EVIDENCE", str(Path(sys.argv[2]).parent)))) / "readback.json"
+READBACK.unlink(missing_ok=True)
 principal_addresses = {DEPLOYER, SAFE}
 if sys.argv[5:]:
     print("FAIL unknown checker option")
@@ -54,6 +57,8 @@ LOCAL = {"keccak", "calldata", "sig", "abi-encode"}
 
 def cast(*args):
     cmd = ["cast", *args]
+    if BLOCK is not None and args[0] in ("call", "code", "storage", "balance"):
+        cmd.extend(["--block", BLOCK])
     r = subprocess.run(cmd, env=dict(os.environ, ETH_RPC_URL=RPC), capture_output=True, text=True)
     # Never expose RPC URLs, including transport errors with credentials or query strings.
     if r.returncode:
@@ -66,7 +71,7 @@ def cast(*args):
 
 def raw_call(frm, to, data):
     q = json.dumps({"from": frm, "to": to, "data": data})
-    return cast("rpc", "eth_call", q, "latest")
+    return cast("rpc", "eth_call", q, BLOCK)
 
 
 def call(addr, sig, *args):
@@ -100,6 +105,15 @@ try:
 except (ValueError, TypeError, OSError):
     print("FAIL external dependencies: missing chain group / unreadable chain")
     sys.exit(1)
+try:
+    rc, raw = cast("rpc", "eth_getBlockByNumber", "latest", "false")
+    block = json.loads(raw)
+    if rc or not isinstance(block, dict) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", block['hash']): raise ValueError('block unreadable')
+    BLOCK = hex(integer(block['number']))
+    integer(block['timestamp'])
+except (KeyError, ValueError, TypeError):
+    print("FAIL pinned block unreadable")
+    sys.exit(1)
 from deploylive_runtime import check_source_commit
 check("source commit", check_source_commit(CFG, chain, ROOT), "config.commit must match HEAD in a clean worktree; empty local commit exempt")
 
@@ -115,7 +129,7 @@ for key, getter in (("ethUsdFeed", "ETH_USD_PRICE_FEED"), ("entryPoint", "entryP
 check("external accountFactory", A.get("simpleAccountFactory", "").lower() == deps["accountFactory"].lower(), deps["accountFactory"])
 check("external validation registry recorded", A.get("agentValidationRegistry", "").lower() == deps["agentValidationRegistry"].lower(), deps["agentValidationRegistry"])
 
-from deploylive_runtime import artifact, matches, artifact_directory, compile_settings
+from deploylive_runtime import artifact, artifact_directory, compile_settings, release_artifact
 try:
     directory_ok = CFG.get("artifactDirectory") == artifact_directory()
 except ValueError:
@@ -147,21 +161,35 @@ try:
 except (OSError, KeyError, ValueError, TypeError, AttributeError):
     release_pins_ok = False
 check("release creation pins", release_pins_ok, "all 25 metadata artifacts match committed pins")
-for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
+from deploylive_readback import runtime_rows, PROXY_ABI
+from runtime_pins import artifact_pins
+runtime_path = ROOT / f"deployments/runtime-pins.{chain}.json"
+mapping = json.loads((ROOT/'deployments/readback-artifacts.json').read_text())
+try:
+    runtime_pins = json.loads(runtime_path.read_text())
+    runtime_pins_ok = runtime_pins == artifact_pins(ROOT/artifact_directory(), ROOT/f"deployments/creation-pins.{chain}.json")
+except (OSError, ValueError, KeyError, TypeError):
+    runtime_pins, runtime_pins_ok = {}, False
+check("release runtime pins", runtime_pins_ok, "committed runtime pins match release build")
+def read_code(address):
+    rc, code = cast("code", address)
+    if rc: raise ValueError('code unreadable')
+    return code
+for key, ok in runtime_rows(CFG, mapping, runtime_pins.get('artifacts', {}), read_code):
+    check("runtime " + key, ok and runtime_pins_ok, "release runtime pin; compiler immutable references masked")
+versions = json.loads((ROOT/'deployments/release-versions.rc8.json').read_text())
+for key, name in mapping.items():
+    name = PROXY_ABI.get(key, name)
+    if name is None: continue
     try:
-        expected_runtime = artifact(name, pins[name], cast)
-        pin_ok = True
-    except (OSError, KeyError, ValueError, TypeError, AttributeError):
-        pin_ok = False
-    check("creation pin " + name, pin_ok, "local artifact creation hash == committed pin")
-    runtime_ok = False
-    if pin_ok and pins_digest_ok:
-        try:
-            rc, runtime = cast("code", A[key])
-            runtime_ok = rc == 0 and matches(expected_runtime, runtime)
-        except (ValueError, TypeError, KeyError):
-            pass
-    check("runtime " + name, runtime_ok, "release artifact; compiler immutable references masked")
+        has_version = any(f.get('type') == 'function' and f.get('name') == 'version' and not f['inputs'] for f in release_artifact(name)['abi'])
+    except (OSError, ValueError, KeyError, TypeError):
+        check("version " + key, False, "release ABI unavailable")
+        continue
+    if has_version:
+        absent = A.get(key) == "0x" + "0" * 40
+        value = None if absent else call(A.get(key, "0x" + "0" * 40), "version()(string)")
+        check("version " + key, isinstance(versions.get(name), str) and (absent or value.strip('"') == versions[name]), "zero address; not deployed" if absent else str(versions.get(name)))
 
 # 1. Owners: no system-internal contract may be owned by the deployer.
 SYSTEM = ["superPaymaster", "registry", "staking", "gToken", "xPNTsFactoryV2", "aoaProtocolRegistry",
@@ -301,7 +329,7 @@ rc, code = cast("code", H)
 # Solidity constructor-only runtime: PUSH0/PUSH1 DUP1 REVERT (metadata disabled).
 check("H runtime non-callable", H != ZERO and rc == 0 and len(code) <= 130 and code.lower().startswith(("0x5f80fd", "0x60806040525f80fd", "0x6080604052600080fd")), "constructor-only revert runtime")
 # Rebuild membership from the complete address-filtered history, then confirm every member.
-rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": TL, "fromBlock": hex(CFG["deploymentStartBlock"]), "toBlock": "latest"}))
+rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": TL, "fromBlock": hex(CFG["deploymentStartBlock"]), "toBlock": BLOCK}))
 try:
     logs = json.loads(raw) if rc == 0 else None
     assert isinstance(logs, list)
@@ -420,7 +448,7 @@ check("GToken recipient exact delta", recipient.lower() not in (ZERO, DEPLOYER) 
 amounts = CFG["gTokenMintAmounts"]
 recipients = CFG.get("gTokenMintRecipients", [])
 check("GToken mint ledger", len(amounts) == len(recipients) == CFG["gTokenMintCount"] == 2 and all(a.lower() == DEPLOYER for a in recipients) and sum(amounts) == CFG["gTokenTotalSupply"], str(amounts))
-rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": A["gToken"], "fromBlock": hex(CFG["deploymentStartBlock"]), "toBlock": "latest",
+rc, raw = cast("rpc", "eth_getLogs", json.dumps({"address": A["gToken"], "fromBlock": hex(CFG["deploymentStartBlock"]), "toBlock": BLOCK,
     "topics": [cast("keccak", "Transfer(address,address,uint256)")[1], "0x" + "00" * 32]}))
 try:
     mint_events = json.loads(raw)
@@ -511,6 +539,14 @@ for principal in sorted(principal_addresses - {ZERO}):
         principal_failures.append(principal)
 check("principals exclude EIP-7702", not principal_failures,
       "code read failed or delegation: " + ", ".join(principal_failures) if principal_failures else "all configured and live principals; ordinary contracts allowed")
+
+if all(results):
+    try:
+        from deploylive_readback import collect, write
+        record = collect(sys.argv[2], CFG, chain, block, os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), deps, runtime_path, cast)
+        write(READBACK, record)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        check("readback", False, "collection failed")
 
 print(f"\nSUMMARY {sum(results)} passed, {len(results) - sum(results)} failed, {len(results)} total")
 sys.exit(0 if all(results) else 1)

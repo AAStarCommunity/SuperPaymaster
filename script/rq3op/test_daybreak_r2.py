@@ -9,6 +9,13 @@ import plan_three_arm as q
 import test_three_arm as fixtures
 
 class Round2(unittest.TestCase):
+    def test_provider_name_reaches_checker_environment(self):
+        import os
+        from pinned_tools import PinnedTools
+        with patch.dict(os.environ, DEPLOYLIVE_ENDPOINT_PROVIDER='Fixture'):
+            tools = PinnedTools()
+        self.assertEqual(tools.env.get('DEPLOYLIVE_ENDPOINT_PROVIDER'), 'Fixture')
+
     def test_pinned_tools_environment_and_metadata(self):
         tools=q.pinned_tools()
         calls=[]
@@ -40,11 +47,12 @@ class Round2(unittest.TestCase):
 
     def test_release_table_matches_source_literals(self):
         expected={}
-        for key,source in q.SYSTEM_SOURCES.items():
-            if source:
-                text=(q.ROOT/'contracts/src'/source).read_text()
-                name=re.search(r'^contract\s+(\w+)',text,re.M)[1]
-                expected[name]=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)[1]
+        names = 'AOAProtocolRegistry APNTsCapped BLSAggregator DVTValidator GToken GTokenAuthorization GTokenStaking GlobalTierSource MicroPaymentChannel MySBT Paymaster PaymasterFactory PolicyRegistry Registry ReputationSystem SuperPaymaster SuperPaymasterLens X402Facilitator xPNTsFactory xPNTsFactoryV2 xPNTsToken xPNTsTokenV2'.split()
+        for name in names:
+            paths = list((q.ROOT/'contracts/src').rglob(name + '.sol'))
+            self.assertEqual(len(paths), 1)
+            text = paths[0].read_text()
+            expected[name]=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)[1]
         self.assertEqual(json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text()),expected)
 
     def test_planner_task_collisions(self):
@@ -88,4 +96,4 @@ class Round2(unittest.TestCase):
             rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=versions)
         self.assertEqual(rc,1,out)
         self.assertIn('sp="SuperPaymaster-5.5.3"',out)
-        self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  runtime SuperPaymaster'])
+        self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  runtime spImpl'])

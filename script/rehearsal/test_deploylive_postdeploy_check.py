@@ -1,4 +1,9 @@
 """Offline checker tests: a simulated read-only RPC boundary; no subprocess executes."""
+import os
+from functools import lru_cache
+from deploylive_runtime import release_artifact as select_release_artifact
+
+fixture_artifact = lru_cache(maxsize=None)(select_release_artifact)
 import contextlib
 import hashlib
 import io
@@ -48,9 +53,10 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
+        keys += "spAdminImpl xPNTsTokenV1Impl xPNTsTokenV2Impl xPNTsTokenV2Ext globalTierSource superPaymasterLens".split()
         cfg = {k: addr(i + 1) for i, k in enumerate(keys)}
         cfg["commit"] = "a" * 40
         cfg.update(simpleAccountFactory=addr(101), agentValidationRegistry=addr(105) if agents else ZERO, enableAgentRegistries=agents, aPNTsPaymasterV4=ZERO, pnts=ZERO, deploymentStartBlock=1, deployerGTokenBalance=0, deployerGTokenAllowance=0, deployerSBTBalance=0, genesisIsConfigured=False, handoverBootstrapNonce=22, observedBootstrapNonce=22, expectedCap=1000, guardianN=2, minThreshold=2, defaultThreshold=2,
@@ -98,20 +104,30 @@ class CheckerTest(unittest.TestCase):
         if mutation == "unexpected_admin": membership[roles["DEFAULT_ADMIN_ROLE"]].add(addr(250))
         if mutation in role_names:
             membership[roles[mutation]].add(h)
+        mapping = json.loads((CHECKER.parents[2]/"deployments/readback-artifacts.json").read_text())
+        versions = json.loads((CHECKER.parents[2]/"deployments/release-versions.rc8.json").read_text())
+        from deploylive_readback import PROXY_ABI
         runtime_codes = {}
         creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
         pins = json.loads((CHECKER.parents[2]/'deployments/creation-pins.31337.json').read_text())
-        from deploylive_runtime import release_artifact
+        selected = lru_cache(maxsize=None)(select_release_artifact)
         # Use the checker's own artifact selection. A glob over out/<Name>.sol/*.json also matches other
         # contracts compiled from the same source file (out/Registry.sol/IGuardianExitGate.json has the
         # same runs/evmVersion); filesystem order then decided which runtime the fake chain served, and
         # on CI's Linux runner the interface won.
-        for key, name in (("registryImpl", "Registry"), ("spImpl", "SuperPaymaster"), ("timelockController", "TimelockController")):
-            obj = release_artifact(name)
+        for key, name in mapping.items():
+            if name is None or cfg[key] == ZERO: continue
+            obj = fixture_artifact(name)
             runtime_codes[cfg[key]] = obj['deployedBytecode']['object']
             creation_hashes[obj['bytecode']['object']] = pins[name]
+        from runtime_pins import masked_code
+        runtime_pins = json.loads((CHECKER.parents[2]/'deployments/runtime-pins.31337.json').read_text())['artifacts']
+        for name, pin in runtime_pins.items():
+            code = fixture_artifact(name)['deployedBytecode']['object']
+            creation_hashes[code] = pin['rawRuntimeKeccak']
+            creation_hashes[masked_code(pin, code)] = pin['maskedRuntimeKeccak']
         for name, pin in pins.items():
-            creation_hashes[release_artifact(name)['bytecode']['object']] = pin
+            creation_hashes[fixture_artifact(name)['bytecode']['object']] = pin
         if mutation == "missing_commit": del cfg["commit"]
         def fake_run(cmd, **kwargs):
             if cmd[0] == "git":
@@ -120,6 +136,13 @@ class CheckerTest(unittest.TestCase):
             self.assertNotIn("--rpc-url", cmd)
             self.assertEqual(kwargs["env"]["ETH_RPC_URL"], "https://secret.invalid/private-token")
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
+            if check_blocks and kind in ('call', 'code', 'storage', 'balance'):
+                self.assertEqual(args[-2:], ['--block', '0x2a'])
+            if check_blocks and kind == 'rpc' and args[0] == 'eth_call': self.assertEqual(args[-1], '0x2a')
+            if check_blocks and kind == 'rpc' and args[0] == 'eth_getLogs': self.assertEqual(json.loads(args[1])['toBlock'], '0x2a')
+            if '--block' in args:
+                self.assertEqual(args[-2:], ['--block', '0x2a'])
+                args = args[:-2]
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
                 return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.invalid/private-token")
             out, rc = "", 0
@@ -142,12 +165,15 @@ class CheckerTest(unittest.TestCase):
                 out = "0x" if mutation in ("absent_h", "half_handover") and args[0] == h else "0x60806040525f80fd"
                 if args[0] in runtime_codes:
                     out = runtime_codes[args[0]]
-                    if mutation == "runtime_" + next(k for k in ("registryImpl", "spImpl", "timelockController") if cfg[k] == args[0]): out = "0xff" + out[4:]
+                    if mutation == "runtime_" + next(k for k in mapping if cfg[k] == args[0]): out = "0xff" + out[4:]
                 if args[0] == safe or (args[0] == addr(777) and authority_bad): out = "0x6001" if mutation == "safe_codehash" or authority_bad == "codehash" else proxy["runtime"] if real_proxy else "0x6000"
                 if args[0] == addr(777) and authority_bad == "eoa": out = "0x"
                 if args[0] == addr(777) and authority_bad == "delegation": out = "0xef0100" + "00"*20
+                if args[0] == h and mutation in ("absent_h", "half_handover"): out = "0x"
                 if args[0] == safe and mutation == "delegated_safe": out = "0xef0100" + "00" * 20
             elif kind == "rpc":
+                if args[0] == "eth_getBlockByNumber":
+                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a', hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
                 if args[0] == "eth_chainId":
                     return SimpleNamespace(returncode=0, stdout=('"0xa"' if op else '"0x7a69"') if mutation != "unknown_chain" else '"0xf423f"', stderr="")
                 if args[0] == "eth_call":
@@ -238,7 +264,7 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "balanceOf(address)(uint256)": out = "2056" if target == cfg['gToken'] and params[0] == safe else "110" if target == cfg['gToken'] and params[0] == cfg['staking'] else "0"
                 elif sig == "totalSupply()(uint256)": out = "2166"
                 elif sig == "getLockedStake(address,bytes32)(uint256)": out = "50" if params[1] == digest("PAYMASTER_SUPER") else "30" if params[1] == digest("DVT") else "0"
-                elif sig == "version()(string)": out = json.dumps(release_versions["SuperPaymaster"]) if release_versions and target==cfg["superPaymaster"] else '"fixture"'
+                elif sig == "version()(string)": out = json.dumps(release_versions["SuperPaymaster"]) if release_versions and target==cfg["superPaymaster"] else json.dumps(versions.get(PROXY_ABI.get(next((k for k in mapping if cfg[k] == target), ''), mapping.get(next((k for k in mapping if cfg[k] == target), ''))), 'fixture'))
                 else: self.fail(f"Unhandled {sig}")
                 if target == addr(777):
                     if authority_bad == "threshold" and sig == "getThreshold()(uint256)": out = "1"
@@ -266,6 +292,8 @@ class CheckerTest(unittest.TestCase):
             raw = original_read(path, *args, **kwargs)
             if path.name == 'safe-official.json' and not real_proxy:
                 obj = json.loads(raw); obj['proxyCodehashes'] = [digest('0x6000')]; return json.dumps(obj)
+            if isinstance(mutation, tuple) and mutation[0] == 'versions' and path.name == 'release-versions.rc8.json':
+                obj = json.loads(raw); del obj[mutation[1]]; return json.dumps(obj)
             if mutation == 'missing_dep' and path.name == 'external-deps.31337.json':
                 obj = json.loads(raw); del obj['ethUsdFeed']; return json.dumps(obj)
             if isinstance(mutation, tuple) and mutation[0] == 'creation' and path.parent.name == mutation[1] + '.sol':
@@ -274,7 +302,7 @@ class CheckerTest(unittest.TestCase):
                 obj = json.loads(raw); obj['metadata']['settings']['optimizer']['runs'] = 200; return json.dumps(obj)
             return raw
         output = io.StringIO()
-        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), contextlib.redirect_stdout(output):
+        with patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch('deploylive_runtime.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.collect', return_value={}), patch('deploylive_readback.write'), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture')), contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())
@@ -318,7 +346,7 @@ class CheckerTest(unittest.TestCase):
         with patch.object(pathlib.Path, 'glob', lambda self, pattern: iter(sorted(original(self, pattern), reverse=True))):
             rc, out = self.run_checker()
         self.assertEqual(rc, 0, out)
-        self.assertIn('PASS  runtime Registry', out)
+        self.assertIn('PASS  runtime registryImpl', out)
 
     def test_round8_real_proxy(self):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
@@ -349,7 +377,9 @@ class CheckerTest(unittest.TestCase):
             with self.subTest(name=name):
                 rc, out = self.run_checker(('creation', name), agents=True)
                 self.assertEqual(rc, 1, out)
-                self.assertIn('FAIL  creation pin ' + name, out)
+                self.assertIn('FAIL  release creation pins', out)
+                key = {'Registry': 'registryImpl', 'SuperPaymaster': 'spImpl', 'TimelockController': 'timelockController'}[name]
+                self.assertIn('FAIL  runtime ' + key, out)
 
     def test_round8_config_pins_sha(self):
         rc, out = self.run_checker(('config', 'creationPinsSha256', '0x' + '00'*32), agents=True)
@@ -606,3 +636,27 @@ class DeployDayPrincipalTest(unittest.TestCase):
         rc, out = self.run_checker(real_proxy=True)
         self.assertEqual(rc, 0, out)
         self.assertIn('PASS  principals exclude EIP-7702', out)
+
+    def test_readback_staking_runtime_tampered(self):
+        code, output = self.run_checker('runtime_staking')
+        self.assertEqual(code, 1, output)
+        self.assertIn('FAIL  runtime staking', output)
+
+    def test_readback_row_count(self):
+        code, output = self.run_checker()
+        self.assertEqual(code, 0, output)
+        self.assertIn('SUMMARY 232 passed, 0 failed, 232 total', output)
+
+    def test_readback_version_tampered(self):
+        code, output = self.run_checker(('staking', 'version()(string)', [], '"wrong"'))
+        self.assertEqual(code, 1, output)
+        self.assertIn('FAIL  version staking', output)
+
+    def test_readback_missing_version(self):
+        code, output = self.run_checker(('versions', 'GTokenStaking'))
+        self.assertEqual(code, 1, output)
+        self.assertIn('FAIL  version staking', output)
+
+    def test_readback_all_reads_pinned(self):
+        code, output = self.run_checker(check_blocks=True)
+        self.assertEqual(code, 0, output)

@@ -106,13 +106,14 @@ class Ddf5Test(unittest.TestCase):
         config=self.root/'external-config.json'; config.write_text('{}')
         broadcast=self.root/'external-broadcast.json'; broadcast.write_text('{}')
         (self.root/'gated-plan.json').write_text(FIX.read_text())
+        (self.root/'readback.json').write_text('{}')
         c.write_success(self.root,dict(self.env,DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1'),config,broadcast,json.loads(FIX.read_text()))
         # The operator's credential-free declaration is recorded in the PASS record (DSR 2026-11-19).
         self.assertEqual(json.loads((self.root/'checker.PASS.json').read_text())['noCredentialEndpoints'],['DEPLOYLIVE_SECOND_RPC'])
         self.assertEqual(json.loads((self.root/'checker.PASS.json').read_text())['redactedStreams'],[])
         dest=self.root.parent/(self.root.name+'-archive'); self.addCleanup(lambda: __import__('shutil').rmtree(dest,ignore_errors=True))
         c.archive(self.root,dest)
-        for name in ('config.test.json','run-latest.json'):
+        for name in ('config.test.json','run-latest.json','readback.json'):
             self.assertEqual((dest/name).read_text(),'{}'); self.assertIn(name,(dest/'SHA256SUMS').read_text())
         (self.root/'inputs.manifest').write_text('changed')
         with self.assertRaises(RuntimeError): c.archive(self.root,dest.with_name(dest.name+'2'))
@@ -162,7 +163,8 @@ class Ddf5Test(unittest.TestCase):
                 target=actual if '--broadcast' in argv else dry
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
                 return SimpleNamespace(returncode=0,stdout=output(argv) if output else '',stderr='')
-            return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 189 passed, 0 failed, 189 total' if checker_ok else 'FAIL checker',stderr='')
+            if checker_ok: (evidence/'readback.json').write_text('{}')
+            return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 234 passed, 0 failed, 234 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
             return hex(chain) if method=='eth_chainId' else '0x27'
         with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver','primary',self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
