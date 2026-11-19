@@ -499,7 +499,7 @@ uses the EIP-712 `EIP712Domain(uint256 chainId,address verifyingContract)` and
 `SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)`
 type hashes, dynamic-data keccak256, and the `0x1901` prefix. Every other version stops,
 including 1.3.0 and 1.4.0: no real receipt in this checkout proves their event layout.
-1.4.1 reads txHash from topics[1], pinned by the real Sepolia test-Safe receipt
+1.4.1 reads txHash from topics[1], pinned by a receipt produced on a Sepolia fork by the real Safe 1.4.1 code:
 `docs/release/a3a-testsafe-12025632/live/S5b/receipt.json`. **Adding a version requires a
 real receipt of that version as a test fixture**; a synthetic layout test is not enough. A Safe ExecutionFailure always refuses recording.
 The SHA-256 transaction digest also binds Safe, chain and all signing fields.
@@ -576,3 +576,11 @@ reset to `--first-run` after losing history. If the prior digest or history is
 unavailable, stop and reconcile the receipts and state before resuming. The
 operator-supplied anchor is the trust root; supplying an old digest alongside an
 old backup defeats rollback detection.
+
+### Known residual
+
+Within the 600-second clearance window the state can still change.
+The post-execution target check detects a step that did not reach its planned target state; it does not detect
+unrelated state changes, or a change that was reverted before the check.
+
+After the first Safe transaction of the Sepolia rehearsal executes, its on-chain receipt is added as a fixture.

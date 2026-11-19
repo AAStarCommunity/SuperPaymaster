@@ -47,9 +47,15 @@ export function appendClearance(path,authorization,pin) {
  const expiry=BigInt(pin.timestamp)+CLEARANCE_WINDOW_SECONDS;
  return append(path,{type:'EXECUTION_CLEARANCE',id:authorization.id,bundleSha256:authorization.bundleSha256,authorizationDigest:authorization.recordDigest,blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(expiry<BigInt(authorization.expiresAtTimestamp)?expiry:BigInt(authorization.expiresAtTimestamp))});
 }
+function validClearanceExpiry(clearance,authorization) {
+ if(clearance.blockTimestamp===undefined || clearance.expiresAtTimestamp===undefined)return false;
+ const expiry=BigInt(clearance.blockTimestamp)+CLEARANCE_WINDOW_SECONDS;
+ const limit=BigInt(authorization.expiresAtTimestamp);
+ return BigInt(clearance.expiresAtTimestamp)===(expiry<limit?expiry:limit);
+}
 export function clearanceEntry(path,digest,authorization,execution) {
  const entries=records(path,digest);
- const matches=entries.filter(e=>e.type==='EXECUTION_CLEARANCE' && e.authorizationDigest===authorization.recordDigest && BigInt(e.blockNumber)<BigInt(execution.number) && BigInt(execution.timestamp)<=BigInt(e.expiresAtTimestamp) && !entries.some(c=>c.type==='COMPLETION' && c.clearanceDigest===e.recordDigest));
+ const matches=entries.filter(e=>e.type==='EXECUTION_CLEARANCE' && e.authorizationDigest===authorization.recordDigest && validClearanceExpiry(e,authorization) && BigInt(e.blockNumber)<BigInt(execution.number) && BigInt(execution.timestamp)<=BigInt(e.expiresAtTimestamp) && !entries.some(c=>c.type==='COMPLETION' && c.clearanceDigest===e.recordDigest));
  if(matches.length!==1)throw Error('execution not cleared');
  return matches[0];
 }
@@ -92,10 +98,10 @@ export function safeTxHash(safe,chainId,transaction){
  const struct=keccak256(encodeAbiParameters([{type:'bytes32'},...fields.map(([,type])=>({type:type==='bytes'?'bytes32':type}))],[typeHash,...fields.map(([name,type])=>type==='bytes'?keccak256(transaction[name]):type.startsWith('uint')?BigInt(transaction[name]):transaction[name])]));
  return keccak256(concat(['0x1901',domain,struct]));
 }
-// Safe VERSION() values this tool signs and records for. Each entry must be backed by a REAL receipt
-// fixture of its ExecutionSuccess layout (DSR: a synthetic layout test let the wrong 1.4.1 decoding
-// through). 1.4.1 is pinned by docs/release/a3a-testsafe-12025632/live/S5b/receipt.json; 1.3.0 and
-// 1.4.0 have no real receipt in this repository and are refused.
+// Safe VERSION() values this tool signs and records for. The 1.4.1 layout is backed by
+// a receipt produced on a Sepolia fork by the real Safe 1.4.1 code:
+// docs/release/a3a-testsafe-12025632/live/S5b/receipt.json.
+// 1.3.0 and 1.4.0 lack execution receipt fixtures here and are refused.
 export const SUPPORTED_SAFE_VERSIONS=Object.freeze(['1.4.1']);
 const getters=parseAbi(['function nonce() view returns (uint256)','function VERSION() view returns (string)']);
 export async function safeSigning(step,chainId,pin,read){
@@ -145,7 +151,9 @@ export async function verifyReceipt(read,step,hash,safe=false,record=null,author
   if(!auth)throw Error('transaction not authorized by the gate');
   if(BigInt(receipt.blockNumber)<=BigInt(auth.blockNumber) || BigInt(block.timestamp)>BigInt(auth.expiresAtTimestamp))throw Error('transaction not authorized by the gate');
   const cleared=clearance??record?.clearance;
-  if(!cleared || cleared.authorizationDigest!==auth.recordDigest || BigInt(receipt.blockNumber)<=BigInt(cleared.blockNumber) || BigInt(block.timestamp)>BigInt(cleared.expiresAtTimestamp) || BigInt(cleared.expiresAtTimestamp)>BigInt(auth.expiresAtTimestamp))throw Error('execution not cleared');
+  if(!cleared || !validClearanceExpiry(cleared,auth) || cleared.authorizationDigest!==auth.recordDigest || BigInt(receipt.blockNumber)<=BigInt(cleared.blockNumber) || BigInt(block.timestamp)>BigInt(cleared.expiresAtTimestamp) || BigInt(cleared.expiresAtTimestamp)>BigInt(auth.expiresAtTimestamp))throw Error('execution not cleared');
+  const version=decodeFunctionResult({abi:getters,functionName:'VERSION',data:await read('eth_call',[{to:step.from,data:encodeFunctionData({abi:getters,functionName:'VERSION'})},receipt.blockNumber])});
+  if(!SUPPORTED_SAFE_VERSIONS.includes(version) || version!==auth.version)throw Error('Safe VERSION changed or unsupported');
   const clearanceAnchor=await read('eth_getBlockByNumber',['0x'+BigInt(cleared.blockNumber).toString(16),false]);
   if(!same(clearanceAnchor.hash,cleared.blockHash))throw Error('execution not cleared: clearance anchor changed');
   const anchor=await read('eth_getBlockByNumber' ,['0x'+BigInt(auth.blockNumber).toString(16),false]);

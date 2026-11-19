@@ -6,10 +6,7 @@ import {createHash} from 'node:crypto';
 import {encodeFunctionData,encodeAbiParameters,parseAbi,toEventSelector} from 'viem';
 import {main as runMain,gateWorker} from './setup.mjs';
 import {verifyReceipt,completionEntry,appendCompletion,safeTxHash,chainHead} from './completion.mjs';
-async function main(args,deps){
- const offset=['safe','safe-clear','safe-record','record'].includes(args[0])?1:0;
- return runMain([...args,'--expect-head',chainHead(args[offset]+'.completions.jsonl',args[offset+1])],deps);
-}
+const main=runMain;
 const address='0x'+'11'.repeat(20),to='0x'+'22'.repeat(20),hash='0x'+'ab'.repeat(32),blockHash='0x'+'cd'.repeat(32);
 const tx={from:address,to,value:'0x1',data:'0x1234',nonce:'0x0',chainId:'0xa',gas:'0x10000',maxFeePerGas:'0x2',maxPriorityFeePerGas:'0x1'};
 const abi=parseAbi(['function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures) returns (bool success)']);
@@ -40,7 +37,7 @@ function fixture(safe){
  const pub={getBlock:async({blockNumber}={})=>({...block,number:blockNumber??block.number}),waitForTransactionReceipt:async()=>({status:'success',blockNumber:1n,blockHash})};
  const emitted=[];
  const deps={regenerate:async()=>raw,emit:r=>emitted.push(r),emitStatus:r=>emitted.push(r),send:async()=>{sends++;balance=1;return hash;},runtime:async()=>({archives:[archive,archive],accounts:{bundler:{address}},pubA:pub,pubB:pub,refreshPin:async()=>({...block,number:balance?3n:height})})};
- const args=[dir+'/bundle',digest,'0',dir+'/signers',dir+'/a',dir+'/b',dir+'/audit',dir+'/config',dir+'/inputs'];
+ const args=[dir+'/bundle',digest,'0',dir+'/signers',dir+'/a',dir+'/b',dir+'/audit',dir+'/config',dir+'/inputs','--expect-head','0'.repeat(64)];
  return {dir,args,deps,step,receipt,transaction,read,emitted,balance:v=>balance=v,sends:()=>sends,advance:()=>height++,close:()=>rmSync(dir,{recursive:true,force:true})};
 }
 for(const safe of [false,true])test(`${safe?'Safe':'EOA'} receipt-recorded completion, unlogged target, failed receipt`,async()=>{
@@ -57,11 +54,14 @@ for(const safe of [false,true])test(`${safe?'Safe':'EOA'} receipt-recorded compl
   if(safe){
    await main(['safe',...f.args],f.deps);assert.equal(f.emitted.length,1);
    assert.deepEqual(f.emitted[0].transaction,{to,value:'0x1',data:'0x1234',operation:0});
+   f.args[f.args.length-1]=f.emitted.at(-1).recordDigest;
    f.advance();await main(['safe-clear',...f.args],f.deps);
+   f.args[f.args.length-1]=f.emitted.at(-1).recordDigest;
    f.balance(1);await main(['safe-record',...f.args,hash],f.deps);
   }else await main([...f.args],f.deps);
   const entry=completionEntry(f.args[0]+'.completions.jsonl',f.args[1],f.step.id);
   if(safe){assert.equal(entry.clearanceDigest,entry.clearance.recordDigest);assert.equal(entry.clearance.authorizationDigest,entry.authorizationDigest);}
+  f.args[f.args.length-1]=entry.recordDigest;
   assert.equal(entry.txHash,hash);assert.equal(entry.timestamp,'100');assert.equal(entry.readback[0].observed,1);
   await main(safe?['safe',...f.args]:[...f.args],f.deps);
   if(safe)assert.equal(f.emitted.at(-1),'already-satisfied');else assert.equal(f.sends(),1);
@@ -94,6 +94,7 @@ test('M1 rerun compares historical receipt-block readbacks',async()=>{
  const f=fixture(false);try{
   f.deps.gate=async(bundle,index,action,time,read,options)=>gateWorker({...bundle,safeTransactions:[bundle.steps[index]]},0,action,time,read,{...options,safe:true});
   await main([...f.args],f.deps);
+  f.args[f.args.length-1]=completionEntry(f.args[0]+'.completions.jsonl',f.args[1],f.step.id).recordDigest;
   const gate=f.deps.gate;
   f.deps.gate=async(...args)=>args[2]==='readback'?[{observed:999}]:gate(...args);
   await assert.rejects(main([...f.args],f.deps),/completion readback mismatch/);
@@ -101,7 +102,7 @@ test('M1 rerun compares historical receipt-block readbacks',async()=>{
 });
 for(const mode of ['safe','safe-clear','safe-record'])test(`${mode} STOPs when pinned provider timestamps disagree`,async()=>{
  const f=fixture(true);try{
-  if(mode!=='safe'){await main(['safe',...f.args],f.deps);f.advance();if(mode==='safe-record')f.balance(1);}
+  if(mode!=='safe'){await main(['safe',...f.args],f.deps);f.args[f.args.length-1]=f.emitted.at(-1).recordDigest;f.advance();if(mode==='safe-record')f.balance(1);}
   const runtime=f.deps.runtime;
   f.deps.runtime=async()=>{
    const r=await runtime();
@@ -124,5 +125,30 @@ test('authorization timestamp comes from agreeing pinned header',async()=>{
   assert.equal(f.emitted[0].blockTimestamp,'100');
   assert.equal(f.emitted[0].expiresAtTimestamp,'86500');
   assert.equal(f.emitted[0].blockNumber,'1');assert.equal(f.emitted[0].blockHash,blockHash);
+ }finally{f.close();}
+});
+
+test('R8 safe-clear refuses explicitly saved stale digest',async()=>{
+ const f=fixture(true);try{
+  const saved=f.args.at(-1);
+  await main(['safe',...f.args],f.deps);f.advance();
+  assert.equal(f.args.at(-1),saved);
+  await assert.rejects(main(['safe-clear',...f.args],f.deps),/chain head mismatch/);
+ }finally{f.close();}
+});
+for(const mode of ['changed','disagreement'])test('R8 safe-record VERSION '+mode,async()=>{
+ const f=fixture(true);try{
+  await main(['safe',...f.args],f.deps);f.args[f.args.length-1]=f.emitted.at(-1).recordDigest;
+  f.advance();await main(['safe-clear',...f.args],f.deps);f.args[f.args.length-1]=f.emitted.at(-1).recordDigest;
+  f.balance(1);
+  const runtime=f.deps.runtime,calls=[];
+  const selector=encodeFunctionData({abi:parseAbi(['function VERSION() view returns (string)']),functionName:'VERSION'});
+  f.deps.runtime=async()=>{const r=await runtime();r.archives=r.archives.map((a,i)=>({request:async q=>{
+   if(q.method==='eth_call'&&q.params[0].data===selector){calls.push(q.params[1]);return encodeAbiParameters([{type:'string'}],[mode==='changed'||i===1?'1.3.0':'1.4.1']);}
+   return a.request(q);
+  }}));return r;};
+  await assert.rejects(main(['safe-record',...f.args,hash],f.deps),mode==='changed'?/Safe VERSION/:/setup read disagreement/);
+  assert.deepEqual(calls,['0x3','0x3']);
+  assert.equal(completionEntry(f.args[0]+'.completions.jsonl',f.args[1],f.step.id),null);
  }finally{f.close();}
 });

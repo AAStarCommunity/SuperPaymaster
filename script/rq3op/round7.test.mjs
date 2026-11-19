@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {decodeFunctionData,parseAbi,encodeAbiParameters} from 'viem';
+import {decodeFunctionData,parseAbi,encodeAbiParameters,toEventSelector} from 'viem';
 import * as c from './completion.mjs';
 const load=p=>JSON.parse(readFileSync(p));
 const base='docs/release/a3a-testsafe-12025632/';
@@ -12,12 +12,12 @@ function live(){
  const args=decodeFunctionData({abi,data:tx.input}).args;
  const transaction=Object.fromEntries(names.map((n,i)=>[n,args[i]]));transaction.nonce=plan.pin.safeNonce;
  const auth={recordDigest:'a'.repeat(64),safe:tx.to,chainId:plan.chainId,version:'1.4.1',transaction,safeTxHash:plan.safeTxHashes[0],blockNumber:'1',blockHash:receipt.blockHash,expiresAtTimestamp:'2000'};
- const clearance={authorizationDigest:auth.recordDigest,blockNumber:'2',blockHash:receipt.blockHash,expiresAtTimestamp:'1600'};
+ const clearance={authorizationDigest:auth.recordDigest,blockNumber:'2',blockTimestamp:'1000',blockHash:receipt.blockHash,expiresAtTimestamp:'1600'};
  const step={id:'C1',from:tx.to,...transaction};
- const read=async(m,p)=>({eth_chainId:tx.chainId,eth_getTransactionReceipt:receipt,eth_getTransactionByHash:{...tx,blockHash:receipt.blockHash},eth_getBlockByNumber:{hash:receipt.blockHash,timestamp:'0x3e8'}}[m]);
- return {receipt,auth,clearance,step,read};
+ const read=async(m,p)=>({eth_call:encodeAbiParameters([{type:'string'}],['1.4.1']),eth_chainId:tx.chainId,eth_getTransactionReceipt:receipt,eth_getTransactionByHash:{...tx,blockHash:receipt.blockHash},eth_getBlockByNumber:{hash:receipt.blockHash,timestamp:'0x3e8'}}[m]);
+ return {tx,receipt,auth,clearance,step,read};
 }
-test('A real Sepolia 1.4.1 S5b receipt records indexed hash',async()=>{
+test('A receipt produced on a Sepolia fork by the real Safe 1.4.1 code records indexed hash',async()=>{
  const f=live();assert.equal(c.safeTxHash(f.step.from,f.auth.chainId,f.auth.transaction),f.auth.safeTxHash);
  await c.verifyReceipt(f.read,f.step,f.receipt.transactionHash,true,null,f.auth,f.clearance);
 });
@@ -34,4 +34,14 @@ for(const change of ['missing','expired','before-pin','at-pin','wrong-authorizat
  if(change==='wrong-authorization')f.clearance.authorizationDigest='b'.repeat(64);
  if(change==='outlives-authorization')f.clearance.expiresAtTimestamp='2001';
  await assert.rejects(c.verifyReceipt(f.read,f.step,f.receipt.transactionHash,true,null,f.auth,f.clearance),/execution not cleared/);
+});
+
+for(const change of ['other-safe','duplicate-success','failure','non-direct','version-changed'])test('R8 fixture refuses '+change,async()=>{
+ const f=live();
+ if(change==='other-safe')f.receipt.logs.find(l=>l.topics[0]===toEventSelector('ExecutionSuccess(bytes32,uint256)')).address='0x'+'99'.repeat(20);
+ if(change==='duplicate-success')f.receipt.logs.push(structuredClone(f.receipt.logs.find(l=>l.topics[0]===toEventSelector('ExecutionSuccess(bytes32,uint256)'))));
+ if(change==='failure')f.receipt.logs.push({address:f.step.from,topics:[toEventSelector('ExecutionFailure(bytes32,uint256)'),f.auth.safeTxHash],data:'0x'+'00'.repeat(32)});
+ if(change==='non-direct')f.tx.to='0x'+'99'.repeat(20);
+ const read=async(m,p)=>m==='eth_call'&&change==='version-changed'?encodeAbiParameters([{type:'string'}],['1.3.0']):f.read(m,p);
+ await assert.rejects(c.verifyReceipt(read,f.step,f.receipt.transactionHash,true,null,f.auth,f.clearance),/Safe/);
 });

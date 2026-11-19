@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import * as c from './completion.mjs';
@@ -48,10 +49,10 @@ test('M2 reads nonce and version at pinned block',async()=>{
  assert.equal(signing.safeTxHash,'0x69c955960061a19c54e8456a0a73f453cd4d7dc193b7d65cdfd2db59695aea65');
  assert.equal(calls.length,2);for(const [method,params] of calls){assert.equal(method,'eth_call');assert.equal(params[0].to,safe);assert.equal(params[1],'0x64');}
 });
-for(const mutation of ['nonce','event','gas','refund','expired-execution','before-gate','at-expiry','two-hours'])test('M2 execution timing and hash: '+mutation,async()=>{
+for(const mutation of ['nonce','event','gas','refund','expired-execution','before-gate','at-expiry','old-signing-fresh-clearance','two-hours-old-clearance','forged-expiry'])test('M2 execution timing and hash: '+mutation,async()=>{
  const hash='0x'+'ef'.repeat(32),safeHash='0x69c955960061a19c54e8456a0a73f453cd4d7dc193b7d65cdfd2db59695aea65';
  const auth={recordDigest:'a'.repeat(64),version:'1.4.1',safe,chainId:'10',blockNumber:'99',blockHash:pin.hash,blockTimestamp:'100',expiresAtTimestamp:'86500',transaction:{...transaction},safeTxHash:safeHash};
- const clearance={authorizationDigest:auth.recordDigest,blockNumber:'100',blockHash:pin.hash,expiresAtTimestamp:'86500'};
+ const clearance={authorizationDigest:auth.recordDigest,blockNumber:'100',blockHash:pin.hash,blockTimestamp:'100',expiresAtTimestamp:'700'};
  const args=[to,1n,'0x1234',0,0n,0n,0n,zero,zero,'0x'];
  const receipt={transactionHash:hash,status:'0x1',blockNumber:'0x65',blockHash:pin.hash,logs:[{address:safe,topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)'),safeHash],data:encodeAbiParameters([{type:'uint256'}],[0n])}]};
  if(mutation==='nonce')auth.transaction.nonce='8';
@@ -60,12 +61,14 @@ for(const mutation of ['nonce','event','gas','refund','expired-execution','befor
  if(mutation==='refund')args[8]=to;
  let timestamp=102n;
  if(mutation==='expired-execution'){receipt.blockNumber='0xa8c5';timestamp=86501n;}
- if(mutation==='at-expiry'){receipt.blockNumber='0xa924';timestamp=86500n;}
- if(mutation==='two-hours'){receipt.blockNumber='0xe74';timestamp=7300n;}
+ if(mutation==='at-expiry'){receipt.blockNumber='0xa924';timestamp=86500n;clearance.blockTimestamp='86400';clearance.expiresAtTimestamp='86500';}
+ if(mutation==='old-signing-fresh-clearance'){receipt.blockNumber='0xe74';timestamp=7312n;clearance.blockTimestamp='7300';clearance.expiresAtTimestamp='7900';}
+ if(mutation==='two-hours-old-clearance')timestamp=7300n;
+ if(mutation==='forged-expiry')clearance.expiresAtTimestamp='86500';
  if(mutation==='before-gate')receipt.blockNumber='0x64';
  const abi=parseAbi(['function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures) returns (bool success)']);
- const read=async method=>({eth_chainId:'0xa',eth_getTransactionReceipt:receipt,eth_getBlockByNumber:{hash:pin.hash,timestamp:'0x'+timestamp.toString(16)},eth_getTransactionByHash:{to:safe,blockHash:pin.hash,input:encodeFunctionData({abi,functionName:'execTransaction',args})}}[method]);
- if(['at-expiry','two-hours'].includes(mutation))assert.equal((await c.verifyReceipt(read,step,hash,true,null,auth,clearance)).timestamp,String(timestamp));
+ const read=async method=>({eth_call:encodeAbiParameters([{type:'string'}],['1.4.1']),eth_chainId:'0xa',eth_getTransactionReceipt:receipt,eth_getBlockByNumber:{hash:pin.hash,timestamp:'0x'+timestamp.toString(16)},eth_getTransactionByHash:{to:safe,blockHash:pin.hash,input:encodeFunctionData({abi,functionName:'execTransaction',args})}}[method]);
+ if(['at-expiry','old-signing-fresh-clearance'].includes(mutation))assert.equal((await c.verifyReceipt(read,step,hash,true,null,auth,clearance)).timestamp,String(timestamp));
  else await assert.rejects(c.verifyReceipt(read,step,hash,true,null,auth,clearance));
 });
 test('H emission persists authorization before releasing transaction',async()=>{
@@ -109,3 +112,15 @@ test('1.3.0 unindexed ExecutionSuccess layout is refused (no real receipt backs 
  assert.throws(()=>c.safeEventHash(ev13,'1.4.1'),/unsupported Safe VERSION or event layout/);
  assert.deepEqual([...c.SUPPORTED_SAFE_VERSIONS],['1.4.1']);
 });
+
+for(const change of ['longer','shorter','missing-timestamp'])test('R8 clearance selection refuses '+change,()=>temp(path=>{
+ const auth=c.appendAuthorization(path,{id:step.id,bundleSha256:digest,blockNumber:'1',blockTimestamp:'100',expiresAtTimestamp:'86500'});
+ const cleared=c.appendClearance(path,auth,{number:2n,hash:pin.hash,timestamp:112n});
+ const {recordDigest,...content}=cleared;
+ if(change==='missing-timestamp')delete content.blockTimestamp;
+ else content.expiresAtTimestamp=change==='longer'?'86500':'711';
+ const forged={...content,recordDigest:createHash('sha256').update(c.canonical(content)).digest('hex')};
+ writeFileSync(path,c.canonical(auth)+'\n'+c.canonical(forged)+'\n');
+ writeFileSync(path+'.head',c.canonical({count:2,digest:forged.recordDigest})+'\n');
+ assert.throws(()=>c.clearanceEntry(path,digest,auth,{number:3n,timestamp:113n}),/execution not cleared/);
+}));
