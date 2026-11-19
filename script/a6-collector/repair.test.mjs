@@ -33,7 +33,7 @@ for(const [name,mutate,pattern] of [
 test('frozen recipient/token, tx input, bundle index, gas and fees independently bound',()=>temp(d=>{
   const f=fixture(d),a=f.attempts[0];
   for(const field of ['recipient','token']) {const c=structuredClone(f.config);c.task[field]='0x'+'12'.repeat(20);assert.match(transactionErrors(a,c).join(';'),/calldata/);}
-  for(const [key,value] of [['input','0x1234'],['handleOpsIndex',1],['gasLimit','3000001'],['maxFeePerGas','5000000001'],['maxPriorityFeePerGas','1000000001']]) {const b=structuredClone(a);b.tx[key]=value;assert.ok(transactionErrors(b,f.config).length);}
+  for(const [key,value] of [['input','0x1234'],['handleOpsIndex',1],['gasLimit','3000001'],['maxFeePerGas',String(BigInt(f.config.fees.maxFeePerGas)+1n)],['maxPriorityFeePerGas',String(BigInt(f.config.fees.maxPriorityFeePerGas)+1n)]]) {const b=structuredClone(a);b.tx[key]=value;assert.ok(transactionErrors(b,f.config).length);}
 }));
 test('transport, unavailable fixed blocks and reorgs latch before a subsequent send; only decoded preflight survives',async()=>{
   for(const mode of ['transport','missing','reorg']) {

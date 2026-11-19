@@ -1,3 +1,4 @@
+import { feesWithinRule } from './fee-policy.mjs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { lookup } from 'node:dns/promises';
@@ -103,7 +104,7 @@ export function formalConfig(c, bMax) {
   if (BigInt(bMax) !== 1n) throw new Error('formal B_max must be 1');
   if (c.frozen !== true) throw new Error('formal gas config must be frozen');
   const fees = Object.fromEntries(['maxFeePerGas', 'maxPriorityFeePerGas'].map(k => [k, BigInt(c.fees[k])]));
-  if (fees.maxFeePerGas !== 5_000_000_000n || fees.maxPriorityFeePerGas !== 1_000_000_000n) throw new Error('formal fees must be 5/1 gwei');
+  if (!feesWithinRule(fees,c.feeRule)) throw new Error('formal fees violate frozen plan fee rule');
   const gas = {}, pmGas = {};
   for (const arm of armOrder(0)) {
     const g = Object.fromEntries(['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'].map(k => {
@@ -115,7 +116,6 @@ export function formalConfig(c, bMax) {
     gas[arm] = { callGasLimit: g.callGasLimit, verificationGasLimit: g.verificationGasLimit, preVerificationGas: g.preVerificationGas, ...fees };
     pmGas[arm] = { ver: g.paymasterVerificationGasLimit, post: g.paymasterPostOpGasLimit };
   }
-  if (pmGas.SP.post < 480000n) throw new Error('SP post gas below matrix floor');
   if (!/^[1-9]\d*$/.test(String(c.bundlerGasLimit))) throw new Error('bundlerGasLimit required');
   for (const role of ['owner', 'bundler', 'verifyingSigner']) {
     if (!/^[\w.-]+$/.test(c.accounts[role].name)) throw new Error('keystore account name required');

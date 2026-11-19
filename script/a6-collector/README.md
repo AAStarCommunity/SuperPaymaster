@@ -387,13 +387,15 @@ usable example accounts):
   token base unit, encoded as `execute(T, 0, transfer(R, 1))`. An optional `callData`
   must match that encoding exactly. The sender must hold at least 300 base units
   and R at least one; the task token must differ from the sponsorship tokens.
-- `fees`: `{ "maxFeePerGas": "5000000000", "maxPriorityFeePerGas": "1000000000" }`.
-  Other values are refused. The same fees also cap the bundler transaction.
+- `fees`: copied from the frozen plan, with its `feeRule` (base fee, factor, ceiling).
+  Require `baseFee + priority <= cap <= ceiling` and `priority <= cap`; there is
+  no fixed gwei pair. The same fees cap the bundler transaction.
 - `gas.SP`, `gas.VPM`, `gas.TPM`: each contains positive decimal-string
   `callGasLimit`, `verificationGasLimit`, `paymasterVerificationGasLimit`,
   `paymasterPostOpGasLimit`, and `preVerificationGas`. No pilot values are supplied
-  by this slice. SP post gas must be at least 480000 and at least the start
-  Passport's on-chain `minPostOpGas`.
+  by this slice. SP post gas is `max(measured × gasFactor, on-chain minPostOpGas)`;
+  `requirePostGas` enforces the pinned chain minimum before sending. Local rehearsal
+  setup reads `gasParams()[0]`; offline repair uses the archived `minPostOpGas`.
 - `bundlerGasLimit`: positive decimal string for the outer transaction gas limit.
 
 Keep all config files public-only; do not include private keys, passwords or URLs
@@ -475,3 +477,10 @@ run, real key use, or broadcast is implied by these offline tooling changes.
 Both RPC A and RPC B must support `debug_traceTransaction` with `callTracer`
 (`withLog: true`) and `prestateTracer` (`diffMode: true`). Missing trace support
 stops a formal window; a standard JSON-RPC endpoint without debug tracing is insufficient.
+
+Local `rehearsal-setup.mjs` takes a fifth argument: a public policy JSON with
+`feeFactor`, `feeCeiling`, `gasFactor`, and `spPostOpMeasurement` from calibration.
+It derives fees from the current base fee and node priority estimate and applies
+the supplied factor/ceiling; SP postOp is the maximum of the scaled measurement
+and `gasParams()[0]`. Offline repair preserves its archived fee quote and uses the
+archived SP minimum; its synthetic feeRule is explicitly not a live estimate.

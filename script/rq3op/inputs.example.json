@@ -70,5 +70,7 @@
       "address": "0xE8Eaad6A4802300F33E53c40e65863CCcDA6898b",
       "amount": 10000
     }
-  ]
+  ],
+  "minTxInterval": 60,
+  "extraEndUsers": []
 }

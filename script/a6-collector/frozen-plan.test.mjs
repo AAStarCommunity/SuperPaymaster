@@ -15,6 +15,7 @@ function runtime(a, change={}) {
  const client={getChainId:async()=>change.chainId??10,getBlock:async()=>block,
  readContract:async ({functionName,blockNumber})=>{
  assert.equal(blockNumber,32n);
+ if(functionName==='operators') return [0n,true,false,account,0n,BigInt(pc.minTxInterval),account,0n,0n];
  if(functionName==='gasParams') return change.gas??pc.gasTuple.map(BigInt);
  return change.stake??[0n,true,1000000000000000000n,86400,0n];
  }};
@@ -115,4 +116,10 @@ for (const token of ['X','Q','aPNTs']) test(`bind refuses T equal to ${token} in
  const changed=Buffer.from(String(bytes).replaceAll(original.phaseC.addresses.T,target));
  const a=createFrozenPlan({readBundle:()=>changed,bundleSha256:createHash('sha256').update(changed).digest('hex'),account});
  assert.throws(()=>a.bind(...binding(a),1n,34),{message:'PLAN_TASK_TOKEN_COLLISION'});
+});
+test('follow-up stops when operator interval changes',async()=>{
+ const a=adapter(), rt=runtime(a);
+ const original=rt.pubA.readContract;
+ rt.pubA.readContract=async args=>args.functionName==='operators'?[0n,true,false,account,0n,61n,0n,account,0n]:original(args);
+ await assert.rejects(a.beforeSend(rt),/PLAN_INTERVAL_CHANGED/);
 });

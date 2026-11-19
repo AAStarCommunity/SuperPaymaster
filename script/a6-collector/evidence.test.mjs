@@ -105,13 +105,13 @@ test('exclusions and fee pauses reject missing or contradictory reasons and fals
 test('validate CLI refuses unfinalized formal evidence and a fee-paused partial triple, rejects missing/contradictory exclusion',()=>temp(d=>{
   const source=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
   const start=source[0], row=source[1], end=source.at(-1);
-  const config={frozen:true,chainId:start.passport.chainId,operator:address(9),factory:address(8),sender:address(7),salt:'0',bundlerGasLimit:'3000000',accounts:Object.fromEntries(['owner','bundler','verifyingSigner'].map((r,i)=>[r,{name:r,address:address(i+1)}])),fees:{maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'},task:{token:address(4),recipient:address(5)},gas:Object.fromEntries(armOrder(0).map((arm,i)=>[arm,{callGasLimit:String(100000+i),verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:'480000'}]))};
+  const config={frozen:true,chainId:start.passport.chainId,operator:address(9),factory:address(8),sender:address(7),salt:'0',bundlerGasLimit:'3000000',accounts:Object.fromEntries(['owner','bundler','verifyingSigner'].map((r,i)=>[r,{name:r,address:address(i+1)}])),feeRule:{baseFee:'1000000000',ceiling:'10000000000'},fees:{maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'},task:{token:address(4),recipient:address(5)},gas:Object.fromEntries(armOrder(0).map((arm,i)=>[arm,{callGasLimit:String(100000+i),verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:String(start.passport.invariant.superPaymaster.minPostOpGas)}]))};
   const frozen=JSON.parse(JSON.stringify(formalConfig(config,1),(_,v)=>typeof v==='bigint'?String(v):v));
   start.formal=true;start.frozenConfig=config;start.bMax='1';start.passport.invariant.gas=frozen.gas;start.passport.invariant.pmGas=frozen.pmGas;
   end.passport.invariant=structuredClone(start.passport.invariant);end.passport.volatile.operatorBalance=start.passport.volatile.operatorBalance;
   row.armOrder=armOrder(0);row.gas=frozen.gas.SP;row.pmGas=frozen.pmGas.SP;
   row.packedOp.gasFees=concat([pad(toHex(1000000000n),{size:16}),pad(toHex(5000000000n),{size:16})]);
-  row.packedOp.paymasterAndData=concat([row.paymaster,pad(toHex(450000n),{size:16}),pad(toHex(480000n),{size:16}),'0x'+row.packedOp.paymasterAndData.slice(106)]);
+  row.packedOp.paymasterAndData=concat([row.paymaster,pad(toHex(450000n),{size:16}),pad(toHex(BigInt(config.gas.SP.paymasterPostOpGasLimit)),{size:16}),'0x'+row.packedOp.paymasterAndData.slice(106)]);
   const hash=localUserOpHash(row.packedOp,row.entryPoint,row.chainId);
   row.expectedUserOpHash=hash;row.localUserOpHash=hash;row.epUserOpHash=hash;row.bundledOps=[row.packedOp];row.bundledUserOpHashes=[hash];
   Object.assign(row,JSON.parse(JSON.stringify(feePause({number:42n,hash:H,baseFeePerGas:5000000001n},5000000000n),(_,v)=>typeof v==='bigint'?String(v):v)));

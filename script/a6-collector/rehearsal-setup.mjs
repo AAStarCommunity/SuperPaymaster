@@ -4,11 +4,23 @@ import { resolve } from 'node:path';
 import { parseAbi } from 'viem';
 import { clients, deploy, send, ANVIL_KEYS } from '../b-layer/lib.mjs';
 import { privateKeyToAccount } from 'viem/accounts';
+import { deriveFees } from './fee-policy.mjs';
 import { sha256 } from './evidence.mjs';
-const [url, dir, configPath, baselinePath] = process.argv.slice(2);
+const [url, dir, configPath, baselinePath, policyPath] = process.argv.slice(2);
 if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(url)) throw Error('loopback only');
 const ctx=clients(url), cfg=JSON.parse(readFileSync(configPath)), base=JSON.parse(readFileSync(baselinePath));
 if (await ctx.pub.getChainId()!==31337) throw Error('local chain only');
+const gasAbi=parseAbi(['function gasParams() view returns(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)']);
+const gasParams=await ctx.pub.readContract({address:cfg.superPaymaster,abi:gasAbi,functionName:'gasParams'});
+// The caller supplies the same factor/ceiling and gas measurement used for planning.
+const policy=JSON.parse(readFileSync(policyPath));
+const head=await ctx.pub.getBlock();
+const priority=await ctx.pub.estimateMaxPriorityFeePerGas();
+const feeRule={baseFee:String(head.baseFeePerGas),factor:policy.feeFactor,ceiling:policy.feeCeiling};
+const fees=Object.fromEntries(Object.entries(deriveFees(head.baseFeePerGas,priority,feeRule)).map(([k,v])=>[k,String(v)]));
+const {numerator,denominator}=policy.gasFactor;
+const scaled=(BigInt(policy.spPostOpMeasurement)*BigInt(numerator)+BigInt(denominator)-1n)/BigInt(denominator);
+const postOp=scaled>gasParams[0]?scaled:gasParams[0];
 const abi=parseAbi(['function getAddress(address,uint256) view returns(address)','function mint(address,uint256)']);
 // Operator collateral for the rehearsal: prepare-test leaves the deployer 1,000 aPNTs deposited and none in its wallet,
 // while a0 is ~894 aPNTs per SP op at the rehearsal gas fields, so the second SP op failed operator solvency (AA34).
@@ -34,8 +46,8 @@ const tpmConfig=await ctx.pub.readContract({address:base.tokenPaymaster.address,
 await send(ctx,base.tokenPaymaster.address,base.tokenPaymaster.abi,'setTokenPaymasterConfig',[{priceMarkup:tpmConfig[0],minEntryPointBalance:tpmConfig[1],refundPostopCost:tpmConfig[2],priceMaxAge:20*86400}]);
 const config={frozen:true,chainId:31337,operator:ctx.account.address,factory:cfg.simpleAccountFactory,sender,salt:'9001',bundlerGasLimit:'3000000',
  accounts:Object.fromEntries(['owner','bundler','verifyingSigner'].map((role,i)=>[role,{name:`rehearsal-${role}`,address:privateKeyToAccount(ANVIL_KEYS[i]).address}])),
- fees:{maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'},task:{token:task.address,recipient},rehearsalExpiredVpm:true,rehearsalForceTpmRefresh:true,
- gas:Object.fromEntries(['SP','VPM','TPM'].map(arm=>[arm,{callGasLimit:'200000',verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:'480000'}]))};
+ feeRule,fees,task:{token:task.address,recipient},rehearsalExpiredVpm:true,rehearsalForceTpmRefresh:true,
+ gas:Object.fromEntries(['SP','VPM','TPM'].map(arm=>[arm,{callGasLimit:'200000',verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:String(postOp)}]))};
 const write=(name,x)=>writeFileSync(resolve(dir,name),JSON.stringify(x,null,2)+'\n');
 write('formal-config.json',config);
 // Keys are used only during local preparation; formal-format inputs contain addresses only.

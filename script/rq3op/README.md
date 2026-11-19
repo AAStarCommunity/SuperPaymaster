@@ -95,6 +95,41 @@ indivisible remainder assigned to the first input S. This is recorded explicitly
 no attempt is discarded or silently added. Each plan retains the original safety
 margins. Operator funding is `(100+5)*Amax`, shared by all three plans.
 
+v0.7: unused execution gas (callGasLimit + paymasterPostOpGasLimit) is
+charged at 10%, no threshold; preVerificationGas is charged in full;
+verification limits are not charged when unused. See vendored
+[`EntryPoint.sol`](../../singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol)
+lines 46 (10%), 672 (PVG), 718–727 (unused execution gas). The decomposition
+`A = P + E + floor(max(L-E,0)/10)` and PVG rule are v0.7-only; v0.8 adds a 40k
+penalty threshold. The planner compares one pinned EntryPoint runtime read with
+[`entrypoint-v07.json`](entrypoint-v07.json) and stops on mismatch. This uses the
+committed canonical runtime and its recorded chain provenance, not the stale
+v0.6 deployment artifacts in the vendored v7 directory or a local recompile.
+
+Required `minTxInterval` is an integer uint48 in seconds (RQ2 S1r: **60**).
+`C3.limits` follows `C3.configure`, is signed by GENESIS, uses its own calibration
+measurement, and reads back `operators(genesis).minTxInterval`. Every setup send
+checks the appropriate before/after interval; every sampling send checks the final
+interval. This is self-service, not a timelock operation: `SuperPaymasterAdmin.sol:181`.
+DeployLive registers genesis roles without configuring its operator limits
+(`DeployLive.s.sol:761–765`, `:943–944`); Solidity's default interval is zero.
+The timestamp is keyed by (operator, user), including reverted operations
+(`SuperPaymaster.sol:309–320`, `:455–456`). The external schedule must space each
+account's operations by at least this interval. No `schedule.py` exists in this
+worktree; verification against the actual scheduler remains a cross-repo prerequisite.
+
+Optional `extraEndUsers: [{address, xAmount}]` creates sponsored ENDUSER memberships
+and mints X for **RQ2 live E2E**. These addresses are not S senders. GENESIS pays the
+stake and ticket, approves staking, calls `safeMintForRole` with community=GENESIS,
+then mints X. Calibrate `C8.extra.<index>.approve`, `.role`, and `.mint`. The plan
+includes role, SBT balance/membership and X balance readbacks; funding includes all
+extra stakes/tickets and X. Zero addresses, duplicate extras and S/O/R collisions
+are refused. Overlap with `taskRecipients` is allowed; `recipientPurposes` lists
+both purposes. A code-less recipient prints an INFO line to stderr (JSON stays clean).
+`Registry.sol:458–475` performs no code check and passes `msg.sender` as sponsor;
+`:494` passes that sponsor to staking. `GTokenStaking.sol:165` transfers from the
+payer. `MySBT.sol:294–319` uses `_mint`, so no ERC721 receiver code is required.
+
 Calibrated gas limits are frozen for the entire plan, including the outer transaction and
 setup limits. PVG freezes the rule in `pvg-rule.json`, with mode `sign-time` and a null
 plan bound/value. Nonce and both signatures are unknown at planning. The shared SP/VPM/TPM
@@ -215,11 +250,10 @@ post-setup check. Run it for all three plans before sampling. The old local
 do not run the manifest's local executor on these plans. Fresh planning instead
 pins zero tracked/revenue/backing balances and checks the exact deposit readback.
 
-**The accepted draft still disables broadcasting.** This delivery is the setup
-planner/sender, not an enabled sampler. The unchanged a6 `formalConfig` also retains
-its historical 5/1-gwei rule; do not bypass the new frozen fees by handing it these
-plans as legacy configs. Parent-session sampling must use an adapter that consumes
-the new frozen fields, checks them before sending and archives their provenance.
+**The accepted draft still disables broadcasting.** Sampling consumes frozen-plan
+fees and checks `baseFee + priority <= cap <= ceiling` and `priority <= cap`.
+`formalConfig` uses the same fee predicate; there is no fixed 5/1-gwei requirement.
+The adapter checks the frozen fields before sending and archives their provenance.
 
 ## Separate fixture pins and known dependency gap
 
@@ -247,7 +281,7 @@ fetched and no comparator artifact was rebuilt or substituted.
 | BUFFER / B2a minted buffer | actual fresh backing pin and exact C2 deposit readbacks |
 | activation/B4 / pending token swap | checker evidence and target deployment addresses; no upgrade wait |
 | Sepolia SP/Safe/deployer/factory constants | config addresses, dedicated experiment key and genesis |
-| fixed SP 480000 postOp | own postOp measurement × common gasFactor; effective gasParams minimum is a sanity bound |
+| fixed SP 480000 postOp | max(own postOp measurement × common gasFactor, on-chain minPostOpGas) |
 | implicit 1 ETH/day SP stake | explicit bundler-required amount/delay, value-bearing Safe operation |
 | fixed fees and other gas literals | common input factors, calibration sources, frozen fee ceiling |
 

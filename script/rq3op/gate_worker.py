@@ -26,7 +26,7 @@ def main():
     # Receive the verified in-memory bundle; never reopen a mutable caller file.
     plan,local=associated_plan(bundle,request['index'])
     if request['action']=='precheck':
-        q.pre_send(rpc,plan)
+        q.pre_send(rpc,plan,local)
         q.m.phase_c_pre_send(rpc,plan,local,{},deployment=plan['deploymentContext'])
     elif request['action']=='readback':
         for check in local['readbacks']: q.m.check_predicate(rpc,check,int(request['timestamp']))
