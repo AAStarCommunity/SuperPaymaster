@@ -1,0 +1,13 @@
+{
+  "rule": "Standard intrinsic calldata price: zero 4 / non-zero 16; PVG = (21000 + actual handleOps input calldata cost) / opsPerTx (one op). ASSUMES the EIP-7623 calldata floor price does not apply; collection records outer floor 21000 + 10 * (zero + 4*nonZero), receipt gasUsed and equality flag. Vendored singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol:46 PENALTY_PERCENT = 10; :672 PVG added to preOpGas; :718-727 unused-gas penalty on callGasLimit + paymasterPostOpGasLimit, no threshold (:726 actualGas += unusedGasPenalty); :730 actualGasCost = actualGas * gasPrice; :747 and :736 (prefund-too-low) emitUserOperationEvent(opInfo, success, actualGasCost, actualGas). Penalty is derived uniquely via A=P+E+floor(max(L-E,0)/10), otherwise null with reason. bundlerNetGas = event actualGasUsed - outer receipt gasUsed; bundlerNetGasExPenalty subtracts penalty. Event opGasPrice and outer effectiveGasPrice are separate: gas-unit differences are not wei differences when prices differ. L1 data fee is separate. Plan reserve applies this same calldata rule to maximal non-zero op values and beneficiary with fixed dynamic lengths; ABI offsets, lengths and padding retain their required encoding.",
+  "mode": "sign-time",
+  "factor": {
+    "numerator": 1,
+    "denominator": 1
+  },
+  "ops": 1,
+  "signature": "65-byte 0xff placeholder when unknown; exact owner and paymaster signatures at signing; STOP unless exact signed bytes reach a fixed point",
+  "bytes": null,
+  "overhead": null,
+  "value": null
+}

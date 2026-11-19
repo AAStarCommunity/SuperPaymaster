@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from pinned_tools import PinnedTools as pinned_tools
+from pvg_reserve import reserve_pvg
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'upgrade'))
 import manifest_exec as m
@@ -17,6 +18,16 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_ADDRESSES = ('superPaymaster','registry','aPNTs','xPNTsFactoryV2','globalTierSource',
     'entryPoint','simpleAccountFactory','genesisOperator','governanceOwner','timelockController',
     'gToken','staking','sbt','xPNTsTokenV2Impl','deployer')
+PVG_RULE = json.loads((Path(__file__).with_name('pvg-rule.json')).read_text())
+CALIBRATION_FIELDS = tuple(k for k in m.ARM_FIELDS if k != 'preVerification')
+
+
+def check_calibration_fields(cal):
+    a.need('rq3_calibration_pvg', all('preVerification' not in b for b in cal['arms'].values()), True)
+    a.need('rq3_gas_fields', set(cal['arms']) == set(m.ARMS) and
+           all(set(b) == set(CALIBRATION_FIELDS) for b in cal['arms'].values()), True)
+
+
 READS = {'eth_chainId','eth_getBlockByNumber','eth_call','eth_getCode','eth_getStorageAt',
          'eth_getTransactionCount','eth_getBalance','eth_feeHistory','eth_maxPriorityFeePerGas'}
 
@@ -120,13 +131,18 @@ def sp_postop_limit(measured, gas_factor, minimum):
 def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     p=pin['phaseC']; facts=m.phase_c_pin_gates(pin,c,context=ctx)
     bounds={arm:{k:scale(v,gas_factor) for k,v in cal['arms'][arm].items()} for arm in m.ARMS}
-    a.need('rq3_gas_fields',all(set(b)==set(m.ARM_FIELDS) for b in bounds.values()),True)
+    a.need('rq3_gas_fields',all(set(b)==set(CALIBRATION_FIELDS) for b in bounds.values()),True)
     # VerifyingPaymaster has no postOp (empty context; EntryPoint never calls it): its measured postOp
     # is structurally zero and must stay exactly zero. Every other bound must be positive.
     a.need('rq3_structural_zero',cal['arms']['VPM']['postOp'],0)
     a.need('rq3_gas_bounds',all((0<v or (arm,k)==('VPM','postOp')) and v<2**128 for arm,b in bounds.items() for k,v in b.items()) and gas_tuple[0]>0,True)
     bounds['SP']['postOp'],postop_rule=sp_postop_limit(cal['arms']['SP']['postOp'],gas_factor,gas_tuple[0])
-    maxima={arm:sum(b[k] for k in m.ARM_FIELDS if k!='outer')*fee for arm,b in bounds.items()}
+    task_data=a.calldata('execute(address,uint256,bytes)', m.DEAD, 0,
+                         a.calldata('transfer(address,uint256)', m.DEAD, m.PC_TASK_UNIT))
+    lengths={arm:dict(initCode=0,callData=(len(task_data)-2)//2,
+                     paymasterAndData={'SP':125,'VPM':181,'TPM':52}[arm],signature=65) for arm in m.ARMS}
+    reserves={arm:reserve_pvg(lengths[arm]) for arm in m.ARMS}
+    maxima={arm:(sum(v for k,v in b.items() if k != 'outer')+reserves[arm])*fee for arm,b in bounds.items()}
     price_a,fee_b=p['sp']['aPNTsPriceUSD'],p['sp']['protocolFeeBPS']
     a0=m.ceil_div(maxima['SP']*m.PC_PRICE_CAP*10**18,10**m.PC_PRICE_DECIMALS*price_a)
     amax=m.ceil_div(a0*(10000+fee_b+m.PC_VALIDATION_BUFFER_BPS),10000)
@@ -140,13 +156,16 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     target_b=n*fee*sum(b['outer'] for b in bounds.values())+fee*sum(x['gas'] for x in aux)+m.PC_BUNDLER_BETA
     sources={arm:{k:dict(source=cal['source'],measurement=cal['arms'][arm].get(k),factor=gas_factor,
                         limit=v,block=head) for k,v in b.items()} for arm,b in bounds.items()}
+    for arm in m.ARMS:
+        bounds[arm]['preVerification'] = None
+        sources[arm]['preVerification'] = dict(copy.deepcopy(PVG_RULE), reserve=reserves[arm], fixedLengths=lengths[arm])
     sources['SP']['postOp'].update(rule='max(measured*gasFactor, minPostOpGas)',target=ctx['SP'],**postop_rule)
     # DSR 2026-11-18: record the structural zero explicitly instead of a scaled limit.
     sources['VPM']['postOp'].update(rule='structural zero: VerifyingPaymaster has no postOp (empty context)',limit=0)
     return dict(attempts=n,feeCap=fee,priorityCap=priority,priceCap=m.PC_PRICE_CAP,priceDecimals=m.PC_PRICE_DECIMALS,
         exchangeRate=m.PC_RATE,betaMultiplier=m.PC_BETA,bundlerBeta=m.PC_BUNDLER_BETA,allowanceCap=m.PC_CAP_L,
         spRenew=False,spPostOp=bounds['SP']['postOp'],spPostOpRule=postop_rule,gasTuple=gas_tuple,gasSources=sources,bounds=bounds,
-        maxPrefund=maxima,outerBound={arm:b['outer'] for arm,b in bounds.items()},aPNTsPriceUSD=price_a,
+        pvgReserve=reserves,pvgLengths=lengths,maxPrefund=maxima,outerBound={arm:b['outer'] for arm,b in bounds.items()},aPNTsPriceUSD=price_a,
         protocolFeeBPS=fee_b,A0=a0,Amax=amax,operatorTarget=(m.PC_ATTEMPTS+m.PC_BETA)*amax,
         operatorTopUp=0,cappedMint=0,cappedSupplyBefore=p['capped']['totalSupply'],Xmax=xmax,
         userTarget=(n+m.PC_BETA)*xmax,entryPointTargets={arm:(n+1+m.PC_BETA)*v for arm,v in maxima.items()},
@@ -163,6 +182,7 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
 def build(cfg,inputs,rpc,checker,cal,baselines):
     # Pure assembly layer; generate() authenticates files, checker and deployment before calling.
     check_inputs(cfg,inputs,checker)
+    check_calibration_fields(cal)
     for i in range(len(inputs['taskRecipients'])):
         value=cal.get('setup',{}).get('C11.extra.'+str(i))
         a.need('rq3_task_calibration',type(value) is int and value>0,True)
@@ -457,6 +477,7 @@ def verify_system(cfg,rpc,block):
 
 
 def verify_calibration(cfg,cal,chain,rpc):
+    a.need('rq3_calibration_pvg', all('preVerification' not in b for b in cal['arms'].values()), True)
     source=cal['source'];raw=inside(source['evidenceFile']).read_bytes()
     a.need('rq3_calibration_hash',hashlib.sha256(raw).hexdigest(),source['evidenceSha256'])
     evidence=json.loads(raw)
