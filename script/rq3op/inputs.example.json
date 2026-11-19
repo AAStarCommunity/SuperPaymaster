@@ -72,5 +72,9 @@
     }
   ],
   "minTxInterval": 60,
-  "extraEndUsers": []
+  "extraEndUsers": [],
+  "sdkRuns": "<SDK live E2E runs budgeted, >= 1>",
+  "sdkMaxOps": "<SDK S3b maxOps, 1..32; default 8>",
+  "sdkMaxCostPerOp": "<wei: SDK opMaxCostWei, the per-op cost cap the SDK enforces before signing>",
+  "sdkCostCapCommit": "<optional 40-hex SDK commit with the pre-sign cost cap merged; without it sdkLive.status is provisional>"
 }

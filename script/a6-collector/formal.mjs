@@ -1,3 +1,5 @@
+import { readFileSync as readReleaseFile } from 'node:fs';
+const releaseExpectation = JSON.parse(readReleaseFile(new URL('../../docs/release/rq3-runtime-expectations.json', import.meta.url)));
 import { feesWithinRule } from './fee-policy.mjs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -128,7 +130,7 @@ export function formalConfig(c, bMax) {
   return { gas, pmGas, fees, callData: taskCallData(c.task, c.task.callData) };
 }
 export function requirePostGas(post, minimum) {
-  if (BigInt(post) < BigInt(minimum)) throw new Error('SP paymasterPostOpGasLimit below pinned minPostOpGas');
+  if (BigInt(minimum) <= 0n || BigInt(minimum) < BigInt(releaseExpectation.GP_MINPOST_MIN) || BigInt(post) < BigInt(minimum)) throw new Error('SP paymasterPostOpGasLimit below pinned minPostOpGas');
 }
 export function feePause(block, cap) {
   if (block.baseFeePerGas == null) throw new Error('base fee unavailable');

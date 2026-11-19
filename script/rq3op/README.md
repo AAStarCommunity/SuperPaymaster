@@ -124,8 +124,8 @@ stake and ticket, approves staking, calls `safeMintForRole` with community=GENES
 then mints X. Calibrate `C8.extra.<index>.approve`, `.role`, and `.mint`. The plan
 includes role, SBT balance/membership and X balance readbacks; funding includes all
 extra stakes/tickets and X. Zero addresses, duplicate extras and S/O/R collisions
-are refused. Overlap with `taskRecipients` is allowed; `recipientPurposes` lists
-both purposes. A code-less recipient prints an INFO line to stderr (JSON stays clean).
+are refused. Every address recursively found in config and inputs (including
+`taskRecipients`) is excluded from extras. A code-less recipient prints an INFO line to stderr (JSON stays clean).
 `Registry.sol:458–475` performs no code check and passes `msg.sender` as sponsor;
 `:494` passes that sponsor to staking. `GTokenStaking.sol:165` transfers from the
 payer. `MySBT.sol:294–319` uses `_mint`, so no ERC721 receiver code is required.
@@ -394,3 +394,22 @@ Frozen collector runs hold `cache/3arm/collector-locks/<chainId>/<bundler>.lock`
 until process exit. Active and stale locks are refused, never stolen. Both RPCs
 must agree on the initial pending nonce and on the expected next pending nonce
 immediately before each send. Legacy formal mode retains its fixed-block nonce.
+
+### Round 3 SDK funding and formal gates
+
+All plans require integer `sdkRuns >= 1`, `sdkMaxOps` in `1..32`, and positive
+integer `sdkMaxCostPerOp` in wei. There is no warm-up; each operation has signBudget 1.
+`shared.sdkLive` records the pinned pricing and the exact rounded conversion used by
+phase C. With `N = sdkRuns * (4 + sdkMaxOps)`, every extra user's `xAmount` must be
+between `(N+1)*Xmax` and `(N+PC_BETA)*Xmax`, inclusive. `extraEndUsersXTotal` is the
+sum of those amounts. The shared cross-repository vector is `sdk-cost-vector.json`;
+large integers are decimal strings so JavaScript consumers must use BigInt.
+Live SDK cells remain provisional until the SDK pre-sign cost cap merges.
+
+Non-rehearsal formal collection requires both `--frozen-plan` and `--bundle-sha256`
+before config or keystore access. Planner and collector read the repository maximum
+fee from `script/fee-limits.json`. Acceptance recomputes the exact frozen fee from
+its planning base and factor; the current base plus priority must also fit that cap.
+Pinned postOp minima must meet `docs/release/rq3-runtime-expectations.json`, checked
+against the release contract constant by an offline test. EntryPoint pin schema,
+version and chain list are exact; 31337 is reserved for offline/rehearsal fixtures.

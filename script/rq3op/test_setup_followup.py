@@ -44,23 +44,24 @@ class Followup(unittest.TestCase):
 
     def test_extra_endusers_overlap_and_funding(self):
         self.ready_inputs(); who=address(900)
-        self.inputs['extraEndUsers']=[dict(address=who,xAmount=123)]
-        self.inputs['taskRecipients']=[dict(address=who,amount=456)]
+        amount=self.build()['shared']['sdkLive']['perUserFloor']
+        self.inputs['extraEndUsers']=[dict(address=who,xAmount=amount)]
+        self.inputs['taskRecipients']=[dict(address=address(901),amount=456)]
         self.cal['setup'].update({'C11.extra.0':100000,**{f'C8.extra.0.{s}':100000 for s in ('approve','role','mint')}})
         self.rpc.set(self.cfg['registry'],'hasRole(bytes32,address)',m.role_id('ENDUSER'),who,value=0)
         with redirect_stderr(io.StringIO()) as log: bundle=self.build()
         self.assertIn(who,log.getvalue()); self.assertIn('no code',log.getvalue())
-        self.assertEqual(bundle['shared']['recipientPurposes'][who],['task recipient','RQ2 live E2E'])
+        self.assertEqual(bundle['shared']['recipientPurposes'][who],['RQ2 live E2E'])
         p=next(iter(bundle['plans'].values())); pc=p['phaseC']
         mint=next(s for s in bundle['steps'] if s['id']=='0/C8.extra.0.mint')
         self.assertEqual(mint['tx']['to'],pc['addresses']['X'])
         self.assertEqual(mint['tx']['from'],self.inputs['genesis'])
-        self.assertEqual(mint['tx']['data'],a.calldata('mint(address,uint256)',who,123))
+        self.assertEqual(mint['tx']['data'],a.calldata('mint(address,uint256)',who,amount))
         role=next(s for s in bundle['steps'] if s['id']=='0/C8.extra.0.role')
         self.assertEqual(role['tx']['data'],a.calldata('safeMintForRole(bytes32,address,bytes)',m.role_id('ENDUSER'),who,a.cast('abi-encode','c(address,uint256)',self.inputs['genesis'],pc['endUserStake'])))
         self.assertEqual(bundle['funding']['genesisGToken']['held'],1000)
         self.assertEqual(bundle['funding']['genesisGToken']['extraEndUsers'],pc['endUserStake']+pc['endUserTicket'])
-        self.assertEqual(bundle['funding']['tokens'][pc['addresses']['X']],sum(p['phaseC']['userTarget'] for p in bundle['plans'].values())+123)
+        self.assertEqual(bundle['funding']['tokens'][pc['addresses']['X']],sum(p['phaseC']['userTarget'] for p in bundle['plans'].values())+amount)
         self.assertNotIn(who,bundle['plans'])
 
     def test_extra_rejects_collisions_and_duplicates(self):

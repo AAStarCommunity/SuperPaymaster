@@ -1,0 +1,14 @@
+{
+  "inputs": {
+    "maxCost": "1234567890123457",
+    "priceCap": "350000000000",
+    "priceDecimals": 8,
+    "aPNTsPriceUSD": "29999999999999999",
+    "protocolFeeBPS": 137,
+    "validationBufferBPS": 1000,
+    "exchangeRate": "1333333333333333333"
+  },
+  "a0": "144032920514403321468",
+  "Amax": "160409463576890979119",
+  "Xmax": "213879284769187972106"
+}

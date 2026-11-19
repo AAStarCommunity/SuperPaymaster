@@ -54,7 +54,7 @@ class ThreeArm(unittest.TestCase):
         self.inputs = dict(experiment=address(100), genesis=self.cfg['genesisOperator'],
             bundler=address(101), verifyingSigner=address(102), gasFactor={'numerator':3,'denominator':2},
             feeFactor={'numerator':2,'denominator':1}, priorityRule={'blocks':5,'percentile':50},
-            minTxInterval=60, extraEndUsers=[], taskRecipients=[], feeCeiling=20*10**9, stakeWei=10**18, unstakeDelay=86400,
+            sdkRuns=1, sdkMaxOps=1, sdkMaxCostPerOp=1, minTxInterval=60, extraEndUsers=[], taskRecipients=[], feeCeiling=20*10**9, stakeWei=10**18, unstakeDelay=86400,
             accounts=[dict(account=address(200+i),accountOwner=address(300+i),salt=i,
                 accountImplementation=t.PC_IMPL,runtimeKeccak=copy.deepcopy(t.PC_RUNTIMES)) for i in range(3)])
         self.cal = t.phase_c_inputs(lambda *args: {})['rehearsal']

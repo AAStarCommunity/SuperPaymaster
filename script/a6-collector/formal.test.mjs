@@ -11,7 +11,7 @@ const hash = `0x${'ab'.repeat(32)}`;
 function config() {
   return { frozen: true, chainId: 31337, operator: address(9), factory: address(8), sender: address(7), salt: '0', bundlerGasLimit: '3000000',
     accounts: Object.fromEntries(['owner', 'bundler', 'verifyingSigner'].map((r, i) => [r, { name: r, address: address(i + 1) }])),
-    feeRule: { baseFee: '1000000000', ceiling: '10000000000' }, fees: { maxFeePerGas: '5000000000', maxPriorityFeePerGas: '1000000000' }, task: { token: address(4), recipient: address(5) },
+    feeRule: { baseFee: '1000000000', factor:{numerator:4,denominator:1}, ceiling: '10000000000' }, fees: { maxFeePerGas: '5000000000', maxPriorityFeePerGas: '1000000000' }, task: { token: address(4), recipient: address(5) },
     gas: Object.fromEntries(armOrder(0).map(arm => [arm, { callGasLimit: '100000', verificationGasLimit: '300000', preVerificationGas: '60000', paymasterVerificationGasLimit: '450000', paymasterPostOpGasLimit: '500000' }])) };
 }
 test('formal endpoint guards normalize host/port without leaking URLs', () => {
@@ -199,11 +199,20 @@ test('frozen runtime sends exact pending nonce on both endpoints and refuses a j
 });
 test('follow-up accepts chain-derived fees and uses only pinned postOp floor', () => {
   const c=config(); c.fees={maxFeePerGas:'9000000000',maxPriorityFeePerGas:'2000000000'};
-  c.feeRule={baseFee:'3000000000',ceiling:'10000000000'};
-  c.gas.SP.paymasterPostOpGasLimit='200000';
+  c.feeRule={baseFee:'3000000000',factor:{numerator:7,denominator:3},ceiling:'10000000000'};
+  c.gas.SP.paymasterPostOpGasLimit='500000';
   assert.equal(formalConfig(c,1).fees.maxFeePerGas,9000000000n);
 });
 test('follow-up rejects cap above plan ceiling', () => {
-  const c=config(); c.feeRule={baseFee:'1000000000',ceiling:'4000000000'};
+  const c=config(); c.feeRule={baseFee:'1000000000',factor:{numerator:4,denominator:1},ceiling:'4000000000'};
   assert.throws(()=>formalConfig(c,1),/fee/);
+});
+test('formal config refuses absent zero negative nonnumeric and over-limit ceilings',()=>{
+ for(const ceiling of [undefined,0,-1,'invalid','20000000001']) {
+  const c=config();c.feeRule={baseFee:0,factor:{numerator:2,denominator:1},ceiling};c.fees={maxFeePerGas:'0',maxPriorityFeePerGas:'0'};
+  assert.throws(()=>formalConfig(c,1));
+ }
+ const c=config();c.feeRule={baseFee:'10000000000',factor:{numerator:2,denominator:1},ceiling:'20000000001'};
+ c.fees={maxFeePerGas:'20000000001',maxPriorityFeePerGas:'1'};
+ assert.throws(()=>formalConfig(c,1));
 });

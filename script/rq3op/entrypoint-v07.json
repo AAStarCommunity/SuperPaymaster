@@ -4,5 +4,11 @@
   "runtime": "contracts/test/fixtures/entrypoint-v0.7.runtime.hex",
   "source": "docs/design/aoa-balance-mode/D3-traceability.md:33",
   "corroboration": "docs/design/aoa-balance-mode/data/rams-f4/REPORT.md:79",
-  "derivation": "Keccak-256 of the committed canonical on-chain runtime (16035 bytes). D3 records equality on Sepolia, OP Sepolia and OP mainnet. Vendored deployments/*/EntryPoint.json are v0.6 (0x5FF1...), not v0.7; local builds differ in compiler settings, metadata and the SenderCreator immutable. No network used."
+  "derivation": "Keccak-256 of the committed canonical on-chain runtime (16035 bytes). D3 records equality on Sepolia, OP Sepolia and OP mainnet. Vendored deployments/*/EntryPoint.json are v0.6 (0x5FF1...), not v0.7; local builds differ in compiler settings, metadata and the SenderCreator immutable. No network used.",
+  "chainIds": [
+    10,
+    11155111,
+    11155420,
+    31337
+  ]
 }

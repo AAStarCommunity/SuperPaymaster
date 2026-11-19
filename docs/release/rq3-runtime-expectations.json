@@ -1,0 +1,4 @@
+{
+  "GP_MINPOST_MIN": 500000,
+  "source": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol"
+}

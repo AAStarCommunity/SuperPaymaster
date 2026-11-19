@@ -47,12 +47,13 @@ class Idempotence(unittest.TestCase):
 
     def test_extra_predicates_and_real_reads(self):
         who=t.address(900)
-        self.inputs['extraEndUsers']=[dict(address=who,xAmount=123)]
+        amount=self.build()['shared']['sdkLive']['perUserFloor']
+        self.inputs['extraEndUsers']=[dict(address=who,xAmount=amount)]
         self.cal['setup'].update({f'C8.extra.0.{s}':100000 for s in ('approve','role','mint')})
         bundle=self.build()
         mint=next(s for s in bundle['steps'] if s['id']=='0/C8.extra.0.mint')
         self.assertEqual(mint['initial'][0]['expected'],0)
-        self.assertEqual(mint['target'][0]['expected'],123)
+        self.assertEqual(mint['target'][0]['expected'],amount)
         for suffix in ('mint','role','approve'):
             step=next(s for s in bundle['steps'] if s['id']=='0/C8.extra.0.'+suffix)
             for state in ('initial','target'):
