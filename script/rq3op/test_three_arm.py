@@ -46,6 +46,8 @@ class ThreeArm(unittest.TestCase):
             accounts=[dict(account=address(200+i),accountOwner=address(300+i),salt=i,
                 accountImplementation=t.PC_IMPL,runtimeKeccak=copy.deepcopy(t.PC_RUNTIMES)) for i in range(3)])
         self.cal = t.phase_c_inputs(lambda *args: {})['rehearsal']
+        for arm in m.ARMS:
+            del self.cal['arms'][arm]['preVerification']
         self.cal['arms']['SP']['postOp']=400000
         self.cal['setup'] = {sid:5000000 for sid in ('C2.approve','C2.deposit','C3.deploy','C3.configure','C5','C6','C7','C8','C20',*m.OWNER_PREPARATION,'C10','C11.S','C11.R','C12','C13.token','C13.oracle','C14','C15','C16.vpm','C16.tpm','C17.sp','C17.vpm','C17.tpm','C18.mint','C19')}
         self.cal['safeTransactions']={sid:500000 for sid in ('C1','GToken.transfer','SP.stake.schedule','SP.stake.execute')}

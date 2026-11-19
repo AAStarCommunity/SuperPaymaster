@@ -17,6 +17,16 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_ADDRESSES = ('superPaymaster','registry','aPNTs','xPNTsFactoryV2','globalTierSource',
     'entryPoint','simpleAccountFactory','genesisOperator','governanceOwner','timelockController',
     'gToken','staking','sbt','xPNTsTokenV2Impl','deployer')
+PVG_RULE = json.loads((Path(__file__).with_name('pvg-rule.json')).read_text())
+CALIBRATION_FIELDS = tuple(k for k in m.ARM_FIELDS if k != 'preVerification')
+
+
+def check_calibration_fields(cal):
+    a.need('rq3_calibration_pvg', all('preVerification' not in b for b in cal['arms'].values()), True)
+    a.need('rq3_gas_fields', set(cal['arms']) == set(m.ARMS) and
+           all(set(b) == set(CALIBRATION_FIELDS) for b in cal['arms'].values()), True)
+
+
 READS = {'eth_chainId','eth_getBlockByNumber','eth_call','eth_getCode','eth_getStorageAt',
          'eth_getTransactionCount','eth_getBalance','eth_feeHistory','eth_maxPriorityFeePerGas'}
 
@@ -120,13 +130,14 @@ def sp_postop_limit(measured, gas_factor, minimum):
 def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     p=pin['phaseC']; facts=m.phase_c_pin_gates(pin,c,context=ctx)
     bounds={arm:{k:scale(v,gas_factor) for k,v in cal['arms'][arm].items()} for arm in m.ARMS}
-    a.need('rq3_gas_fields',all(set(b)==set(m.ARM_FIELDS) for b in bounds.values()),True)
+    a.need('rq3_gas_fields',all(set(b)==set(CALIBRATION_FIELDS) for b in bounds.values()),True)
     # VerifyingPaymaster has no postOp (empty context; EntryPoint never calls it): its measured postOp
     # is structurally zero and must stay exactly zero. Every other bound must be positive.
     a.need('rq3_structural_zero',cal['arms']['VPM']['postOp'],0)
     a.need('rq3_gas_bounds',all((0<v or (arm,k)==('VPM','postOp')) and v<2**128 for arm,b in bounds.items() for k,v in b.items()) and gas_tuple[0]>0,True)
     bounds['SP']['postOp'],postop_rule=sp_postop_limit(cal['arms']['SP']['postOp'],gas_factor,gas_tuple[0])
-    maxima={arm:sum(b[k] for k in m.ARM_FIELDS if k!='outer')*fee for arm,b in bounds.items()}
+    # Reserve outer gas for sign-time PVG; collector refuses PVG above this reserve.
+    maxima={arm:sum(b.values())*fee for arm,b in bounds.items()}
     price_a,fee_b=p['sp']['aPNTsPriceUSD'],p['sp']['protocolFeeBPS']
     a0=m.ceil_div(maxima['SP']*m.PC_PRICE_CAP*10**18,10**m.PC_PRICE_DECIMALS*price_a)
     amax=m.ceil_div(a0*(10000+fee_b+m.PC_VALIDATION_BUFFER_BPS),10000)
@@ -140,6 +151,9 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     target_b=n*fee*sum(b['outer'] for b in bounds.values())+fee*sum(x['gas'] for x in aux)+m.PC_BUNDLER_BETA
     sources={arm:{k:dict(source=cal['source'],measurement=cal['arms'][arm].get(k),factor=gas_factor,
                         limit=v,block=head) for k,v in b.items()} for arm,b in bounds.items()}
+    for arm in m.ARMS:
+        bounds[arm]['preVerification'] = None
+        sources[arm]['preVerification'] = copy.deepcopy(PVG_RULE)
     sources['SP']['postOp'].update(rule='max(measured*gasFactor, minPostOpGas)',target=ctx['SP'],**postop_rule)
     # DSR 2026-11-18: record the structural zero explicitly instead of a scaled limit.
     sources['VPM']['postOp'].update(rule='structural zero: VerifyingPaymaster has no postOp (empty context)',limit=0)
@@ -163,6 +177,7 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
 def build(cfg,inputs,rpc,checker,cal,baselines):
     # Pure assembly layer; generate() authenticates files, checker and deployment before calling.
     check_inputs(cfg,inputs,checker)
+    check_calibration_fields(cal)
     for i in range(len(inputs['taskRecipients'])):
         value=cal.get('setup',{}).get('C11.extra.'+str(i))
         a.need('rq3_task_calibration',type(value) is int and value>0,True)
@@ -457,6 +472,7 @@ def verify_system(cfg,rpc,block):
 
 
 def verify_calibration(cfg,cal,chain,rpc):
+    a.need('rq3_calibration_pvg', all('preVerification' not in b for b in cal['arms'].values()), True)
     source=cal['source'];raw=inside(source['evidenceFile']).read_bytes()
     a.need('rq3_calibration_hash',hashlib.sha256(raw).hexdigest(),source['evidenceSha256'])
     evidence=json.loads(raw)

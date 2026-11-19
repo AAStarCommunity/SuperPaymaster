@@ -1,3 +1,4 @@
+import { finalizePVG, recordPVG } from './pvg.mjs';
 import { createFrozenPlan, persistSettlement } from './frozen-plan.mjs';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 import { rehearsalTpmRefresh } from './rehearsal-refresh.mjs';
@@ -143,7 +144,7 @@ const pubB = formal ? runtime.pubB : createPublicClient({ transport: http(rpcB, 
 const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
 function collectorHead() {
-  const files = ['collector.mjs', ...(adapter ? ['frozen-plan.mjs','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
+  const files = ['collector.mjs', ...(adapter ? ['frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
@@ -323,8 +324,7 @@ async function signAndHash({ sender, nonce, callData, pmAddr, pmGas, pmData, gas
   return { packed, hash: epHash.value, localHash: local };
 }
 
-async function pmDataFor(arm, { sender, nonce, callData }) {
-  const GAS = gasFor(arm);
+async function pmDataFor(arm, { sender, nonce, callData }, GAS = gasFor(arm)) {
   if (arm === 'SP') {
     return concat([getAddress(ctx.account.address), pad(toHex((1n << 256n) - 1n), { size: 32 }), getAddress(spToken), '0x00']);
   }
@@ -580,7 +580,7 @@ async function attempt(arm, tripletIndex, passportStart) {
 }
 async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   frozenArm = arm;
-  const GAS = gasFor(arm);
+  const GAS = {...gasFor(arm)};
   if (formal && previousInclusion) st.row.priorInclusionHeads = await waitAfterInclusion([pubA,pubB], previousInclusion);
   if (formal) {
     const control = await rehearsalTpmRefresh({rehearsal,config:formalInput,arm,attemptIndex:idx,client:pubA,paymaster:baselines.tokenPaymaster.address,abi:baselines.tokenPaymaster.abi});
@@ -595,7 +595,20 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const callData = fixture === 'exec-revert' ? revertingCallData() : defaultCallData();
   const nonceR = await readAB('getNonce', (p) => p.readContract({ address: EP, abi: EP_ABI, functionName: 'getNonce', args: [sender, NONCE_KEY] }));
   const nonce = nonceR.value;
-  const ours = await signAndHash({ sender, nonce, callData, pmAddr: pm, gas: GAS, pmGas: PM_GAS[arm], pmData: await pmDataFor(arm, { sender, nonce, callData }) });
+  const sign = async value => {
+    GAS.preVerificationGas=value;
+    return signAndHash({ sender, nonce, callData, pmAddr: pm, gas: GAS, pmGas: PM_GAS[arm], pmData: await pmDataFor(arm, { sender, nonce, callData }, GAS) });
+  };
+  let ours;
+  try { ours = adapter ? await finalizePVG(sign,bundler.account.address) : await sign(GAS.preVerificationGas); }
+  catch (error) {
+    if (error.message.startsWith('PVG_')) throw new Stop(error.message,23,{});
+    throw error;
+  }
+  if (adapter) {
+    recordPVG(st.row,ours.pvg);
+    if (ours.pvg.value>BigInt(adapter.plan.phaseC.bounds[arm].outer)) throw new Stop('PVG_RESERVE',23,{});
+  }
   let bundled = [ours.packed];
   let decoy = null;
   if (fixture === 'drop-op') {
@@ -655,7 +668,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const rcA = await pubA.waitForTransactionReceipt({ hash: txHash });
   const rcB = await pubB.getTransactionReceipt({ hash: txHash });
   const rcView = (rc) => ({ status: rc.status, blockNumber: rc.blockNumber, blockHash: rc.blockHash, gasUsed: rc.gasUsed,
-    effectiveGasPrice: rc.effectiveGasPrice, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex, ...(formal ? {transactionHash:l.transactionHash} : {}) })) });
+    effectiveGasPrice: rc.effectiveGasPrice, l1Fee: rc.l1Fee??null, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex, ...(formal ? {transactionHash:l.transactionHash} : {}) })) });
   row.sent = true;
   row.tx = { hash: txHash };
   const rdiff = diffPaths(jsonable(rcView(rcA)), jsonable(rcView(rcB)));
@@ -665,6 +678,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const blocks = await readAB('attempt block', async p => { const b = await p.getBlock({ blockNumber: bn }); return { hash: b.hash, timestamp: b.timestamp, transactions: b.transactions }; });
   const blk = blocks.A;
   const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
+  if (adapter) recordPVG(row,ours.pvg,rawTx.A.input,rcA);
   if (formal) {
     const decoded = decodeFunctionData({abi:HANDLE_OPS_ABI,data:rawTx.A.input});
     if (decoded.functionName !== 'handleOps' || diffPaths(jsonable(decoded.args[0]),jsonable(bundled)).length) throw new Stop('TRANSACTION_BUNDLE_MISMATCH',27,{txHash});

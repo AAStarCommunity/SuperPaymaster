@@ -24,15 +24,16 @@ acceptance has been performed here.
    Signing names and passwords never belong in plans. Obtain account runtime hashes
    from the reviewed factory/implementation and comparator runtime hashes from the
    pinned constructor build/rehearsal. The planner checks the account predictions.
-4. Calibrate the common task against this deployment locally. Record all six arm
+4. Calibrate the common task against this deployment locally. Record five arm
    fields (`call`, `verification`, `paymasterVerification`, `postOp`,
-   `preVerification`, `outer`), including SP `postOp`. Record owner preparation, maintenance and
+   `outer`), including SP `postOp`. Record owner preparation, maintenance and
    each setup transaction's measured/estimated gas. A setup entry may be the maximum
    across the three senders, with that provenance in the calibration evidence.
+   `preVerification` is forbidden in calibration (STOP); PVG is computed by rule.
    No default gas estimate exists. Keep calibration evidence under the worktree.
 5. DSR supplies `gasFactor`, `feeFactor`, `priorityRule`, `feeCeiling`, `stakeWei`
    and `unstakeDelay`. Ratios use integer numerator/denominator, rounding up.
-   The gas factor is common to every arm and setup gas limit. SP postOp uses the maximum of
+   The gas factor is common to every calibrated arm and setup gas limit; PVG has factor 1/1. SP postOp uses the maximum of
    the scaled measurement and the on-chain minimum, and records when the floor applies. The TPM's original `refundPostopCost`
    remains a comparator contract configuration value, not a transaction gas limit.
 
@@ -94,8 +95,30 @@ indivisible remainder assigned to the first input S. This is recorded explicitly
 no attempt is discarded or silently added. Each plan retains the original safety
 margins. Operator funding is `(100+5)*Amax`, shared by all three plans.
 
-Gas limits are frozen for the entire plan, including the outer transaction and
-setup limits. `phaseC.gasSources` records source measurements, factor, anchor and
+Calibrated gas limits are frozen for the entire plan, including the outer transaction and
+setup limits. PVG freezes the rule in `pvg-rule.json`, with mode `sign-time` and a null
+plan bound/value. Nonce and both signatures are unknown at planning. The shared SP/VPM/TPM
+function computes the EVM calldata cost (zero byte 4, non-zero 16) of the packed UserOp
+as encoded inside handleOps, plus 21000/ops and the op-independent handleOps calldata
+cost/ops. This collector permits exactly one op per transaction. The latter includes
+the selector, argument offsets, beneficiary, array length and tuple offset.
+
+PVG always has factor 1/1, independent of gasFactor. Changing encoded limits can still
+change byte costs; numeric invariance is for identical op bytes. A 65-byte all-0xff
+owner signature placeholder is available before signing. At sign time the collector
+uses the actual nonce, beneficiary, owner signature and VPM signature, regenerates
+both signatures for each candidate PVG, and requires an exact fixed point including
+the PVG word itself. Cycles or non-convergence STOP before sending. No nonce prediction
+or empirical gas constant is used. The outer gas bound reserves funding capacity for
+PVG; it is never used as charged PVG, and exceeding this reserve STOPs.
+
+Each attempt copies the frozen rule, then fills byte counts (tuple total/zero/non-zero),
+calldata gas, overhead parts and final value after signing. `pvgDelta` is rule PVG minus
+the calldata gas of the real transaction input (all calldata for the single op); it is
+null when no transaction was sent. EntryPoint v0.7 charges PVG in full; its unused-gas
+penalty applies to call and postOp limits, not unused verification limits. OP-stack L1
+data fees are excluded and reported separately from receipts. Sepolia and OP use the
+same definition. `phaseC.gasSources` records source measurements, factor, anchor and
 result; `steps[].gasEvidence` records setup equivalents. The collector must copy
 these records, the plan digest, and `phaseC.feeRule` into each data row. Do not
 re-estimate an attempt: EntryPoint v0.7's unused-gas penalty would bias costs.

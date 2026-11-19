@@ -12,7 +12,7 @@ class Round2(ThreeArm):
             self.cal['arms'][arm]['paymasterVerification']=83001+i*170003
         pc=next(iter(self.build()['plans'].values()))['phaseC']
         for arm in m.ARMS:
-            for field in m.ARM_FIELDS:
+            for field in q.CALIBRATION_FIELDS:
                 self.assertEqual(pc['bounds'][arm][field],q.scale(self.cal['arms'][arm][field],self.inputs['gasFactor']))
 
     def test_postop_floor_applies_when_scaled_is_below(self):

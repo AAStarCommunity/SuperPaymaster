@@ -1,0 +1,10 @@
+{
+  "rule": "calldata cost of the packed UserOp + 21000/ops + op-independent handleOps calldata / ops (zero=4, non-zero=16); EntryPoint v0.7 charges PVG in full; OP-stack L1 data fee excluded and reported separately from receipts; identical on Sepolia and OP",
+  "mode": "sign-time",
+  "factor": {"numerator": 1, "denominator": 1},
+  "ops": 1,
+  "signature": "65-byte 0xff placeholder when unknown; exact owner and paymaster signatures at signing; STOP unless exact signed bytes reach a fixed point",
+  "bytes": null,
+  "overhead": null,
+  "value": null
+}
