@@ -31,7 +31,17 @@ class Fake:
         if method == 'eth_getCode':
             if params[0]==address(15): return (q.ROOT/'contracts/test/fixtures/entrypoint-v0.7.runtime.hex').read_text().strip()
             return self.code
-        if method == 'eth_call': return self.values[(params[0]['to'], params[0]['data'])]
+        if method == 'eth_call':
+            key=(params[0]['to'],params[0]['data'])
+            if key in self.values:return self.values[key]
+            selectors={a.calldata(sig,*args)[:10]:n for sig,args,n in [
+                ('isXPNTs(address)',(address(0),),1),
+                ('getDepositInfo(address)',(address(0),),5),
+                ('balanceOf(address)',(address(0),),1),
+                ('hasRole(bytes32,address)',(m.role_id('ENDUSER'),address(0)),1),
+                ('verifyCommunityMembership(address,address)',(address(0),address(0)),1)]}
+            if params[0]['data'][:10] in selectors:return '0x'+'0'*64*selectors[params[0]['data'][:10]]
+            raise KeyError(key)
         raise AssertionError((method, params))
     def set(self, who, sig, *args, value):
         self.values[(who, a.calldata(sig, *args))] = value if isinstance(value,str) else '0x'+''.join(format(x,'064x') for x in (value if isinstance(value,list) else [value]))
@@ -79,6 +89,18 @@ class ThreeArm(unittest.TestCase):
         self.rpc.set(self.cfg['aPNTs'],'balanceOf(address)',sp,value=0)
         self.rpc.set(self.cfg['gToken'],'balanceOf(address)',self.cfg['governanceOwner'],value=10**25)
         self.rpc.set(self.cfg['xPNTsFactoryV2'],'getTokenAddress(address)',self.inputs['genesis'],value=0)
+        # Round 2 reads pinned initial values as well as the old worksheet reads.
+        self.rpc.set(self.cfg['aPNTs'],'allowance(address,address)',self.inputs['genesis'],sp,value=0)
+        self.rpc.set(self.cfg['gToken'],'allowance(address,address)',self.inputs['genesis'],self.cfg['staking'],value=0)
+        self.rpc.set(sp,'operators(address)',self.inputs['genesis'],value=[0]*9)
+        for account in self.inputs['accounts']:
+            who=account['account']
+            for target,sig,args in [
+                (self.cfg['registry'],'hasRole(bytes32,address)',(m.role_id('ENDUSER'),who)),
+                (self.cfg['registry'],'getRoleStake(bytes32,address)',(m.role_id('ENDUSER'),who)),
+                (self.cfg['sbt'],'verifyCommunityMembership(address,address)',(who,self.inputs['genesis'])),
+                (sp,'sbtHolders(address)',(who,)),(sp,'isEligibleForSponsorship(address)',(who,))]:
+                self.rpc.set(target,sig,*args,value=0)
         self.bases=copy.deepcopy(t.BASELINES)
     def build(self):
         with patch.object(m,'collect_phase_c',side_effect=copy.deepcopy(self.pins)):

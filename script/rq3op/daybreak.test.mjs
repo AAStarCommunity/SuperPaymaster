@@ -38,3 +38,23 @@ for(const field of Object.keys(tx))test('main refuses post-precheck mutation of 
   await assert.rejects(()=>setup.main(f.args,f.deps));assert.deepEqual(f.events,[]);
  }finally{f.close();}
 });
+test('main records already-satisfied reads with advanced nonce and no send',async()=>{
+ const f=fixture();try{
+  const reads=[{predicate:{kind:'balance',target:tx.to,expected:100},observed:100}];
+  f.nonce(1);f.deps.gate=async()=>({status:'already-satisfied',reads});
+  await setup.main(f.args,f.deps);
+  const {readFileSync}=await import('node:fs');
+  const entry=JSON.parse(readFileSync(f.dir+'/log','utf8'));
+  assert.equal(entry.status,'already-satisfied');assert.deepEqual(entry.reads,reads);assert.deepEqual(f.events,[]);
+ }finally{f.close();}
+});
+test('main records partial-state STOP observations without send',async()=>{
+ const f=fixture();try{
+  const record={gate:'setup_state_STOP',actual:{reads:[{observed:99}]}};
+  f.deps.gate=async()=>{throw Object.assign(Error('state STOP'),{record});};
+  await assert.rejects(setup.main(f.args,f.deps));
+  const {readFileSync}=await import('node:fs');
+  const entry=JSON.parse(readFileSync(f.dir+'/log','utf8'));
+  assert.equal(entry.status,'stopped');assert.deepEqual(entry.error,record);assert.deepEqual(f.events,[]);
+ }finally{f.close();}
+});

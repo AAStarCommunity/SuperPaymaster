@@ -12,9 +12,10 @@ export async function executeStep(step, deps) {
   if (deps.signer.address.toLowerCase()!==tx.from.toLowerCase()) throw Error('setup signer mismatch');
   const chains=await Promise.all([deps.chain(0),deps.chain(1)]);
   if (chains.some(c=>BigInt(c)!==BigInt(tx.chainId))) throw Error('setup chain mismatch');
+  const state=await deps.precheck();
+  if (state?.status==='already-satisfied') return state;
   const nonces=await Promise.all([deps.pendingNonce(0),deps.pendingNonce(1)]);
   if (nonces.some(n=>BigInt(n)!==BigInt(tx.nonce))) throw Error('setup pending nonce mismatch');
-  await deps.precheck();
   if (deps.expected && !isDeepStrictEqual(step.tx,deps.expected.tx)) throw Error('regenerated transaction mismatch');
   const freshChains=await Promise.all([deps.chain(0),deps.chain(1)]);
   const freshNonces=await Promise.all([deps.pendingNonce(0),deps.pendingNonce(1)]);
@@ -40,8 +41,8 @@ export async function gateWorker(bundle,index,action,timestamp,read) {
   try {
     for await (const line of createInterface({input:child.stdout})) {
       const message=JSON.parse(line);
-      if(message.error) throw Error('setup gate: '+JSON.stringify(message.error));
-      if(message.done) {done=true;break;}
+      if(message.error) throw Object.assign(Error('setup gate: '+JSON.stringify(message.error)),{record:message.error});
+      if(message.done) {done=true;return message.result;}
       const result=await read(message.method,message.params);
       child.stdin.write(JSON.stringify({result})+'\n');
     }
@@ -120,12 +121,15 @@ export async function main(args=process.argv.slice(2),deps={}) {
     signer:runtime.accounts.bundler,expected,
     chain:async i=>runtime.archives[i].request({method:'eth_chainId',params:[]}),
     pendingNonce:async i=>runtime.archives[i].request({method:'eth_getTransactionCount',params:[step.tx.from,'pending']}),
-    precheck:async()=>{pin=await runtime.refreshPin();await (deps.gate ?? gateWorker)(bundle,index,'precheck',0,read);await checkAnchor();},
+    precheck:async()=>{pin=await runtime.refreshPin();const state=await (deps.gate ?? gateWorker)(bundle,index,'precheck',0,read);await checkAnchor();return state;},
     send,
     receipt:async(i,hash)=>[runtime.pubA,runtime.pubB][i].waitForTransactionReceipt({hash}),
     readback:async receipt=>{pin=await runtime.pubA.getBlock({blockNumber:receipt.blockNumber});await (deps.gate ?? gateWorker)(bundle,index,'readback',pin.timestamp,read);await checkAnchor();}
   });
   appendFileSync(inside(logArg),JSON.stringify({id:step.id,bundleSha256:digest,...result},(_,v)=>typeof v==='bigint'?v.toString():v)+'\n');
+  } catch(error) {
+    appendFileSync(inside(logArg),JSON.stringify({id:step.id,bundleSha256:digest,status:'stopped',error:error.record??{gate:'setup_execution_stopped'}})+'\n');
+    throw error;
   } finally {release();}
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) main().catch(()=>{process.stderr.write('RQ3 setup stopped; inspect archived evidence (credentials redacted).\n');process.exitCode=1;});

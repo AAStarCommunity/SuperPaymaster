@@ -12,6 +12,7 @@ from pvg_reserve import reserve_pvg
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'upgrade'))
 import manifest_exec as m
+from setup_state import Projection
 
 a, u = m.a, m.u
 ROOT = Path(__file__).resolve().parents[2]
@@ -289,7 +290,16 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
     ep_targets={arm:sum(w['entryPointTargets'][arm] for w in worksheets) for arm in m.ARMS}
     bundler_target=sum(w['bundlerTarget'] for w in worksheets)-2*m.PC_BUNDLER_BETA
     counters={k:v['nonce'] for k,v in senders.items()}; all_steps=[]; plans={}; comparators={}; x_supply=0; gt_balance=p['endUser']['deployerGToken']+transfer
+    projection=Projection(rpc,block)
+    projection.put(dict(kind='balance',target=inputs['bundler'],expected=p['bundler']['balance']))
+    projection.put(m.predicate(ctx['SP'],'operators(address)',[ctx['operator']],p['sp']['deployerOperator']))
+    # Safe prerequisites execute before the local C steps.
+    projection.put(m.word_pred(cfg['aPNTs'],'balanceOf(address)',p['capped']['deployerBalance']+mint,ctx['operator']))
+    projection.put(m.word_pred(cfg['gToken'],'balanceOf(address)',gt_balance,ctx['operator']))
+    projection.put(m.predicate(cfg['entryPoint'],'getDepositInfo(address)',[ctx['SP']],
+                             [ep_info[0],1,ep_info[2]+inputs['stakeWei'],inputs['unstakeDelay'],0]))
     for i,(pin,c,ws) in enumerate(zip(pins,cs,worksheets)):
+        projection.put(dict(kind='balance',target=c['accountOwner'],expected=pin['phaseC']['owner']['balance']))
         ws.update(operatorTopUp=operator_top if i==0 else 0,cappedMint=mint if i==0 else 0,
                   bundlerTarget=bundler_target,bundlerTopUp=m.positive(bundler_target-p['bundler']['balance']) if i==0 else 0)
         ws['entryPointTargets']=dict(ep_targets)
@@ -308,8 +318,9 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
             limit=ws['ownerPreparation'][sid] if sender=='owner' else scale(measured,inputs['gasFactor'])
             tx=dict(to=target,data=data,value=hex(value),nonce=hex(counters[sender]),chainId=hex(chain),
                     maxFeePerGas=hex(fee),maxPriorityFeePerGas=hex(priority),gas=hex(limit),**{'from':who})
-            counters[sender]+=1
-            step=dict(id=sid,sender=sender,tx=tx,readbacks=checks,**extra,
+            state=projection.prepare(sid,checks)
+            if state['initial']!=state['target']: counters[sender]+=1
+            step=dict(**state,id=sid,sender=sender,tx=tx,readbacks=checks,**extra,
                       gasEvidence=dict(source=cal['source'],measurement=cal['ownerPreparation'][sid] if sender=='owner' else measured,
                                        factor=inputs['gasFactor'],limit=limit,block=head))
             local_steps.append(step)
@@ -337,9 +348,13 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
                       (m.role_id('ENDUSER'),who,a.cast('abi-encode','c(address,uint256)',ctx['operator'],ws['endUserStake'])),
                       [m.word_pred(cfg['registry'],'hasRole(bytes32,address)',1,m.role_id('ENDUSER'),who),
                        m.word_pred(cfg['sbt'],'balanceOf(address)',1,who),
-                       m.word_pred(cfg['sbt'],'verifyCommunityMembership(address,address)',1,who,ctx['operator'])])
+                       m.word_pred(cfg['sbt'],'verifyCommunityMembership(address,address)',1,who,ctx['operator']),
+                       m.word_pred(cfg['gToken'],'allowance(address,address)',0,ctx['operator'],cfg['staking']),
+                       m.word_pred(cfg['gToken'],'balanceOf(address)',
+                           gt_balance-(0 if ws['accountMember'] else ticket)-(j+1)*ticket,ctx['operator'])])
                 extra('mint',pc['addresses']['X'],'mint(address,uint256)',(who,entry['xAmount']),
-                      [m.word_pred(pc['addresses']['X'],'balanceOf(address)',entry['xAmount'],who)])
+                      [m.word_pred(pc['addresses']['X'],'balanceOf(address)',entry['xAmount'],who),
+                       m.word_pred(pc['addresses']['X'],'totalSupply()',ws['userTarget']+sum(e['xAmount'] for e in extras[:j+1]))])
             x_supply+=sum(e['xAmount'] for e in extras)
             gt_balance-=extra_tickets
         a.need('C_task_token_distinct', all(pc['addresses']['T'].lower()!=token.lower() for token in
@@ -374,6 +389,26 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
               safe('GToken.transfer',cfg['gToken'],a.calldata('transfer(address,uint256)',ctx['operator'],transfer)),
               safe('SP.stake.schedule',cfg['timelockController'],a.calldata('scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',targets,values,datas,a.ZERO32,salt,delay)),
               safe('SP.stake.execute',cfg['timelockController'],a.calldata('executeBatch(address[],uint256[],bytes[],bytes32,bytes32)',targets,values,datas,a.ZERO32,salt),inputs['stakeWei'])]
+    safe_states=[
+        ([m.word_pred(cfg['aPNTs'],'balanceOf(address)',p['capped']['deployerBalance'],ctx['operator']),
+          m.word_pred(cfg['aPNTs'],'totalSupply()',p['capped']['totalSupply'])],
+         [m.word_pred(cfg['aPNTs'],'balanceOf(address)',p['capped']['deployerBalance']+mint,ctx['operator']),
+          m.word_pred(cfg['aPNTs'],'totalSupply()',p['capped']['totalSupply']+mint)]),
+        ([m.word_pred(cfg['gToken'],'balanceOf(address)',genesis_held,ctx['operator']),
+          m.word_pred(cfg['gToken'],'balanceOf(address)',word(cfg['gToken'],'balanceOf(address)',ctx['safe']),ctx['safe'])],
+         [m.word_pred(cfg['gToken'],'balanceOf(address)',genesis_held+transfer,ctx['operator']),
+          m.word_pred(cfg['gToken'],'balanceOf(address)',word(cfg['gToken'],'balanceOf(address)',ctx['safe'])-transfer,ctx['safe'])]),
+        ([m.word_pred(cfg['timelockController'],'getTimestamp(bytes32)',0,op['id'])],
+         [dict(kind='eta',target=cfg['timelockController'],signature='getTimestamp(bytes32)',args=[op['id']],delay=delay)]),
+        ([m.word_pred(cfg['timelockController'],'isOperationReady(bytes32)',1,op['id']),
+          m.predicate(cfg['entryPoint'],'getDepositInfo(address)',[ctx['SP']],ep_info)],
+         [m.word_pred(cfg['timelockController'],'getTimestamp(bytes32)',1,op['id']),
+          m.predicate(cfg['entryPoint'],'getDepositInfo(address)',[ctx['SP']],
+                      [ep_info[0],1,ep_info[2]+inputs['stakeWei'],inputs['unstakeDelay'],0])])]
+    for step,(initial,target) in zip(safe_txs,safe_states):
+        step.update(initial=initial,target=target)
+        if step['id']=='SP.stake.schedule':
+            step['rerunStop']='Receipt-relative schedule timestamp; STOP unless timestamp is still zero.'
     # Funding cannot be accepted merely because value fits: include all frozen setup gas.
     for label,entry in senders.items():
         required=sum(a.qty(s['tx']['value'])+a.qty(s['tx']['gas'])*fee for s in all_steps if s['sender']==label)

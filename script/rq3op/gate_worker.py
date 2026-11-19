@@ -3,6 +3,7 @@
 import json
 import sys
 import plan_three_arm as q
+from setup_state import precheck_state
 
 def rpc(method,params):
     print(json.dumps(dict(method=method,params=params)),flush=True)
@@ -25,13 +26,16 @@ def main():
     request=json.loads(sys.stdin.readline()); bundle=request['bundle']
     # Receive the verified in-memory bundle; never reopen a mutable caller file.
     plan,local=associated_plan(bundle,request['index'])
+    result=None
     if request['action']=='precheck':
-        q.pre_send(rpc,plan,local)
-        q.m.phase_c_pre_send(rpc,plan,local,{},deployment=plan['deploymentContext'])
+        result=precheck_state(rpc,local)
+        if result['status']=='initial':
+            q.pre_send(rpc,plan,local)
+            q.m.phase_c_pre_send(rpc,plan,local,{},deployment=plan['deploymentContext'])
     elif request['action']=='readback':
         for check in local['readbacks']: q.m.check_predicate(rpc,check,int(request['timestamp']))
     else: raise ValueError('unknown gate action')
-    print(json.dumps(dict(done=True)),flush=True)
+    print(json.dumps(dict(done=True,result=result)),flush=True)
 
 if __name__=='__main__':
     try: main()
