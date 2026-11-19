@@ -28,26 +28,39 @@ class RuntimePinsTest(unittest.TestCase):
         import sys
         import tempfile
         from pathlib import Path
+        import runtime_pins as pins
         root = Path(__file__).resolve().parents[2]
+        fixtures = root/'contracts/test/fixtures/deploylive/release-artifacts'
+        creation = root/'deployments/creation-pins.10.json'
+        committed = json.loads((root/'deployments/runtime-pins.10.json').read_text())
+        # The committed pins match the fixtures' release bytecode (called directly: the CLI refuses fixtures).
+        actual = pins.artifact_pins(fixtures, creation, derive_types=False)
+        pins.check_runtime_pins(committed, actual, compare_types=False)
+        admin = committed['artifacts']['SuperPaymasterAdmin']
+        self.assertEqual(admin['creationPin'], 'embedded in SuperPaymaster')
+        self.assertEqual(admin['optimizerRuns'], '500')
+        self.assertNotIn('SuperPaymasterAdmin', json.loads(creation.read_text()))
+        tampered = json.loads(json.dumps(committed))
+        tampered['artifacts']['Registry']['maskedRuntimeKeccak'] = '0x' + '00'*32
+        with self.assertRaisesRegex(ValueError, 'runtime pin mismatch'):
+            pins.check_runtime_pins(tampered, actual, compare_types=False)
+        self.assertEqual((root/'deployments/runtime-pins.10.json').read_bytes(), (root/'deployments/runtime-pins.31337.json').read_bytes())
+        self.assertEqual((root/'deployments/runtime-pins.10.json').read_bytes(), (root/'deployments/runtime-pins.11155111.json').read_bytes())
+        # Production entry points refuse committed fixtures as release artifacts.
+        (root/'cache').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=root/'cache') as tmp:
             path = Path(tmp)/'runtime-pins.10.json'
             path.write_bytes((root/'deployments/runtime-pins.10.json').read_bytes())
-            (path.parent/'creation-pins.10.json').write_bytes((root/'deployments/creation-pins.10.json').read_bytes())
-            command = [sys.executable, str(root/'script/rehearsal/runtime_pins.py'), str(path), '--check', '--artifacts', str(root/'contracts/test/fixtures/deploylive/release-artifacts')]
-            result = subprocess.run(command, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            obj = json.loads(path.read_text())
-            admin = obj['artifacts']['SuperPaymasterAdmin']
-            self.assertEqual(admin['creationPin'], 'embedded in SuperPaymaster')
-            self.assertEqual(admin['optimizerRuns'], '500')
-            self.assertNotIn('SuperPaymasterAdmin', json.loads((path.parent/'creation-pins.10.json').read_text()))
-            obj['artifacts']['Registry']['maskedRuntimeKeccak'] = '0x' + '00'*32
-            path.write_text(json.dumps(obj))
-            result = subprocess.run(command, capture_output=True, text=True)
+            (path.parent/'creation-pins.10.json').write_bytes(creation.read_bytes())
+            result = subprocess.run([sys.executable, str(root/'script/rehearsal/runtime_pins.py'), str(path), '--check', '--artifacts', str(fixtures)], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn('runtime pin mismatch', result.stderr)
-            self.assertEqual((root/'deployments/runtime-pins.10.json').read_bytes(), (root/'deployments/runtime-pins.31337.json').read_bytes())
-            self.assertEqual((root/'deployments/runtime-pins.10.json').read_bytes(), (root/'deployments/runtime-pins.11155111.json').read_bytes())
+            self.assertIn('test fixture directory is not a release artifact directory', result.stderr)
+        import os
+        from unittest.mock import patch
+        import deploylive_runtime
+        for value in ('contracts/test/fixtures/deploylive/release-artifacts', 'contracts/test/x', 'a/fixtures/b'):
+            with self.subTest(value=value), patch.dict(os.environ, DEFAULT_ARTIFACTS_OUT=value), self.assertRaisesRegex(ValueError, 'test fixture directory'):
+                deploylive_runtime.artifact_directory()
 
     def test_release_immutable_mutation(self):
         import runtime_pins as pins

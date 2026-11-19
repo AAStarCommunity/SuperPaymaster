@@ -13,6 +13,10 @@ def artifact_directory():
     value = os.environ.get('DEFAULT_ARTIFACTS_OUT', 'out')
     if not value or value.startswith('/') or value.endswith('/') or '..' in value.split('/') or any(c in value for c in ('\\', ':')):
         raise ValueError('invalid artifact directory')
+    # Production never reads committed test fixtures as release artifacts: a stale fixture would let the
+    # checker compare the chain against old code. Tests pass fixture directories explicitly (directory=).
+    if value.split('/')[:2] == ['contracts', 'test'] or 'fixtures' in value.split('/'):
+        raise ValueError('test fixture directory is not a release artifact directory')
     return value
 
 
