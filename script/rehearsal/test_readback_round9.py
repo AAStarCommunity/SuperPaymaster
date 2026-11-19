@@ -31,7 +31,7 @@ class Replay(unittest.TestCase):
         self.json = json
         self.hash = '0x' + '12' * 32
         self.addr = '0x' + '34' * 20
-        self.block = dict(number='42', hash=self.hash)
+        self.block = dict(number='42', hash=self.hash, timestamp='4660')
         self.pin = json.dumps(dict(blockHash=self.hash, requireCanonical=True))
         self.log = dict(blockNumber='0x1', blockHash=self.hash, address=self.addr, topics=['0xab'], data='0x00', logIndex='0x0')
         self.requests = [
@@ -50,14 +50,15 @@ class Replay(unittest.TestCase):
                 if args[0] == 'eth_getBlockByNumber':
                     n = args[1]; counts[provider][n] = counts[provider].get(n, 0) + 1
                     bad = provider == side and ((mutation == 'canonical' and n == '0x1') or (mutation == 'end' and n == '0x2a' and counts[provider][n] > 1))
-                    return 0, self.json.dumps(dict(hash='0x'+'ff'*32 if bad else self.hash))
+                    return 0, self.json.dumps(dict(number=n, timestamp='0x1234', hash='0x'+'ff'*32 if bad else self.hash))
                 self.assertIn(args, self.requests)
                 value = self.values[self.requests.index(args)]
                 if provider == side and args[0] == mutation:
                     value = [] if mutation == 'eth_getLogs' else '0xff'
                 if provider == side and mutation == 'extra' and args[0] == 'eth_getLogs': value = value + value
-                if mutation == 'equal' and args[0] == 'eth_getBalance': value = '0x0003'
-                if mutation == 'equal' and args[0] == 'eth_getLogs': value = [dict(reversed(list(dict(self.log, topics=['0xAB'], logIndex='0x0000').items())))]
+                if mutation == 'equal' and args[0] == 'eth_getCode': value = '0x006000'
+                if mutation == 'quantity_equal' and args[0] == 'eth_getBalance': value = '0x0003'
+                if mutation == 'quantity_equal' and args[0] == 'eth_getLogs': value = [dict(reversed(list(dict(self.log, topics=['0xAB'], logIndex='0x0000').items())))]
                 return 0, self.json.dumps(value)
             return read
         result = r.replay_snapshot(self.block, reads, rpc(0), rpc(1), 'Infura')
@@ -69,7 +70,9 @@ class Replay(unittest.TestCase):
         self.requests.append(('eth_getTransactionCount', self.addr, self.pin)); self.values.append('0x5')
         with self.assertRaisesRegex(ValueError, 'unreplayed snapshot request: eth_getTransactionCount'): self.run_replay()
 
-    def test_equal_replay_and_snapshot_hash(self): self.run_replay('equal')
+    def test_equal_replay_and_snapshot_hash(self):
+        with self.assertRaisesRegex(ValueError, 'eth_getCode'): self.run_replay('equal')
+    def test_quantity_equal_replay(self): self.run_replay('quantity_equal')
     def test_call_difference(self):
         with self.assertRaisesRegex(ValueError, 'eth_call.*'+self.addr+'.*0x12345678'): self.run_replay('eth_call')
     def test_storage_difference(self):

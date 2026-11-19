@@ -292,7 +292,7 @@ class CheckerTest(unittest.TestCase):
                     block_reads.append(args[1])
                     if mutation == 'reorg' and len(block_reads) > 1: return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
                     if mutation == 'second_header' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'): return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
-                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a', hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
+                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a' if args[1] == 'latest' else args[1], hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
                 if args[0] == "eth_chainId":
                     return SimpleNamespace(returncode=0, stdout=('"0xa"' if op else '"0x7a69"') if mutation != "unknown_chain" else '"0xf423f"', stderr="")
                 if args[0] == "eth_call":

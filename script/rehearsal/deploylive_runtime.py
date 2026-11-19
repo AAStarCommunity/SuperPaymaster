@@ -13,11 +13,28 @@ def artifact_directory():
     value = os.environ.get('DEFAULT_ARTIFACTS_OUT', 'out')
     if not value or value.startswith('/') or value.endswith('/') or '..' in value.split('/') or any(c in value for c in ('\\', ':')):
         raise ValueError('invalid artifact directory')
-    # Production never reads committed test fixtures as release artifacts: a stale fixture would let the
-    # checker compare the chain against old code. Tests pass fixture directories explicitly (directory=).
-    if value.split('/')[:2] == ['contracts', 'test'] or 'fixtures' in value.split('/'):
-        raise ValueError('test fixture directory is not a release artifact directory')
+    refuse_fixture_directory(ROOT / value)
     return value
+
+
+def refuse_fixture_directory(directory):
+    """Validate production artifact authority; explicit test helper injection is separate."""
+    path = Path(directory).absolute()
+    for component in (path, *path.parents):
+        if component.is_symlink():
+            raise ValueError('symlink is not a release artifact directory')
+    def check_fixture(candidate):
+        parts = tuple(part.casefold() for part in candidate.parts)
+        if 'fixtures' in parts or any(parts[i:i+2] == ('contracts', 'test') for i in range(len(parts)-1)):
+            raise ValueError('test fixture directory is not a release artifact directory')
+    check_fixture(path)
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError:
+        raise ValueError('invalid artifact directory') from None
+    check_fixture(resolved)
+    if not resolved.is_dir(): raise ValueError('invalid artifact directory')
+    return resolved
 
 
 def release_artifact(name, directory=None):

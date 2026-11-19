@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 from creation_pins import ROOT, CAST, release_names, clean_build_pins
-from deploylive_runtime import release_artifact, masked_runtime
+from deploylive_runtime import release_artifact, masked_runtime, refuse_fixture_directory
 
 
 def keccak(code):
@@ -102,16 +102,6 @@ def check_runtime_pins(expected, actual, *, compare_types=True):
     if expected != actual: raise ValueError('runtime pin mismatch')
 
 
-def refuse_fixture_directory(directory):
-    # The CLI checks release builds only. Committed test fixtures are trimmed copies that can go stale;
-    # tests call artifact_pins/check_runtime_pins with an explicit fixture directory instead.
-    parts = Path(directory).resolve().parts
-    root = ROOT.resolve().parts
-    rel = parts[len(root):] if parts[:len(root)] == root else parts
-    if tuple(rel[:2]) == ('contracts', 'test') or 'fixtures' in rel:
-        raise ValueError('test fixture directory is not a release artifact directory')
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('pin_file', type=Path)
@@ -119,7 +109,7 @@ def main():
     parser.add_argument('--artifacts', type=Path)
     args = parser.parse_args()
     if args.artifacts and not args.check: parser.error('--artifacts requires --check')
-    if args.artifacts is not None: refuse_fixture_directory(args.artifacts)
+    if args.artifacts is not None: args.artifacts = refuse_fixture_directory(args.artifacts)
     path = args.pin_file.resolve()
     if not path.is_relative_to(ROOT): raise ValueError('pin file must be in worktree')
     creation = path.with_name(path.name.replace('runtime-pins.', 'creation-pins.'))

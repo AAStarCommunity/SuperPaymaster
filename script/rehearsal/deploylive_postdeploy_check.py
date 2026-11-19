@@ -655,11 +655,13 @@ if not second_ok:
         if not second_url or record is None: raise ValueError('missing second provider')
         rc, second_chain = local('rpc', 'eth_chainId', endpoint=second_url)
         if rc or integer(json.loads(second_chain)) != chain: raise ValueError('second chain mismatch')
-        second = replay_snapshot(record['block'], rpc_snapshot.reads,
+        second = replay_snapshot(block, rpc_snapshot.reads,
                                  lambda *args: local('rpc', *args),
                                  lambda *args: local('rpc', *args, endpoint=second_url),
                                  os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''))
         second_ok = second['allEqual'] and second['blockHashMatches']
+        from deploylive_readback import header_fields
+        record['block'] = header_fields(block)
     except (OSError, ValueError, KeyError, TypeError) as error:
         second_ok = False
         if isinstance(error, ValueError): check('second provider replay', False, str(error))

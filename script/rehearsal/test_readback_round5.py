@@ -71,7 +71,7 @@ class Round5Test(unittest.TestCase):
                 ref = next(p['immutableRanges'][0] for p in bad['artifacts'].values() if p['immutableRanges'])
                 del ref[field]
                 path.write_text(json.dumps(bad))
-                with self.subTest(field=field), patch.object(sys, 'argv', ['pins', str(path), '--check', '--artifacts', 'unused']), patch.object(pins, 'artifact_pins', return_value=actual), contextlib.redirect_stdout(io.StringIO()):
+                with self.subTest(field=field), patch.object(sys, 'argv', ['pins', str(path), '--check', '--artifacts', tmp]), patch.object(pins, 'artifact_pins', return_value=actual), contextlib.redirect_stdout(io.StringIO()):
                     with self.assertRaisesRegex(ValueError, 'untyped committed immutable'):
                         pins.main()
 

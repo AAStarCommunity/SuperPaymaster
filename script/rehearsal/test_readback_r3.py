@@ -106,7 +106,7 @@ class ReverseTest(unittest.TestCase):
                     self.assertEqual(r.runtime_rows({key: ADDR}, {key:name}, {name:pin}, lambda _: code), [(key,False)])
 
     def record(self):
-        return dict(block={'number':'42','hash':'0x'+'12'*32}, contracts=[dict(configKey=k, address=ADDR, artifact='ERC1967Proxy', maskedMatchesPin=True,
+        return dict(block={'number':'42','hash':'0x'+'12'*32,'timestamp':'4660'}, contracts=[dict(configKey=k, address=ADDR, artifact='ERC1967Proxy', maskedMatchesPin=True,
             runtimeKeccak='expected', immutableBindings={}, erc1967={'implementation':ADDR}, addressGetters={}, unreadable=[]) for k in ('registry','superPaymaster')])
 
     def test_H2_each_implementation_slot(self):
@@ -126,10 +126,10 @@ class ReverseTest(unittest.TestCase):
         reads = {('eth_getCode', ADDR, pin): (0, '"0x6000"'),
                  ('eth_getStorageAt', ADDR, r.SLOTS['implementation'], pin): (0, '"0x01"')}
         for mutation in ('header', 'runtime', 'slot'):
-            def primary(*args): return 0, json.dumps({'hash': block['hash']})
+            def primary(*args): return 0, json.dumps(dict(block, number='0x2a'))
             def secondary(*args):
                 if args[0] == 'eth_getBlockByNumber':
-                    return 0, json.dumps({'hash': '0x'+'34'*32 if mutation == 'header' else block['hash']})
+                    return 0, json.dumps(dict(block, number='0x2a', hash='0x'+'34'*32 if mutation == 'header' else block['hash']))
                 if args[0] == 'eth_getCode': return 0, '"0xff"' if mutation == 'runtime' else '"0x6000"'
                 return 0, '"0x00"' if mutation == 'slot' else '"0x01"'
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):

@@ -404,9 +404,20 @@ class Snapshot:
         self.frozen = True
 
 
+def header_fields(block):
+    """All header fields consumed by assertions/evidence; DATA preserves length."""
+    if not re.fullmatch(r'0x[0-9a-fA-F]{64}', block['hash']): raise ValueError('invalid header hash')
+    def quantity(value):
+        return str(int(str(value), 16 if str(value).startswith('0x') else 10))
+    return dict(number=quantity(block['number']), hash=block['hash'].lower(), timestamp=quantity(block['timestamp']))
+
+
 def recheck_block(block, transport):
     rc, raw = transport('rpc', 'eth_getBlockByNumber', block['number'], 'false')
-    if rc or json.loads(raw)['hash'].lower() != block['hash'].lower(): raise ValueError('block hash changed')
+    try:
+        if rc or header_fields(json.loads(raw)) != header_fields(block): raise ValueError()
+    except (ValueError, KeyError, TypeError):
+        raise ValueError('block header changed') from None
 
 
 def codehash_binding_matches(record, item, name, rule):
@@ -471,57 +482,78 @@ def replay_snapshot(block, reads, primary, secondary, name):
     pin = dict(blockHash=block['hash'], requireCanonical=True)
     height = hex(int(str(block['number']), 0) if str(block['number']).startswith('0x') else int(block['number']))
 
-    def normalize(value):
-        if isinstance(value, dict): return {k: normalize(v) for k, v in value.items()}
-        if isinstance(value, list): return [normalize(v) for v in value]
-        if isinstance(value, str) and re.fullmatch(r'0x[0-9a-fA-F]+', value):
-            return hex(int(value, 16))
+    def normalize(value, method, field=None):
+        if isinstance(value, dict): return {k: normalize(v, method, k) for k, v in value.items()}
+        if isinstance(value, list): return [normalize(v, method, field) for v in value]
+        quantity = (method == 'eth_getBalance' or
+                    method == 'eth_getLogs' and field in ('blockNumber', 'logIndex', 'transactionIndex'))
+        if isinstance(value, str) and value.startswith('0x'):
+            return hex(int(value, 16)) if quantity else value.lower()
         return value
 
     def header(rpc, number):
         rc, raw = rpc('eth_getBlockByNumber', number, 'false')
         try:
-            value = json.loads(raw)['hash']
-            if rc or not re.fullmatch(r'0x[0-9a-fA-F]{64}', value): raise ValueError()
-            return value.lower()
+            value = json.loads(raw)
+            if rc: raise ValueError()
+            fields = header_fields(value)
+            if fields['number'] != str(int(number, 16)): raise ValueError()
+            return fields
         except (ValueError, KeyError, TypeError):
             raise ValueError('canonical header failed: block ' + number) from None
 
+    def paired_header(number):
+        first, second = header(primary, number), header(secondary, number)
+        if first != second: raise ValueError('canonical header mismatch: block ' + number)
+        return first
+
     def end_check():
-        for rpc in (primary, secondary):
-            if header(rpc, height) != block['hash'].lower():
-                raise ValueError('canonical hash mismatch: block ' + height)
+        if paired_header(height) != header_fields(block):
+            raise ValueError('canonical header mismatch: block ' + height)
 
     def result(response, label):
         rc, raw = response
         if rc: return (False, raw)
-        try: return (True, normalize(json.loads(raw)))
+        try: return (True, normalize(json.loads(raw), method))
         except (ValueError, TypeError): raise ValueError('invalid replay result: ' + label) from None
 
-    def logs_canonical(logs, rpc, cache):
+    def logs_canonical(logs, cache):
         for log in logs:
             try:
                 number = hex(int(log['blockNumber'], 16))
-                if number not in cache: cache[number] = header(rpc, number)
+                if number not in cache: cache[number] = paired_header(number)['hash']
                 if log['blockHash'].lower() != cache[number]:
                     raise ValueError('log canonical hash mismatch: block ' + number)
             except (KeyError, TypeError):
                 raise ValueError('invalid canonical log') from None
 
     end_check()
-    caches = [{}, {}]
+    canonical_logs = {}
     count = 0
     for args, recorded in reads.items():
         method = args[0]
         if method not in methods:
-            # Only stateless metadata may be left out of the replay; any other recorded method fails closed so a
-            # new stateful read can never be silently skipped ("all of them, not a sample").
-            if method in ('eth_chainId', 'eth_getBlockByNumber', 'eth_blockNumber'): continue
+            if method == 'eth_getBlockByNumber':
+                try:
+                    if recorded[0]: raise ValueError()
+                    used = header_fields(json.loads(recorded[1]))
+                    if args[1].startswith('0x') and int(args[1], 16) != int(used['number']): raise ValueError()
+                    if paired_header(hex(int(used['number']))) != used: raise ValueError()
+                except (ValueError, KeyError, TypeError):
+                    raise ValueError('recorded header mismatch') from None
+                continue
+            if method in ('eth_chainId', 'eth_blockNumber'): continue
             raise ValueError('unreplayed snapshot request: ' + method)
         if method == 'eth_call':
             query = json.loads(args[1]); label = method + ' ' + query['to'] + ' ' + query['data'][:10]
         elif method == 'eth_getLogs':
-            query = json.loads(args[1]); label = method + ' ' + str(query.get('address', 'all addresses'))
+            query = json.loads(args[1])
+            import hashlib
+            topics = normalize(query.get('topics', []), method, 'topics')
+            digest = hashlib.sha256(json.dumps(topics, separators=(',', ':')).encode()).hexdigest()
+            label = (method + ' ' + str(query.get('address', 'all addresses')) +
+                     ' fromBlock=' + hex(int(query['fromBlock'], 16)) +
+                     ' toBlock=' + hex(int(query['toBlock'], 16)) + ' topics=' + digest)
         else:
             label = method + ' ' + args[1] + (' ' + args[2] if method == 'eth_getStorageAt' else '')
         if method != 'eth_getLogs':
@@ -531,9 +563,9 @@ def replay_snapshot(block, reads, primary, secondary, name):
             if int(query['toBlock'], 16) != int(height, 16): raise ValueError('unpinned request: ' + label)
             responses = [primary(*args), secondary(*args)]
             if result(recorded, label) != result(responses[0], label): raise ValueError('snapshot replay mismatch: ' + label)
-            for response, rpc, cache in zip(responses, (primary, secondary), caches):
+            for response in responses:
                 if response[0]: raise ValueError('log replay failed: ' + label)
-                logs_canonical(json.loads(response[1]), rpc, cache)
+                logs_canonical(json.loads(response[1]), canonical_logs)
         if result(responses[0], label) != result(responses[1], label):
             raise ValueError('provider replay mismatch: ' + label)
         count += 1

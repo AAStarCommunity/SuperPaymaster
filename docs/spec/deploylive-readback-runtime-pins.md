@@ -70,15 +70,17 @@ for its `--block` option, so the checker uses JSON-RPC directly and local ABI en
 It collects each state request once, freezes the snapshot before the assertion traversal, and writes
 that same snapshot only if every row passes. Historical log ranges end at the pinned number;
 the canonical header at that number is re-read after corroboration and immediately before writing.
-A changed hash fails. A second provider is mandatory on every chain except 31337 in the current attaching drivers. Its endpoint is supplied via `DEPLOYLIVE_SECOND_RPC_FILE`, never printed, with a different
+A change in any consumed header field fails. A second provider is mandatory on every chain except 31337 in the current attaching drivers. Its endpoint is supplied via `DEPLOYLIVE_SECOND_RPC_FILE`, never printed, with a different
 hostname from the primary. Operator-selected endpoints must be independently operated: different
 hostnames alone cannot prove organizational independence. Production records both provider names (`endpointProvider` and `secondProvider.name`) and rejects equal names after trimming and case folding, in addition to the different-hostname rule. The second provider checks the same chain,
-header hash and replays EVERY recorded state request, including assertion calls, getters, Safe reads,
+header number, hash and timestamp and replays EVERY recorded state request, including assertion calls, getters, Safe reads,
 balances, all storage slots, code and logs. No sampling is permitted. `eth_call`, `eth_getStorageAt`,
 `eth_getBalance` and `eth_getCode` use the snapshot's EIP-1898
-`{blockHash, requireCanonical:true}` selector on both providers. Responses are normalized for hex
-case and leading zeros and object field order, then compared exactly; list order and fields remain
-significant. Any difference fails with method, target and selector/slot, never a URL.
+`{blockHash, requireCanonical:true}` selector on both providers. Comparison is type-aware, determined by RPC method and field name, never inferred from the value.
+DATA (code, ABI return data, storage words, log data/topics, every hash and address) is lowercased
+with length preserved and compared byte for byte. QUANTITY (balance, block number, log index,
+transaction index) ignores leading zeros. Object field order is ignored; list order and all fields
+remain significant. `allEqual` means equality under these rules, not raw JSON text equality. Any difference fails with method, target and selector/slot, never a URL.
 
 `eth_getLogs` has no EIP-1898 form. Both providers replay the IDENTICAL address/topics and
 fromBlock..toBlock query, with toBlock equal to the snapshot number. Both must report the
@@ -86,7 +88,9 @@ snapshot hash at that number before and after log replay. Every returned log's b
 match BOTH providers' canonical hash at its blockNumber; each distinct log block number is
 read once per provider and cached. Both normalized log lists must agree item by item in order.
 The primary replay must also equal the recorded snapshot. A canonical mismatch fails naming
-the block. `secondProvider.requests` counts all replayed state requests, including logs.
+the block. Log mismatch labels include normalized fromBlock/toBlock and a SHA-256 digest of
+case-normalized topics, distinguishing queries on the same address without exposing endpoints.
+`secondProvider.requests` counts all replayed state requests, including logs.
 Chain-31337 output sets `secondProvider: null`, `singleProvider: true`, and `singleProviderNote` set to the note
 `single provider: not evidence of on-chain state` (also emitted in the checker log). Production
 records `singleProviderNote: null`. This evidence is not a proof against colluding providers.
@@ -380,3 +384,28 @@ Only eight flat arrays are allowed: `guardians` (committee principals),
 `stakeAmounts` (staking ledger), `stakeRoles` (bytes32 staking role identifiers), `ticketTreasuries` and `ticketAmounts` (ticket ledger).
 The sole allowed dictionary is `artifactCompileSettings`: exactly the release artifact names, each with the reviewed `evmVersion`, `viaIR`, and `optimizerRuns` values. This records build provenance. No other dictionary values, arrays of containers, or other array keys are allowed. Address arrays
 still require exact inventory coverage and valid address elements; amounts use the integer parser.
+
+
+### Corroborated header evidence
+
+The complete block header is fetched from both providers at every block whose fields are used.
+The exhaustive consumed-field list is `number` (snapshot/range identity), `hash` (EIP-1898 and
+log canonicality), and `timestamp` (record evidence). Neither the checker nor readback consumes
+`baseFeePerGas` or other header fields. All three fields are compared with their RPC types;
+returned numbers must also match the requested heights. Snapshot headers are bracketed before
+and after replay; historical log headers are cross-checked and cached per height. The record's
+block object is populated from the cross-checked snapshot header. Any recorded
+`eth_getBlockByNumber` response is also checked against both providers at its concrete height;
+it is no longer exempt metadata that can inject unchecked evidence. The final primary recheck
+must match all three cross-checked fields. Chain 31337 retains its explicitly non-evidentiary
+single-provider mode.
+
+### Production artifact fixture exclusion
+
+Both the runtime checker and runtime-pins CLI use the same production directory validator.
+The directory must resolve strictly to an existing directory. Every symlink component is refused,
+and path components are compared case-insensitively: `contracts/test/**` and any `fixtures`
+component are forbidden. Test-only explicit artifact-helper injection is separate from production
+selection. Path checks cannot recognize fixtures copied into an innocuously named directory:
+artifact provenance for that case rests on the deploy-day build stamp (clean HEAD plus
+`foundry.toml` hash). No additional copied-artifact detector is claimed.
