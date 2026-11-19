@@ -20,10 +20,11 @@ LARGE_CREATES = ('Registry', 'xPNTsFactory', 'MySBT', 'SuperPaymaster',
 def redact_error(error):
     text = re.sub(r'(?i)bearer\s+[^\s,}]+', 'Bearer <redacted>', str(error))
     text = re.sub(r"https?://[^\s\"'<>]+", '<redacted-url>', text, flags=re.I)
-    # "[:=](?!=)": an assignment, not a comparison. The checker prints "SP.APNTS_TOKEN == expected",
+    # "[:=](?![:=])": an assignment, not a comparison or the checker's "::" separator. The checker prints
+    # "SP.APNTS_TOKEN == expected" and "PASS  version gToken :: GToken-2.2.0" (readback PR, local Anvil),
     # which the old pattern took for a credential, so every real deploy's checker output was replaced
     # with REDACTED text (acceptance at 3e80d173).
-    text = re.sub(r"(?i)((?:api[_-]?key|token|password|secret|authorization|private[_-]?key)[\"']?\s*[:=](?!=)\s*[\"']?)([^\s,}\"']+)",
+    text = re.sub(r"(?i)((?:api[_-]?key|token|password|secret|authorization|private[_-]?key)[\"']?\s*[:=](?![:=])\s*[\"']?)([^\s,}\"']+)",
                   r'\1<redacted>', text)
     return text
 
