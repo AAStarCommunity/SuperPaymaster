@@ -33,7 +33,7 @@ class RuntimePinsTest(unittest.TestCase):
             path = Path(tmp)/'runtime-pins.10.json'
             path.write_bytes((root/'deployments/runtime-pins.10.json').read_bytes())
             (path.parent/'creation-pins.10.json').write_bytes((root/'deployments/creation-pins.10.json').read_bytes())
-            command = [sys.executable, str(root/'script/rehearsal/runtime_pins.py'), str(path), '--check', '--artifacts', str(root/'out')]
+            command = [sys.executable, str(root/'script/rehearsal/runtime_pins.py'), str(path), '--check', '--artifacts', str(root/'contracts/test/fixtures/deploylive/release-artifacts')]
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             obj = json.loads(path.read_text())
@@ -51,7 +51,8 @@ class RuntimePinsTest(unittest.TestCase):
 
     def test_release_immutable_mutation(self):
         import runtime_pins as pins
-        from deploylive_runtime import release_artifact, matches
+        from deploylive_runtime import matches
+        from test_deploylive_postdeploy_check import fixture_artifact as release_artifact
         proxy = pins.runtime_pin(release_artifact('ERC1967Proxy')['deployedBytecode'], 500)
         self.assertFalse(proxy['hasImmutables'])
         self.assertEqual(proxy['maskedRuntimeKeccak'], proxy['rawRuntimeKeccak'])

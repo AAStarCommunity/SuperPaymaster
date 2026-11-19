@@ -8,7 +8,7 @@ def _fixture_artifact(selector, name, directory):
     return selector(name) if directory is None else selector(name, directory)
 
 def fixture_artifact(name, directory=None):
-    return _fixture_artifact(deploylive_runtime.release_artifact, name, directory)
+    return _fixture_artifact(deploylive_runtime.release_artifact, name, directory or FIXTURE_ARTIFACTS)
 import contextlib
 import hashlib
 import io
@@ -39,6 +39,7 @@ def fixture_artifact_json(path):
     return json.dumps(obj)
 
 CHECKER = Path(__file__).with_name("deploylive_postdeploy_check.py")
+FIXTURE_ARTIFACTS = CHECKER.parents[2]/"contracts/test/fixtures/deploylive/release-artifacts"
 ZERO = "0x" + "0" * 40
 
 CHECKSUMMED = json.loads((CHECKER.parents[2] / "contracts/test/fixtures/deploylive/checksummed-addresses.json").read_text())
@@ -73,7 +74,7 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False, capture_record=None):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False, capture_record=None, primary_provider='Alchemy', secondary_provider='Infura'):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         keys += "spAdminImpl xPNTsTokenV1Impl xPNTsTokenV2Impl xPNTsTokenV2Ext globalTierSource superPaymasterLens".split()
@@ -93,7 +94,7 @@ class CheckerTest(unittest.TestCase):
             cfg.update(simpleAccountFactory=op_deps["accountFactory"], agentValidationRegistry=op_deps["agentValidationRegistry"] if agents else ZERO)
         cfg['creationPinsSha256'] = '0x' + hashlib.sha256((CHECKER.parents[2] / f"deployments/creation-pins.{10 if op else 31337}.json").read_bytes()).hexdigest()
         from creation_pins import release_names
-        cfg.update(artifactDirectory=os.environ.get('DEFAULT_ARTIFACTS_OUT', 'out'), deployerCodeLength=0,
+        cfg.update(artifactDirectory=str(FIXTURE_ARTIFACTS.relative_to(CHECKER.parents[2])), deployerCodeLength=0,
                    artifactCompileSettings={n: dict(evmVersion='cancun', viaIR=True, optimizerRuns=200 if n in ('Registry', 'TimelockHandoverBootstrap') else 500) for n in release_names()})
         cfg.update(priceFeed=op_deps['ethUsdFeed'] if op else addr(100), entryPoint=op_deps['entryPoint'],
                    agentIdentityRegistry=addr(103) if agents else ZERO, agentReputationRegistry=addr(104) if agents else ZERO,
@@ -134,7 +135,7 @@ class CheckerTest(unittest.TestCase):
         runtime_codes = {}
         creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
         pins = json.loads((CHECKER.parents[2]/'deployments/creation-pins.31337.json').read_text())
-        selected = lru_cache(maxsize=None)(deploylive_runtime.release_artifact) if isinstance(mutation, tuple) and mutation[0] in ('creation', 'settings') else fixture_artifact
+        selected = lru_cache(maxsize=None)(lambda name, directory=None: deploylive_runtime.release_artifact(name, FIXTURE_ARTIFACTS)) if isinstance(mutation, tuple) and mutation[0] in ('creation', 'settings') else fixture_artifact
         # Use the checker's own artifact selection. A glob over out/<Name>.sol/*.json also matches other
         # contracts compiled from the same source file (out/Registry.sol/IGuardianExitGate.json has the
         # same runs/evmVersion); filesystem order then decided which runtime the fake chain served, and
@@ -179,8 +180,10 @@ class CheckerTest(unittest.TestCase):
             raw = bytearray.fromhex(runtime_codes[cfg[key]].removeprefix('0x'))
             for ref in runtime_pins[name]['immutableRanges']:
                 field, kind = ref.get('name', ''), ref.get('type', '')
-                if kind not in ('address', 'address payable') and not kind.startswith('contract ') and field not in ('_cachedThis', '_cap'): continue
-                if field == '_cap': value = hex(21_000_000 * 10**18)
+                if kind not in ('address', 'address payable') and not kind.startswith('contract ') and field not in ('_cachedThis', '_cap', '_cachedChainId') and not (isinstance(mutation, tuple) and mutation[:3] == ('immutable', name, field)): continue
+                if isinstance(mutation, tuple) and mutation[:3] == ('immutable', name, field): value = mutation[3]
+                elif field == '_cachedChainId': value = hex(10 if op else 31337)
+                elif field == '_cap': value = hex(21_000_000 * 10**18)
                 elif field in ('__self', '_cachedThis'): value = cfg[key]
                 elif field == 'implementation': value = cfg['xPNTsTokenV2Impl' if key == 'xPNTsFactoryV2' else 'xPNTsTokenV1Impl']
                 elif field == 'EXTENSION': value = cfg['xPNTsTokenV2Ext' if key == 'xPNTsTokenV2Impl' else 'spAdminImpl']
@@ -281,7 +284,7 @@ class CheckerTest(unittest.TestCase):
                 if args[0] == h and mutation in ("absent_h", "half_handover"): out = "0x"
                 if args[0] == safe and mutation == "delegated_safe": out = "0xef0100" + "00" * 20
             elif kind == "rpc":
-                if args[0] == 'anvil_nodeInfo': return response('{}', 1)
+                if args[0] == 'anvil_nodeInfo': return response(json.dumps({'forkConfig': {'forkUrl': 'https://untrusted.invalid'}}), 0)
                 if args[0] == "eth_getBlockByNumber":
                     block_reads.append(args[1])
                     if mutation == 'reorg' and len(block_reads) > 1: return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
@@ -440,7 +443,7 @@ class CheckerTest(unittest.TestCase):
         endpoint_file = Path(endpoint_dir.name)/'second-fixture'
         endpoint_file.write_text('https://secret.invalid/private-token' if mutation == 'second_same' else 'https://independent.invalid/secret')
         output = io.StringIO()
-        with endpoint_dir, patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch.object(Path, "glob", lambda path, pattern: iter(fixture_artifact_paths(original_glob, path, pattern))), patch('deploylive_readback.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.checksum', side_effect=lambda a: addr(int(a,16))), patch('deploylive_readback.sha', return_value='0x'+'ab'*32), patch('deploylive_readback.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.write', side_effect=lambda path, record: capture_record.append(record) if capture_record is not None else None), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture'), DEPLOYLIVE_ENDPOINT_PROVIDER='Fixture', DEPLOYLIVE_SECOND_RPC_FILE=str(endpoint_file)), contextlib.redirect_stdout(output):
+        with endpoint_dir, patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch.object(Path, "glob", lambda path, pattern: iter(fixture_artifact_paths(original_glob, path, pattern))), patch('deploylive_readback.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.checksum', side_effect=lambda a: addr(int(a,16))), patch('deploylive_readback.sha', return_value='0x'+'ab'*32), patch('deploylive_readback.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.write', side_effect=lambda path, record: capture_record.append(record) if capture_record is not None else None), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture'), DEPLOYLIVE_ENDPOINT_PROVIDER=primary_provider, DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER=secondary_provider, DEFAULT_ARTIFACTS_OUT=str(FIXTURE_ARTIFACTS.relative_to(CHECKER.parents[2])), DEPLOYLIVE_SECOND_RPC_FILE=str(endpoint_file)), contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())

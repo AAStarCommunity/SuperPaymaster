@@ -113,7 +113,7 @@ class CloneTest(unittest.TestCase):
         import json
         import deploylive_readback as m
         from runtime_pins import runtime_pin
-        from deploylive_runtime import release_artifact
+        from test_deploylive_postdeploy_check import fixture_artifact as release_artifact
         mapping = json.loads((m.ROOT/'deployments/readback-artifacts.json').read_text())
         runtime = release_artifact('SuperPaymasterAdmin')['deployedBytecode']
         pin = runtime_pin(runtime, 500)

@@ -32,7 +32,7 @@ class Round5Test(unittest.TestCase):
 
     def test_artifacts_do_not_need_build_info(self):
         with patch.object(pins, 'build_declarations', side_effect=AssertionError('AST forbidden')):
-            actual = pins.artifact_pins(r.ROOT/'out', r.ROOT/'deployments/creation-pins.10.json', derive_types=False)
+            actual = pins.artifact_pins(fixture.FIXTURE_ARTIFACTS, r.ROOT/'deployments/creation-pins.10.json', derive_types=False)
         expected = json.loads((r.ROOT/'deployments/runtime-pins.10.json').read_text())
         for pin in expected['artifacts'].values():
             for ref in pin['immutableRanges']:

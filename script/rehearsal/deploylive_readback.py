@@ -84,13 +84,30 @@ def sha(path):
     return '0x' + hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def address_immutable(kind):
-    return kind in ('address', 'address payable') or kind.startswith('contract ')
+def single_provider_allowed(chain, endpoint):
+    # These drivers attach to existing nodes; they do not launch Anvil and hold
+    # no process/port/argv attestation. Even loopback forks require corroboration.
+    return chain == 31337
 
 
-def bound_immutable(name, kind, rule):
-    return (address_immutable(kind) or (kind == 'uint256' and name in ('_cachedThis', '_cap'))
-            or (kind == 'bytes32' and 'codehashOf' in rule))
+def independent_providers(primary, secondary):
+    approved = json.loads((ROOT/'deployments/readback-providers.json').read_text())
+    names = [provider_name(name).casefold() for name in (primary, secondary)]
+    if names[0] == names[1] or any(name not in approved for name in names):
+        raise ValueError('distinct approved provider names required')
+
+
+def evidence_path(value):
+    path = Path(value)
+    if not path.is_absolute(): path = ROOT/path
+    candidate = path/'readback.json'
+    if any(p.is_symlink() for p in (candidate, *candidate.parents)):
+        raise ValueError('evidence symlinks refused')
+    directory = path.resolve()
+    approved = (ROOT/'cache').resolve()
+    if directory == approved or not directory.is_relative_to(approved):
+        raise ValueError('evidence must be below worktree cache root')
+    return directory/'readback.json'
 
 
 def validate_immutable_policy(pins, policy, config, deps):
@@ -103,11 +120,21 @@ def validate_immutable_policy(pins, policy, config, deps):
             if not all(isinstance(v, str) and v for v in description): raise ValueError('untyped immutable')
             if ref['id'] in typed and typed[ref['id']] != description: raise ValueError('inconsistent immutable type')
             typed[ref['id']] = description
-        names = [name for name, kind in typed.values() if bound_immutable(name, kind, entries[artifact].get(name, {}))]
+        names = [name for name, kind in typed.values()]
         if len(names) != len(set(names)) or set(entries[artifact]) != set(names):
             raise ValueError('immutable policy coverage: ' + artifact)
         for name, rule in entries[artifact].items():
-            if name == '_cap':
+            if 'unbound' in rule:
+                if set(rule) != {'unbound'} or not isinstance(rule['unbound'], str) or not rule['unbound'].strip():
+                    raise ValueError('unbound immutable reason/form')
+                if name == '_cachedChainId': raise ValueError('chain cache must bind chainId')
+                continue
+            if 'chainId' in rule:
+                if set(rule) != {'chainId', 'why'} or rule['chainId'] is not True or not isinstance(rule['why'], str) or not rule['why'].strip():
+                    raise ValueError('chain immutable reason/form')
+                continue
+            if name == '_cachedChainId': raise ValueError('chain cache must bind chainId')
+            if 'expectedUint' in rule:
                 if set(rule) != {'expectedUint', 'why'} or not isinstance(rule['why'], str) or not rule['why'].strip() or not isinstance(rule['expectedUint'], str) or not re.fullmatch(r'0|[1-9][0-9]*', rule['expectedUint']) or int(rule['expectedUint']) >= 2**256:
                     raise ValueError('uint immutable policy reason/form')
                 continue
@@ -118,6 +145,7 @@ def validate_immutable_policy(pins, policy, config, deps):
                 if not isinstance(label, str) or not label.startswith('config:') or not re.fullmatch(r'0x[0-9a-fA-F]{40}', config.get(label[7:], '')) or config[label[7:]].lower() == ZERO:
                     raise ValueError('unknown codehash target')
                 continue
+            if set(rule) != {'allowed', 'why'}: raise ValueError('address immutable rule form')
             allowed = rule['allowed']
             if not isinstance(rule.get('why'), str) or not rule['why'].strip() or not isinstance(allowed, list) or not allowed or len(set(allowed)) != len(allowed):
                 raise ValueError('immutable policy reason/labels')
@@ -129,19 +157,29 @@ def validate_immutable_policy(pins, policy, config, deps):
                 if value.lower() == ZERO and 'zero' not in allowed: raise ValueError('implicit zero immutable label')
 
 
-def immutable_bindings(pin, code, entries, labels):
+def immutable_bindings(pin, code, entries, labels, *, chain=None, artifact="unknown"):
     raw = bytes.fromhex(code.removeprefix('0x'))
     words, bindings = {}, {}
-    expected = {r['name'] for r in pin['immutableRanges'] if bound_immutable(r['name'], r['type'], entries.get(r['name'], {}))}
+    expected = {r['name'] for r in pin['immutableRanges']}
     if set(entries) != expected: raise ValueError('immutable policy coverage')
     for ref in pin['immutableRanges']:
         if ref['name'] not in expected: continue
         start, length = int(ref['start']), int(ref['length'])
         word = raw[start:start + length]
-        if start < 0 or length != 32 or len(word) != 32 or ((address_immutable(ref['type']) or ref['name'] == '_cachedThis') and any(word[:12])): raise ValueError('noncanonical address immutable')
+        if start < 0 or length != 32 or len(word) != 32 or ('allowed' in entries[ref['name']] and any(word[:12])): raise ValueError('noncanonical address immutable')
         if ref['id'] in words and word != words[ref['id']]: raise ValueError('inconsistent immutable references')
         words[ref['id']] = word
         name = ref['name']
+        if 'unbound' in entries[name]:
+            if not any(word[:12]) and any(word[12:]):
+                raise ValueError('unbound immutable has address shape: ' + artifact + '.' + name)
+            bindings[name] = dict(value='0x' + word.hex(), unbound=entries[name]['unbound'], policyMatches=True)
+            continue
+        if 'chainId' in entries[name]:
+            if chain is None or int.from_bytes(word, 'big') != int(chain):
+                raise ValueError('immutable binding failed: ' + name)
+            bindings[name] = dict(value=str(chain), chainId=True, policyMatches=True)
+            continue
         if 'expectedUint' in entries[name]:
             value = str(int.from_bytes(word, 'big'))
             if value != entries[name]['expectedUint']: raise ValueError('immutable binding failed: ' + name)
@@ -192,7 +230,7 @@ def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
                     maskedMatchesPin=matches_pin(pin, code) if pin else None,
                     immutables=[dict(r, value='0x' + bytes.fromhex(code[2:])[int(r['start']):int(r['start']) + int(r['length'])].hex()) for r in pin['immutableRanges']] if pin else None,
                     version=None, addressGetters=None, unreadable=None)
-        item['immutableBindings'] = immutable_bindings(pin, code, policy['immutableBindings'][name], labels) if pin else {}
+        item['immutableBindings'] = immutable_bindings(pin, code, policy['immutableBindings'][name], labels, chain=chain, artifact=name) if pin else {}
         abi_name = PROXY_ABI.get(key, name)
         if abi_name:
             abi = release_artifact(abi_name)['abi']
@@ -306,10 +344,16 @@ def validate_policy(policy, mapping, config, deps):
 
 
 def validate_config(config, mapping, noncontracts, zero_allowed):
-    actual = {k for k, v in config.items() if isinstance(v, str) and re.fullmatch(r'0x[0-9a-fA-F]{40}', v)}
+    def address(v): return isinstance(v, str) and re.fullmatch(r'0x[0-9a-fA-F]{40}', v)
+    actual = {k for k, v in config.items() if address(v) or isinstance(v, list) and (not v or any(address(x) for x in v))}
+    # Empty numeric ledgers have a fixed serialization schema too.
+    actual -= {k for k in ('gTokenMintAmounts', 'stakeAmounts', 'ticketAmounts') if config.get(k) == []}
     expected = set(mapping) | set(noncontracts)
     if actual != expected: raise ValueError('config address coverage: missing=' + ','.join(sorted(expected-actual)) + ' unknown=' + ','.join(sorted(actual-expected)))
-    if any(config[k].lower() == ZERO and k not in zero_allowed for k in actual): raise ValueError('unexpected zero config address')
+    for key in actual:
+        values = config[key] if isinstance(config[key], list) else [config[key]]
+        if not all(address(v) for v in values): raise ValueError('invalid config address array')
+        if any(v.lower() == ZERO for v in values) and key not in zero_allowed: raise ValueError('unexpected zero config address')
 
 
 class Snapshot:
@@ -358,6 +402,15 @@ def validate_record(record, config, policy):
         if set(item['immutableBindings']) != set(expected_bindings): raise ValueError('record immutable coverage')
         for name, result in item['immutableBindings'].items():
             rule = expected_bindings[name]
+            if 'unbound' in rule:
+                word = bytes.fromhex(result['value'].removeprefix('0x'))
+                if len(word) != 32 or (not any(word[:12]) and any(word[12:])) or result != dict(value=result['value'], unbound=rule['unbound'], policyMatches=True):
+                    raise ValueError('record unbound immutable mismatch: ' + name)
+                continue
+            if 'chainId' in rule:
+                if result != dict(value=record['chainId'], chainId=True, policyMatches=True):
+                    raise ValueError('record chain immutable mismatch: ' + name)
+                continue
             if 'expectedUint' in rule:
                 if result != dict(value=rule['expectedUint'], expectedUint=rule['expectedUint'], policyMatches=True):
                     raise ValueError('record uint immutable mismatch: ' + name)

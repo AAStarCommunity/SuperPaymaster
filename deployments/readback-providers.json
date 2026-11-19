@@ -1,0 +1,7 @@
+{
+  "alchemy": "Independent Alchemy-operated RPC service.",
+  "tenderly": "Independent Tenderly-operated RPC service.",
+  "publicnode": "Independent PublicNode-operated RPC service.",
+  "infura": "Independent Infura-operated RPC service.",
+  "quicknode": "Independent QuickNode-operated RPC service."
+}
