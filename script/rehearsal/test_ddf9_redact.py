@@ -9,7 +9,7 @@ import deploylive_controls as c
 import tempfile
 from types import SimpleNamespace
 
-FIXTURE = Path(__file__).resolve().parent / 'fixtures/deploy-day/checker-189.log'
+FIXTURE = Path(__file__).resolve().parent / 'fixtures/deploy-day/checker-189.txt'
 
 
 class RedactTest(unittest.TestCase):
