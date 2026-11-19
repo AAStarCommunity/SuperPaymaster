@@ -64,6 +64,13 @@ def cost_bounds(maxCost,priceCap,priceDecimals,aPNTsPriceUSD,protocolFeeBPS,vali
     return a0,amax,m.ceil_div(amax*exchangeRate,10**18)
 
 
+def contains_float(value):
+    if isinstance(value,float): return True
+    if isinstance(value,dict): return any(contains_float(v) for v in value.values())
+    if isinstance(value,list): return any(contains_float(v) for v in value)
+    return False
+
+
 SDK_PROVISIONAL='provisional: live cells not cleared to run until the SDK pre-sign cost cap merges'
 
 
@@ -579,6 +586,8 @@ def structured_checker(checker):
 
 
 def output_bytes(value, secrets=(), patterns=()):
+    # The SDK runner parses plans strictly (no exponents, no fractions): never emit a float.
+    a.need('rq3_plan_no_float',not contains_float(value),True)
     raw=(json.dumps(value,indent=2,sort_keys=True)+'\n').encode()
     text=raw.decode()
     forbidden=(r'(?i)(?:https?|wss?|ftp)://', r'(?i)Bearer\s+[a-z0-9._~-]+',

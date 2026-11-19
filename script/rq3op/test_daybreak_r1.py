@@ -79,6 +79,11 @@ class Round3(unittest.TestCase):
         text=json.dumps({'maxCostPerOpWei':int(v['inputs']['maxCost'])})
         self.assertIn(v['inputs']['maxCost'],text)
 
+    def test_plan_never_emits_floats(self):
+        # SDK #470 refuses a bundle with any exponent or fraction; the planner refuses to write a float.
+        self.assertFalse(q.contains_float(self.build()))
+        self.assertTrue(q.contains_float({'a':[{'b':1e-05}]}))
+
     def test_pin_schema(self):
         for mutate in (lambda p:p.update(extra=1),lambda p:p.pop('codehash'),lambda p:p.update(codehash=''),
                        lambda p:p.update(version='0.6'),lambda p:p.update(chainIds=[1]),lambda p:p.update(chainIds=[10,10,11155111])):
