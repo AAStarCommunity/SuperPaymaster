@@ -1,6 +1,6 @@
 {
   "schema": "readback-policy/1",
-  "rule": "resolved ∩ allowed ≠ ∅; resolved = [] fails; array outputs: each element independently",
+  "rule": "resolved \u2229 allowed \u2260 \u2205; resolved = [] fails; array outputs: each element independently",
   "getters": {
     "AOAProtocolRegistry": {
       "owner": {
@@ -890,5 +890,264 @@
     "agentIdentityRegistry": "DeployLiveInputs.sol:138-139 requires zero when disabled; DeployLive.s.sol:601-608 and :1034-1045 record the optional production pointer.",
     "agentReputationRegistry": "DeployLiveInputs.sol:138-139 requires zero when disabled; DeployLive.s.sol:601-608 and :1034-1045 record the optional production pointer.",
     "agentValidationRegistry": "DeployLive.s.sol:608 explicitly sets validation to zero when agent registries are disabled; :1047 records it."
+  },
+  "immutableBindings": {
+    "AOAProtocolRegistry": {},
+    "APNTsCapped": {
+      "_cachedThis": {
+        "allowed": [
+          "config:aPNTs"
+        ],
+        "why": "Constructor caches address(this) in APNTsCapped; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "BLSAggregator": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "DVTValidator": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "ERC1967Proxy": {},
+    "GTokenAuthorization": {
+      "factory": {
+        "allowed": [
+          "config:xPNTsFactory"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "_cachedThis": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "Constructor caches address(this) in GTokenAuthorization; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "GTokenStaking": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "GlobalTierSource": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "MicroPaymentChannel": {},
+    "MySBT": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN_STAKING": {
+        "allowed": [
+          "config:staking"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "Paymaster": {
+      "registry": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "PaymasterFactory": {},
+    "PolicyRegistry": {
+      "timelock": {
+        "allowed": [
+          "config:timelockController"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "Registry": {
+      "__self": {
+        "allowed": [
+          "config:registryImpl"
+        ],
+        "why": "Constructor caches address(this) in Registry; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "ReputationSystem": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "SuperPaymaster": {
+      "entryPoint": {
+        "allowed": [
+          "external:entryPoint"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "EXTENSION": {
+        "allowed": [
+          "config:spAdminImpl"
+        ],
+        "why": "SuperPaymaster.sol:103 creates the admin implementation; DeployLive.s.sol:997 records EXTENSION."
+      },
+      "__self": {
+        "allowed": [
+          "config:spImpl"
+        ],
+        "why": "Constructor caches address(this) in SuperPaymaster; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "ETH_USD_PRICE_FEED": {
+        "allowed": [
+          "external:ethUsdFeed"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      }
+    },
+    "SuperPaymasterAdmin": {
+      "entryPoint": {
+        "allowed": [
+          "external:entryPoint"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "ETH_USD_PRICE_FEED": {
+        "allowed": [
+          "external:ethUsdFeed"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "__self": {
+        "allowed": [
+          "config:spAdminImpl"
+        ],
+        "why": "Constructor caches address(this) in SuperPaymasterAdmin; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "SuperPaymasterLens": {},
+    "TimelockController": {},
+    "TimelockHandoverBootstrap": {},
+    "X402Facilitator": {
+      "XPNTS_FACTORY": {
+        "allowed": [
+          "config:xPNTsFactory"
+        ],
+        "why": "DeployLive.s.sol:465-468 passes legacy xpntsFactory to V54Bootstrap.sol:102-103 constructor."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "xPNTsFactory": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "implementation": {
+        "allowed": [
+          "config:xPNTsTokenV1Impl"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "xPNTsFactoryV2": {
+      "implementation": {
+        "allowed": [
+          "config:xPNTsTokenV2Impl"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "implementationCodehash": {
+        "codehashOf": "config:xPNTsTokenV2Impl",
+        "why": "Factory constructor pins the deployed helper runtime."
+      },
+      "extensionCodehash": {
+        "codehashOf": "config:xPNTsTokenV2Ext",
+        "why": "Factory constructor pins the deployed helper runtime."
+      }
+    },
+    "xPNTsToken": {
+      "_cachedThis": {
+        "allowed": [
+          "config:xPNTsTokenV1Impl"
+        ],
+        "why": "Constructor caches address(this) in xPNTsToken; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "xPNTsTokenV2": {
+      "EXTENSION": {
+        "allowed": [
+          "config:xPNTsTokenV2Ext"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "PROTOCOL_REGISTRY": {
+        "allowed": [
+          "config:aoaProtocolRegistry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "xPNTsTokenV2Ext": {
+      "PROTOCOL_REGISTRY": {
+        "allowed": [
+          "config:aoaProtocolRegistry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    }
   }
 }

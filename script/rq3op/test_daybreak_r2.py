@@ -85,9 +85,17 @@ class Round2(unittest.TestCase):
         q.verify_system(cfg,lambda method,params:'0x6000' if method=='eth_getCode' else encoded[params[0]['to']],'0x20')
         # The checker consumes injected release artifacts so this control also runs
         # on a clean CI checkout with no ignored out/ directory. matches() is real.
-        def artifact(name):
-            code='0x60'+hashlib.sha256(name.encode()).hexdigest()
-            return dict(bytecode={'object':code},deployedBytecode={'object':code,'immutableReferences':{}},
+        def artifact(name, directory=None):
+            pin = json.loads((q.ROOT/'deployments/runtime-pins.31337.json').read_text())['artifacts'][name]
+            prefix = '60806040525f80fd' if name == 'TimelockHandoverBootstrap' else '60'
+            code = '0x' + prefix + '00' * (int(pin['runtimeLength']) - len(prefix)//2)
+            refs = {}
+            for ref in pin['immutableRanges']:
+                refs.setdefault(ref['id'], []).append({'start': int(ref['start']), 'length': int(ref['length'])})
+            abi_path = q.ROOT/'abis'/f'{name}.json'
+            abi = json.loads(abi_path.read_text()) if abi_path.exists() else []
+            if isinstance(abi, dict): abi = abi['abi']
+            return dict(abi=abi, bytecode={'object':'0x60'+hashlib.sha256(name.encode()).hexdigest()},deployedBytecode={'object':code,'immutableReferences':refs},
                 metadata={'settings':{'evmVersion':'cancun','viaIR':True,
                     'optimizer':{'runs':200 if name in ('Registry','TimelockHandoverBootstrap') else 500}}})
         with patch('deploylive_runtime.release_artifact',side_effect=artifact):

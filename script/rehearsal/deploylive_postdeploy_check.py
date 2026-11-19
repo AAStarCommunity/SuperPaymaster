@@ -13,17 +13,26 @@ import sys
 import re
 from pathlib import Path
 
-if len(sys.argv) == 4:
+if len(sys.argv) == 4 and os.environ.get('ETH_RPC_URL'):
     sys.argv.insert(1, os.environ['ETH_RPC_URL'])
-RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
+if len(sys.argv) != 5:
+    print("FAIL unknown checker option or missing arguments")
+    sys.exit(1)
+from deploylive_readback import provider_name
+try:
+    evidence = os.environ.get('DEPLOYLIVE_EVIDENCE_DIR') or os.environ.get('DEPLOYLIVE_LOCAL_EVIDENCE')
+    if not evidence: raise ValueError('explicit evidence directory required')
+    provider_name(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
+    if not all(re.fullmatch(r'0x[0-9a-fA-F]{40}', v) for v in sys.argv[3:5]):
+        raise ValueError('invalid deployer/safe address')
+    RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
+    READBACK = Path(evidence) / 'readback.json'
+except (ValueError, OSError) as error:
+    print('FAIL ' + str(error))
+    sys.exit(1)
 results = []
 BLOCK = None
-READBACK = Path(os.environ.get("DEPLOYLIVE_EVIDENCE_DIR", os.environ.get("DEPLOYLIVE_LOCAL_EVIDENCE", str(Path(sys.argv[2]).parent)))) / "readback.json"
-READBACK.unlink(missing_ok=True)
 principal_addresses = {DEPLOYER, SAFE}
-if sys.argv[5:]:
-    print("FAIL unknown checker option")
-    sys.exit(1)
 
 
 def integer(value):
@@ -51,6 +60,8 @@ for key in ("gTokenMintAmounts", "stakeAmounts", "ticketAmounts"):
         print("FAIL missing/invalid config integer array: " + key)
         sys.exit(1)
 
+
+READBACK.unlink(missing_ok=True)
 
 LOCAL = {"keccak", "calldata", "sig", "abi-encode"}
 
@@ -162,7 +173,7 @@ for key in ("ethUsdFeed", "entryPoint", "accountFactory", "agentIdentityRegistry
         sys.exit(1)
     if key.startswith("agent") and not agents_enabled:
         deps[key] = "0x" + "0" * 40
-from deploylive_readback import collect, write, validate_record, validate_config, recheck_block, corroborate
+from deploylive_readback import collect, write, validate_record, validate_config, recheck_block, corroborate, codehash_binding_matches
 runtime_path = ROOT / f"deployments/runtime-pins.{chain}.json"
 mapping = json.loads((ROOT/'deployments/readback-artifacts.json').read_text())
 policy = json.loads((ROOT/'deployments/readback-policy.json').read_text())
@@ -225,12 +236,13 @@ def assertions():
         release_pins_ok = False
     check("release creation pins", release_pins_ok, "all 25 metadata artifacts match committed pins")
     from deploylive_readback import runtime_rows, PROXY_ABI
-    from runtime_pins import artifact_pins
+    from runtime_pins import artifact_pins, check_runtime_pins
     runtime_path = ROOT / f"deployments/runtime-pins.{chain}.json"
     mapping = json.loads((ROOT/'deployments/readback-artifacts.json').read_text())
     try:
         runtime_pins = json.loads(runtime_path.read_text())
-        runtime_pins_ok = runtime_pins == artifact_pins(ROOT/artifact_directory(), ROOT/f"deployments/creation-pins.{chain}.json")
+        check_runtime_pins(runtime_pins, artifact_pins(ROOT/artifact_directory(), ROOT/f"deployments/creation-pins.{chain}.json", derive_types=False), compare_types=False)
+        runtime_pins_ok = True
     except (OSError, ValueError, KeyError, TypeError):
         runtime_pins, runtime_pins_ok = {}, False
     check("release runtime pins", runtime_pins_ok, "committed runtime pins match release build")
@@ -239,7 +251,7 @@ def assertions():
         if rc: raise ValueError('code unreadable')
         return code
     for key, ok in runtime_rows(CFG, mapping, runtime_pins.get('artifacts', {}), read_code):
-        check("runtime " + key, ok and runtime_pins_ok, "exact EIP-1167 clone of config.xPNTsTokenV2Impl" if key == "pnts" else "release runtime pin; compiler immutable references masked")
+        check("runtime " + key, ok and runtime_pins_ok, ("zero address; not deployed" if int(CFG[key], 16) == 0 else "exact EIP-1167 clone of config.xPNTsTokenV2Impl") if key == "pnts" else "release runtime pin; compiler immutable references masked")
     versions = json.loads((ROOT/'deployments/release-versions.rc8.json').read_text())
     for key, name in mapping.items():
         name = PROXY_ABI.get(key, name)
@@ -614,6 +626,11 @@ cast.freeze()
 rpc_snapshot.freeze()
 check('config address coverage', coverage_ok, 'exact DeployLive address schema')
 check('readback snapshot policy', collection_ok, 'all getters, runtime pins, zero addresses and implementation slots')
+for field in ('implementationCodehash', 'extensionCodehash'):
+    rule = policy['immutableBindings']['xPNTsFactoryV2'][field]
+    factory = next((c for c in record['contracts'] if c['configKey'] == 'xPNTsFactoryV2'), None) if record else None
+    check('immutable xPNTsFactoryV2.' + field,
+          bool(factory and codehash_binding_matches(record, factory, field, rule)), rule['codehashOf'])
 assertions()
 second = None
 second_ok = chain == 31337

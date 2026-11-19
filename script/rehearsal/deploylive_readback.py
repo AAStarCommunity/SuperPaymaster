@@ -84,6 +84,68 @@ def sha(path):
     return '0x' + hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def address_immutable(kind):
+    return kind in ('address', 'address payable') or kind.startswith('contract ')
+
+
+def validate_immutable_policy(pins, policy, config, deps):
+    entries = policy['immutableBindings']
+    if set(entries) != set(pins): raise ValueError('immutable artifact coverage')
+    for artifact, pin in pins.items():
+        typed = {}
+        for ref in pin['immutableRanges']:
+            description = (ref['name'], ref['type'])
+            if not all(isinstance(v, str) and v for v in description): raise ValueError('untyped immutable')
+            if ref['id'] in typed and typed[ref['id']] != description: raise ValueError('inconsistent immutable type')
+            typed[ref['id']] = description
+        names = [name for name, kind in typed.values() if address_immutable(kind) or
+                 (kind == 'bytes32' and 'codehashOf' in entries[artifact].get(name, {}))]
+        if len(names) != len(set(names)) or set(entries[artifact]) != set(names):
+            raise ValueError('immutable policy coverage: ' + artifact)
+        for rule in entries[artifact].values():
+            if 'codehashOf' in rule:
+                label = rule['codehashOf']
+                if set(rule) != {'codehashOf', 'why'} or not isinstance(rule['why'], str) or not rule['why'].strip():
+                    raise ValueError('codehash policy reason/form')
+                if not isinstance(label, str) or not label.startswith('config:') or not re.fullmatch(r'0x[0-9a-fA-F]{40}', config.get(label[7:], '')) or config[label[7:]].lower() == ZERO:
+                    raise ValueError('unknown codehash target')
+                continue
+            allowed = rule['allowed']
+            if not isinstance(rule.get('why'), str) or not rule['why'].strip() or not isinstance(allowed, list) or not allowed or len(set(allowed)) != len(allowed):
+                raise ValueError('immutable policy reason/labels')
+            for label in allowed:
+                if label == 'zero': continue
+                prefix, key = label.split(':')
+                value = {'config': config, 'external': deps}.get(prefix, {}).get(key)
+                if not isinstance(value, str) or not re.fullmatch(r'0x[0-9a-fA-F]{40}', value): raise ValueError('unknown immutable label')
+                if value.lower() == ZERO and 'zero' not in allowed: raise ValueError('implicit zero immutable label')
+
+
+def immutable_bindings(pin, code, entries, labels):
+    raw = bytes.fromhex(code.removeprefix('0x'))
+    words, bindings = {}, {}
+    expected = {r['name'] for r in pin['immutableRanges'] if address_immutable(r['type']) or (r['type'] == 'bytes32' and 'codehashOf' in entries.get(r['name'], {}))}
+    if set(entries) != expected: raise ValueError('immutable policy coverage')
+    for ref in pin['immutableRanges']:
+        if ref['name'] not in expected: continue
+        start, length = int(ref['start']), int(ref['length'])
+        word = raw[start:start + length]
+        if start < 0 or length != 32 or len(word) != 32 or (address_immutable(ref['type']) and any(word[:12])): raise ValueError('noncanonical address immutable')
+        if ref['id'] in words and word != words[ref['id']]: raise ValueError('inconsistent immutable references')
+        words[ref['id']] = word
+        name = ref['name']
+        if 'codehashOf' in entries[name]:
+            bindings[name] = dict(value='0x' + word.hex(), codehashOf=entries[name]['codehashOf'], policyMatches=True)
+            continue
+        value = checksum('0x' + word[12:].hex())
+        resolved = labels.get(value.lower(), [])
+        rule = entries[name]
+        if value == ZERO and ('zero' not in rule['allowed'] or not rule.get('why')): raise ValueError('zero immutable')
+        if not policy_matches(value, resolved, rule): raise ValueError('immutable binding failed: ' + name)
+        bindings[name] = dict(value=value, resolvesTo=resolved, policyMatches=True)
+    return bindings
+
+
 def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
     pins = json.loads(pins_path.read_text())['artifacts']
     mapping = json.loads((ROOT/'deployments/readback-artifacts.json').read_text())
@@ -91,6 +153,7 @@ def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
     policy = json.loads(policy_path.read_text())
     labels = resolutions(config, deps)
     validate_policy(policy, mapping, config, deps)
+    validate_immutable_policy(pins, policy, config, deps)
     def invoke(*args):
         rc, raw = cast(*args)
         if rc: raise ValueError('unreadable readback field')
@@ -103,7 +166,7 @@ def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
         if key not in config: raise ValueError('missing contract config key: ' + key)
         address = checksum(config[key])
         item = dict(configKey=key, address=address, artifact=name)
-        fields = ('codeLength', 'runtimeKeccak', 'maskedRuntimeKeccak', 'maskedMatchesPin', 'immutables', 'version', 'addressGetters', 'unreadable', 'erc1967', 'eip1167Target', 'eip1167TemplateMatches')
+        fields = ('codeLength', 'runtimeKeccak', 'maskedRuntimeKeccak', 'maskedMatchesPin', 'immutables', 'immutableBindings', 'version', 'addressGetters', 'unreadable', 'erc1967', 'eip1167Target', 'eip1167TemplateMatches')
         if address == ZERO:
             if key not in policy['zeroAllowedConfigKeys']: raise ValueError('zero contract: ' + key)
             item.update(dict.fromkeys(fields)); contracts.append(item); continue
@@ -116,6 +179,7 @@ def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
                     maskedMatchesPin=matches_pin(pin, code) if pin else None,
                     immutables=[dict(r, value='0x' + bytes.fromhex(code[2:])[int(r['start']):int(r['start']) + int(r['length'])].hex()) for r in pin['immutableRanges']] if pin else None,
                     version=None, addressGetters=None, unreadable=None)
+        item['immutableBindings'] = immutable_bindings(pin, code, policy['immutableBindings'][name], labels) if pin else {}
         abi_name = PROXY_ABI.get(key, name)
         if abi_name:
             abi = release_artifact(abi_name)['abi']
@@ -258,6 +322,14 @@ def recheck_block(block, transport):
     if rc or json.loads(raw)['hash'].lower() != block['hash'].lower(): raise ValueError('block hash changed')
 
 
+def codehash_binding_matches(record, item, name, rule):
+    target = next((c for c in record['contracts'] if 'config:' + c['configKey'] == rule['codehashOf']), None)
+    result = item['immutableBindings'].get(name, {})
+    return bool(target and target['address'].lower() != ZERO and target['runtimeKeccak']
+                and result.get('codehashOf') == rule['codehashOf'] and result.get('policyMatches') is True
+                and result.get('value', '').lower() == target['runtimeKeccak'].lower())
+
+
 def validate_record(record, config, policy):
     for item in record['contracts']:
         key = item['configKey']
@@ -269,6 +341,17 @@ def validate_record(record, config, policy):
         if key in ('registry', 'superPaymaster'):
             expected = config[{'registry': 'registryImpl', 'superPaymaster': 'spImpl'}[key]]
             if item['erc1967']['implementation'].lower() != expected.lower(): raise ValueError('implementation slot mismatch: ' + key)
+        expected_bindings = policy['immutableBindings'].get(item['artifact'], {})
+        if set(item['immutableBindings']) != set(expected_bindings): raise ValueError('record immutable coverage')
+        for name, result in item['immutableBindings'].items():
+            rule = expected_bindings[name]
+            if 'codehashOf' in rule:
+                if not codehash_binding_matches(record, item, name, rule):
+                    raise ValueError('record immutable codehash mismatch: ' + name)
+                continue
+            if result.get('policyMatches') is not True or not policy_matches(result['value'], result['resolvesTo'], rule):
+                raise ValueError('record immutable policy mismatch')
+            if result['value'] == ZERO and 'zero' not in rule['allowed']: raise ValueError('record zero immutable')
         name = PROXY_ABI.get(key, item['artifact'])
         for getter, result in item['addressGetters'].items():
             if getter in item['unreadable']:

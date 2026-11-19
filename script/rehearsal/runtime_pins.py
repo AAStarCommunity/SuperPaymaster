@@ -13,10 +13,13 @@ def keccak(code):
     return subprocess.check_output([CAST, 'keccak', code], text=True).strip().lower()
 
 
-def runtime_pin(runtime, runs):
+def runtime_pin(runtime, runs, declarations=None):
     refs = runtime.get('immutableReferences', {})
     ranges = sorted((dict(id=str(k), start=str(r['start']), length=str(r['length']))
                      for k, values in refs.items() for r in values), key=lambda r: int(r['start']))
+    if declarations is not None:
+        for ref in ranges:
+            ref.update(declarations[ref['id']])
     code = runtime['object']
     return dict(optimizerRuns=str(runs), runtimeLength=str(len(bytes.fromhex(code.removeprefix('0x')))),
                 immutableRanges=ranges, hasImmutables=bool(ranges),
@@ -37,18 +40,66 @@ def matches_pin(pin, code):
         return False
 
 
-def artifact_pins(directory, creation_file):
+def build_declarations(directory, name, artifact, builds=None):
+    """Use the full matching compilation, including imported source ASTs."""
+    if builds is None:
+        builds = [json.loads(p.read_text()) for p in (Path(directory)/'build-info').glob('*.json')]
+    found = []
+    for build in (builds() if callable(builds) else builds):
+        output = build.get('output', {})
+        contracts = output.get('contracts', {})
+        matches = [c for file in contracts.values() for n, c in file.items()
+                   if n == name and c.get('evm', {}).get('deployedBytecode', {}).get('object', '').removeprefix('0x')
+                   == artifact['deployedBytecode']['object'].removeprefix('0x')]
+        if not matches: continue
+        declarations = {}
+        def walk(node):
+            if isinstance(node, dict):
+                if node.get('nodeType') == 'VariableDeclaration' and node.get('mutability') == 'immutable':
+                    declarations[str(node['id'])] = dict(name=node['name'], type=node['typeDescriptions']['typeString'])
+                for value in node.values(): walk(value)
+            elif isinstance(node, list):
+                for value in node: walk(value)
+        walk(output.get('sources', {}))
+        refs = artifact['deployedBytecode'].get('immutableReferences', {})
+        if not set(refs) <= declarations.keys(): continue
+        found.append({key: declarations[key] for key in refs})
+    if not found or any(d != found[0] for d in found):
+        raise ValueError('missing/ambiguous full build-info AST: ' + name)
+    return found[0]
+
+
+def artifact_pins(directory, creation_file, *, derive_types=True):
     creation = json.loads(creation_file.read_bytes())
     artifacts = {}
+    from functools import lru_cache
+    @lru_cache(maxsize=1)
+    def builds():
+        return [json.loads(p.read_text()) for p in (Path(directory)/'build-info').glob('*.json')]
     for name in release_names():
         obj = release_artifact(name, directory)
         if keccak(obj['bytecode']['object']) != creation[name]: raise ValueError('creation pin mismatch: ' + name)
-        artifacts[name] = runtime_pin(obj['deployedBytecode'], 200 if name in ('Registry', 'TimelockHandoverBootstrap') else 500)
+        artifacts[name] = runtime_pin(obj['deployedBytecode'], 200 if name in ('Registry', 'TimelockHandoverBootstrap') else 500, build_declarations(directory, name, obj, builds) if derive_types else None)
     admin = release_artifact('SuperPaymasterAdmin', directory)
-    artifacts['SuperPaymasterAdmin'] = dict(runtime_pin(admin['deployedBytecode'], 500),
+    artifacts['SuperPaymasterAdmin'] = dict(runtime_pin(admin['deployedBytecode'], 500, build_declarations(directory, 'SuperPaymasterAdmin', admin, builds) if derive_types else None),
                                            creationPin='embedded in SuperPaymaster')
     return dict(schema='runtime-pins/1', compiler=dict(solc='0.8.33', viaIR=True, evmVersion='cancun'),
                 creationPinsSha256='0x' + hashlib.sha256(creation_file.read_bytes()).hexdigest(), artifacts=artifacts)
+
+
+def check_runtime_pins(expected, actual, *, compare_types=True):
+    if not compare_types:
+        expected = json.loads(json.dumps(expected))
+        for pin in expected['artifacts'].values():
+            typed = {}
+            for ref in pin['immutableRanges']:
+                description = (ref.pop('name', None), ref.pop('type', None))
+                if not all(isinstance(v, str) and v for v in description):
+                    raise ValueError('untyped committed immutable')
+                if ref['id'] in typed and typed[ref['id']] != description:
+                    raise ValueError('inconsistent committed immutable type')
+                typed[ref['id']] = description
+    if expected != actual: raise ValueError('runtime pin mismatch')
 
 
 def main():
@@ -61,10 +112,11 @@ def main():
     path = args.pin_file.resolve()
     if not path.is_relative_to(ROOT): raise ValueError('pin file must be in worktree')
     creation = path.with_name(path.name.replace('runtime-pins.', 'creation-pins.'))
-    collect = lambda directory: artifact_pins(directory, creation)
-    actual = collect(args.artifacts) if args.artifacts else clean_build_pins(collect)
+    collect = lambda directory: artifact_pins(directory, creation, derive_types=not args.artifacts)
+    actual = collect(args.artifacts) if args.artifacts else clean_build_pins(collect, build_info=True)
     if args.check:
-        if json.loads(path.read_text()) != actual: raise ValueError('runtime pin mismatch')
+        check_runtime_pins(json.loads(path.read_text()), actual, compare_types=not args.artifacts)
+        print('INFO names/types: committed presence/consistency only; not re-derived from --artifacts' if args.artifacts else 'INFO names/types: re-derived and compared from isolated build-info')
         print('PASS runtime pins')
     else:
         path.write_text(json.dumps(actual, sort_keys=True, separators=(',', ':')) + '\n')

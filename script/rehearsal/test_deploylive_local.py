@@ -103,7 +103,7 @@ class LocalForgeTest(unittest.TestCase):
                     for getter, result in (item['addressGetters'] or {}).items():
                         if unresolved(result['resolvesTo']): missing.append(item['configKey'] + '.' + getter)
                 # PolicyRegistry.sol:32 defines this asset marker; it is not a deployment address.
-                self.assertEqual(missing, ['policyRegistry.ETH_SENTINEL'], 'only the canonical ETH asset sentinel may be unaccounted for')
+                self.assertEqual(missing, [], 'every address must be accounted for')
                 policy = next(item for item in readback['contracts'] if item['configKey'] == 'policyRegistry')
                 self.assertEqual(policy['addressGetters']['ETH_SENTINEL']['value'].lower(), '0x' + 'ee' * 20)
                 (evidence/'config.real-forge.json').write_bytes(original)

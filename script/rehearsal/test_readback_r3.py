@@ -108,18 +108,18 @@ class ReverseTest(unittest.TestCase):
 
     def record(self):
         return dict(block={'number':'42','hash':'0x'+'12'*32}, contracts=[dict(configKey=k, address=ADDR, artifact='ERC1967Proxy', maskedMatchesPin=True,
-            runtimeKeccak='expected', erc1967={'implementation':ADDR}, addressGetters={}, unreadable=[]) for k in ('registry','superPaymaster')])
+            runtimeKeccak='expected', immutableBindings={}, erc1967={'implementation':ADDR}, addressGetters={}, unreadable=[]) for k in ('registry','superPaymaster')])
 
     def test_H2_each_implementation_slot(self):
         cfg=dict(registryImpl=ADDR, spImpl=ADDR)
         for key in ('registry','superPaymaster'):
             record=self.record()
             next(x for x in record['contracts'] if x['configKey']==key)['erc1967']['implementation']=r.ZERO
-            with self.subTest(key=key), self.assertRaises(ValueError): r.validate_record(record,cfg,{'zeroAllowedConfigKeys':{}})
+            with self.subTest(key=key), self.assertRaises(ValueError): r.validate_record(record,cfg,{'zeroAllowedConfigKeys':{}, 'immutableBindings': {'ERC1967Proxy': {}}})
 
     def test_H2_masked_comparison_is_asserted(self):
         record=self.record();record['contracts'][0]['maskedMatchesPin']=False
-        with self.assertRaises(ValueError): r.validate_record(record,{}, {'zeroAllowedConfigKeys':{}})
+        with self.assertRaises(ValueError): r.validate_record(record,{}, {'zeroAllowedConfigKeys':{}, 'immutableBindings': {'ERC1967Proxy': {}}})
 
     def test_H3_second_provider_ignoring_block_detected(self):
         for mutation in ('header','runtime','slot'):

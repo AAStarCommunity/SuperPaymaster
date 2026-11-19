@@ -75,6 +75,8 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
     for key in sorted(input_keys() - optional):
         require(bool(values[key]), 'empty required input ' + key)
     inherited = os.environ if inherited is None else inherited
+    from deploylive_readback import provider_name
+    provider_name(inherited.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
     commit = commit_reader()
     require('SP_COMMIT' not in inherited or inherited['SP_COMMIT'] == commit, 'SP_COMMIT mismatch with clean HEAD')
     # Only execution context survives; deployment values always come from the approved file.

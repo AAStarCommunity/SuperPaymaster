@@ -17,8 +17,8 @@ class PinnedTools:
             paths[name] = str(Path(found).resolve())
         self.env = {'PATH': ':'.join(dict.fromkeys([*(str(Path(p).parent) for p in paths.values()), '/usr/bin', '/bin'])),
                     'LC_ALL': 'C'}
-        if 'DEPLOYLIVE_ENDPOINT_PROVIDER' in os.environ:
-            self.env['DEPLOYLIVE_ENDPOINT_PROVIDER'] = os.environ['DEPLOYLIVE_ENDPOINT_PROVIDER']
+        for key in ('DEPLOYLIVE_ENDPOINT_PROVIDER', 'DEPLOYLIVE_EVIDENCE_DIR'):
+            if key in os.environ: self.env[key] = os.environ[key]
         self.records = {}
         for name, path in paths.items():
             result = self.runner([path, '--version'], env=self.env, capture_output=True, text=True, check=True)
