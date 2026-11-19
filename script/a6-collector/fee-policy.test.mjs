@@ -8,3 +8,7 @@ test('chain fee derivation scales base, adds priority and caps at the supplied c
   assert.equal(policy.deriveFees(101n,7n,{factor:{numerator:3,denominator:2},ceiling:'150'}).maxFeePerGas,150n);
   assert.throws(()=>policy.deriveFees(101n,7n,{factor:{numerator:3,denominator:2},ceiling:'107'}),/fee/);
 });
+
+test('sub-unit fee factor is rejected even when rounding would cover inclusion',()=>{
+  assert.throws(()=>policy.deriveFees(1n,0n,{factor:{numerator:1,denominator:2},ceiling:'100'}),/invalid fee rule/);
+});

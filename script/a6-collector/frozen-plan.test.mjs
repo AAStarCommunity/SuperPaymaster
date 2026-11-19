@@ -123,3 +123,9 @@ test('follow-up stops when operator interval changes',async()=>{
  rt.pubA.readContract=async args=>args.functionName==='operators'?[0n,true,false,account,0n,61n,0n,account,0n]:original(args);
  await assert.rejects(a.beforeSend(rt),/PLAN_INTERVAL_CHANGED/);
 });
+
+test('construction rejects rehashed bundle with an invalid frozen fee cap',()=>{
+ const changed=Buffer.from(String(bytes).replace(/"feeCap":\d+/g,'"feeCap":1'));
+ assert.notDeepEqual(changed,bytes);
+ assert.throws(()=>createFrozenPlan({readBundle:()=>changed,bundleSha256:createHash('sha256').update(changed).digest('hex'),account}),{message:'PLAN_FEE_CHANGED'});
+});
