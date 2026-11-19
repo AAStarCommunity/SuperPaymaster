@@ -84,6 +84,29 @@ head=$(gh pr view "$PR" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/n
 [ -n "$head" ] || { echo "FAIL  could not read the PR head"; exit 3; }
 echo "head at this moment : $head"
 
+# --- 0. an ordering hold set on GitHub, not in a chat message ------------------
+# DSR rules some PRs "merge only together / only after X". Kept only in messages,
+# that constraint was invisible here: on 2026-11-19 #653 merged on a PREFLIGHT
+# PASS while #657, which the ruling required first, was still under review. The
+# `do-not-merge` label puts the hold where this gate reads it. The label list is
+# read fail-closed like every other lookup: an unreadable list is not "no label".
+labels=$(gh pr view "$PR" --repo "$REPO" --json labels -q '[.labels[].name]|join("\n")' 2>/dev/null)
+if [ $? -ne 0 ]; then
+  echo "FAIL  could not read the PR labels; refusing on an unread value"
+  echo "PREFLIGHT FAIL — do not merge $PR"; exit 4
+fi
+if printf '%s\n' "$labels" | grep -qxF 'do-not-merge'; then
+  fail=1
+  echo "FAIL  the PR carries the do-not-merge label (an ordering hold); remove it only when its stated condition is met"
+  # Point at the condition rather than restating it: the newest comment that names the label.
+  if api hold_urls '.[]|select(.body|test("do-not-merge"))|.html_url' \
+      "repos/$REPO/issues/$PR/comments" --paginate; then
+    hold_url=$(printf '%s\n' "$hold_urls" | grep -v '^$' | tail -1)
+    if [ -n "$hold_url" ]; then echo "      release condition: $hold_url"
+    else echo "      no comment on this PR names do-not-merge; ask whoever set the label for the condition"; fi
+  fi
+fi
+
 # --- 1. the approval must name THIS commit, and nothing may have superseded it -
 api revs '[.[]|{s:.state,c:.commit_id,t:.submitted_at,b:.body}]|tostring' \
     "repos/$REPO/pulls/$PR/reviews" --paginate || { echo "PREFLIGHT FAIL — do not merge $PR"; exit 4; }

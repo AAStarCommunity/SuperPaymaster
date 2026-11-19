@@ -127,7 +127,8 @@ def base_fixture(base):
         api[f"repos/{REPO}/branches/{enc}/protection"] = {
             "rc": 1, "pages": [{"message": "Branch not protected"}]}
         api[f"repos/{REPO}/branches/{enc}"] = {"pages": [{"name": base, "protected": False}]}
-    return {"pr": {"headRefOid": HEAD, "baseRefName": base, "reviewDecision": "APPROVED"}, "api": api}
+    return {"pr": {"headRefOid": HEAD, "baseRefName": base, "reviewDecision": "APPROVED",
+                   "labels": [{"name": "documentation"}]}, "api": api}
 
 
 U, P = "feat/x", "main"
@@ -268,6 +269,31 @@ sc("approval body names a different full SHA", U, body("APPROVE at " + "b" * 40)
    extra=r"^FAIL  the approval body names bbbbbbbbbbbb")
 sc("approval body names the full head (control)", U, lambda f: None, True, INFO_NONE,
    extra=r"^OK    the approval body names this exact head")
+
+# --- do-not-merge ordering hold ------------------------------------------------
+HOLD = r"^FAIL  the PR carries the do-not-merge label"
+COMMENTS = f"repos/{REPO}/issues/{PR}/comments"
+def hold(comments):
+    def m(f):
+        f["pr"]["labels"].append({"name": "do-not-merge"})
+        if comments is not None:
+            f["api"][COMMENTS] = {"pages": comments}
+    return m
+sc("do-not-merge label -> FAIL with the newest release-condition link", U,
+   hold([[{"body": "do-not-merge until #9 is approved", "html_url": "https://x/c/1"}],
+         [{"body": "unrelated", "html_url": "https://x/c/2"},
+          {"body": "do-not-merge: still waiting for #9", "html_url": "https://x/c/3"}]]),
+   False, INFO_NONE, extra=r"(?s)^FAIL  the PR carries the do-not-merge label.*^      release condition: https://x/c/3$")
+sc("do-not-merge label, no comment names it -> FAIL, says so", U, hold([[{"body": "hi", "html_url": "https://x/c/1"}]]),
+   False, INFO_NONE, extra=r"no comment on this PR names do-not-merge")
+sc("do-not-merge label, comments unreadable -> still FAIL", U, hold(None),
+   False, INFO_NONE, extra=HOLD)
+sc("label 'do-not-merge-later' is not the hold (exact name)", U,
+   lambda f: f["pr"]["labels"].append({"name": "do-not-merge-later"}), True, INFO_NONE)
+sc("labels unreadable -> FAIL closed", U, lambda f: f["pr"].pop("labels"), False, r"^<no required-checks line>$",
+   extra=r"^FAIL  could not read the PR labels")
+sc("label removed -> unaffected (control)", U, lambda f: None, True, INFO_NONE,
+   extra=r"(?s)\A(?!.*do-not-merge)")
 
 LEG = re.compile(r"^(OK    all \d+ required checks|INFO  .*requires no status checks|"
                  r"FAIL  (could not (read|evaluate) .*required checks|required check\(s\) not satisfied|base branch unreadable))")
