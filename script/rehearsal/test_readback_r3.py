@@ -106,7 +106,7 @@ class ReverseTest(unittest.TestCase):
                     self.assertEqual(r.runtime_rows({key: ADDR}, {key:name}, {name:pin}, lambda _: code), [(key,False)])
 
     def record(self):
-        return dict(block={'number':'42','hash':'0x'+'12'*32}, contracts=[dict(configKey=k, address=ADDR, artifact='ERC1967Proxy', maskedMatchesPin=True,
+        return dict(block={'number':'42','hash':'0x'+'12'*32,'timestamp':'4660'}, contracts=[dict(configKey=k, address=ADDR, artifact='ERC1967Proxy', maskedMatchesPin=True,
             runtimeKeccak='expected', immutableBindings={}, erc1967={'implementation':ADDR}, addressGetters={}, unreadable=[]) for k in ('registry','superPaymaster')])
 
     def test_H2_each_implementation_slot(self):
@@ -121,13 +121,19 @@ class ReverseTest(unittest.TestCase):
         with self.assertRaises(ValueError): r.validate_record(record,{}, {'zeroAllowedConfigKeys':{}, 'immutableBindings': {'ERC1967Proxy': {}}})
 
     def test_H3_second_provider_ignoring_block_detected(self):
-        for mutation in ('header','runtime','slot'):
-            def transport(kind,*args):
-                if kind=='rpc':return 0,json.dumps({'hash':'0x'+('34' if mutation=='header' else '12')*32})
-                if kind=='code':return 0,'wrong' if mutation=='runtime' else 'expected'
-                return 0,'0x'+(r.ZERO if mutation=='slot' else ADDR)[2:].zfill(64)
-            with patch.object(r,'keccak',side_effect=lambda value:value): result=r.corroborate(self.record(),transport,'Independent')
-            self.assertFalse(all(result[k] for k in ('blockHashMatches','runtimeKeccakMatches','implSlotsMatch')))
+        block = self.record()['block']
+        pin = json.dumps(dict(blockHash=block['hash'], requireCanonical=True))
+        reads = {('eth_getCode', ADDR, pin): (0, '"0x6000"'),
+                 ('eth_getStorageAt', ADDR, r.SLOTS['implementation'], pin): (0, '"0x01"')}
+        for mutation in ('header', 'runtime', 'slot'):
+            def primary(*args): return 0, json.dumps(dict(block, number='0x2a'))
+            def secondary(*args):
+                if args[0] == 'eth_getBlockByNumber':
+                    return 0, json.dumps(dict(block, number='0x2a', hash='0x'+'34'*32 if mutation == 'header' else block['hash']))
+                if args[0] == 'eth_getCode': return 0, '"0xff"' if mutation == 'runtime' else '"0x6000"'
+                return 0, '"0x00"' if mutation == 'slot' else '"0x01"'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                r.replay_snapshot(block, reads, primary, secondary, 'Independent')
 
     def test_H2_unreadable_explicit_exception(self):
         values, unreadable=r.address_getters(ABI,lambda _: (_ for _ in ()).throw(ValueError()),{}, {'target':{'allowed':['zero'],'why':'Inert'}},{'target':'Documented revert'})
@@ -188,7 +194,10 @@ class CheckerReverseTest(unittest.TestCase):
             self.assertEqual(record['readbackPolicySha256'],'0x'+'ab'*32)
             self.assertEqual(record['externalDepsSha256'],'0x'+'ab'*32)
             if production:
-                self.assertEqual({k:v for k,v in record['secondProvider'].items() if k!='name'},dict(blockHashMatches=True,runtimeKeccakMatches=True,implSlotsMatch=True))
+                self.assertEqual(set(record['secondProvider']), {'name', 'requests', 'allEqual', 'blockHashMatches'})
+                self.assertTrue(record['secondProvider']['allEqual'])
+                self.assertTrue(record['secondProvider']['blockHashMatches'])
+                self.assertGreater(record['secondProvider']['requests'], 100)
             else: self.assertIsNone(record['secondProvider'])
             for item in record['contracts']:
                 for getter in (item['addressGetters'] or {}).values(): self.assertTrue(getter['policyMatches'])

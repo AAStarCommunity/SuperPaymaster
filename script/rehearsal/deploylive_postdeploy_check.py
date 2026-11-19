@@ -94,6 +94,8 @@ def transport(*args, endpoint=None):
         if args[0] == 'storage' and re.fullmatch(r'[0-9]+', params[1]): params[1] = hex(int(params[1]))
         rc, raw = rpc_read(method, *params, selector, endpoint=endpoint)
         return (rc, str(int(raw, 16))) if not rc and args[0] == 'balance' else (rc, raw)
+    if args[0] == 'rpc' and endpoint is None and args[1] in ('eth_call', 'eth_getStorageAt', 'eth_getBalance', 'eth_getCode', 'eth_getLogs'):
+        return rpc_snapshot(*args[1:])
     return local(*args, endpoint=endpoint)
 
 
@@ -174,7 +176,7 @@ for key in ("ethUsdFeed", "entryPoint", "accountFactory", "agentIdentityRegistry
         sys.exit(1)
     if key.startswith("agent") and not agents_enabled:
         deps[key] = "0x" + "0" * 40
-from deploylive_readback import collect, write, validate_record, validate_config, recheck_block, corroborate, codehash_binding_matches
+from deploylive_readback import collect, write, validate_record, validate_config, recheck_block, replay_snapshot, codehash_binding_matches
 runtime_path = ROOT / f"deployments/runtime-pins.{chain}.json"
 mapping = json.loads((ROOT/'deployments/readback-artifacts.json').read_text())
 policy = json.loads((ROOT/'deployments/readback-policy.json').read_text())
@@ -649,14 +651,20 @@ if not second_ok:
         from urllib.parse import urlsplit
         if urlsplit(second_url).scheme not in ('http', 'https') or not urlsplit(second_url).hostname or any(c.isspace() for c in second_url): raise ValueError('invalid second endpoint')
         if urlsplit(second_url).hostname == urlsplit(RPC).hostname: raise ValueError('independent provider required')
-        independent_providers(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''))
+        independent_providers(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''), RPC, second_url)
         if not second_url or record is None: raise ValueError('missing second provider')
         rc, second_chain = local('rpc', 'eth_chainId', endpoint=second_url)
         if rc or integer(json.loads(second_chain)) != chain: raise ValueError('second chain mismatch')
-        second = corroborate(record, lambda *args: transport(*args, endpoint=second_url), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''))
-        second_ok = all(second[k] is True for k in ('blockHashMatches', 'runtimeKeccakMatches', 'implSlotsMatch'))
-    except (OSError, ValueError, KeyError, TypeError):
+        second = replay_snapshot(block, rpc_snapshot.reads,
+                                 lambda *args: local('rpc', *args),
+                                 lambda *args: local('rpc', *args, endpoint=second_url),
+                                 os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''))
+        second_ok = second['allEqual'] and second['blockHashMatches']
+        from deploylive_readback import header_fields
+        record['block'] = header_fields(block)
+    except (OSError, ValueError, KeyError, TypeError) as error:
         second_ok = False
+        if isinstance(error, ValueError): check('second provider replay', False, str(error))
 check('second provider', second_ok, 'distinct approved providers or chain 31337')
 try:
     recheck_block(block, transport)

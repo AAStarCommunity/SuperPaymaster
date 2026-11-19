@@ -135,7 +135,8 @@ class CheckerTest(unittest.TestCase):
         runtime_codes = {}
         creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
         pins = json.loads((CHECKER.parents[2]/'deployments/creation-pins.31337.json').read_text())
-        selected = lru_cache(maxsize=None)(lambda name, directory=None: deploylive_runtime.release_artifact(name, FIXTURE_ARTIFACTS)) if isinstance(mutation, tuple) and mutation[0] in ('creation', 'settings') else fixture_artifact
+        reader = deploylive_runtime.release_artifact
+        selected = lru_cache(maxsize=None)(lambda name, directory=None: reader(name, FIXTURE_ARTIFACTS)) if isinstance(mutation, tuple) and mutation[0] in ('creation', 'settings') else lambda name, directory=None: _fixture_artifact(reader, name, directory or FIXTURE_ARTIFACTS)
         # Use the checker's own artifact selection. A glob over out/<Name>.sol/*.json also matches other
         # contracts compiled from the same source file (out/Registry.sol/IGuardianExitGate.json has the
         # same runs/evmVersion); filesystem order then decided which runtime the fake chain served, and
@@ -213,7 +214,7 @@ class CheckerTest(unittest.TestCase):
                 return SimpleNamespace(returncode=0, stdout=(" M file\n" if git_dirty else "") if cmd[-1] == "--porcelain" else "a" * 40 + "\n")
             self.assertEqual(cmd[0], "cast")
             self.assertNotIn("--rpc-url", cmd)
-            self.assertIn(kwargs["env"]["ETH_RPC_URL"], ("https://secret.invalid/private-token", "https://independent.invalid/secret"))
+            self.assertIn(kwargs["env"]["ETH_RPC_URL"], ("https://secret.alchemy.com/private-token", "https://independent.infura.io/secret"))
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
             if kind == 'rpc' and args[0] in ('eth_getCode', 'eth_getStorageAt', 'eth_getBalance', 'eth_call'):
                 read_key = (kwargs['env']['ETH_RPC_URL'], *args)
@@ -222,6 +223,8 @@ class CheckerTest(unittest.TestCase):
                 self.assertEqual(json.loads(args[-1]), {'blockHash': '0x'+'12'*32, 'requireCanonical': True})
             if check_blocks and kind == 'rpc' and args[0] == 'eth_getLogs': self.assertEqual(json.loads(args[1])['toBlock'], '0x2a')
             def response(out, rc=0): return SimpleNamespace(returncode=rc, stdout=out if not rc else '', stderr=out if rc else '')
+            if kind == 'rpc' and args[0] == 'eth_call' and mutation == 'second_call' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'):
+                return response(json.dumps('0xff'))
             if kind == 'to-check-sum-address': return response(args[0])
             if kind == 'decode-abi':
                 payload = json.loads(args[1])
@@ -252,7 +255,7 @@ class CheckerTest(unittest.TestCase):
                     encoded = result.stdout
                 return response(json.dumps(encoded))
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
-                return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.invalid/private-token")
+                return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.alchemy.com/private-token")
             out, rc = "", 0
             if kind == 'calldata': calldata_inputs[digest('|'.join(args))] = args
             if kind in ("keccak", "calldata", "sig", "abi-encode"):
@@ -289,7 +292,7 @@ class CheckerTest(unittest.TestCase):
                     block_reads.append(args[1])
                     if mutation == 'reorg' and len(block_reads) > 1: return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
                     if mutation == 'second_header' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'): return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
-                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a', hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
+                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a' if args[1] == 'latest' else args[1], hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
                 if args[0] == "eth_chainId":
                     return SimpleNamespace(returncode=0, stdout=('"0xa"' if op else '"0x7a69"') if mutation != "unknown_chain" else '"0xf423f"', stderr="")
                 if args[0] == "eth_call":
@@ -312,7 +315,7 @@ class CheckerTest(unittest.TestCase):
                     self.assertEqual(args[0], "eth_getLogs")
                     self.assertEqual(json.loads(args[1])["fromBlock"], "0x1")
                     if json.loads(args[1])["address"] == cfg['gToken']:
-                        events = [dict(topics=[digest('Transfer(address,address,uint256)'), '0x'+'00'*32, '0x'+deployer[2:].zfill(64)], data=hex(n)) for n in [2000, 166]]
+                        events = [dict(blockNumber='0x1', blockHash='0x'+'12'*32, topics=[digest('Transfer(address,address,uint256)'), '0x'+'00'*32, '0x'+deployer[2:].zfill(64)], data=hex(n)) for n in [2000, 166]]
                         if mutation == "mint_event": events[1]['data'] = hex(167)
                         return SimpleNamespace(returncode=0, stdout=json.dumps(events), stderr='')
                     logs = []
@@ -338,7 +341,7 @@ class CheckerTest(unittest.TestCase):
                     if mutation == "extra_operation": logs.append(dict(logs[-1], topics=[logs[-1]["topics"][0], digest("other"), "0x0"]))
                     if mutation == "missing_execution": logs.pop()
                     if mutation == "wrong_batch": logs[-1]["data"] = "0x00"
-                    out = json.dumps(logs)
+                    out = json.dumps([dict(log, blockHash='0x'+'12'*32) for log in logs])
             elif kind == "call":
                 target, sig, *params = args
                 if mutation == 'getter_revert' and target == cfg['globalTierSource'] and sig.startswith('REGISTRY('): return response('revert', 1)
@@ -441,9 +444,9 @@ class CheckerTest(unittest.TestCase):
             return raw
         endpoint_dir = tempfile.TemporaryDirectory(dir=CHECKER.parents[2]/'cache')
         endpoint_file = Path(endpoint_dir.name)/'second-fixture'
-        endpoint_file.write_text('https://secret.invalid/private-token' if mutation == 'second_same' else 'https://independent.invalid/secret')
+        endpoint_file.write_text('https://secret.alchemy.com/private-token' if mutation == 'second_same' else 'https://independent.infura.io/secret')
         output = io.StringIO()
-        with endpoint_dir, patch.object(sys, "argv", [str(CHECKER), "https://secret.invalid/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch.object(Path, "glob", lambda path, pattern: iter(fixture_artifact_paths(original_glob, path, pattern))), patch('deploylive_readback.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.checksum', side_effect=lambda a: addr(int(a,16))), patch('deploylive_readback.sha', return_value='0x'+'ab'*32), patch('deploylive_readback.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.write', side_effect=lambda path, record: capture_record.append(record) if capture_record is not None else None), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture'), DEPLOYLIVE_ENDPOINT_PROVIDER=primary_provider, DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER=secondary_provider, DEFAULT_ARTIFACTS_OUT=str(FIXTURE_ARTIFACTS.relative_to(CHECKER.parents[2])), DEPLOYLIVE_SECOND_RPC_FILE=str(endpoint_file)), contextlib.redirect_stdout(output):
+        with endpoint_dir, patch.object(sys, "argv", [str(CHECKER), "https://secret.alchemy.com/private-token", "fixture.json", deployer, safe] + (["--safe-recovery"] if safe_recovery else [])), patch("builtins.open", side_effect=fixture_open), patch("subprocess.run", side_effect=fake_run), patch.object(Path, "read_text", fixture_read), patch.object(Path, "glob", lambda path, pattern: iter(fixture_artifact_paths(original_glob, path, pattern))), patch('deploylive_runtime.artifact_directory', return_value=str(FIXTURE_ARTIFACTS.relative_to(CHECKER.parents[2]))), patch('deploylive_runtime.release_artifact', side_effect=selected), patch('deploylive_readback.release_artifact', side_effect=selected), patch('runtime_pins.release_artifact', side_effect=selected), patch('runtime_pins.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.checksum', side_effect=lambda a: addr(int(a,16))), patch('deploylive_readback.sha', return_value='0x'+'ab'*32), patch('deploylive_readback.keccak', side_effect=lambda code: creation_hashes.get(code, digest(code))), patch('deploylive_readback.write', side_effect=lambda path, record: capture_record.append(record) if capture_record is not None else None), patch.dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(CHECKER.parents[2]/'cache/readback/checker-fixture'), DEPLOYLIVE_ENDPOINT_PROVIDER=primary_provider, DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER=secondary_provider, DEFAULT_ARTIFACTS_OUT=str(FIXTURE_ARTIFACTS.relative_to(CHECKER.parents[2])), DEPLOYLIVE_SECOND_RPC_FILE=str(endpoint_file)), contextlib.redirect_stdout(output):
             with self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(CHECKER), run_name="__main__")
         self.assertNotIn("private-token", output.getvalue())

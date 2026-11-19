@@ -24,7 +24,7 @@ class ReadbackTest(unittest.TestCase):
     def test_provider_rejects_url(self):
         m = importlib.import_module('deploylive_readback')
         with self.assertRaises(ValueError): m.provider_name('https://private.invalid')
-        self.assertEqual(m.provider_name('Alchemy'), 'Alchemy')
+        self.assertEqual(m.provider_name('Alchemy'), 'alchemy')
 
 class ArchiveReadbackTest(unittest.TestCase):
     def test_changed_readback_refused(self):

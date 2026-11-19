@@ -6,7 +6,7 @@ import json
 import subprocess
 from pathlib import Path
 from creation_pins import ROOT, CAST, release_names, clean_build_pins
-from deploylive_runtime import release_artifact, masked_runtime
+from deploylive_runtime import release_artifact, masked_runtime, refuse_fixture_directory
 
 
 def keccak(code):
@@ -109,6 +109,7 @@ def main():
     parser.add_argument('--artifacts', type=Path)
     args = parser.parse_args()
     if args.artifacts and not args.check: parser.error('--artifacts requires --check')
+    if args.artifacts is not None: args.artifacts = refuse_fixture_directory(args.artifacts)
     path = args.pin_file.resolve()
     if not path.is_relative_to(ROOT): raise ValueError('pin file must be in worktree')
     creation = path.with_name(path.name.replace('runtime-pins.', 'creation-pins.'))
