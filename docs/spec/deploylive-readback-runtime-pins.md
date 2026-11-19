@@ -73,7 +73,20 @@ the canonical header at that number is re-read after corroboration and immediate
 A changed hash fails. A second provider is mandatory on every chain except 31337 in the current attaching drivers. Its endpoint is supplied via `DEPLOYLIVE_SECOND_RPC_FILE`, never printed, with a different
 hostname from the primary. Operator-selected endpoints must be independently operated: different
 hostnames alone cannot prove organizational independence. Production records both provider names (`endpointProvider` and `secondProvider.name`) and rejects equal names after trimming and case folding, in addition to the different-hostname rule. The second provider checks the same chain,
-header hash, every nonzero mapped runtime's raw keccak and both proxy implementation slots.
+header hash and replays EVERY recorded state request, including assertion calls, getters, Safe reads,
+balances, all storage slots, code and logs. No sampling is permitted. `eth_call`, `eth_getStorageAt`,
+`eth_getBalance` and `eth_getCode` use the snapshot's EIP-1898
+`{blockHash, requireCanonical:true}` selector on both providers. Responses are normalized for hex
+case and leading zeros and object field order, then compared exactly; list order and fields remain
+significant. Any difference fails with method, target and selector/slot, never a URL.
+
+`eth_getLogs` has no EIP-1898 form. Both providers replay the IDENTICAL address/topics and
+fromBlock..toBlock query, with toBlock equal to the snapshot number. Both must report the
+snapshot hash at that number before and after log replay. Every returned log's blockHash must
+match BOTH providers' canonical hash at its blockNumber; each distinct log block number is
+read once per provider and cached. Both normalized log lists must agree item by item in order.
+The primary replay must also equal the recorded snapshot. A canonical mismatch fails naming
+the block. `secondProvider.requests` counts all replayed state requests, including logs.
 Chain-31337 output sets `secondProvider: null`, `singleProvider: true`, and `singleProviderNote` set to the note
 `single provider: not evidence of on-chain state` (also emitted in the checker log). Production
 records `singleProviderNote: null`. This evidence is not a proof against colluding providers.
@@ -83,9 +96,9 @@ records `singleProviderNote: null`. This evidence is not a proof against colludi
   "schema": "deploylive-readback/1",
   "chainId": "11155111",
   "block": {"number": "12164874", "hash": "0x…", "timestamp": "…", "hashRechecked": true},
-  "endpointProvider": "Alchemy",                 // provider NAME only, never a URL
-  "secondProvider": {"name": "Independent provider", "blockHashMatches": true,
-                     "runtimeKeccakMatches": true, "implSlotsMatch": true},
+  "endpointProvider": "alchemy",                 // provider NAME only, never a URL
+  "secondProvider": {"name": "infura", "requests": 450, "allEqual": true,
+                     "blockHashMatches": true},
   "singleProvider": false,                      // true only for chain-31337 evidence
   "singleProviderNote": null,                   // local/fork: "single provider: not evidence of on-chain state"
   "commit": "5a150f6a…",                         // config.commit (40 hex)
@@ -338,10 +351,18 @@ No other unbound names remain in the committed inventory. `_cap`, uint256 `_cach
 
 ## Round 8 provider and evidence boundary
 
-The committed approved-provider list is `deployments/readback-providers.json`, with a reason per
-entry. Both endpoint provider NAMES must be approved and differ (case-insensitive); differing
-hosts alone is insufficient. Endpoint names are operator-supplied service identities, not a
-cryptographic proof of backend independence.
+The committed approved-provider list is `deployments/readback-providers.json`, with hostname suffixes per
+entry. Names are trimmed and case-folded. Both endpoints must match different approved entries.
+The parsed, lower-case hostname must end with a committed dot-prefixed suffix; userinfo is
+refused. Thus `eth-sepolia.g.alchemy.com` matches `.alchemy.com`, but `evilalchemy.com` does not.
+Endpoints are never printed; identity diagnostics contain only the provider name and pass/fail.
+The suffix inventory covers known RPC host families: Alchemy `*.g.alchemy.com`, Tenderly
+`*.rpc.tenderly.co`, PublicNode `*.publicnode.com`, Infura `*.infura.io`, and QuickNode
+`*.quiknode.pro` / `*.quicknode.com`. No DNS or network validation is performed.
+Residual trust: the committed suffix list is correct and the two organisations are independent.
+CNAME/alias resolution to one service is NOT checked; that would require trusted resolution.
+Log completeness cannot be proven from returned data: logs silently omitted by both providers
+are undetectable. The completeness check is agreement of two independent providers.
 Single-provider permission is limited to chain 31337, or loopback Anvil launched by this driver
 run with its own live PID, port and launch-argument attestation. Current drivers attach to existing
 nodes and have no such attestation: they grant ONLY the chain-31337 exception. Every other chain,
@@ -351,3 +372,11 @@ cannot grant an exception.
 
 The evidence directory resolves below the approved worktree `cache/` root. The root itself,
 paths outside it, symlink components and a symlink readback.json are refused before unlinking.
+
+## Serialized config containers
+
+Only eight flat arrays are allowed: `guardians` (committee principals),
+`gTokenMintRecipients` and `gTokenMintAmounts` (allocation ledger), `stakeAccounts` and
+`stakeAmounts` (staking ledger), `stakeRoles` (bytes32 staking role identifiers), `ticketTreasuries` and `ticketAmounts` (ticket ledger).
+The sole allowed dictionary is `artifactCompileSettings`: exactly the release artifact names, each with the reviewed `evmVersion`, `viaIR`, and `optimizerRuns` values. This records build provenance. No other dictionary values, arrays of containers, or other array keys are allowed. Address arrays
+still require exact inventory coverage and valid address elements; amounts use the integer parser.

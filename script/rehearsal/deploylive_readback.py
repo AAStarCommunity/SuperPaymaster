@@ -16,6 +16,7 @@ PROXY_ABI = {'registry': 'Registry', 'superPaymaster': 'SuperPaymaster', 'pnts':
 
 
 def provider_name(value):
+    value = value.strip().casefold()
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9 _-]{0,63}', value): raise ValueError('provider NAME required')
     return value
 
@@ -90,11 +91,24 @@ def single_provider_allowed(chain, endpoint):
     return chain == 31337
 
 
-def independent_providers(primary, secondary):
+def independent_providers(primary, secondary, primary_url=None, secondary_url=None):
     approved = json.loads((ROOT/'deployments/readback-providers.json').read_text())
-    names = [provider_name(name).casefold() for name in (primary, secondary)]
+    names = [provider_name(name) for name in (primary, secondary)]
     if names[0] == names[1] or any(name not in approved for name in names):
         raise ValueError('distinct approved provider names required')
+    from urllib.parse import urlsplit
+    for name, url in zip(names, (primary_url, secondary_url)):
+        # Name-only callers validate identity; the checker always supplies both URLs.
+        if url is None and primary_url is None and secondary_url is None: continue
+        try:
+            parsed = urlsplit(url)
+            host = (parsed.hostname or '').lower()
+            valid = parsed.scheme in ('http', 'https') and not parsed.username and not parsed.password
+            valid = valid and not any(c.isspace() for c in url)
+            valid = valid and any(host.endswith(suffix) for suffix in approved[name])
+        except (ValueError, TypeError):
+            valid = False
+        if not valid: raise ValueError('provider endpoint binding failed: ' + name)
 
 
 def evidence_path(value):
@@ -345,9 +359,25 @@ def validate_policy(policy, mapping, config, deps):
 
 def validate_config(config, mapping, noncontracts, zero_allowed):
     def address(v): return isinstance(v, str) and re.fullmatch(r'0x[0-9a-fA-F]{40}', v)
+    # DeployLive serializes eight flat arrays and one exact compile-settings object.
+    arrays = {'guardians', 'gTokenMintRecipients', 'stakeAccounts', 'ticketTreasuries',
+              'gTokenMintAmounts', 'stakeAmounts', 'ticketAmounts', 'stakeRoles'}
+    for key, value in config.items():
+        if key == 'stakeRoles' and (not isinstance(value, list) or not all(isinstance(v, str) and re.fullmatch(r'0x[0-9a-fA-F]{64}', v) for v in value)):
+            raise ValueError('nested config coverage: ' + key)
+        if key == 'artifactCompileSettings':
+            from creation_pins import release_names
+            expected = {n: dict(evmVersion='cancun', viaIR=True,
+                               optimizerRuns=200 if n in ('Registry', 'TimelockHandoverBootstrap') else 500)
+                        for n in release_names()}
+            if value != expected: raise ValueError('nested config coverage: ' + key)
+            continue
+        if isinstance(value, dict) or isinstance(value, list) and (
+                key not in arrays or any(isinstance(v, (dict, list)) for v in value)):
+            raise ValueError('nested config coverage: ' + key)
     actual = {k for k, v in config.items() if address(v) or isinstance(v, list) and (not v or any(address(x) for x in v))}
-    # Empty numeric ledgers have a fixed serialization schema too.
-    actual -= {k for k in ('gTokenMintAmounts', 'stakeAmounts', 'ticketAmounts') if config.get(k) == []}
+    # Empty amount and role ledgers have a fixed serialization schema too.
+    actual -= {k for k in ('gTokenMintAmounts', 'stakeAmounts', 'ticketAmounts', 'stakeRoles') if config.get(k) == []}
     expected = set(mapping) | set(noncontracts)
     if actual != expected: raise ValueError('config address coverage: missing=' + ','.join(sorted(expected-actual)) + ' unknown=' + ','.join(sorted(actual-expected)))
     for key in actual:
@@ -435,15 +465,77 @@ def validate_record(record, config, policy):
             if result.get('policyMatches') is not True: raise ValueError('policy not asserted')
 
 
-def corroborate(record, transport, name):
-    rc, header = transport('rpc', 'eth_getBlockByNumber', hex(int(record['block']['number'])), 'false')
-    header_ok = rc == 0 and json.loads(header)['hash'].lower() == record['block']['hash']
-    runtime_ok, slots_ok = True, True
-    for item in record['contracts']:
-        if item['address'].lower() == ZERO: continue
-        rc, code = transport('code', item['address'])
-        runtime_ok &= rc == 0 and keccak(code) == item['runtimeKeccak']
-        if item['configKey'] in ('registry', 'superPaymaster'):
-            rc, value = transport('storage', item['address'], SLOTS['implementation'])
-            slots_ok &= rc == 0 and ('0x' + value[-40:]).lower() == item['erc1967']['implementation'].lower()
-    return dict(name=provider_name(name), blockHashMatches=header_ok, runtimeKeccakMatches=runtime_ok, implSlotsMatch=slots_ok)
+def replay_snapshot(block, reads, primary, secondary, name):
+    """Replay all recorded state requests; bracket historical logs with canonical checks."""
+    methods = {'eth_call', 'eth_getStorageAt', 'eth_getBalance', 'eth_getLogs', 'eth_getCode'}
+    pin = dict(blockHash=block['hash'], requireCanonical=True)
+    height = hex(int(str(block['number']), 0) if str(block['number']).startswith('0x') else int(block['number']))
+
+    def normalize(value):
+        if isinstance(value, dict): return {k: normalize(v) for k, v in value.items()}
+        if isinstance(value, list): return [normalize(v) for v in value]
+        if isinstance(value, str) and re.fullmatch(r'0x[0-9a-fA-F]+', value):
+            return hex(int(value, 16))
+        return value
+
+    def header(rpc, number):
+        rc, raw = rpc('eth_getBlockByNumber', number, 'false')
+        try:
+            value = json.loads(raw)['hash']
+            if rc or not re.fullmatch(r'0x[0-9a-fA-F]{64}', value): raise ValueError()
+            return value.lower()
+        except (ValueError, KeyError, TypeError):
+            raise ValueError('canonical header failed: block ' + number) from None
+
+    def end_check():
+        for rpc in (primary, secondary):
+            if header(rpc, height) != block['hash'].lower():
+                raise ValueError('canonical hash mismatch: block ' + height)
+
+    def result(response, label):
+        rc, raw = response
+        if rc: return (False, raw)
+        try: return (True, normalize(json.loads(raw)))
+        except (ValueError, TypeError): raise ValueError('invalid replay result: ' + label) from None
+
+    def logs_canonical(logs, rpc, cache):
+        for log in logs:
+            try:
+                number = hex(int(log['blockNumber'], 16))
+                if number not in cache: cache[number] = header(rpc, number)
+                if log['blockHash'].lower() != cache[number]:
+                    raise ValueError('log canonical hash mismatch: block ' + number)
+            except (KeyError, TypeError):
+                raise ValueError('invalid canonical log') from None
+
+    end_check()
+    caches = [{}, {}]
+    count = 0
+    for args, recorded in reads.items():
+        method = args[0]
+        if method not in methods:
+            # Only stateless metadata may be left out of the replay; any other recorded method fails closed so a
+            # new stateful read can never be silently skipped ("all of them, not a sample").
+            if method in ('eth_chainId', 'eth_getBlockByNumber', 'eth_blockNumber'): continue
+            raise ValueError('unreplayed snapshot request: ' + method)
+        if method == 'eth_call':
+            query = json.loads(args[1]); label = method + ' ' + query['to'] + ' ' + query['data'][:10]
+        elif method == 'eth_getLogs':
+            query = json.loads(args[1]); label = method + ' ' + str(query.get('address', 'all addresses'))
+        else:
+            label = method + ' ' + args[1] + (' ' + args[2] if method == 'eth_getStorageAt' else '')
+        if method != 'eth_getLogs':
+            if json.loads(args[-1]) != pin: raise ValueError('unpinned request: ' + label)
+            responses = [recorded, secondary(*args)]
+        else:
+            if int(query['toBlock'], 16) != int(height, 16): raise ValueError('unpinned request: ' + label)
+            responses = [primary(*args), secondary(*args)]
+            if result(recorded, label) != result(responses[0], label): raise ValueError('snapshot replay mismatch: ' + label)
+            for response, rpc, cache in zip(responses, (primary, secondary), caches):
+                if response[0]: raise ValueError('log replay failed: ' + label)
+                logs_canonical(json.loads(response[1]), rpc, cache)
+        if result(responses[0], label) != result(responses[1], label):
+            raise ValueError('provider replay mismatch: ' + label)
+        count += 1
+    end_check()
+    return dict(name=provider_name(name), requests=count, allEqual=True, blockHashMatches=True)
