@@ -16,9 +16,9 @@ def artifact_directory():
     return value
 
 
-def release_artifact(name):
+def release_artifact(name, directory=None):
     candidates = []
-    for path in (ROOT / artifact_directory()).glob('**/' + name + '.sol/*.json'):
+    for path in (Path(directory) if directory is not None else ROOT / artifact_directory()).glob('**/' + name + '.sol/*.json'):
         obj = json.loads(path.read_text())
         metadata = obj.get('metadata', {})
         if isinstance(metadata, str): metadata = json.loads(metadata)
@@ -52,16 +52,24 @@ def artifact(name, expected_pin, keccak):
     return obj['deployedBytecode']
 
 
-def matches(expected, actual):
-    left = bytearray.fromhex(expected['object'].removeprefix('0x'))
-    right = bytearray.fromhex(actual.removeprefix('0x'))
-    if not left or len(left) != len(right): return False
-    for references in expected.get('immutableReferences', {}).values():
-        for ref in references:
+def masked_runtime(code, references):
+    value = bytearray.fromhex(code.removeprefix('0x'))
+    if not value: raise ValueError('empty runtime')
+    for refs in references.values():
+        for ref in refs:
             start, length = ref['start'], ref['length']
-            if start < 0 or length <= 0 or start + length > len(left): return False
-            left[start:start + length] = right[start:start + length] = bytes(length)
-    return left == right
+            if start < 0 or length <= 0 or start + length > len(value):
+                raise ValueError('invalid immutable range')
+            value[start:start + length] = bytes(length)
+    return '0x' + value.hex()
+
+
+def matches(expected, actual):
+    try:
+        refs = expected.get('immutableReferences', {})
+        return masked_runtime(expected['object'], refs) == masked_runtime(actual, refs)
+    except (ValueError, TypeError, KeyError):
+        return False
 
 
 def clean_source_commit(repo_root=ROOT, git_runner=None):

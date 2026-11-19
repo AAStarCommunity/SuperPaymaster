@@ -98,16 +98,16 @@ class Ddf4Test(unittest.TestCase):
         values['DEFAULT_CACHE_PATH']=str(self.root/'build-cache')
         def write(v): path.write_text('\n'.join(k+'='+json.dumps(x) for k,x in v.items()))
         write(values)
-        env=c.load_inputs(path,{'UNLISTED':'no'},commit_reader=lambda:'a'*40)
+        env=c.load_inputs(path,{'UNLISTED':'no','DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         self.assertNotIn('UNLISTED',env); self.assertEqual(env['SP_COMMIT'],'a'*40)
-        with self.assertRaises(RuntimeError): c.load_inputs(path,{'SP_COMMIT':'b'*40},commit_reader=lambda:'a'*40)
-        with self.assertRaises(RuntimeError): c.load_inputs(path,{'SP_COMMIT':''},commit_reader=lambda:'a'*40)
+        with self.assertRaises(RuntimeError): c.load_inputs(path,{'SP_COMMIT':'b'*40,'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
+        with self.assertRaises(RuntimeError): c.load_inputs(path,{'SP_COMMIT':'','DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         for change in ('missing','extra'):
             altered=dict(values)
             if change=='missing': altered.pop('ENV')
             else: altered['EXTRA']='bad'
             write(altered)
-            with self.assertRaises(RuntimeError): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+            with self.assertRaises(RuntimeError): c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         self.assertIn('DEPLOYER_ACCOUNT',template)
 
     def endpoint_files(self, keys):
@@ -126,20 +126,20 @@ class Ddf4Test(unittest.TestCase):
         base.update({k:'' for k in keys if k.endswith('_NO_CREDENTIAL')})
         base.update(DEPLOYLIVE_EVIDENCE_DIR=str(self.root/'evidence'),DEFAULT_CACHE_PATH=str(self.root/'build'))
         write=lambda v: path.write_text('\n'.join(k+'='+json.dumps(x) for k,x in v.items()))
-        write(base); env=c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        write(base); env=c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         self.assertEqual(env['DEPLOYLIVE_SOURCE_RPC'],'http://127.0.0.1:1/deploylive_source_rpc_file')
         self.assertNotIn('DEPLOYLIVE_SOURCE_RPC_FILE',env)
         for url in ('https://x.invalid/k','wss://x.invalid/k','HTTP://x.invalid/k'):
             bad=dict(base,ENV=url); write(bad)
-            with self.assertRaisesRegex(RuntimeError,'must not contain endpoint URLs'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+            with self.assertRaisesRegex(RuntimeError,'must not contain endpoint URLs'): c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         bad=dict(base,DEPLOYLIVE_RPC_FILE='http://127.0.0.1:1'); write(bad)
-        with self.assertRaisesRegex(RuntimeError,'set DEPLOYLIVE_RPC_FILE to its path') as e: c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        with self.assertRaisesRegex(RuntimeError,'set DEPLOYLIVE_RPC_FILE to its path') as e: c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         self.assertNotIn('_FILE_FILE',str(e.exception))
         for content in ('','not-a-url','http://a\nhttp://b'):
             f=self.root/'bad.url'; f.write_text(content); f.chmod(0o600); write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(f)))
-            with self.assertRaisesRegex(RuntimeError,'must hold one URL'): c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+            with self.assertRaisesRegex(RuntimeError,'must hold one URL'): c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         write(dict(base,DEPLOYLIVE_SECOND_RPC_FILE=str(self.root/'missing.url')))
-        with self.assertRaises(RuntimeError) as e: c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+        with self.assertRaises(RuntimeError) as e: c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         self.assertNotIn('127.0.0.1',str(e.exception))
 
     def test_handoff_paths_and_pinned_fork(self):
@@ -190,7 +190,7 @@ class Ddf4Test(unittest.TestCase):
         values.update(ENV='',DEPLOYLIVE_EVIDENCE_DIR=str(self.root/'evidence'),DEFAULT_CACHE_PATH=str(self.root/'build'))
         path.write_text('\n'.join(k+'='+v for k,v in values.items()))
         with self.assertRaisesRegex(RuntimeError,'empty required input ENV'):
-            c.load_inputs(path,{},commit_reader=lambda:'a'*40)
+            c.load_inputs(path,{'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'},commit_reader=lambda:'a'*40)
         source='\n'.join((f.ROOT/p).read_text() for p in ('contracts/script/v3/DeployLive.s.sol','contracts/script/v3/DeployLiveInputs.sol'))
         keys=set(re.findall(r'(?:vm.env\w+|_requiredAddress|_requiredUint|_addressInput|_uintInput|_stringInput)\("([A-Z][A-Z0-9_]*)"',source))
         derived={'SP_COMMIT','DEPLOYLIVE_EVM_VERSION','DEPLOYLIVE_REHEARSAL','DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP','DEPLOYLIVE_POP_REQUEST_OUT'}

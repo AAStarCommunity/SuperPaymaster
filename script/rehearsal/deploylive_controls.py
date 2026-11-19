@@ -75,16 +75,19 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
     for key in sorted(input_keys() - optional):
         require(bool(values[key]), 'empty required input ' + key)
     inherited = os.environ if inherited is None else inherited
+    from deploylive_readback import provider_name
+    provider_name(inherited.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
     commit = commit_reader()
     require('SP_COMMIT' not in inherited or inherited['SP_COMMIT'] == commit, 'SP_COMMIT mismatch with clean HEAD')
     # Only execution context survives; deployment values always come from the approved file.
-    env = {k: inherited[k] for k in ('PATH', 'HOME', 'TMPDIR', 'LANG') if k in inherited}
+    env = {k: inherited[k] for k in ('PATH', 'HOME', 'TMPDIR', 'LANG', 'DEPLOYLIVE_ENDPOINT_PROVIDER') if k in inherited}
     env.update({k:v for k,v in values.items() if v != '' and not (k.endswith('_FILE') and k[:-5] in URL_KEYS)})
     for key in URL_KEYS:
         flag = values.get(key + '_NO_CREDENTIAL', '')
         require(flag in ('', '1'), key + '_NO_CREDENTIAL must be empty or 1')
         if values.get(key + '_FILE'):
             env[key] = read_endpoint_file(key, values[key + '_FILE'], no_credential=flag == '1')
+            if key == 'DEPLOYLIVE_SECOND_RPC': env[key + '_FILE'] = values[key + '_FILE']
         else:
             require(flag == '', key + '_NO_CREDENTIAL set without ' + key + '_FILE')
     env['SP_COMMIT'] = commit
@@ -220,7 +223,7 @@ def manifest_bytes(env, request):
     excluded = {'DEPLOYER_ACCOUNT', 'PRIVATE_KEY_ANNI', 'REHEARSAL_BLS_SCALARS'}
     keys = input_keys() - excluded - {k + '_FILE' for k in URL_KEYS}
     values = {k: env.get(k, '') for k in keys}
-    values.update(SP_COMMIT=env['SP_COMMIT'], POP_REQUEST_SHA256=hashlib.sha256(request.read_bytes()).hexdigest())
+    values.update(DEPLOYLIVE_ENDPOINT_PROVIDER=env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), SP_COMMIT=env['SP_COMMIT'], POP_REQUEST_SHA256=hashlib.sha256(request.read_bytes()).hexdigest())
     require(all('\n' not in v and '\r' not in v for v in values.values()), 'multiline manifest input')
     return ''.join(k+'='+values[k]+'\n' for k in sorted(values)).encode()
 
@@ -372,6 +375,7 @@ def write_success(evidence, env, config, broadcast, gated_plan):
             'gated plan changed before checker PASS')
     write_json(evidence, 'checker.PASS.json', dict(status='PASS', manifest=manifest_digest(evidence),
         gatedPlanSha256=digest,
+        readbackSha256=hashlib.sha256((evidence/'readback.json').read_bytes()).hexdigest(),
         noCredentialEndpoints=sorted(k for k in URL_KEYS if env.get(k + '_NO_CREDENTIAL') == '1'),
         # Streams whose post-broadcast output was replaced by the redaction placeholder: a PASS
         # whose checker output is not in evidence says so.
@@ -386,11 +390,11 @@ def archive_records(source):
     require(record.get('status') == 'PASS' and record.get('manifest') == manifest_digest(source), 'archive requires current manifest-bound checker PASS')
     require(record.get('gatedPlanSha256') == plan_digest(json.loads((source/'gated-plan.json').read_text())),
             'archived gated plan differs from checker PASS')
-    for key, name in (('config', 'config.'+record['env']+'.json'), ('broadcast', 'run-latest.json')):
-        path = Path(record[key])
+    for key, name in (('config', 'config.'+record['env']+'.json'), ('broadcast', 'run-latest.json'), ('readback', 'readback.json')):
+        path = source/name if key == 'readback' else Path(record[key])
         require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(ROOT), 'missing deployment record')
         data = path.read_bytes()
-        require(hashlib.sha256(data).hexdigest() == record[key+'Sha256'], 'deployment record changed since PASS')
+        require(hashlib.sha256(data).hexdigest() == record.get(key+'Sha256'), 'deployment record changed since PASS')
         require(Path(name).name == name, 'unsafe archive record name')
         destination = source/name
         try:

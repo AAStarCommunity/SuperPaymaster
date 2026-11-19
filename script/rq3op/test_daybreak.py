@@ -15,11 +15,11 @@ class Daybreak(unittest.TestCase):
 
     def test_checker_is_executed_and_exact_count_required(self):
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
-        for code,log in [(1,'SUMMARY 186 passed, 0 failed, 186 total'),(0,'SUMMARY 187 passed, 0 failed, 187 total'),(0,'SUMMARY 185 passed, 1 failed, 186 total'),(0,'PASS no summary'),(0,'SUMMARY 186 passed, 0 failed, 186 total\nSUMMARY 186 passed, 0 failed, 186 total')]:
+        for code,log in [(1,'SUMMARY 242 passed, 0 failed, 242 total'),(0,'SUMMARY 243 passed, 0 failed, 243 total'),(0,'SUMMARY 241 passed, 1 failed, 242 total'),(0,'PASS no summary'),(0,'SUMMARY 242 passed, 0 failed, 242 total\nSUMMARY 242 passed, 0 failed, 242 total')]:
             with self.assertRaises(q.a.Gate):
                 q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout=log),commit_reader=lambda:cfg['commit'])
-        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 186 passed, 0 failed, 186 total'),commit_reader=lambda:cfg['commit'])
-        self.assertEqual(result['total'],186)
+        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 242 passed, 0 failed, 242 total'),commit_reader=lambda:cfg['commit'])
+        self.assertEqual(result['total'],242)
         self.assertNotIn('stdout',result)
     def test_dirty_or_wrong_commit_refused(self):
         with self.assertRaises(q.a.Gate):
@@ -135,6 +135,13 @@ class AdditionalGates(unittest.TestCase):
         finally:path.unlink()
 
 class FrozenChecker(unittest.TestCase):
+    def test_readback_commands(self):
+        import checker_runner as c
+        self.assertEqual(c.pin_command(['cast', 'rpc', 'eth_getBlockByNumber', 'latest', 'false'], '0x20')[3], '0x20')
+        for command in ('decode-abi', 'to-check-sum-address'):
+            self.assertEqual(c.pin_command(['cast', command, 'value'], '0x20'), ['cast', command, 'value'])
+        self.assertEqual(c.pin_command(['cast', 'code', 'address', '--block', '0x30'], '0x20'), ['cast', 'code', 'address', '--block', '0x20'])
+
     def test_checker_reads_original_block(self):
         import checker_runner as c
         for command in ('call','code','balance','storage'):
@@ -170,7 +177,7 @@ class Generation(unittest.TestCase):
             calls=[]
             def runner(command,**kwargs):
                 calls.append(command)
-                return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 186 passed, 0 failed, 186 total')
+                return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
                     return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])

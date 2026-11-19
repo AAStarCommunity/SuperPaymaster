@@ -43,6 +43,13 @@ class RedactTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=base) as tmp:
             self.assertEqual(c.redacted_streams(Path(tmp)), [])
 
+    def test_checker_separator_is_not_an_assignment(self):
+        for row in ('PASS  runtime gToken :: release runtime pin; compiler immutable references masked',
+                    'PASS  version gToken :: GToken-2.2.0'):
+            with self.subTest(row=row):
+                self.assertEqual(redact_error(row), row)
+        self.assertNotIn('abc123', redact_error('gToken: abc123'))
+
     def test_assignments_still_redacted(self):
         for raw in ('token=abc123', 'TOKEN: abc123', 'access_token = "abc123"', 'api_key=abc123',
                     'password:abc123', '"secret": "abc123"', 'Authorization=abc123'):

@@ -50,17 +50,18 @@ def artifact_pins(directory):
             for name in release_names()}
 
 
-def clean_build_pins():
+def clean_build_pins(collector=artifact_pins, *, build_info=False):
     with tempfile.TemporaryDirectory(prefix='.creation-build-', dir=ROOT) as tmp:
         project = Path(tmp)
-        ignore = shutil.ignore_patterns('.git', '.env*', 'out', 'cache', 'node_modules', '__pycache__', 'evidence')
+        ignore = shutil.ignore_patterns('.git', '.env*', 'out', 'cache', 'node_modules', '__pycache__')
         for name in ('contracts', 'singleton-paymaster', 'lib', 'script'):
             if (ROOT/name).exists(): shutil.copytree(ROOT/name, project/name, ignore=ignore)
         shutil.copy2(ROOT/'foundry.toml', project/'foundry.toml')
         out = project/'out-clean'; out.mkdir()
         env = dict(os.environ, DEFAULT_ARTIFACTS_OUT='out-clean', FOUNDRY_OUT='out-clean', FOUNDRY_CACHE_PATH='cache-clean')
+        if build_info: env['FOUNDRY_BUILD_INFO'] = 'true'
         subprocess.run(['nice', '-n', '10', FORGE, 'build', '--offline', '--evm-version', 'cancun'], cwd=project, env=env, check=True)
-        return artifact_pins(out)
+        return collector(out)
 
 
 def main():

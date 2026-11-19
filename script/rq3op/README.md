@@ -360,3 +360,9 @@ Frozen collector runs hold `cache/3arm/collector-locks/<chainId>/<bundler>.lock`
 until process exit. Active and stale locks are refused, never stolen. Both RPCs
 must agree on the initial pending nonce and on the expected next pending nonce
 immediately before each send. Legacy formal mode retains its fixed-block nonce.
+
+The DeployLive readback checker requires `DEPLOYLIVE_ENDPOINT_PROVIDER` (a short provider
+name, never an endpoint URL) and an explicit `DEPLOYLIVE_EVIDENCE_DIR` for its evidence.
+Set both before invoking rq3; `PinnedTools` forwards them to the checker. There is no
+fallback to the config file's directory. Provider validation runs during input loading
+and checker startup, before chain reads.

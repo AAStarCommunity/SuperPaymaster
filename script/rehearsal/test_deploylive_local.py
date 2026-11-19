@@ -50,7 +50,7 @@ class LocalForgeTest(unittest.TestCase):
                 env = dict(os.environ, SP_COMMIT=clean_source_commit(), FOUNDRY_VERBOSITY='2', DEPLOYER_ADDRESS=sender,
                            DEFAULT_ARTIFACTS_OUT='out', FOUNDRY_OUT='out-round7-prague', FOUNDRY_CACHE_PATH='cache/round7-prague',
                            ENABLE_AGENT_REGISTRIES=str(int(agents)), AGENT_IDENTITY_REGISTRY='0x'+f'{103 if agents else 0:040x}', AGENT_REPUTATION_REGISTRY='0x'+f'{104 if agents else 0:040x}',
-                           DEPLOYLIVE_LOCAL_EVIDENCE=str(evidence.relative_to(ROOT)),
+                           DEPLOYLIVE_LOCAL_EVIDENCE=str(evidence.relative_to(ROOT)), DEPLOYLIVE_ENDPOINT_PROVIDER='Anvil',
                            ENV='round8-local-a1' if agents else 'round8-local-a0', ENTRY_POINT='0x0000000071727De22E5E9d8BAf0edAc6f37da032', ETH_USD_FEED='0x'+f'{100:040x}', SIMPLE_ACCOUNT_FACTORY='0x'+f'{101:040x}',
                            GOVERNANCE_OWNER='0x'+f'{200:040x}', GUARDIAN_ADDRESS='0x'+f'{202:040x}', SP_GUARDIAN='0x'+f'{203:040x}', GENESIS_AASTAR_OPERATOR='0x'+f'{204:040x}',
                            APNTS_CAP=str(10**24), GUARDIAN_N='3', GUARDIAN_MIN_THRESHOLD='2', GUARDIAN_DEFAULT_THRESHOLD='2',
@@ -91,6 +91,21 @@ class LocalForgeTest(unittest.TestCase):
                 original = config.read_bytes()
                 run([sys.executable, 'script/rehearsal/deploylive_postdeploy_check.py', url, str(config), sender, env['GOVERNANCE_OWNER']], 'local-checker.log', env)
                 self.assertEqual(config.read_bytes(), original, 'checker must use exact forge config')
+                readback = json.loads((evidence/'readback.json').read_text())
+                self.assertEqual(readback['schema'], 'deploylive-readback/1')
+                def unresolved(value):
+                    if isinstance(value, dict): return any(unresolved(v) for v in value.values())
+                    if isinstance(value, list): return any(unresolved(v) for v in value)
+                    return value is None
+                missing = []
+                for item in readback['contracts']:
+                    if item['artifact'] and int(item['address'], 16): self.assertIs(item['maskedMatchesPin'], True)
+                    for getter, result in (item['addressGetters'] or {}).items():
+                        if unresolved(result['resolvesTo']): missing.append(item['configKey'] + '.' + getter)
+                # PolicyRegistry.sol:32 defines this asset marker; it is not a deployment address.
+                self.assertEqual(missing, [], 'every address must be accounted for')
+                policy = next(item for item in readback['contracts'] if item['configKey'] == 'policyRegistry')
+                self.assertEqual(policy['addressGetters']['ETH_SENTINEL']['value'].lower(), '0x' + 'ee' * 20)
                 (evidence/'config.real-forge.json').write_bytes(original)
                 # The checker output must reach the evidence verbatim through the driver's post-broadcast
                 # log writer (acceptance at 3e80d173 lost it to a redaction false positive).
