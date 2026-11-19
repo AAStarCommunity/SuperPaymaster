@@ -17,7 +17,7 @@ function fixture(otherBalance=0n){
  let height=1n,time=100n,balance=0n,nonce=7n;
  const archive={request:async({method,params})=>{
   if(method==='eth_chainId')return '0xa';
-  if(method==='eth_getBlockByNumber')return {number:params[0],hash,timestamp:'0x'+time.toString(16)};
+  if(method==='eth_getBlockByNumber')return {number:params[0],hash,timestamp:'0x'+(100n+(BigInt(params[0])-1n)*12n).toString(16)};
   if(method==='eth_getBalance')return '0x'+(params[0]===safe?otherBalance:balance).toString(16);
   if(method==='eth_call')return params[0].data===encodeFunctionData({abi:parseAbi(['function VERSION() view returns (string)']),functionName:'VERSION'})?encodeAbiParameters([{type:'string'}],['1.4.1']):encodeAbiParameters([{type:'uint256'}],[nonce]);
   throw Error(method);

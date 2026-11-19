@@ -29,14 +29,14 @@ function fixture(safe){
   if(method==='eth_getTransactionCount')return sends?'0x1':'0x0';
   if(method==='eth_getTransactionReceipt')return receipt;
   if(method==='eth_getTransactionByHash')return transaction;
-  if(method==='eth_getBlockByNumber')return {number:params[0],hash:blockHash,timestamp:'0x64'};
+  if(method==='eth_getBlockByNumber')return {number:params[0],hash:blockHash,timestamp:'0x'+(100n+(BigInt(params[0])-1n)*12n).toString(16)};
   throw Error(method);
  };
  const archive={request:({method,params})=>read(method,params)};
  const block={number:1n,hash:blockHash,timestamp:100n};
- const pub={getBlock:async({blockNumber}={})=>({...block,number:blockNumber??block.number}),waitForTransactionReceipt:async()=>({status:'success',blockNumber:1n,blockHash})};
+ const pub={getBlock:async({blockNumber}={})=>({...block,number:blockNumber??block.number,timestamp:100n+((blockNumber??block.number)-1n)*12n}),waitForTransactionReceipt:async()=>({status:'success',blockNumber:1n,blockHash})};
  const emitted=[];
- const deps={regenerate:async()=>raw,emit:r=>emitted.push(r),emitStatus:r=>emitted.push(r),send:async()=>{sends++;balance=1;return hash;},runtime:async()=>({archives:[archive,archive],accounts:{bundler:{address}},pubA:pub,pubB:pub,refreshPin:async()=>({...block,number:balance?3n:height})})};
+ const deps={regenerate:async()=>raw,emit:r=>emitted.push(r),emitStatus:r=>emitted.push(r),send:async()=>{sends++;balance=1;return hash;},runtime:async()=>({archives:[archive,archive],accounts:{bundler:{address}},pubA:pub,pubB:pub,refreshPin:async()=>({...block,number:balance?3n:height,timestamp:100n+((balance?3n:height)-1n)*12n})})};
  const args=[dir+'/bundle',digest,'0',dir+'/signers',dir+'/a',dir+'/b',dir+'/audit',dir+'/config',dir+'/inputs','--expect-head','0'.repeat(64)];
  return {dir,args,deps,step,receipt,transaction,read,emitted,balance:v=>balance=v,sends:()=>sends,advance:()=>height++,close:()=>rmSync(dir,{recursive:true,force:true})};
 }
@@ -62,7 +62,7 @@ for(const safe of [false,true])test(`${safe?'Safe':'EOA'} receipt-recorded compl
   const entry=completionEntry(f.args[0]+'.completions.jsonl',f.args[1],f.step.id);
   if(safe){assert.equal(entry.clearanceDigest,entry.clearance.recordDigest);assert.equal(entry.clearance.authorizationDigest,entry.authorizationDigest);}
   f.args[f.args.length-1]=entry.recordDigest;
-  assert.equal(entry.txHash,hash);assert.equal(entry.timestamp,'100');assert.equal(entry.readback[0].observed,1);
+  assert.equal(entry.txHash,hash);assert.equal(entry.timestamp,'124');assert.equal(entry.readback[0].observed,1);
   await main(safe?['safe',...f.args]:[...f.args],f.deps);
   if(safe)assert.equal(f.emitted.at(-1),'already-satisfied');else assert.equal(f.sends(),1);
   f.receipt.status='0x0';
