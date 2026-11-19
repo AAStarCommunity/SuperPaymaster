@@ -208,7 +208,7 @@ For each zero-based queue index in order:
 ```sh
 node script/rq3op/setup.mjs cache/3arm/rq3-three-arm.10.json <reviewed-raw-file-sha256> \
   <queue-index> cache/3arm/signers.json cache/3arm/rpc-a.url cache/3arm/rpc-b.url \
-  cache/3arm/setup.ndjson cache/3arm/config.json cache/3arm/inputs.json
+  cache/3arm/setup.ndjson cache/3arm/config.json cache/3arm/inputs.json --expect-head <previous-chain-head>
 ```
 
 `formal.mjs` supplies endpoint resolution, secret-redacted raw archives and
@@ -432,18 +432,27 @@ Before owners sign each Safe transaction, run (index into `safeTransactions`):
 
 ```sh
 node script/rq3op/setup.mjs safe <bundle> <digest> <index> - \
-  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs>
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> --expect-head <previous-chain-head>
 ```
 
 This chain-read-only command verifies the reviewed bundle and gate, records an
 authorization, then emits the inner CALL plus full signing fields, safeTxHash and
 bound digests. A completed step prints `already-satisfied` and emits no transaction;
-a STOP emits none. It constructs no signer. The Safe workflow uses the emitted
-CALL through `execTransaction`. After execution, record the receipt and readback:
+a STOP emits none. It constructs no signer. The operator sequence is exactly: `safe` (get transaction + safeTxHash) -> verify
+hash in Safe UI and collect signatures -> `safe-clear` -> execute immediately ->
+`safe-record`. After collecting signatures, run:
+
+```sh
+node script/rq3op/setup.mjs safe-clear <bundle> <digest> <index> - \
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> --expect-head <previous-chain-head>
+```
+
+Only after this succeeds, execute the emitted CALL through `execTransaction`.
+Then record the receipt and readback:
 
 ```sh
 node script/rq3op/setup.mjs safe-record <bundle> <digest> <index> - \
-  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> <execution-tx-hash>
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> <execution-tx-hash> --expect-head <previous-chain-head>
 ```
 
 The recorder verifies the Safe address, exact inner call and `ExecutionSuccess`
@@ -485,19 +494,29 @@ nonce read from `nonce()` at that pinned block and all ten SafeTx fields.
 zero (the zero address for address fields), unless explicitly set in the reviewed
 plan. Do not let the UI substitute different gas/refund parameters.
 
-Supported `VERSION()` values are exactly 1.3.0, 1.4.0 and 1.4.1. The signing hash
+Supported `VERSION()` values are exactly 1.3.0 and 1.4.1. The signing hash
 uses the EIP-712 `EIP712Domain(uint256 chainId,address verifyingContract)` and
 `SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)`
-type hashes, dynamic-data keccak256, and the `0x1901` prefix. Other versions stop.
+type hashes, dynamic-data keccak256, and the `0x1901` prefix. Other versions stop,
+including 1.4.0, whose event layout is not proven by this checkout. The authorized
+VERSION selects the event layout: 1.3.0 reads txHash from the first data word;
+1.4.1 reads topics[1]. A Safe ExecutionFailure always refuses recording.
 The SHA-256 transaction digest also binds Safe, chain and all signing fields.
 
 An authorization records `blockNumber`, `blockHash`, `blockTimestamp`, and
 `expiresAtTimestamp = blockTimestamp + AUTH_WINDOW_SECONDS`. The single named
 constant `AUTH_WINDOW_SECONDS = 86400` provides one day for human multi-owner
 signing, independent of chain block speed. The pin timestamp comes from the
-pinned header cross-checked through both providers; disagreement stops. Gate state
-and the Safe nonce also bound staleness: a changed nonce changes `safeTxHash` and
-fails the record check.
+pinned header cross-checked through both providers; disagreement stops. This is a SIGNING authorization, not permission to execute after collecting signatures.
+`safe-clear` uses a NEW pinned head corroborated by both providers, rechecks the
+step's initial predicates, re-reads nonce and VERSION, and recomputes safeTxHash.
+A changed predicate, nonce, hash or anchor prints `DO NOT EXECUTE` and appends
+nothing. On success it appends an `EXECUTION_CLEARANCE` bound to the signing
+authorization's recordDigest. `CLEARANCE_WINDOW_SECONDS = 600` is the single
+named ten-minute limit; expiry is the smaller of pin timestamp + 600 and the
+signing authorization expiry. There may be only one unconsumed, unexpired
+clearance per authorization. An expired clearance may be replaced after a fresh
+successful gate. The signing authorization still expires after 24 hours.
 
 `safe-record` requires exactly one unused authorization for the step, Safe and
 chain. Both execution and the current agreeing recording head must be strictly
@@ -508,7 +527,11 @@ The authorization block must remain canonical. The decoded execution
 parameters plus the authorized nonce must reproduce its Safe signing hash and the
 `ExecutionSuccess` event's txHash. That event cryptographically identifies the
 nonce consumed by this execution, even with multiple Safe transactions in one
-block. A completion consumes the authorization by record digest. Expired,
+block. Execution must be strictly after the clearance pin block and have timestamp
+<= clearance expiry. Missing, expired, consumed or ambiguous clearances refuse
+with `execution not cleared`. Recording rechecks both canonical pin hashes and
+consumes exactly one clearance and its authorization by record digest. A
+clearance cannot extend the signing authorization lifetime. Expired,
 ambiguous, consumed or missing authorizations stop with
 `transaction not authorized by the gate`; an expired execution cannot be recovered
 by authorizing it retrospectively. Re-gating is possible only while the step is
@@ -524,8 +547,31 @@ stores the count and final digest, detecting complete-record suffix truncation
 or removal of the log. Appends fsync the log, atomically replace a fsynced head,
 and fsync its directory. An interrupted append/checkpoint mismatch stops for
 operator review; never delete/reset these files to bypass it. Preserve both files
-together. This detects corruption relative to the checkpoint, not an attacker
-rewriting or rolling back both files; protect/back up the checkpoint accordingly.
+together. Every command prints `CHAIN_HEAD <digest>` as its final stdout line;
+save that value separately from the log and its `.head`. Every later invocation
+must pass `--expect-head <digest>` with that saved value. A mismatch refuses
+before state checks or signing. This detects rolling back or deleting both files
+relative to the operator's retained digest. If the bundle cannot be identified or
+the chain is corrupt, output is `CHAIN_HEAD unavailable`, which is not an anchor.
 Existing unchained logs are refused. On rerun, receipt-block target observations
 are obtained again and compared in full to the recorded readback before its
 completion evidence is used for the current-state gate.
+
+### Recovery and first invocation (round 7)
+
+Do not infer initialization from missing files. For the first invocation only,
+use `--first-run` instead of `--expect-head`. It is accepted only with an empty
+history AND every Safe and EOA step in its initial state at one dual-provider
+pinned head. Any target or partial state refuses and directs the operator to
+`--expect-head`; checking only the selected step is insufficient. Sequential
+plans can contain future-step initial predicates that are not yet true, so this
+check is deliberately conservative and may refuse such a plan. Do not use a
+fresh genesis digest to evade a lost history check.
+
+After a refusal, preserve the evidence. Restore the reviewed log and `.head`
+from a trusted backup and compare their head to the separately retained digest.
+Never adopt the current on-disk digest merely to silence a mismatch, and never
+reset to `--first-run` after losing history. If the prior digest or history is
+unavailable, stop and reconcile the receipts and state before resuming. The
+operator-supplied anchor is the trust root; supplying an old digest alongside an
+old backup defeats rollback detection.

@@ -3,8 +3,9 @@ import {createHash} from 'node:crypto';
 import {dirname} from 'node:path';
 import {decodeFunctionData,parseAbi,toEventSelector,encodeFunctionData,decodeFunctionResult,encodeAbiParameters,keccak256,stringToHex,concat} from 'viem';
 import {parse} from '../a6-collector/frozen-plan.mjs';
-// One day allows human multi-owner signing; gate state and the hash-bound Safe nonce bound staleness.
+// Signing may take a day; execution requires a separate fresh state clearance.
 export const AUTH_WINDOW_SECONDS = 86400n;
+export const CLEARANCE_WINDOW_SECONDS = 600n;
 export const json = value=>JSON.stringify(value,(_,v)=>typeof v==='bigint'?v.toString():v);
 const same=(a,b)=>String(a).toLowerCase()===String(b).toLowerCase();
 export function canonical(value) {
@@ -30,6 +31,27 @@ function records(path,digest) {
  }
  if(head!==canonical({count:entries.length,digest:previous})+'\n')throw Error('completion tail mismatch');
  return entries;
+}
+export function chainHead(path,digest){return records(path,digest).at(-1)?.recordDigest??genesis;}
+export function requireHead(path,digest,{expected,firstRun}) {
+ const entries=records(path,digest);
+ if(firstRun){if(entries.length)throw Error('history is not empty; use --expect-head');}
+ else if(!/^[0-9a-f]{64}$/.test(expected??''))throw Error('--expect-head <digest> or --first-run required');
+ else if(expected!==(entries.at(-1)?.recordDigest??genesis))throw Error('chain head mismatch with --expect-head');
+}
+export function appendClearance(path,authorization,pin) {
+ const entries=records(path,authorization.bundleSha256);
+ if(!entries.some(e=>e.type==='AUTHORIZATION' && e.recordDigest===authorization.recordDigest) || entries.some(e=>e.type==='COMPLETION' && e.authorizationDigest===authorization.recordDigest))throw Error('authorization unavailable');
+ if(BigInt(pin.number)<=BigInt(authorization.blockNumber) || BigInt(pin.timestamp)>BigInt(authorization.expiresAtTimestamp))throw Error('authorization expired or clearance pin not new');
+ if(entries.some(e=>e.type==='EXECUTION_CLEARANCE' && e.authorizationDigest===authorization.recordDigest && BigInt(e.expiresAtTimestamp)>=BigInt(pin.timestamp) && !entries.some(c=>c.type==='COMPLETION' && c.clearanceDigest===e.recordDigest)))throw Error('clearance already outstanding');
+ const expiry=BigInt(pin.timestamp)+CLEARANCE_WINDOW_SECONDS;
+ return append(path,{type:'EXECUTION_CLEARANCE',id:authorization.id,bundleSha256:authorization.bundleSha256,authorizationDigest:authorization.recordDigest,blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(expiry<BigInt(authorization.expiresAtTimestamp)?expiry:BigInt(authorization.expiresAtTimestamp))});
+}
+export function clearanceEntry(path,digest,authorization,execution) {
+ const entries=records(path,digest);
+ const matches=entries.filter(e=>e.type==='EXECUTION_CLEARANCE' && e.authorizationDigest===authorization.recordDigest && BigInt(e.blockNumber)<BigInt(execution.number) && BigInt(execution.timestamp)<=BigInt(e.expiresAtTimestamp) && !entries.some(c=>c.type==='COMPLETION' && c.clearanceDigest===e.recordDigest));
+ if(matches.length!==1)throw Error('execution not cleared');
+ return matches[0];
 }
 export function completionEntry(path,digest,id) {
  const matches=records(path,digest).filter(e=>e.type==='COMPLETION' && e.id===id);
@@ -74,7 +96,7 @@ const getters=parseAbi(['function nonce() view returns (uint256)','function VERS
 export async function safeSigning(step,chainId,pin,read){
  const get=async functionName=>decodeFunctionResult({abi:getters,functionName,data:await read('eth_call',[{to:step.from,data:encodeFunctionData({abi:getters,functionName})},'0x'+BigInt(pin.number).toString(16)])});
  const version=await get('VERSION');
- if(!['1.3.0','1.4.0','1.4.1'].includes(version))throw Error('unsupported Safe VERSION');
+ if(!['1.3.0','1.4.1'].includes(version))throw Error('unsupported Safe VERSION');
  const transaction={...safeTransaction(step),...Object.fromEntries(['safeTxGas','baseGas','gasPrice'].map(k=>[k,String(step[k]??0)])),gasToken:step.gasToken??zero,refundReceiver:step.refundReceiver??zero,nonce:String(await get('nonce'))};
  return {safe:step.from,chainId:String(chainId),version,transaction,transactionSha256:sha({safe:step.from,chainId:String(chainId),transaction}),safeTxHash:safeTxHash(step.from,chainId,transaction)};
 }
@@ -92,8 +114,13 @@ export async function emitSafe(step,digest,{gate,authorize,emit}) {
  const output={...result,...authorization,signingTransaction:authorization.transaction,transaction};
  emit(output);return output;
 }
+export function safeEventHash(event,version) {
+ if(version==='1.3.0' && event.topics.length===1 && /^0x[0-9a-fA-F]{128}$/.test(event.data))return event.data.slice(0,66);
+ if(version==='1.4.1' && event.topics.length===2 && /^0x[0-9a-fA-F]{64}$/.test(event.topics[1]) && /^0x[0-9a-fA-F]{64}$/.test(event.data))return event.topics[1];
+ throw Error('unsupported Safe VERSION or event layout');
+}
 const safeABI=parseAbi(['function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures) returns (bool success)']);
-export async function verifyReceipt(read,step,hash,safe=false,record=null,authorization=null) {
+export async function verifyReceipt(read,step,hash,safe=false,record=null,authorization=null,clearance=null) {
  if(!/^0x[0-9a-fA-F]{64}$/.test(hash))throw Error('completion transaction hash');
  const receipt=await read('eth_getTransactionReceipt',[hash]);
  if(!receipt || BigInt(receipt.status)!==1n || !same(receipt.transactionHash,hash))throw Error('completion receipt missing or failed');
@@ -109,11 +136,15 @@ export async function verifyReceipt(read,step,hash,safe=false,record=null,author
   const planned=safeTransaction(step);
   if(!same(to,planned.to)||value!==BigInt(planned.value)||!same(data,planned.data)||operation!==planned.operation)throw Error('Safe transaction mismatch');
   const successes=receipt.logs.filter(l=>same(l.address,step.from)&&same(l.topics[0],toEventSelector('ExecutionSuccess(bytes32,uint256)')));
-  if(successes.length!==1)throw Error('Safe inner execution not successful');
+  if(receipt.logs.some(l=>same(l.address,step.from)&&same(l.topics[0],toEventSelector('ExecutionFailure(bytes32,uint256)'))) || successes.length!==1)throw Error('Safe inner execution not successful');
   const auth=authorization??record?.authorization;
   if(!auth)throw Error('transaction not authorized by the gate');
   if(BigInt(receipt.blockNumber)<=BigInt(auth.blockNumber) || BigInt(block.timestamp)>BigInt(auth.expiresAtTimestamp))throw Error('transaction not authorized by the gate');
-  const anchor=await read('eth_getBlockByNumber',['0x'+BigInt(auth.blockNumber).toString(16),false]);
+  const cleared=clearance??record?.clearance;
+  if(!cleared || cleared.authorizationDigest!==auth.recordDigest || BigInt(receipt.blockNumber)<=BigInt(cleared.blockNumber) || BigInt(block.timestamp)>BigInt(cleared.expiresAtTimestamp) || BigInt(cleared.expiresAtTimestamp)>BigInt(auth.expiresAtTimestamp))throw Error('execution not cleared');
+  const clearanceAnchor=await read('eth_getBlockByNumber',['0x'+BigInt(cleared.blockNumber).toString(16),false]);
+  if(!same(clearanceAnchor.hash,cleared.blockHash))throw Error('execution not cleared: clearance anchor changed');
+  const anchor=await read('eth_getBlockByNumber' ,['0x'+BigInt(auth.blockNumber).toString(16),false]);
   if(!same(anchor.hash,auth.blockHash))throw Error('authorization anchor changed');
   const chain=await read('eth_chainId',[]);
   if(BigInt(chain)!==BigInt(auth.chainId)||!same(auth.safe,step.from))throw Error('authorization domain mismatch');
@@ -121,7 +152,7 @@ export async function verifyReceipt(read,step,hash,safe=false,record=null,author
   const executed=Object.fromEntries(fields.slice(0,-1).map(([name],i)=>[name,decoded.args[i]]));
   executed.nonce=auth.transaction.nonce;
   const executedHash=safeTxHash(step.from,chain,executed);
-  if(!same(executedHash,auth.safeTxHash)||!same(successes[0].data?.slice(0,66),executedHash))throw Error('Safe signing hash mismatch');
+  if(!same(executedHash,auth.safeTxHash)||!same(safeEventHash(successes[0],auth.version),executedHash))throw Error('Safe signing hash mismatch');
  } else {
   const planned=step.tx;
   for(const k of ['from','to'])if(!same(tx[k],planned[k]))throw Error('completion transaction identity mismatch');

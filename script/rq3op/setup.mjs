@@ -1,6 +1,6 @@
 // RQ3 setup only. formal.mjs owns endpoint validation, archiving and cast keystore signing.
 import { parse } from '../a6-collector/frozen-plan.mjs';
-import {json,completionEntry,appendCompletion,verifyReceipt,emitSafe,canonical,appendAuthorization,authorizationEntry,safeSigning,AUTH_WINDOW_SECONDS} from './completion.mjs';
+import {json,completionEntry,appendCompletion,verifyReceipt,emitSafe,canonical,appendAuthorization,authorizationEntry,safeSigning,AUTH_WINDOW_SECONDS,chainHead,requireHead,appendClearance,clearanceEntry} from './completion.mjs';
 export {emitSafe} from './completion.mjs';
 import { readFileSync, appendFileSync, mkdirSync, openSync, closeSync, unlinkSync, writeFileSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -79,7 +79,29 @@ export function requireSDKClearance(bundle,step) {
 }
 
 export async function main(args=process.argv.slice(2),deps={}) {
-  const mode=['safe','safe-record','record'].includes(args[0])?args.shift():'send';
+  const context={};
+  try{return await runMain([...args],deps,context);}
+  catch(error){
+    if(args[0]==='safe-clear'){
+      if(!error.message.startsWith('DO NOT EXECUTE'))error.message='DO NOT EXECUTE: '+error.message;
+      process.stderr.write(error.message+'\n');
+    }
+    throw error;
+  }
+  finally{
+    let head='unavailable';
+    if(context.path)try{head=chainHead(context.path,context.digest);}catch{}
+    (deps.emitHead??(v=>process.stdout.write('CHAIN_HEAD '+v+'\n')))(head);
+  }
+}
+async function runMain(args,deps,context) {
+  const flags={};
+  for(let i=0;i<args.length;i++){
+    if(args[i]==='--first-run'){if(flags.firstRun)throw Error('duplicate --first-run');flags.firstRun=true;args.splice(i--,1);}
+    else if(args[i]==='--expect-head'){if(flags.expected!==undefined)throw Error('duplicate --expect-head');flags.expected=args[i+1];args.splice(i,2);i--;}
+  }
+  if(flags.firstRun && flags.expected!==undefined)throw Error('choose --first-run or --expect-head');
+  const mode=['safe','safe-clear','safe-record','record'].includes(args[0])?args.shift():'send';
   const safe=mode.startsWith('safe'),recording=mode.endsWith('record');
   const transactionHash=args[9];
   const [bundleArg,digest,indexArg,signersArg,rpcAFile,rpcBFile,logArg,configArg,inputsArg]=args;
@@ -93,11 +115,13 @@ export async function main(args=process.argv.slice(2),deps={}) {
   const step=selected[index];
   requireSDKClearance(bundle,step);
   const completionPath=inside(bundlePath+'.completions.jsonl');
+  context.path=completionPath;context.digest=digest;
   const experiment=bundle.shared.experiment;
   const lockDir=inside(root+'/cache/3arm');
   mkdirSync(lockDir+'/locks',{recursive:true});
   const release=acquireLock(inside(lockDir+'/locks'),experiment);
   try {
+  requireHead(completionPath,digest,flags);
   const regenerate=deps.regenerate ?? (async()=>{
     const block=Object.values(bundle.plans)[0].pin.block;
     const result=await promisify(execFile)('python3',['-B',fileURLToPath(new URL('./plan_three_arm.py',import.meta.url)),
@@ -145,6 +169,17 @@ export async function main(args=process.argv.slice(2),deps={}) {
     if(head.hash!==pin.hash || (pin.timestamp!==undefined && BigInt(head.timestamp)!==pin.timestamp)) throw Error('setup anchor changed');
   });
   const gate=deps.gate ?? gateWorker;
+  if(flags.firstRun){
+    pin=await refreshPin();
+    if(BigInt(await pairRead('eth_chainId',[]))!==BigInt(bundle.chainId))throw Error('setup chain mismatch');
+    try{
+      for(const isSafe of [false,true])for(let i=0;i<(isSafe?bundle.safeTransactions??[]:bundle.steps).length;i++){
+        const state=await gate(bundle,i,'initial',0,read,{safe:isSafe});
+        if(state?.status!=='initial')throw Error('step not initial');
+      }
+      await checkAnchor();
+    }catch(error){throw Error('first-run requires every step initial; use --expect-head: '+error.message);}
+  }
   const precheck=async()=>{
     pin=safe?await refreshPin():await runtime.refreshPin();
     const chains=await pairRead('eth_chainId',[]);
@@ -166,28 +201,49 @@ export async function main(args=process.argv.slice(2),deps={}) {
   const recordCompletion=async hash=>{
     if(completionEntry(completionPath,digest,step.id))throw Error(safe?'transaction not authorized by the gate':'completion already recorded');
     if(BigInt(await pairRead('eth_chainId',[]))!==BigInt(bundle.chainId))throw Error('setup chain mismatch');
-    let authorization;
+    let authorization,clearance;
     if(safe){
       pin=await refreshPin();
       authorization=authorizationEntry(completionPath,digest,step,bundle.chainId,pin);
       await checkAnchor();
     }
-    const receipt=await verifyReceipt(pairRead,step,hash,safe,null,authorization);
+    if(safe){
+      const rawReceipt=await pairRead('eth_getTransactionReceipt',[hash]);
+      if(!rawReceipt)throw Error('completion receipt missing');
+      const block=await pairRead('eth_getBlockByNumber',[rawReceipt.blockNumber,false]);
+      clearance=clearanceEntry(completionPath,digest,authorization,{number:rawReceipt.blockNumber,timestamp:block.timestamp});
+    }
+    const receipt=await verifyReceipt(pairRead,step,hash,safe,null,authorization,clearance);
     if(safe && BigInt(receipt.blockNumber)>pin.number)throw Error('completion after pinned head');
     pin=await runtime.pubA.getBlock({blockNumber:BigInt(receipt.blockNumber)});
     if(pin.hash!==receipt.blockHash)throw Error('receipt block changed');
     const readback=await gate(bundle,index,'readback',receipt.timestamp,read,{safe});
     await checkAnchor();
-    const entry={id:step.id,bundleSha256:digest,...receipt,readback,...(safe?{authorization,authorizationDigest:authorization.recordDigest}:{})};
+    const entry={id:step.id,bundleSha256:digest,...receipt,readback,...(safe?{authorization,authorizationDigest:authorization.recordDigest,clearance,clearanceDigest:clearance.recordDigest}:{})};
     appendCompletion(completionPath,entry);return entry;
   };
   let result;
   if(recording) result=await recordCompletion(transactionHash);
+  else if(mode==='safe-clear') {
+    try{
+      const state=await precheck();
+      if(state?.status!=='initial')throw Error('step is not initial');
+      const authorization=authorizationEntry(completionPath,digest,step,bundle.chainId,pin);
+      const signing=await safeSigning(step,bundle.chainId,pin,read);
+      if(signing.transaction.nonce!==authorization.transaction.nonce)throw Error('Safe nonce changed');
+      if(signing.safeTxHash!==authorization.safeTxHash || signing.version!==authorization.version)throw Error('Safe signing hash or VERSION changed');
+      const anchor=await pairRead('eth_getBlockByNumber',['0x'+BigInt(authorization.blockNumber).toString(16),false]);
+      if(anchor.hash!==authorization.blockHash)throw Error('authorization anchor changed');
+      await checkAnchor();
+      result=appendClearance(completionPath,authorization,pin);
+      (deps.emit??(v=>process.stdout.write(json(v)+'\n')))({...result,instruction:'Execute immediately, then safe-record'});
+    }catch(error){throw Object.assign(Error('DO NOT EXECUTE: '+error.message),{record:error.record});}
+  }
   else if(safe) {
     result=await emitSafe(step,digest,{gate:precheck,authorize:async result=>{
       const signing=await safeSigning(step,bundle.chainId,pin,read);
       await checkAnchor();
-      const entry={...result,...signing,type:'AUTHORIZATION',blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(pin.timestamp+AUTH_WINDOW_SECONDS)};
+      const entry={...result,...signing,instruction:'safe -> verify hash in Safe UI and collect signatures -> safe-clear -> execute immediately -> safe-record',type:'AUTHORIZATION',blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(pin.timestamp+AUTH_WINDOW_SECONDS)};
       return appendAuthorization(completionPath,entry);
     },emit:deps.emit??(v=>process.stdout.write(json(v)+'\n'))});
     if(result.status==='already-satisfied')(deps.emitStatus??(s=>process.stdout.write(s+'\n')))('already-satisfied');

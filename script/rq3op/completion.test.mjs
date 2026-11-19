@@ -4,8 +4,12 @@ import {mkdirSync,mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {encodeFunctionData,encodeAbiParameters,parseAbi,toEventSelector} from 'viem';
-import {main,gateWorker} from './setup.mjs';
-import {verifyReceipt,completionEntry,appendCompletion,safeTxHash} from './completion.mjs';
+import {main as runMain,gateWorker} from './setup.mjs';
+import {verifyReceipt,completionEntry,appendCompletion,safeTxHash,chainHead} from './completion.mjs';
+async function main(args,deps){
+ const offset=['safe','safe-clear','safe-record','record'].includes(args[0])?1:0;
+ return runMain([...args,'--expect-head',chainHead(args[offset]+'.completions.jsonl',args[offset+1])],deps);
+}
 const address='0x'+'11'.repeat(20),to='0x'+'22'.repeat(20),hash='0x'+'ab'.repeat(32),blockHash='0x'+'cd'.repeat(32);
 const tx={from:address,to,value:'0x1',data:'0x1234',nonce:'0x0',chainId:'0xa',gas:'0x10000',maxFeePerGas:'0x2',maxPriorityFeePerGas:'0x1'};
 const abi=parseAbi(['function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures) returns (bool success)']);
@@ -17,9 +21,10 @@ function fixture(safe){
  const bundle={chainId:10,shared:{experiment:"0x"+"77".repeat(20)},steps:safe?[]:[step],safeTransactions:safe?[step]:[],plans:{a:{planIndex:0,steps:safe?[]:[{...step,id:'C20'}]}}};
  const raw=Buffer.from(JSON.stringify(bundle)),digest=createHash('sha256').update(raw).digest('hex');
  writeFileSync(dir+'/bundle',raw);writeFileSync(dir+'/signers',JSON.stringify({[address]:{address}}));
- const receipt={status:'0x1',transactionHash:hash,blockNumber:'0x2',blockHash,logs:[{address,topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)')],data:encodeAbiParameters([{type:'bytes32'},{type:'uint256'}],[safeTxHash(address,10,{to,value:1n,data:tx.data,operation:0,safeTxGas:0,baseGas:0,gasPrice:0,gasToken:'0x'+'00'.repeat(20),refundReceiver:'0x'+'00'.repeat(20),nonce:7}),0n])}]};
+ const receipt={status:'0x1',transactionHash:hash,blockNumber:'0x3',blockHash,logs:[{address,topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)')],data:encodeAbiParameters([{type:'bytes32'},{type:'uint256'}],[safeTxHash(address,10,{to,value:1n,data:tx.data,operation:0,safeTxGas:0,baseGas:0,gasPrice:0,gasToken:'0x'+'00'.repeat(20),refundReceiver:'0x'+'00'.repeat(20),nonce:7}),0n])}]};
+ receipt.logs[0].topics.push(receipt.logs[0].data.slice(0,66));receipt.logs[0].data='0x'+'00'.repeat(32);
  const transaction=safe?{to:address,blockHash,input:encodeFunctionData({abi,functionName:'execTransaction',args:[to,1n,tx.data,0,0n,0n,0n,'0x'+'00'.repeat(20),'0x'+'00'.repeat(20),'0x']})}:{...tx,input:tx.data,blockHash};
- let balance=0,sends=0;
+ let balance=0,sends=0,height=1n;
  const read=async(method,params)=>{
   if(method==='eth_call')return params[0].data===encodeFunctionData({abi:parseAbi(['function VERSION() view returns (string)']),functionName:'VERSION'})?encodeAbiParameters([{type:'string'}],['1.4.1']):encodeAbiParameters([{type:'uint256'}],[7n]);
   if(method==='eth_chainId')return '0xa';
@@ -34,9 +39,9 @@ function fixture(safe){
  const block={number:1n,hash:blockHash,timestamp:100n};
  const pub={getBlock:async({blockNumber}={})=>({...block,number:blockNumber??block.number}),waitForTransactionReceipt:async()=>({status:'success',blockNumber:1n,blockHash})};
  const emitted=[];
- const deps={regenerate:async()=>raw,emit:r=>emitted.push(r),emitStatus:r=>emitted.push(r),send:async()=>{sends++;balance=1;return hash;},runtime:async()=>({archives:[archive,archive],accounts:{bundler:{address}},pubA:pub,pubB:pub,refreshPin:async()=>({...block,number:balance?2n:1n})})};
+ const deps={regenerate:async()=>raw,emit:r=>emitted.push(r),emitStatus:r=>emitted.push(r),send:async()=>{sends++;balance=1;return hash;},runtime:async()=>({archives:[archive,archive],accounts:{bundler:{address}},pubA:pub,pubB:pub,refreshPin:async()=>({...block,number:balance?3n:height})})};
  const args=[dir+'/bundle',digest,'0',dir+'/signers',dir+'/a',dir+'/b',dir+'/audit',dir+'/config',dir+'/inputs'];
- return {dir,args,deps,step,receipt,transaction,read,emitted,balance:v=>balance=v,sends:()=>sends,close:()=>rmSync(dir,{recursive:true,force:true})};
+ return {dir,args,deps,step,receipt,transaction,read,emitted,balance:v=>balance=v,sends:()=>sends,advance:()=>height++,close:()=>rmSync(dir,{recursive:true,force:true})};
 }
 for(const safe of [false,true])test(`${safe?'Safe':'EOA'} receipt-recorded completion, unlogged target, failed receipt`,async()=>{
  const f=fixture(safe);try{
@@ -52,9 +57,11 @@ for(const safe of [false,true])test(`${safe?'Safe':'EOA'} receipt-recorded compl
   if(safe){
    await main(['safe',...f.args],f.deps);assert.equal(f.emitted.length,1);
    assert.deepEqual(f.emitted[0].transaction,{to,value:'0x1',data:'0x1234',operation:0});
+   f.advance();await main(['safe-clear',...f.args],f.deps);
    f.balance(1);await main(['safe-record',...f.args,hash],f.deps);
   }else await main([...f.args],f.deps);
   const entry=completionEntry(f.args[0]+'.completions.jsonl',f.args[1],f.step.id);
+  if(safe){assert.equal(entry.clearanceDigest,entry.clearance.recordDigest);assert.equal(entry.clearance.authorizationDigest,entry.authorizationDigest);}
   assert.equal(entry.txHash,hash);assert.equal(entry.timestamp,'100');assert.equal(entry.readback[0].observed,1);
   await main(safe?['safe',...f.args]:[...f.args],f.deps);
   if(safe)assert.equal(f.emitted.at(-1),'already-satisfied');else assert.equal(f.sends(),1);
@@ -92,9 +99,9 @@ test('M1 rerun compares historical receipt-block readbacks',async()=>{
   await assert.rejects(main([...f.args],f.deps),/completion readback mismatch/);
  }finally{f.close();}
 });
-for(const mode of ['safe','safe-record'])test(`${mode} STOPs when pinned provider timestamps disagree`,async()=>{
+for(const mode of ['safe','safe-clear','safe-record'])test(`${mode} STOPs when pinned provider timestamps disagree`,async()=>{
  const f=fixture(true);try{
-  if(mode==='safe-record'){await main(['safe',...f.args],f.deps);f.balance(1);}
+  if(mode!=='safe'){await main(['safe',...f.args],f.deps);f.advance();if(mode==='safe-record')f.balance(1);}
   const runtime=f.deps.runtime;
   f.deps.runtime=async()=>{
    const r=await runtime();
@@ -105,7 +112,7 @@ for(const mode of ['safe','safe-record'])test(`${mode} STOPs when pinned provide
    return r;
   };
   await assert.rejects(main([mode,...f.args,...(mode==='safe-record'?[hash]:[])],f.deps),/setup read disagreement/);
-  assert.equal(f.emitted.length,mode==='safe-record'?1:0);
+  assert.equal(f.emitted.length,mode==='safe'?0:1);
   assert.equal(completionEntry(f.args[0]+'.completions.jsonl',f.args[1],f.step.id),null);
  }finally{f.close();}
 });

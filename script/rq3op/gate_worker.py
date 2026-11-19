@@ -36,9 +36,9 @@ def main():
     if safe: plan,local=None,bundle['safeTransactions'][request['index']]
     else: plan,local=associated_plan(bundle,request['index'])
     result=None
-    if request['action']=='precheck':
+    if request['action'] in ('precheck','initial'):
         result=precheck_state(rpc,local,request.get('completion'))
-        if result['status']=='initial' and not safe:
+        if request['action']=='precheck' and result['status']=='initial' and not safe:
             q.pre_send(rpc,plan,local)
             q.m.phase_c_pre_send(rpc,plan,local,{},deployment=plan['deploymentContext'])
     elif request['action']=='readback':

@@ -19,7 +19,7 @@ function fixture(){
  return method==='eth_chainId'?chain:nonce;}};
  const pub={waitForTransactionReceipt:async()=>({status:'success',blockHash:'hash',blockNumber:1n}),getBlock:async()=>({number:1n,hash:'hash',timestamp:1n})};
  const deps={regenerate:async()=>raw,runtime:async()=>({accounts:{bundler:{address:tx.from}},archives:[archive,archive],pubA:pub,pubB:pub,refreshPin:async()=>({number:1n,hash:'hash'})}),send:async()=>{events.push('send');return '0x'+'ab'.repeat(32);},gate:async()=>{},anchor:async()=>{},};
- const args=[dir+'/bundle',createHash('sha256').update(raw).digest('hex'),'0',dir+'/signers',dir+'/rpcA',dir+'/rpcB',dir+'/log',dir+'/config',dir+'/inputs'];
+ const args=[dir+'/bundle',createHash('sha256').update(raw).digest('hex'),'0',dir+'/signers',dir+'/rpcA',dir+'/rpcB',dir+'/log',dir+'/config',dir+'/inputs','--expect-head','0'.repeat(64)];
  return {dir,bundle,raw,args,deps,events,nonce:v=>nonce=v,chain:v=>chain=v,close:()=>rmSync(dir,{recursive:true,force:true})};
 }
 for(const mode of ['valid','digest','tamper','signer','association','nonce','chain'])test('main offline '+mode,async()=>{
