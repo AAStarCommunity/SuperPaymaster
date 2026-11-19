@@ -39,7 +39,11 @@ on:
 # regressions, is pinned by the ungated `gate-self-test` job in security.yml.
 
 jobs:
-  test:
+  # The required check `test` is the aggregate job at the end. The work runs in two parallel jobs
+  # (they used to be serial steps of one 2-core job, ~50 min); `test` fails unless BOTH succeed, so
+  # branch protection keeps requiring every step it required before.
+  forge:
+    name: forge build + pins + forge test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -54,7 +58,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          bash .github/scripts/detect-contract-changes.sh "test" \
+          bash .github/scripts/detect-contract-changes.sh "forge build + pins + forge test" \
             '^(contracts/|singleton-paymaster/|deployments/|script/rehearsal/|docs/release/a3a-newpin-11995523/boot/plan\.json$|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
 
       - name: Install Foundry
@@ -73,12 +77,6 @@ jobs:
       - name: Build
         if: steps.changes.outputs.contract == 'true'
         run: forge build --sizes --skip test
-
-      - name: Check reviewed production creation pins from a clean build
-        if: steps.changes.outputs.contract == 'true'
-        run: |
-          python3 script/rehearsal/creation_pins.py deployments/creation-pins.10.json --check
-          cmp deployments/creation-pins.10.json deployments/creation-pins.31337.json
 
       - name: Storage-layout drift guard (UUPS proxies — SuperPaymaster, Registry)
         # Fails if SuperPaymaster/Registry storage layout drifts from the committed
@@ -119,12 +117,17 @@ jobs:
         # Use -vvv, not -v: a CLI -v/-vv overrides foundry.toml `verbosity = 3`.
         run: forge test -vvv
 
-      - name: DeployLive Python rehearsals and local Anvil (a=0 and a=1)
+      - name: Check reviewed production creation pins from the clean build
         if: steps.changes.outputs.contract == 'true'
-        env:
-          DEPLOYLIVE_LOCAL_TEST: '1'
-        run: python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
-
+        # Runs after `forge test`, reusing its out/: on this fresh checkout that is a clean full build
+        # (src + scripts + tests, profile.default), so it is the same input the script's own
+        # copy-and-rebuild mode produced, without a second 12-minute compile. creation_bytes() still
+        # selects each release artifact by compilationTarget, runs, evmVersion=cancun and viaIR, and
+        # fails on a missing or ambiguous one. Locally (no --artifacts) the script keeps rebuilding in a
+        # temporary copy, so a stale local out/ can never satisfy it.
+        run: |
+          python3 script/rehearsal/creation_pins.py deployments/creation-pins.10.json --check --artifacts out
+          cmp deployments/creation-pins.10.json deployments/creation-pins.31337.json
       - name: Check EIP-170 Contract Sizes
         if: steps.changes.outputs.contract == 'true'
         # This step used to parse `forge build --sizes`. That was wrong twice over (CC-125, 2026-10-20):
@@ -142,4 +145,68 @@ jobs:
         if: steps.changes.outputs.contract != 'true'
         run: |
           echo "This PR changes no Solidity or build input, so forge test cannot be"
-          echo "affected by it. Reporting success for the required check 'test'."
+          echo "affected by it. Reporting success."
+
+  deploylive-python:
+    name: DeployLive Python rehearsals + local Anvil
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0   # full history so the base...head diff below is complete
+
+      - name: Detect contract-path changes (full diff — no 300-file limit)
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bash .github/scripts/detect-contract-changes.sh "DeployLive Python rehearsals + local Anvil" \
+            '^(contracts/|singleton-paymaster/|deployments/|script/rehearsal/|docs/release/a3a-newpin-11995523/boot/plan\.json$|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
+
+      - name: Install Foundry
+        if: steps.changes.outputs.contract == 'true'
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Pinned, not `stable`: forge 1.8.x enables call isolation by default, which
+          # runs every top-level test call as its own transaction and clears EIP-1153
+          # transient storage between them. The suite models validate→postOp inside ONE
+          # handleOps transaction (the token's live-in-original-tx marker is transient),
+          # so under isolation ~95 tests fail with NotLive() while the contracts are
+          # unchanged. All release evidence was produced with 1.7.1; move the pin
+          # deliberately, together with the tests, never implicitly via `stable`.
+          version: v1.7.1
+
+      - name: Build (full tree; the rehearsal tests read release artifacts from out/)
+        if: steps.changes.outputs.contract == 'true'
+        run: forge build
+
+      - name: DeployLive Python rehearsals and local Anvil (a=0 and a=1)
+        if: steps.changes.outputs.contract == 'true'
+        env:
+          DEPLOYLIVE_LOCAL_TEST: '1'
+        run: python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
+
+      - name: Gate not applicable (no contract-path changes)
+        if: steps.changes.outputs.contract != 'true'
+        run: |
+          echo "This PR changes no Solidity or build input, so forge test cannot be"
+          echo "affected by it. Reporting success."
+
+  test:
+    # Required by branch protection. Aggregates the two jobs above; `always()` so that a failed or
+    # cancelled dependency turns this check red instead of leaving it skipped (a skipped required
+    # check would count as passing).
+    needs: [forge, deploylive-python]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Both jobs must succeed
+        env:
+          FORGE: ${{ needs.forge.result }}
+          PYTHON: ${{ needs.deploylive-python.result }}
+        run: |
+          echo "forge=$FORGE deploylive-python=$PYTHON"
+          test "$FORGE" = success && test "$PYTHON" = success
