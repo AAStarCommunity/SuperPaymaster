@@ -61,6 +61,7 @@ class ModesTest(unittest.TestCase):
         from pathlib import Path
         from types import SimpleNamespace
         (r.ROOT/'cache/deploylive-tests/round7').mkdir(parents=True, exist_ok=True)
+        (r.ROOT/'cache/deploylive-tests/round7').mkdir(parents=True, exist_ok=True)  # cache/ is gitignored: absent on a fresh checkout
         with tempfile.TemporaryDirectory(dir=r.ROOT/'cache/deploylive-tests/round7') as tmp:
             root = Path(tmp)
             config = root/'config.json'; config.write_text('{}')

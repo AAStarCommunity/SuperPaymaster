@@ -17,6 +17,7 @@ import deploylive_deploy_day as d
 
 class DriverTest(unittest.TestCase):
     def test_config_present_failing_checker(self):
+        (d.ROOT/'cache/ddf').mkdir(parents=True, exist_ok=True)  # cache/ is gitignored: absent on a fresh checkout
         with tempfile.TemporaryDirectory(dir=d.ROOT/'cache/ddf') as tmp:
             root=Path(tmp)
             cfg=root/'config.json'; cfg.write_text('{}')

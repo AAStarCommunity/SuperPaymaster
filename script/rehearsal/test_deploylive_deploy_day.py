@@ -22,6 +22,7 @@ class DeployDayTest(unittest.TestCase):
         self.addCleanup(capture.__exit__, None, None, None)
 
     def test_config_present_checker_failure(self):
+        (ROOT/'cache/ddf').mkdir(parents=True, exist_ok=True)  # cache/ is gitignored: absent on a fresh checkout
         with tempfile.TemporaryDirectory(dir=ROOT/'cache/ddf') as tmp:
             path = Path(tmp)/'config.json'
             path.write_text('{}')
@@ -39,6 +40,7 @@ class DeployDayTest(unittest.TestCase):
         d.build_paths({'FOUNDRY_OUT':'prague/out', 'FOUNDRY_CACHE_PATH':'prague/cache'})
 
     def test_stamp_detects_version_path_and_hash_change(self):
+        (ROOT/'cache/ddf').mkdir(parents=True, exist_ok=True)  # cache/ is gitignored: absent on a fresh checkout
         with tempfile.TemporaryDirectory(dir=ROOT/'cache/ddf') as tmp:
             env = {'FOUNDRY_OUT':tmp+'/out', 'FOUNDRY_CACHE_PATH':tmp+'/cache', 'DEFAULT_ARTIFACTS_OUT':tmp+'/release', 'DEFAULT_CACHE_PATH':tmp+'/release-cache'}
             identity = dict(path='/forge', version='forge 4e8874b nightly', sha256='a'*64)
@@ -163,6 +165,7 @@ class NestedArtifactTest(unittest.TestCase):
     def test_flat_other_profile_does_not_hide_nested_release(self):
         import creation_pins
         import deploylive_runtime
+        (ROOT/'cache/ddf').mkdir(parents=True, exist_ok=True)  # cache/ is gitignored: absent on a fresh checkout
         with tempfile.TemporaryDirectory(dir=ROOT/'cache/ddf') as tmp:
             directory = Path(tmp)
             for prefix, runs in [('', 200), ('governance', 500)]:
