@@ -899,6 +899,25 @@
           "config:aPNTs"
         ],
         "why": "Constructor caches address(this) in APNTsCapped; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "_name": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_version": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedName": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedVersion": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
       }
     },
     "BLSAggregator": {
@@ -934,6 +953,25 @@
       "_cap": {
         "expectedUint": "21000000000000000000000000",
         "why": "contracts/script/v3/DeployLive.s.sol:175 passes uint256(21_000_000 * 1e18); this is GToken cap, not APNTs expectedCap."
+      },
+      "_name": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_version": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedName": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedVersion": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
       }
     },
     "GTokenStaking": {
@@ -964,6 +1002,19 @@
           "config:microPaymentChannel"
         ],
         "why": "contracts/lib/solady/src/utils/EIP712.sol:54 stores uint256(uint160(address(this))); require zero high twelve bytes and direct channel address."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
+      },
+      "_cachedNameHash": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedVersionHash": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
       }
     },
     "MySBT": {
@@ -1136,6 +1187,25 @@
           "config:xPNTsTokenV1Impl"
         ],
         "why": "Constructor caches address(this) in xPNTsToken; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "_name": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_version": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedName": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedVersion": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
       }
     },
     "xPNTsTokenV2": {

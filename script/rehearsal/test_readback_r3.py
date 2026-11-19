@@ -55,9 +55,8 @@ class PolicyTest(unittest.TestCase):
                 r.validate_policy(policy(rule), {'a': 'A'}, {'a': ADDR}, {})
 
     def test_spec_states_the_full_rule(self):
-        spec = (Path(__file__).resolve().parents[2]/'cache/readback/SPEC.md')
-        if spec.exists():
-            self.assertIn('**The full rule** is the `rule` string together with `emptyAllowed`', spec.read_text())
+        spec = (Path(__file__).resolve().parents[2]/'docs/spec/deploylive-readback-runtime-pins.md')
+        self.assertIn('**The full rule** is the `rule` string together with `emptyAllowed`', spec.read_text())
 
     def test_H2_unreadable_fails(self):
         with self.assertRaises(ValueError):
@@ -141,7 +140,9 @@ class ReverseTest(unittest.TestCase):
         non=json.loads((r.ROOT/'deployments/readback-noncontracts.json').read_text())['production']
         cfg={k:ADDR for k in set(mapping)|set(non)}
         deps=json.loads((r.ROOT/'deployments/external-deps.10.json').read_text())
-        r.validate_policy(policy,mapping,cfg,deps)
+        from test_deploylive_postdeploy_check import fixture_artifact
+        with patch.object(r, 'release_artifact', side_effect=fixture_artifact):
+            r.validate_policy(policy,mapping,cfg,deps)
         for name, entries in policy['getters'].items():
             for getter, rule in entries.items():
                 self.assertLessEqual(len(set(rule['allowed'])-{'zero'}),2,(name,getter))
@@ -151,8 +152,7 @@ class ReverseTest(unittest.TestCase):
         import re
         source=(r.ROOT/'contracts/script/v3/DeployLive.s.sol').read_text().split('function _generateConfig()')[1]
         scalar=set(re.findall(r'vm\.serializeAddress\(\s*jsonObj,\s*"([^"]+)"',source))
-        arrays={'guardians','gTokenMintRecipients','stakeAccounts','ticketTreasuries'}
-        scalar-=arrays|{'expectedGovernor'}
+        scalar-={'expectedGovernor'}
         scalar|={'SLASH_POLICY_ADMIN','X402_OWNER','REPUTATION_OWNER','MPC_OWNER','PAYMASTER_FACTORY_OWNER','spAdminImplOwner'}
         mapping=json.loads((r.ROOT/'deployments/readback-artifacts.json').read_text())
         non=json.loads((r.ROOT/'deployments/readback-noncontracts.json').read_text())['production']

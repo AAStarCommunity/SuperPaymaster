@@ -18,7 +18,7 @@ if len(sys.argv) == 4 and os.environ.get('ETH_RPC_URL'):
 if len(sys.argv) != 5:
     print("FAIL unknown checker option or missing arguments")
     sys.exit(1)
-from deploylive_readback import provider_name
+from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed
 try:
     evidence = os.environ.get('DEPLOYLIVE_EVIDENCE_DIR') or os.environ.get('DEPLOYLIVE_LOCAL_EVIDENCE')
     if not evidence: raise ValueError('explicit evidence directory required')
@@ -26,7 +26,7 @@ try:
     if not all(re.fullmatch(r'0x[0-9a-fA-F]{40}', v) for v in sys.argv[3:5]):
         raise ValueError('invalid deployer/safe address')
     RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
-    READBACK = Path(evidence) / 'readback.json'
+    READBACK = evidence_path(evidence)
 except (ValueError, OSError) as error:
     print('FAIL ' + str(error))
     sys.exit(1)
@@ -135,8 +135,9 @@ def check(name, ok, detail):
 A = {k: v for k, v in CFG.items() if isinstance(v, str) and v.startswith("0x") and len(v) == 42}
 required_addresses = set(json.loads((Path(__file__).resolve().parents[2]/'deployments/readback-artifacts.json').read_text()))
 required_addresses.update(json.loads((Path(__file__).resolve().parents[2]/'deployments/readback-noncontracts.json').read_text())['production'])
-if required_addresses - A.keys():
-    print('FAIL config address coverage: missing/invalid ' + ','.join(sorted(required_addresses - A.keys())))
+array_addresses = {k for k, v in CFG.items() if isinstance(v, list) and all(isinstance(a, str) and re.fullmatch(r'0x[0-9a-fA-F]{40}', a) for a in v)}
+if required_addresses - A.keys() - array_addresses:
+    print('FAIL config address coverage: missing/invalid ' + ','.join(sorted(required_addresses - A.keys() - array_addresses)))
     sys.exit(1)
 agg, dvt, reg, sp, stk = A["blsAggregator"], A["dvtValidator"], A["registry"], A["superPaymaster"], A["staking"]
 TL = A["timelockController"]
@@ -182,6 +183,7 @@ expected_noncontracts = dict(noncontracts['production'])
 if chain == 31337 and 'expectedGovernor' in CFG:
     expected_noncontracts.update(noncontracts['localOnly'])
 record, collection_ok, coverage_ok = None, False, False
+collection_error = ''
 try:
     validate_config(CFG, mapping, expected_noncontracts, policy['zeroAllowedConfigKeys'])
     coverage_ok = True
@@ -189,8 +191,10 @@ try:
     validate_record(record, CFG, policy)
     collection_ok = True
     principal_addresses.update(a.lower() for a in re.findall(r'0x[0-9a-fA-F]{40}(?![0-9a-fA-F])', json.dumps(record['contracts'])))
-except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
-    pass
+except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+    # Only this locally constructed diagnostic is safe to expose without RPC secrets.
+    if str(error).startswith('unbound immutable has address shape: '):
+        collection_error = str(error)
 
 
 def assertions():
@@ -625,7 +629,7 @@ results.clear()
 cast.freeze()
 rpc_snapshot.freeze()
 check('config address coverage', coverage_ok, 'exact DeployLive address schema')
-check('readback snapshot policy', collection_ok, 'all getters, runtime pins, zero addresses and implementation slots')
+check('readback snapshot policy', collection_ok, collection_error or 'all getters, runtime pins, zero addresses and implementation slots')
 for field in ('implementationCodehash', 'extensionCodehash'):
     rule = policy['immutableBindings']['xPNTsFactoryV2'][field]
     factory = next((c for c in record['contracts'] if c['configKey'] == 'xPNTsFactoryV2'), None) if record else None
@@ -638,30 +642,22 @@ for key, field in (('gToken', '_cap'), ('microPaymentChannel', '_cachedThis')):
           'deployment constructor expectation')
 assertions()
 second = None
-second_ok = chain == 31337
-if chain in (10, 11155111):
-    # Forks must identify themselves through node metadata, not an env bypass.
-    rc, raw = local('rpc', 'anvil_nodeInfo')
+second_ok = single_provider_allowed(chain, RPC)
+if not second_ok:
     try:
-        info = json.loads(raw) if rc == 0 else {}
-        fork = os.environ.get('DEPLOYLIVE_REHEARSAL') == '1' and bool(info.get('forkConfig', {}).get('forkUrl'))
-    except (ValueError, TypeError, AttributeError):
-        fork = False
-    second_ok = fork
-    if not fork:
-        try:
-            second_url = Path(os.environ['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
-            from urllib.parse import urlsplit
-            if urlsplit(second_url).scheme not in ('http', 'https') or not urlsplit(second_url).hostname or any(c.isspace() for c in second_url): raise ValueError('invalid second endpoint')
-            if urlsplit(second_url).hostname == urlsplit(RPC).hostname: raise ValueError('independent provider required')
-            if not second_url or record is None: raise ValueError('missing second provider')
-            rc, second_chain = local('rpc', 'eth_chainId', endpoint=second_url)
-            if rc or integer(json.loads(second_chain)) != chain: raise ValueError('second chain mismatch')
-            second = corroborate(record, lambda *args: transport(*args, endpoint=second_url), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', 'Independent provider'))
-            second_ok = all(second[k] is True for k in ('blockHashMatches', 'runtimeKeccakMatches', 'implSlotsMatch'))
-        except (OSError, ValueError, KeyError, TypeError):
-            second_ok = False
-check('second provider', second_ok, 'independent corroboration or explicit local/fork evidence')
+        second_url = Path(os.environ['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
+        from urllib.parse import urlsplit
+        if urlsplit(second_url).scheme not in ('http', 'https') or not urlsplit(second_url).hostname or any(c.isspace() for c in second_url): raise ValueError('invalid second endpoint')
+        if urlsplit(second_url).hostname == urlsplit(RPC).hostname: raise ValueError('independent provider required')
+        independent_providers(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''))
+        if not second_url or record is None: raise ValueError('missing second provider')
+        rc, second_chain = local('rpc', 'eth_chainId', endpoint=second_url)
+        if rc or integer(json.loads(second_chain)) != chain: raise ValueError('second chain mismatch')
+        second = corroborate(record, lambda *args: transport(*args, endpoint=second_url), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''))
+        second_ok = all(second[k] is True for k in ('blockHashMatches', 'runtimeKeccakMatches', 'implSlotsMatch'))
+    except (OSError, ValueError, KeyError, TypeError):
+        second_ok = False
+check('second provider', second_ok, 'distinct approved providers or chain 31337')
 try:
     recheck_block(block, transport)
     hash_ok = True

@@ -21,7 +21,11 @@
     "agentReputationRegistry": "DeployLive.s.sol:1044: optional external ERC-8004 pointer; opt-in checked.",
     "agentValidationRegistry": "DeployLive.s.sol:1047: optional external ERC-8004 pointer recorded for future use.",
     "priceFeed": "DeployLive.s.sol:1068: external Chainlink feed input, external-deps ethUsdFeed.",
-    "entryPoint": "DeployLive.s.sol:1069: external ERC-4337 v0.7 EntryPoint input, external-deps entryPoint."
+    "entryPoint": "DeployLive.s.sol:1069: external ERC-4337 v0.7 EntryPoint input, external-deps entryPoint.",
+    "guardians": "Non-contract signing principals for the guardian committee.",
+    "gTokenMintRecipients": "Non-contract classification: token allocation recipients, not newly deployed artifacts.",
+    "stakeAccounts": "Non-contract classification: staking ledger accounts, not deployed artifacts.",
+    "ticketTreasuries": "Non-contract classification: ticket allocation beneficiaries, not deployed artifacts."
   },
   "localOnly": {
     "expectedGovernor": "contracts/script/v3/DeployLive.s.sol:984 emitted only outside production."
