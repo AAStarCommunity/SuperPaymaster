@@ -85,12 +85,28 @@ class LocalForgeTest(unittest.TestCase):
                     rpc('anvil_setCode', address, '0x00')
                 rpc('evm_mine')
                 command = ['forge', 'script', '--offline', 'contracts/script/v3/DeployLive.s.sol:DeployLive', '--rpc-url', url, '--sender', sender, '--unlocked', '--broadcast', '--slow', '--evm-version', 'prague', '-vv']
+                config = ROOT / ('deployments/live/config.' + env['ENV'] + '.json')
+                config.parent.mkdir(parents=True, exist_ok=True)
                 run(command, 'local-deploy.log', env)
-                config = ROOT / ('deployments/config.' + env['ENV'] + '.json')
                 original = config.read_bytes()
                 run([sys.executable, 'script/rehearsal/deploylive_postdeploy_check.py', url, str(config), sender, env['GOVERNANCE_OWNER']], 'local-checker.log', env)
                 self.assertEqual(config.read_bytes(), original, 'checker must use exact forge config')
                 (evidence/'config.real-forge.json').write_bytes(original)
+                # The checker output must reach the evidence verbatim through the driver's post-broadcast
+                # log writer (acceptance at 3e80d173 lost it to a redaction false positive).
+                import re
+                from types import SimpleNamespace
+                import deploylive_controls
+                raw = (evidence/'local-checker.log').read_text()
+                summary = re.search(r'^SUMMARY (\d+) passed, 0 failed, (\d+) total$', raw, re.M)
+                self.assertIsNotNone(summary, 'checker SUMMARY line missing')
+                rows = len(re.findall(r'^(?:PASS|FAIL|INFO-PASS) ', raw, re.M))
+                self.assertEqual(int(summary.group(1)), int(summary.group(2)))
+                self.assertEqual(rows, int(summary.group(2)), 'checker rows differ from SUMMARY total')
+                deploylive_controls.safe_logs(evidence, 'checker-written', SimpleNamespace(stdout=raw, stderr=''),
+                                              {'DEPLOYLIVE_RPC': url}, after_broadcast=True)
+                self.assertEqual((evidence/'checker-written.stdout.log').read_text(), raw, 'checker output not kept verbatim')
+                self.assertFalse((evidence/'REDACTED_AFTER_BROADCAST').exists())
                 print((evidence/'local-checker.log').read_text().splitlines()[-1])
             finally:
                 anvil.terminate()

@@ -951,7 +951,7 @@ contract DeployLive is V54Bootstrap, V55Bootstrap, DeployLiveInputs, DeployLiveP
     }
 
     function _configPath(string memory network) internal view virtual returns (string memory) {
-        return string.concat(vm.projectRoot(), "/deployments/config.", network, ".json");
+        return string.concat(vm.projectRoot(), _production() ? "/deployments/live/config." : "/deployments/config.", network, ".json");
     }
 
     function _generateConfig() internal {

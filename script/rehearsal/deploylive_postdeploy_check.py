@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """Read-only post-deploy check of a DeployLive-built system against the rc.8 owner-table expectations.
 
-Usage: postdeploy_check.py <rpc> <config.json> <deployer> <safe>
+Usage: deploylive_postdeploy_check.py <rpc> deployments/live/config.<ENV>.json <deployer> <safe>
+Local non-production runs may supply their original deployments/config.<ENV>.json path.
 Prints one PASS/FAIL line per assertion and a summary. Nothing is sent: eth_call only.
 """
 import hashlib
+import os
 import json
 import subprocess
 import sys
 import re
 from pathlib import Path
 
+if len(sys.argv) == 4:
+    sys.argv.insert(1, os.environ['ETH_RPC_URL'])
 RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
 results = []
+principal_addresses = {DEPLOYER, SAFE}
 if sys.argv[5:]:
     print("FAIL unknown checker option")
     sys.exit(1)
@@ -48,12 +53,15 @@ LOCAL = {"keccak", "calldata", "sig", "abi-encode"}
 
 
 def cast(*args):
-    cmd = ["cast", *args] + ([] if args[0] in LOCAL else ["--rpc-url", RPC])
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = ["cast", *args]
+    r = subprocess.run(cmd, env=dict(os.environ, ETH_RPC_URL=RPC), capture_output=True, text=True)
     # Never expose RPC URLs, including transport errors with credentials or query strings.
     if r.returncode:
         return r.returncode, " ".join(re.findall(r"0x[0-9a-fA-F]+", r.stderr)) or "RPC/local command failed"
-    return r.returncode, r.stdout.strip()
+    output = r.stdout.strip()
+    if args[0] == "call" and ("(address)" in args[2] or "(address[])" in args[2]):
+        principal_addresses.update(a.lower() for a in re.findall(r"0x[0-9a-fA-F]{40}", output))
+    return r.returncode, output
 
 
 def raw_call(frm, to, data):
@@ -489,6 +497,20 @@ for key in ("paymasterV4Impl", "spAdminImpl", "xPNTsTokenV1Impl", "xPNTsTokenV2I
     if key in A:
         actual = call(A[key], "owner()(address)")
         print(f"INFO  {key}.owner :: {actual}; recorded {CFG.get(key + 'Owner', 'missing')}")
+
+# Include configured beneficiaries and ledger principals as well as live getter results.
+for key in ("deployer", "governanceOwner", "expectedGuardian", "expectedSPGuardian", "genesisOperator",
+            "deployerGTokenRecipient", "SLASH_POLICY_ADMIN", "X402_OWNER", "REPUTATION_OWNER", "MPC_OWNER", "PAYMASTER_FACTORY_OWNER"):
+    principal_addresses.add(A.get(key, ZERO).lower())
+for key in ("guardians", "stakeAccounts", "ticketTreasuries", "gTokenMintRecipients"):
+    principal_addresses.update(str(a).lower() for a in CFG.get(key, []))
+principal_failures = []
+for principal in sorted(principal_addresses - {ZERO}):
+    rc, code = cast("code", principal)
+    if rc != 0 or not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})*", code) or code.lower().startswith("0xef0100"):
+        principal_failures.append(principal)
+check("principals exclude EIP-7702", not principal_failures,
+      "code read failed or delegation: " + ", ".join(principal_failures) if principal_failures else "all configured and live principals; ordinary contracts allowed")
 
 print(f"\nSUMMARY {sum(results)} passed, {len(results) - sum(results)} failed, {len(results)} total")
 sys.exit(0 if all(results) else 1)

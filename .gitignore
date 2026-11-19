@@ -170,3 +170,7 @@ __pycache__/
 out-*/
 deployments/config.round7-local.json
 deployments/config.round*-local*.json
+
+# Production DeployLive output
+deployments/live
+*.build-stamp.json

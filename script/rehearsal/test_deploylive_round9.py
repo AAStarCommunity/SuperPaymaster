@@ -1,3 +1,4 @@
+import deploylive_controls as controls
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ import creation_pins as pins
 import deploylive_fork_deploy as fork
 import deploylive_rehearse as rehearsal
 import deploylive_runtime as runtime
+import deploylive_deploy_day as day
 
 ROOT = rehearsal.ROOT
 OUTPUT = ROOT/'cache/deploylive-tests/round9'
@@ -39,8 +41,23 @@ class Round9Test(unittest.TestCase):
 
     def run_fork(self, chain, extra=()):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
-        env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT)}
-        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')) as run:
+        env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
+               'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
+               'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'safe'}
+        stamp = OUTPUT/'out.build-stamp.json'
+        stamp.write_text('{"forge":{}}')
+        (OUTPUT/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":0}}}}')
+        (OUTPUT/'guardians.hex').write_text('0x')
+        def invoke(command, **kwargs):
+            if 'script' in command:
+                plan = OUTPUT/f'broadcast/DeployLive.s.sol/{chain}/dry-run/run-latest.json'
+                plan.parent.mkdir(parents=True, exist_ok=True)
+                transactions = [dict(transactionType='CREATE', contractName=name, transaction=dict(nonce=hex(i), to=None, input='0x00', value='0x0', **{'from':'deployer', 'chainId':hex(chain), 'gas':'0x100'})) for i, name in enumerate(('Registry', 'TimelockHandoverBootstrap'))]
+                if kwargs['env']['DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP'] == '1': transactions = transactions[:-1]
+                plan.write_text(json.dumps(dict(transactions=transactions)))
+                (plan.parent.parent/'run-latest.json').write_text(plan.read_text())
+            return SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')
+        with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(10 if chain == 31337 else chain)), patch.object(fork, 'broadcast_gates', return_value=[[256,256],[256,256]]), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
             fork.main()
         return rpc, run
 
@@ -57,7 +74,7 @@ class Round9Test(unittest.TestCase):
                 self.run_fork(31337)
 
     def test_driver_failure_chain10_refused_before_deployment(self):
-        with patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['driver', 'failure', 'http://127.0.0.1:1', str(OUTPUT/'config.json'), 'deployer', 'safe']), patch.dict(os.environ, FOUNDRY_VERBOSITY='2', DEPLOYLIVE_EVIDENCE_DIR=str(OUTPUT), REHEARSAL_BLS_SCALARS='[]', REHEARSAL_SOURCE_RPC='https://unused.invalid/unused'), patch.object(rehearsal, 'clean_source_commit', return_value='a' * 40), patch.object(rehearsal, 'RPC', return_value=lambda *a: '0xa'), patch.object(rehearsal.subprocess, 'run', return_value=SimpleNamespace(returncode=1)) as run, patch.object(rehearsal, 'scan_evidence'):
+        with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['driver', 'failure', 'http://127.0.0.1:1', str(OUTPUT/'config.json'), 'deployer', 'safe']), patch.dict(os.environ, FOUNDRY_VERBOSITY='2', DEPLOYLIVE_EVIDENCE_DIR=str(OUTPUT), REHEARSAL_BLS_SCALARS='[]', REHEARSAL_SOURCE_RPC='https://unused.invalid/unused'), patch.object(rehearsal, 'clean_source_commit', return_value='a' * 40), patch.object(rehearsal, 'RPC', return_value=lambda *a: '0xa'), patch.object(rehearsal.subprocess, 'run', return_value=SimpleNamespace(returncode=1)) as run, patch.object(rehearsal, 'scan_evidence'):
             with self.assertRaisesRegex(RuntimeError, '31337'):
                 rehearsal.main()
             run.assert_not_called()

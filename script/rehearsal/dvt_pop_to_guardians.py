@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -24,6 +25,8 @@ def exact(obj, keys, gate):
     check(isinstance(obj, dict) and set(obj) == set(keys), gate)
 
 def command(args, gate, cwd=None):
+    if args[0] == 'cast' and shutil.which('cast') is None:
+        raise Stop('STOP cast_not_found: install foundry or add it to PATH')
     try:
         return subprocess.check_output(args, cwd=cwd, stderr=subprocess.PIPE).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
@@ -48,6 +51,8 @@ def source_version(data):
     return versions[0].decode()
 
 def convert(export, request, root):
+    if shutil.which('cast') is None:
+        raise Stop('STOP cast_not_found: install foundry or add it to PATH')
     exact(export, {'pop', 'aggregatorSourceVersion', 'popContext'}, 'export_keys')
     check(isinstance(request, dict) and request.get('schema') == 'deploylive-pop-request/1', 'request_schema')
     try:
@@ -129,16 +134,25 @@ def main():
     parser = Parser(description=__doc__)
     parser.add_argument('export', type=Path)
     parser.add_argument('request', type=Path)
+    parser.add_argument('--inputs', type=Path, required=True)
     parser.add_argument('--sp-root', type=Path, required=True)
     try:
+        check(shutil.which('cast') is not None, 'cast_not_found: install foundry or add it to PATH')
         args = parser.parse_args()
+        from deploylive_controls import load_inputs, evidence_dir, verify_manifest, write_conversion
+        env = load_inputs(args.inputs)
+        verify_manifest(env, evidence_dir(env), args.request)
         inputs = []
+        raw_inputs = []
         for path in (args.export, args.request):
             data = path.read_bytes()
             print(f'sha256 {path}: {hashlib.sha256(data).hexdigest()}', file=sys.stderr)
             inputs.append(json.loads(data))
-        print(convert(*inputs, args.sp_root))
-    except (Stop, OSError, ValueError, TypeError, KeyError) as exc:
+            raw_inputs.append(data)
+        guardians = convert(*inputs, args.sp_root)
+        write_conversion(evidence_dir(env), *raw_inputs, (guardians+'\n').encode())
+        print(guardians)
+    except (Stop, RuntimeError, OSError, ValueError, TypeError, KeyError) as exc:
         print(str(exc) if isinstance(exc, Stop) else 'STOP input_read: ' + str(exc), file=sys.stderr)
         return 3
     return 0

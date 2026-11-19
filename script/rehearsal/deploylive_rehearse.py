@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from deploylive_runtime import clean_source_commit
+from deploylive_deploy_day import checker_pass, config_path
 from urllib.parse import urlsplit, unquote
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 
@@ -35,29 +36,56 @@ def guard_bls_verbosity(args, env, default=3):
     require(verbosity < 3, 'BLS rehearsal refuses forge verbosity >= 3')
 
 
-MIN_FRAGMENT = 6
 
 
-def scan_evidence(directory, rpc_url, scalars):
+def scan_evidence(directory, rpc_url, scalars, label='endpoint'):
     directory = Path(directory).resolve()
     require(directory.is_dir(), 'evidence directory must exist')
+    for path in directory.rglob('*'):
+        require(not path.is_symlink(), 'evidence symlinks refused')
+        if path.is_file():
+            scan_content(path.read_bytes(), rpc_url, scalars, label, str(path.relative_to(directory)))
+
+
+LOOPBACK_HOSTS = ('127.0.0.1', '::1', 'localhost')
+
+
+def credential_like(fragment):
+    # Only segments shaped like credentials count. A generic word in an endpoint path (an API
+    # version, a network name, "gateway") is not a secret, and it also occurs in ordinary forge
+    # output: a 6-character word of a real endpoint matched a function name in a -vv log and
+    # stopped a deploy (acceptance at 1bda832d).
+    return len(fragment) >= 16 or (len(fragment) >= 8 and any(c.isalpha() for c in fragment)
+                                   and any(c.isdigit() for c in fragment))
+
+
+def credential_fragments(rpc_url, strict=False):
+    """The needles for one endpoint: the full URL and host verbatim, plus credential-like
+    path/query segments. With strict=True (the start-up self-check on each real endpoint
+    file), a non-loopback URL without any credential-like segment STOPs: the scanner cannot
+    guard a credential format it does not recognise, so it must not pass it as harmless."""
     url = urlsplit(rpc_url)
-    needles = {rpc_url, url.hostname or ''}
-    # Path/query fragments count only from MIN_FRAGMENT characters, like the fixed final scan: a
-    # short segment such as a provider's API-version prefix ("v2") is not a secret and occurs in
-    # ordinary logs, which made every Alchemy-backed run fail. The full URL and host still count.
-    needles.update(fragment for fragment in unquote(url.path).split('/') if len(fragment) >= MIN_FRAGMENT)
-    needles.update(fragment for fragment in re.split(r'[=&]', unquote(url.query)) if len(fragment) >= MIN_FRAGMENT)
+    if url.hostname in LOOPBACK_HOSTS:
+        return set()  # a loopback endpoint carries no credential (a rehearsal fork)
+    parts = [f for f in unquote(url.path).split('/') if f]
+    parts += [f for f in re.split(r'[=&]', unquote(url.query)) if f]
+    fragments = {f for f in parts if credential_like(f)}
+    if strict:
+        require(bool(fragments), 'endpoint URL has no credential-like segment; scanner cannot guard it')
+    return {rpc_url, url.hostname or ''} | fragments
+
+
+def scan_content(content, rpc_url, scalars, label='endpoint', where='output'):
+    needles = credential_fragments(rpc_url) if rpc_url else set()
     for scalar in scalars:
         n = int(str(scalar), 16 if str(scalar).startswith('0x') else 10)
         require(n > 0, 'invalid rehearsal scalar')
         needles.update((str(n), f'{n:064x}', hex(n)))
     encoded = [n.encode().lower() for n in needles if n]
-    for path in directory.rglob('*'):
-        require(not path.is_symlink(), 'evidence symlinks refused')
-        if path.is_file():
-            content = path.read_bytes().lower()
-            require(not any(n in content for n in encoded), 'evidence contains sensitive material (details redacted)')
+    content = content.lower()
+    # Name the variable and the file, never the value.
+    require(not any(n in content for n in encoded),
+            f'evidence contains sensitive material: {label} matched in {where} (value redacted)')
 
 
 def local_endpoint(url):
@@ -244,8 +272,28 @@ def governance(rpc, cfg, safe):
     impersonate(rpc, safe, action)
 
 
+def run_checker(url, path, deployer, safe, evidence, env):
+    from deploylive_controls import safe_logs
+    env = dict(env, DEPLOYLIVE_RPC=url, ETH_RPC_URL=url)
+    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'),
+                             str(path), deployer, safe], env=env, capture_output=True, text=True)
+    safe_logs(evidence, 'checker', result, env)
+    (evidence/'checker.log').write_text(result.stdout)
+    return result
+
+
 def main():
     args = sys.argv[1:]
+    inputs = None
+    if '--inputs' in args:
+        from deploylive_controls import load_inputs
+        index = args.index('--inputs')
+        require(index + 1 < len(args), '--inputs requires a file')
+        inputs = args[index + 1]
+        approved = load_inputs(inputs)
+        os.environ.clear()
+        os.environ.update(approved)
+        del args[index:index + 2]
     external_tokens = None
     if '--external-tokens' in args:
         index = args.index('--external-tokens')
@@ -273,9 +321,15 @@ def main():
     try:
         if mode in ('happy', 'failure'):
             command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), url, deployer]
+            if inputs is not None:
+                command = [sys.executable, str(ROOT/'script/rehearsal/deploylive_fork_deploy.py'), 'deploy', '--inputs', inputs]
             if mode == 'failure': command.append('--stop')
             result = subprocess.run(command, env=deploy_env, capture_output=True, text=True)
+            for line in getattr(result, 'stdout', '').splitlines():
+                if line.startswith('STOP '): print(line)
             require(result.returncode == 0, 'deployment failed')
+            if mode == 'happy':
+                require(path == config_path(deploy_env), 'production config must use deployments/live/config.<ENV>.json')
             cfg = json.loads(path.read_text())
             if mode == 'failure':
                 fail_bootstrap(rpc, cfg, deployer)
@@ -287,9 +341,11 @@ def main():
                 inventory_ok = inventory(rpc, cfg, lines.append)
                 (evidence/'failed-set.log').write_text('\n'.join(lines) + '\n')
                 require(inventory_ok, 'failed set holds external value or inventory is incomplete')
-            result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), url, str(path), deployer, safe], capture_output=True, text=True)
-            (evidence/'checker.log').write_text(result.stdout)
-            require(result.returncode == (1 if mode == 'failure' else 0), 'unexpected checker result')
+            result = run_checker(url, path, deployer, safe, evidence, deploy_env)
+            if mode == 'happy':
+                checker_pass(result)
+            else:
+                require(result.returncode == 1, 'unexpected checker result')
         elif mode == 'governance':
             governance(rpc, cfg, safe)
         elif mode == 'prepare':
@@ -297,12 +353,13 @@ def main():
         elif mode == 'hook':
             hook(rpc, cfg, argv[6] if len(argv) == 7 else cfg['genesisOperator'])
     finally:
-        scan_evidence(evidence, source_rpc, scalars)
+        scan_evidence(evidence, source_rpc, scalars, 'REHEARSAL_SOURCE_RPC')
     print('PASS ' + mode)
 
 
 if __name__ == '__main__':
     try:
+        require('--inputs' in sys.argv, 'every rehearsal mode requires --inputs')
         main()
     except Exception:
         print('FAIL rehearsal (endpoint/inputs/preconditions/transaction/check failed; details redacted)')
