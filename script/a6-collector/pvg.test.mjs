@@ -22,13 +22,13 @@ test('zero to nonzero op byte adds 12 gas',async()=>{
  const {computePVG}=await import('./pvg.mjs');
  assert.equal(computePVG({...op(),callData:'0x01'},address).value-computePVG(op(),address).value,12n);
 });
-test('signed exact bytes converge and data row records rule and real transaction delta',async()=>{
+test('signed exact bytes converge and data row records rule and real transaction consistency',async()=>{
  const {finalizePVG,recordPVG}=await import('./pvg.mjs');
  const result=await finalizePVG(async value=>({packed:{...op('VPM'),preVerificationGas:value}}),address);
  const row={gasSources:{call:{limit:123}}};
  recordPVG(row,result.pvg,input(result.packed));
  assert.deepEqual(row.gasSources.preVerification,result.pvg);
- assert.equal(row.pvgDelta,result.pvg.value-cost(input(result.packed)));
+ assert.equal(row.pvgConsistency,0n);
  assert.deepEqual(row.gasSources.call,{limit:123});
  assert.equal(result.pvg.factor.numerator,1);
 });
@@ -40,7 +40,7 @@ test('receipt L1 data fee is separate from PVG and absent evidence stays null',a
  const {computePVG,recordPVG}=await import('./pvg.mjs');
  const r=computePVG(op(),address), row={};
  recordPVG(row,r);
- assert.equal(row.pvgDelta,null);
+ assert.equal(row.pvgConsistency,null);
  assert.equal(row.l1DataFee,null);
  recordPVG(row,r,input({...op(),preVerificationGas:r.value}),{l1Fee:123456n});
  assert.equal(row.l1DataFee,123456n);

@@ -39,3 +39,21 @@ class PVG(unittest.TestCase):
         for arm in q.m.ARMS:
             f.cal['arms'][arm]['preVerification'] = 60000
         f.stop('rq3_calibration_pvg', f.build)
+
+    def test_reserve_excludes_outer_and_freezes_lengths(self):
+        f = self.fixture()
+        pc = next(iter(f.build()['plans'].values()))['phaseC']
+        for arm in q.m.ARMS:
+            lengths = dict(initCode=0, callData=(len(pc['taskCallData'])-2)//2,
+                           paymasterAndData={'SP':125, 'VPM':181, 'TPM':52}[arm], signature=65)
+            self.assertEqual(pc['pvgLengths'][arm], lengths)
+            self.assertEqual(pc['gasSources'][arm]['preVerification']['fixedLengths'], lengths)
+            self.assertEqual(pc['gasSources'][arm]['preVerification']['reserve'], pc['pvgReserve'][arm])
+            self.assertEqual(pc['maxPrefund'][arm], (sum(v for k,v in pc['bounds'][arm].items()
+                if k not in ('outer','preVerification')) + pc['pvgReserve'][arm])*pc['feeCap'])
+        for arm in q.m.ARMS:
+            f.cal['arms'][arm]['outer'] *= 2
+        changed = next(iter(f.build()['plans'].values()))['phaseC']
+        self.assertEqual(changed['maxPrefund'], pc['maxPrefund'])
+        self.assertEqual(changed['pvgReserve'], pc['pvgReserve'])
+        self.assertGreater(changed['bundlerTarget'], pc['bundlerTarget'])

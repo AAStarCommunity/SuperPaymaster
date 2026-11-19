@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from pinned_tools import PinnedTools as pinned_tools
+from pvg_reserve import reserve_pvg
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'upgrade'))
 import manifest_exec as m
@@ -136,8 +137,12 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     a.need('rq3_structural_zero',cal['arms']['VPM']['postOp'],0)
     a.need('rq3_gas_bounds',all((0<v or (arm,k)==('VPM','postOp')) and v<2**128 for arm,b in bounds.items() for k,v in b.items()) and gas_tuple[0]>0,True)
     bounds['SP']['postOp'],postop_rule=sp_postop_limit(cal['arms']['SP']['postOp'],gas_factor,gas_tuple[0])
-    # Reserve outer gas for sign-time PVG; collector refuses PVG above this reserve.
-    maxima={arm:sum(b.values())*fee for arm,b in bounds.items()}
+    task_data=a.calldata('execute(address,uint256,bytes)', m.DEAD, 0,
+                         a.calldata('transfer(address,uint256)', m.DEAD, m.PC_TASK_UNIT))
+    lengths={arm:dict(initCode=0,callData=(len(task_data)-2)//2,
+                     paymasterAndData={'SP':125,'VPM':181,'TPM':52}[arm],signature=65) for arm in m.ARMS}
+    reserves={arm:reserve_pvg(lengths[arm]) for arm in m.ARMS}
+    maxima={arm:(sum(v for k,v in b.items() if k != 'outer')+reserves[arm])*fee for arm,b in bounds.items()}
     price_a,fee_b=p['sp']['aPNTsPriceUSD'],p['sp']['protocolFeeBPS']
     a0=m.ceil_div(maxima['SP']*m.PC_PRICE_CAP*10**18,10**m.PC_PRICE_DECIMALS*price_a)
     amax=m.ceil_div(a0*(10000+fee_b+m.PC_VALIDATION_BUFFER_BPS),10000)
@@ -153,14 +158,14 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
                         limit=v,block=head) for k,v in b.items()} for arm,b in bounds.items()}
     for arm in m.ARMS:
         bounds[arm]['preVerification'] = None
-        sources[arm]['preVerification'] = copy.deepcopy(PVG_RULE)
+        sources[arm]['preVerification'] = dict(copy.deepcopy(PVG_RULE), reserve=reserves[arm], fixedLengths=lengths[arm])
     sources['SP']['postOp'].update(rule='max(measured*gasFactor, minPostOpGas)',target=ctx['SP'],**postop_rule)
     # DSR 2026-11-18: record the structural zero explicitly instead of a scaled limit.
     sources['VPM']['postOp'].update(rule='structural zero: VerifyingPaymaster has no postOp (empty context)',limit=0)
     return dict(attempts=n,feeCap=fee,priorityCap=priority,priceCap=m.PC_PRICE_CAP,priceDecimals=m.PC_PRICE_DECIMALS,
         exchangeRate=m.PC_RATE,betaMultiplier=m.PC_BETA,bundlerBeta=m.PC_BUNDLER_BETA,allowanceCap=m.PC_CAP_L,
         spRenew=False,spPostOp=bounds['SP']['postOp'],spPostOpRule=postop_rule,gasTuple=gas_tuple,gasSources=sources,bounds=bounds,
-        maxPrefund=maxima,outerBound={arm:b['outer'] for arm,b in bounds.items()},aPNTsPriceUSD=price_a,
+        pvgReserve=reserves,pvgLengths=lengths,maxPrefund=maxima,outerBound={arm:b['outer'] for arm,b in bounds.items()},aPNTsPriceUSD=price_a,
         protocolFeeBPS=fee_b,A0=a0,Amax=amax,operatorTarget=(m.PC_ATTEMPTS+m.PC_BETA)*amax,
         operatorTopUp=0,cappedMint=0,cappedSupplyBefore=p['capped']['totalSupply'],Xmax=xmax,
         userTarget=(n+m.PC_BETA)*xmax,entryPointTargets={arm:(n+1+m.PC_BETA)*v for arm,v in maxima.items()},

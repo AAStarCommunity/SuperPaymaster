@@ -109,15 +109,25 @@ owner signature placeholder is available before signing. At sign time the collec
 uses the actual nonce, beneficiary, owner signature and VPM signature, regenerates
 both signatures for each candidate PVG, and requires an exact fixed point including
 the PVG word itself. Cycles or non-convergence STOP before sending. No nonce prediction
-or empirical gas constant is used. The outer gas bound reserves funding capacity for
-PVG; it is never used as charged PVG, and exceeding this reserve STOPs.
+or empirical gas constant is used. The planner records `pvgLengths` for initCode,
+callData, paymasterAndData and signature per arm. `pvgReserve` applies the same rule
+to maximal non-zero op values and beneficiary (ABI padding remains canonical).
+Signing rejects changed lengths (`PVG_LENGTHS`) or PVG above reserve (`PVG_RESERVE`).
+Prefund includes this reserve and excludes outer gas; outer funds only the bundler.
 
-Each attempt copies the frozen rule, then fills byte counts (tuple total/zero/non-zero),
-calldata gas, overhead parts and final value after signing. `pvgDelta` is rule PVG minus
-the calldata gas of the real transaction input (all calldata for the single op); it is
-null when no transaction was sent. EntryPoint v0.7 charges PVG in full; its unused-gas
-penalty applies to call and postOp limits, not unused verification limits. OP-stack L1
-data fees are excluded and reported separately from receipts. Sepolia and OP use the
+Each SENT row records `pvgConsistency` = rule PVG - (21000 + standard calldata
+cost of actual tx input) / opsPerTx; nonzero STOPs with `PVG_CONSISTENCY`.
+Standard intrinsic calldata prices are zero 4 / non-zero 16. This rule ASSUMES the
+EIP-7623 calldata floor does not apply. Collection records `calldataFloorGas` =
+21000 + 10 * (zero + 4*nonZero), `outerGasUsed`, and `calldataFloorBinding` on equality.
+`bundlerNetGas` is this op's event actualGasUsed minus receipt gasUsed.
+`unusedGasPenalty` uses the existing trace-bound decomposition; ambiguity or unavailable
+evidence yields null with a reason, and mismatches are flagged. `bundlerNetGasExPenalty`
+subtracts that penalty (null if unknown). This is the self-bundling PVG over/under-charge
+column. `opGasPrice` and `outerEffectiveGasPrice` remain separate: gas differences are
+not wei differences when prices differ. `l1DataFee` remains separate. All measured
+columns are null on NOT_SENT rows. The rule JSON cites the vendored EntryPoint lines
+for PVG, penalty, cost and event semantics. Sepolia and OP use the
 same definition. `phaseC.gasSources` records source measurements, factor, anchor and
 result; `steps[].gasEvidence` records setup equivalents. The collector must copy
 these records, the plan digest, and `phaseC.feeRule` into each data row. Do not

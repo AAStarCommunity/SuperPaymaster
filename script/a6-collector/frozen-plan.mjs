@@ -1,4 +1,4 @@
-import { pvgRule } from './pvg.mjs';
+import { pvgRule, reservePVG, nullPVGColumns } from './pvg.mjs';
 import { createHash } from 'node:crypto';
 import { parseAbi, keccak256, toHex } from 'viem';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
@@ -25,7 +25,11 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
   const gas={},pmGas={};
   for(const arm of ['SP','VPM','TPM']) {
     const b=pc.bounds[arm];
-    need(b.preVerification===null && canonical(pc.gasSources[arm].preVerification)===canonical(pvgRule),'PLAN_PVG_RULE');
+    const source=pc.gasSources[arm].preVerification;
+    const {reserve,fixedLengths,...rule}=source;
+    need(b.preVerification===null && canonical(rule)===canonical(pvgRule),'PLAN_PVG_RULE');
+    need(canonical(fixedLengths)===canonical(pc.pvgLengths[arm]) &&
+      BigInt(reserve)===BigInt(pc.pvgReserve[arm]) && BigInt(reserve)===reservePVG(fixedLengths),'PLAN_PVG_RESERVE');
     gas[arm]={callGasLimit:BigInt(b.call),verificationGasLimit:BigInt(b.verification),preVerificationGas:0n,...fees};
     pmGas[arm]={ver:BigInt(b.paymasterVerification),post:BigInt(b.postOp)};
   }
@@ -37,7 +41,7 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
   return {plan,digest,frozen,
     row(arm,tripletIndex) {
       need(Object.hasOwn(gas,arm) && Number.isInteger(tripletIndex) && tripletIndex>=0 && tripletIndex<pc.attempts,'PLAN_ALLOCATION');
-      return {pvgDelta:null,l1DataFee:null,planDigest:digest,bundleSha256,gasSources:pc.gasSources[arm],spPostOpRule:pc.spPostOpRule,feeRule:pc.feeRule,
+      return {...nullPVGColumns(),planDigest:digest,bundleSha256,gasSources:pc.gasSources[arm],spPostOpRule:pc.spPostOpRule,feeRule:pc.feeRule,
         allocation:{S:key,arm,tripletIndex,attempts:pc.attempts}};
     },
     bind(config,cfg,baselines,bMax,maxAttempts) {

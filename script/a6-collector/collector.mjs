@@ -600,14 +600,14 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     return signAndHash({ sender, nonce, callData, pmAddr: pm, gas: GAS, pmGas: PM_GAS[arm], pmData: await pmDataFor(arm, { sender, nonce, callData }, GAS) });
   };
   let ours;
-  try { ours = adapter ? await finalizePVG(sign,bundler.account.address) : await sign(GAS.preVerificationGas); }
+  try { ours = adapter ? await finalizePVG(sign,bundler.account.address,{lengths:adapter.plan.phaseC.pvgLengths[arm],reserve:adapter.plan.phaseC.pvgReserve[arm]}) : await sign(GAS.preVerificationGas); }
   catch (error) {
     if (error.message.startsWith('PVG_')) throw new Stop(error.message,23,{});
     throw error;
   }
   if (adapter) {
     recordPVG(st.row,ours.pvg);
-    if (ours.pvg.value>BigInt(adapter.plan.phaseC.bounds[arm].outer)) throw new Stop('PVG_RESERVE',23,{});
+    if (ours.pvg.value>BigInt(adapter.plan.phaseC.pvgReserve[arm])) throw new Stop('PVG_RESERVE',23,{});
   }
   let bundled = [ours.packed];
   let decoy = null;
@@ -678,7 +678,16 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const blocks = await readAB('attempt block', async p => { const b = await p.getBlock({ blockNumber: bn }); return { hash: b.hash, timestamp: b.timestamp, transactions: b.transactions }; });
   const blk = blocks.A;
   const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
-  if (adapter) recordPVG(row,ours.pvg,rawTx.A.input,rcA);
+  function recordMeasuredPVG(event=null) {
+    if (!adapter) return;
+    try { recordPVG(row,ours.pvg,rawTx.A.input,rcA,event); }
+    catch (error) {
+      if (error.message.startsWith('PVG_')) throw new Stop(error.message,23,{});
+      throw error;
+    }
+  }
+  recordMeasuredPVG();
+
   if (formal) {
     const decoded = decodeFunctionData({abi:HANDLE_OPS_ABI,data:rawTx.A.input});
     if (decoded.functionName !== 'handleOps' || diffPaths(jsonable(decoded.args[0]),jsonable(bundled)).length) throw new Stop('TRANSACTION_BUNDLE_MISMATCH',27,{txHash});
@@ -692,6 +701,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   row.observedUserOpEvent = observedUoe ? {...observedUoe.args, logIndex:observedUoe.logIndex, txHash:rcA.logs.find(l => l.logIndex === observedUoe.logIndex)?.transactionHash} : null;
   Object.assign(row, { sent: true, tx, logs, verdict: cls.verdict, failingCheck: cls.failingCheck,
     revertKind: cls.revertKind ?? null, userOpEvent: cls.event ? { ...cls.event, logIndex: cls.epEvents.find(e => e.event === 'UserOperationEvent' && e.args.userOpHash === cls.event.userOpHash)?.logIndex } : null, execRevert: cls.execRevert ?? [], postOpRevert: cls.postOpRevert ?? [], prefundTooLow: cls.prefundTooLow ?? [] });
+  recordMeasuredPVG(cls.event);
   if (adapter) {
     try {
       persistSettlement(row,rcA,{arm,token:spToken,user:sender,hash:expectedHash,planned:adapter.plan.phaseC.spBranch},()=>{});
@@ -716,6 +726,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     }
   }
   row.gasDecomposition = decomposeGas(row, cls.event);
+  recordMeasuredPVG(cls.event);
 
   if (noFixture(fixture) && cls.epEvents?.some(e => e.event === 'UserOperationEvent' && e.args.userOpHash.toLowerCase() !== expectedHash.toLowerCase())) {
     // All receipt logs are already in row; never attribute another op's event to an arm.
