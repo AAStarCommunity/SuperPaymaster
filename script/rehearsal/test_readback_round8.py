@@ -57,7 +57,7 @@ class Round8Test(unittest.TestCase):
             r.validate_config({'guardians':value}, {}, {'guardians':'Signing principals'}, {})
 
     def test_M2_gap_wording(self):
-        spec = (r.ROOT/'cache/readback/SPEC.md').read_text()
+        spec = (r.ROOT/'docs/spec/deploylive-readback-runtime-pins.md').read_text()
         self.assertIn('creation-code pin and plan comparison on the DEPLOYMENT path', spec)
         self.assertIn('the checker alone cannot prove them', spec)
         self.assertNotIn('| `_cachedChainId` |', spec)

@@ -55,9 +55,8 @@ class PolicyTest(unittest.TestCase):
                 r.validate_policy(policy(rule), {'a': 'A'}, {'a': ADDR}, {})
 
     def test_spec_states_the_full_rule(self):
-        spec = (Path(__file__).resolve().parents[2]/'cache/readback/SPEC.md')
-        if spec.exists():
-            self.assertIn('**The full rule** is the `rule` string together with `emptyAllowed`', spec.read_text())
+        spec = (Path(__file__).resolve().parents[2]/'docs/spec/deploylive-readback-runtime-pins.md')
+        self.assertIn('**The full rule** is the `rule` string together with `emptyAllowed`', spec.read_text())
 
     def test_H2_unreadable_fails(self):
         with self.assertRaises(ValueError):
