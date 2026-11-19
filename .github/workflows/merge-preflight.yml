@@ -34,7 +34,10 @@ name: merge-preflight-report
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # labeled/unlabeled: the do-not-merge hold (merge-preflight.sh leg 0) must turn this
+    # required check red the moment the label is added and re-evaluate when it is removed,
+    # not at the next unrelated event.
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed]
 
