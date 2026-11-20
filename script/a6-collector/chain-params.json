@@ -1,4 +1,5 @@
 {
   "op-mainnet": {"block_period_seconds": 2, "max_elapsed_seconds": 20, "receipt_timeout_seconds": 120, "confirmation_depth": 10},
+  "op-sepolia": {"block_period_seconds": 2, "max_elapsed_seconds": 20, "receipt_timeout_seconds": 120, "confirmation_depth": 10},
   "sepolia": {"block_period_seconds": 12, "max_elapsed_seconds": 120, "receipt_timeout_seconds": 180, "confirmation_depth": 3}
 }
