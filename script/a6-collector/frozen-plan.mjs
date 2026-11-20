@@ -20,6 +20,7 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
   const bundle=parse(bytes), key=Object.keys(bundle.plans).find(k=>same(k,account));
   need(key,'PLAN_ACCOUNT_MISSING');
   const plan=bundle.plans[key], pc=plan.phaseC, digest=hash(canonical(plan));
+  need(same(pc.addresses.S,key),'PLAN_S_MISMATCH');
   need(plan.schema==='rq3-deploylive-1' && plan.gasPolicy.frozen===true,'PLAN_SCHEMA');
   need(['balance','credit'].includes(pc.spBranch),'PLAN_BRANCH_MISSING');
   const fees={maxFeePerGas:BigInt(pc.feeCap),maxPriorityFeePerGas:BigInt(pc.priorityCap)};
