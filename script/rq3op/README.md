@@ -8,6 +8,17 @@ acceptance has been performed here.
 
 ## Before planning
 
+> **Known intermediate state (until the planner/checker integration PR merges).** On any chain
+> other than 31337 the planner STOPs at `rq3_checker_execution` because:
+> - it does not forward the checker's second-provider inputs (`DEPLOYLIVE_SECOND_RPC_FILE`,
+>   `DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER`);
+> - `checker_runner.py`'s per-read block rewriting is incompatible with the final checker's EIP-1898
+>   snapshot and full replay;
+> - the expected checker count `182 + 2 * guardianN` no longer matches.
+>
+> This fails closed. Do not use this planner on Sepolia or OP mainnet until that PR is merged.
+
+
 1. Deploy with the frozen DeployLive script and complete the handoff checker.
    **No funding or registration before checker PASS.** Preserve its full stdout,
    exit status, config and deployment provenance.
