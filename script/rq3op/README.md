@@ -619,3 +619,5 @@ name, never an endpoint URL) and an explicit `DEPLOYLIVE_EVIDENCE_DIR` for its e
 Set both before invoking rq3; `PinnedTools` forwards them to the checker. There is no
 fallback to the config file's directory. Provider validation runs during input loading
 and checker startup, before chain reads.
+
+The frozen-plan collector now runs [one public-seed window](../a6-collector/frozen-plan.md) with all three per-sender plans. Under rotation, `phaseC.attempts` remains each sender's budget **per arm** (34/33/33); a window of at most 60 pre-registered slots (stopping after the slot in which complete triplets reach 50, otherwise after slot 60) uses at most 20 of those attempts per sender per arm, with the remainder as margin, and no planner change. Unreached slots are listed as `unusedSlots` in the run_end/trailer `window` record. Known gap: the collector's `validate.mjs` and `evidence-validate.mjs` do not yet accept plan mode.

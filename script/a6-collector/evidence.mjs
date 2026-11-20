@@ -58,7 +58,7 @@ export function evidenceIndex(row, context) {
   const out = { schemaVersion: 'a6-evidence-index/1', windowId, tripleIndex: row.tripletIndex, attempt: row.attemptIndex, arm: row.arm,
     armOrder: row.armOrder ?? ['SP','VPM','TPM'], included: false, verdict: row.verdict,
     failureReason: row.failingCheck ?? null, notSentReason: row.verdict === 'NOT_SENT' ? row.reason ?? row.failingCheck ?? row.stoppedBy?.reason ?? 'unknown failure' : null,
-    exclusionReason: exclusionReason(row,archives),
+    exclusionReason: context.schedule ? null : exclusionReason(row,archives),
     stopReason: row.stoppedBy?.reason ?? (stopReason === 'COMPLETE' ? null : stopReason), replaces: context.replaces ?? null, replacedBy: null };
   for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','packedOp','callDataHash','expectedUserOpHash']) out[k] = value('/'+k, row[k]);
   if (out.chainId != null) out.chainId = String(out.chainId);

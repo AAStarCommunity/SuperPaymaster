@@ -322,13 +322,17 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
   const sequence=frozenPlan ? await pendingSequence(publicClients,accounts.bundler.address) : null;
   return { pubA, pubB, accounts, archives, refreshPin,
     async writeContract(args) {
+      const {beforeSubmit,...transactionArgs}=args;
+      if(beforeSubmit) await beforeSubmit();
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
       if (!feesWithinRule(config.fees, config.feeRule, block.baseFeePerGas)) throw Error('signing head fee rule');
-      const submit=nonce=>wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
+      const submit=async nonce=>{
+        return wallet.writeContract({ ...transactionArgs, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });
+      };
       return sequence ? sequence.send(publicClients,submit) : submit(await pubA.getTransactionCount({address:accounts.bundler.address}));
     } };
 }

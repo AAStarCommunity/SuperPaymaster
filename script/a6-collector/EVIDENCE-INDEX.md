@@ -112,3 +112,10 @@ Archives accept only the explicit read-only method allowlist in `artifact-valida
 Archived trace options must equal `{tracer:'callTracer',tracerConfig:{withLog:true}}` or `{tracer:'prestateTracer',tracerConfig:{diffMode:true}}`, without extra keys at either level. Exclusion labels are checked against decoded AA32/explicit price-stale reasons, recognized panic payloads, a recorded submission exception, a valid fee-pause record, a sent transaction without an included receipt, or trace-recomputed TPM refresh. Index labels and replacement edges are checked against journal evidence; labels alone never authorize exclusion. Successful refreshed rows retain null exclusions; their replacement edge carries `tpm_postop_refresh`.
 
 `review.test.mjs` covers these checks offline. Each regression was confirmed failing with its corresponding pre-fix implementation restored, then rerun with the fix.
+
+End-of-window integrity checks run **on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)**,
+including INCOMPLETE and aborted windows. The `run_end` and trailer records carry
+`endCheckScope` and individual `endChecks` outcomes. An unavailable start passport
+is recorded as UNAVAILABLE, not PASS. A missing trailer or missing, incomplete,
+duplicate, failed or unavailable end-check record makes the window void for evidence
+acceptance, even if its trailer claims COMPLETE. No signal handlers are installed.
