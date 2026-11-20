@@ -43,8 +43,9 @@ export INPUTS="$PWD/deployments/live/inputs.sepolia.env"
 "${EDITOR:-vi}" "$INPUTS"
 # Operator-stated values the checker requires on every production chain. They are validated,
 # bound into the input manifest and checked against the endpoints (the driver refuses before any
-# forge run if the chain differs). Use the approved provider names from deployments/readback-providers.json.
-export DEPLOYLIVE_ENDPOINT_PROVIDER=Alchemy            # provider of DEPLOYLIVE_SOURCE_RPC_FILE
+# forge run if the chain differs; see the production paragraph at the top). Use the approved provider
+# names from deployments/readback-providers.json.
+export DEPLOYLIVE_ENDPOINT_PROVIDER=Alchemy            # provider of DEPLOYLIVE_RPC_FILE (the broadcast endpoint)
 export DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER=Tenderly    # provider of DEPLOYLIVE_SECOND_RPC_FILE
 export DEPLOYLIVE_EXPECTED_CHAIN_ID=11155111           # 10 on OP mainnet; required, no default
 APPROVED_EXPORTS="$(python3 -c 'import os,shlex,sys; sys.path.insert(0,"script/rehearsal"); from deploylive_controls import load_inputs; print("\n".join("export "+k+"="+shlex.quote(v) for k,v in load_inputs(os.environ["INPUTS"]).items()))')" || exit 1
