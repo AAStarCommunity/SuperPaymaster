@@ -9,6 +9,10 @@ import plan_three_arm as q
 import test_three_arm as fixtures
 
 class Round2(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.enterContext(patch.dict("os.environ", CAST_1_7_1=shutil.which("cast")))
+
     def test_provider_name_reaches_checker_environment(self):
         import os
         from pinned_tools import PinnedTools

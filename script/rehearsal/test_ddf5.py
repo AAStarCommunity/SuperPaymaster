@@ -18,7 +18,8 @@ class Ddf5Test(unittest.TestCase):
         base=c.ROOT/'cache/ddf5'; base.mkdir(parents=True, exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=base); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
-        self.env={'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'owner','ENV':'test',
+        cast = self.root/'cast'; cast.write_text('#!/bin/sh\nexit 0\n'); cast.chmod(0o755)
+        self.env={'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'owner','ENV':'test',
                   'DEPLOYLIVE_EVIDENCE_DIR':str(self.root),'DEFAULT_CACHE_PATH':str(self.root/'build')}
         (self.root/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
 
@@ -176,6 +177,7 @@ class Ddf5Test(unittest.TestCase):
                 target=actual if '--broadcast' in argv else dry
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
                 return SimpleNamespace(returncode=broadcast_result[0] if broadcast_result and '--broadcast' in argv else 0,stdout=output(argv) if output else '',stderr=broadcast_result[1] if broadcast_result and '--broadcast' in argv else '')
+            self.checker_env = dict(kwargs['env'])
             if checker_ok:
                 # The driver hands the checker its own cache/ subdirectory (DEPLOYLIVE_EVIDENCE_DIR).
                 checker_dir=Path(kwargs['env']['DEPLOYLIVE_EVIDENCE_DIR']); checker_dir.mkdir(parents=True,exist_ok=True)

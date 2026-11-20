@@ -41,7 +41,8 @@ class Round9Test(unittest.TestCase):
 
     def run_fork(self, chain, extra=()):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
-        env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
+        cast = OUTPUT/'cast'; cast.write_text('#!/bin/sh\nexit 0\n'); cast.chmod(0o755)
+        env = {'CAST_1_7_1':str(cast), 'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
                'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
                'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'safe', 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
         second = OUTPUT/'second-rpc'

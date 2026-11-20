@@ -9,8 +9,12 @@ from pinned_tools import PinnedTools
 PIN = '0x' + '12' * 32
 
 class CheckerIntegration(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.enterContext(patch.dict("os.environ", CAST_1_7_1=shutil.which("cast")))
+
     def tools(self):
-        with patch.dict(os.environ, {'PATH': os.environ['PATH']}, clear=True):
+        with patch.dict(os.environ, {'PATH': os.environ['PATH'], 'CAST_1_7_1': os.environ['CAST_1_7_1']}, clear=True):
             tools = PinnedTools()
         tools.env.update(DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         return tools

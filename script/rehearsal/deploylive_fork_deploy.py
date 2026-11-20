@@ -362,7 +362,11 @@ def main():
     checker_dir.mkdir(parents=True, exist_ok=True)
     (checker_dir/'readback.json').unlink(missing_ok=True)
     (evidence/'readback.json').unlink(missing_ok=True)
+    cast_pin = env.get('CAST_1_7_1', '')
+    require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
+            'STOP CAST_1_7_1 must name an executable')
     checker_env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(checker_dir))
+    checker_env['PATH'] = str(Path(cast_pin).absolute().parent) + os.pathsep + env.get('PATH', '')
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=checker_env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env, after_broadcast=True)
     (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())
