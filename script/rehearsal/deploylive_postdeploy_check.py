@@ -2,6 +2,8 @@
 """Read-only post-deploy check of a DeployLive-built system against the rc.8 owner-table expectations.
 
 Usage: deploylive_postdeploy_check.py <rpc> deployments/live/config.<ENV>.json <deployer> <safe>
+Alternatively omit <rpc> and set ETH_RPC_URL; argv is left unchanged.
+DEPLOYLIVE_EXPECTED_CHAIN_ID defaults to pinned chain 10; set 31337 explicitly for local runs.
 Local non-production runs may supply their original deployments/config.<ENV>.json path.
 Prints one PASS/FAIL line per assertion and a summary. Nothing is sent: eth_call only.
 """
@@ -14,18 +16,23 @@ import re
 from pathlib import Path
 
 if len(sys.argv) == 4 and os.environ.get('ETH_RPC_URL'):
-    sys.argv.insert(1, os.environ['ETH_RPC_URL'])
-if len(sys.argv) != 5:
+    RPC = os.environ['ETH_RPC_URL']
+    CONFIG_PATH, DEPLOYER, SAFE = sys.argv[1:]
+elif len(sys.argv) == 5:
+    RPC, CONFIG_PATH, DEPLOYER, SAFE = sys.argv[1:]
+else:
     print("FAIL unknown checker option or missing arguments")
     sys.exit(1)
-from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed
+from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed, expected_chain_id
 try:
     evidence = os.environ.get('DEPLOYLIVE_EVIDENCE_DIR') or os.environ.get('DEPLOYLIVE_LOCAL_EVIDENCE')
     if not evidence: raise ValueError('explicit evidence directory required')
     provider_name(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
-    if not all(re.fullmatch(r'0x[0-9a-fA-F]{40}', v) for v in sys.argv[3:5]):
+    if not all(re.fullmatch(r'0x[0-9a-fA-F]{40}', v) for v in (DEPLOYER, SAFE)):
         raise ValueError('invalid deployer/safe address')
-    RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
+    CFG = json.load(open(CONFIG_PATH))
+    DEPLOYER, SAFE = DEPLOYER.lower(), SAFE.lower()
+    chain = expected_chain_id(os.environ)
     READBACK = evidence_path(evidence)
 except (ValueError, OSError) as error:
     print('FAIL ' + str(error))
@@ -167,7 +174,9 @@ ROOT = Path(__file__).resolve().parents[2]
 rc, chain_raw = cast("rpc", "eth_chainId")
 try:
     if rc != 0: raise ValueError("chain unreadable")
-    chain = integer(json.loads(chain_raw))
+    if integer(json.loads(chain_raw)) != chain:
+        print('FAIL external dependencies: expected chain mismatch')
+        sys.exit(1)
     deps_path = ROOT / f"deployments/external-deps.{chain}.json"
     if chain == 31337 and agents_enabled:
         deps_path = ROOT / "contracts/test/fixtures/deploylive/external-deps.31337.agents.json"
@@ -222,7 +231,7 @@ collection_error = ''
 try:
     validate_config(CFG, mapping, expected_noncontracts, policy['zeroAllowedConfigKeys'])
     coverage_ok = True
-    record = collect(sys.argv[2], CFG, chain, block, os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), json.loads(deps_path.read_text()), runtime_path, cast)
+    record = collect(CONFIG_PATH, CFG, chain, block, os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), json.loads(deps_path.read_text()), runtime_path, cast)
     validate_record(record, CFG, policy)
     collection_ok = True
     principal_addresses.update(a.lower() for a in re.findall(r'0x[0-9a-fA-F]{40}(?![0-9a-fA-F])', json.dumps(record['contracts'])))

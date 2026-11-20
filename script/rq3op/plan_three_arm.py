@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Fresh DeployLive RQ3 plans. Only read RPCs; no signing or broadcasting."""
+"""Fresh DeployLive RQ3 plans. Only read RPCs; no signing or broadcasting.
+
+DEPLOYLIVE_EXPECTED_CHAIN_ID defaults to pinned chain 10; local runs require 31337.
+"""
 import sys
 sys.dont_write_bytecode = True
 import argparse
@@ -665,7 +668,7 @@ def run_checker(config_path,cfg,url,chain,*,block,runner=None,commit_reader=None
     checker=ROOT/'script/rehearsal/deploylive_postdeploy_check.py'
     executable=[str(ROOT/'script/rq3op/checker_runner.py'),block]
     result=(runner or tools.run)([sys.executable,'-B',*executable,str(inside(config_path)),
-        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=dict(tools.env, ETH_RPC_URL=url))
+        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=dict(tools.env, ETH_RPC_URL=url, DEPLOYLIVE_EXPECTED_CHAIN_ID=str(chain)))
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
     from deploylive_check_count import expected_check_count
     expected=expected_check_count(cfg, load(ROOT/'deployments/readback-policy.json'),
@@ -771,7 +774,13 @@ def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit
     pair=Pair(left,right)
     if block:
         pair.head=pair('eth_getBlockByNumber',[block,False])
-    chain = a.qty(pair('eth_chainId', []))
+    sys.path.insert(0, str(ROOT/'script/rehearsal'))
+    from deploylive_readback import expected_chain_id
+    try:
+        chain = expected_chain_id(tools.env)
+    except ValueError:
+        raise a.Gate('rq3_expected_chain', 'invalid expected chain id', 'positive decimal chain id') from None
+    a.need('rq3_expected_chain', a.qty(pair('eth_chainId', [])), chain)
     if chain != 31337:
         sys.path.insert(0, str(ROOT/'script/rehearsal'))
         from deploylive_readback import independent_providers

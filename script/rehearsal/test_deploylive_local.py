@@ -56,7 +56,7 @@ class LocalForgeTest(unittest.TestCase):
                 else: self.fail('cannot start loopback Anvil: '+(evidence/'anvil.log').read_text()[-1000:])
                 sender = rpc('eth_accounts')[0]
                 from deploylive_runtime import clean_source_commit
-                env = dict(os.environ, SP_COMMIT=clean_source_commit(), FOUNDRY_VERBOSITY='2', DEPLOYER_ADDRESS=sender,
+                env = dict(os.environ, DEPLOYLIVE_EXPECTED_CHAIN_ID='31337', SP_COMMIT=clean_source_commit(), FOUNDRY_VERBOSITY='2', DEPLOYER_ADDRESS=sender,
                            DEFAULT_ARTIFACTS_OUT='out', FOUNDRY_OUT='out-round7-prague', FOUNDRY_CACHE_PATH='cache/round7-prague',
                            ENABLE_AGENT_REGISTRIES=str(int(agents)), AGENT_IDENTITY_REGISTRY='0x'+f'{103 if agents else 0:040x}', AGENT_REPUTATION_REGISTRY='0x'+f'{104 if agents else 0:040x}',
                            DEPLOYLIVE_LOCAL_EVIDENCE=str(evidence.relative_to(ROOT)), DEPLOYLIVE_ENDPOINT_PROVIDER='Anvil',

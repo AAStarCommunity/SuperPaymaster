@@ -85,9 +85,16 @@ def sha(path):
     return '0x' + hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def expected_chain_id(env):
+    """Operator override; the committed default is Optimism (10), never RPC data."""
+    value = env.get('DEPLOYLIVE_EXPECTED_CHAIN_ID', '10')
+    if not isinstance(value, str) or not re.fullmatch(r'[1-9][0-9]*', value):
+        raise ValueError('invalid expected chain id')
+    return int(value)
+
+
 def single_provider_allowed(chain, endpoint):
-    # These drivers attach to existing nodes; they do not launch Anvil and hold
-    # no process/port/argv attestation. Even loopback forks require corroboration.
+    # Callers must bind RPC chain answers to the operator expectation first.
     return chain == 31337
 
 
@@ -397,13 +404,14 @@ def validate_snapshot_request(block, args, *, requested_hash=None, log_heights=(
     if method in ('eth_getBlockByNumber', 'eth_getBlockByHash'):
         if len(args) != 3 or args[2] != 'false': raise ValueError('invalid header request')
         selector = args[1]
+        if not isinstance(selector, str): raise ValueError('header selector must be a string')
         if block is None:
             allowed = (method == 'eth_getBlockByHash' and requested_hash is not None and selector.lower() == requested_hash.lower()
                        or method == 'eth_getBlockByNumber' and requested_hash is None and selector == 'latest')
         elif method == 'eth_getBlockByHash':
             allowed = selector.lower() == block['hash'].lower()
         else:
-            allowed = bool(re.fullmatch(r'0x[0-9a-fA-F]+', selector))
+            allowed = bool(re.fullmatch(r'0x(0|[1-9a-f][0-9a-f]*)', selector))
             if allowed:
                 height, pin = int(selector, 16), int(block['number'], 16)
                 allowed = height == pin or (height <= pin and height in log_heights)
