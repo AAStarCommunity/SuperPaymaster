@@ -51,7 +51,7 @@ import {
   keccak256, createPublicClient, http, encodeFunctionData, decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
+import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount, checkExperimentCreditPolicy } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
 const formal = process.argv.includes('--formal') || rehearsal || process.argv.includes('--frozen-plan');
 // Do not even load the development key module in formal mode.
@@ -127,7 +127,8 @@ if (adapter) {
   const release=acquireBundlerLock(resolve(ROOT,'cache/3arm/collector-locks'),formalInput.chainId,formalInput.accounts.bundler.address);
   process.once('exit',release);
 }
-const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
+let governanceRow;
+const runtime = formal ? await formalRuntime({ beforeSend: context => checkExperimentCreditPolicy({ ...context, superPaymaster: SPA, operator: getAddress(formalInput.operator), record: record => { if (governanceRow) governanceRow.creditPolicyGuard = record; } }), config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
 let frozenArm;
 if (adapter) {
   const write = runtime.writeContract;
@@ -568,6 +569,7 @@ let previousInclusion = null;
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
   const st = { row: { ...(adapter ? adapter.row(arm,tripletIndex) : {}), kind: 'attempt', spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
+  governanceRow = st.row;
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {

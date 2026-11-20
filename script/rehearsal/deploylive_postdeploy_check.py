@@ -301,6 +301,12 @@ def assertions():
     for index, ok, expected in gas_params_rows(call(sp, 'gasParams()'), policy):
         check(f"SP.gasParams[{index}]", ok, f"release expected {expected}")
 
+    from deploylive_governance import governance_rows
+    from deploylive_readback import keccak
+    tier_hash = keccak(read_code(A['globalTierSource']))
+    for label, ok, expected in governance_rows(CFG, call, tier_hash):
+        check('governance ' + label, ok, f'release expected ABI words {expected}')
+
     # 1. Owners: no system-internal contract may be owned by the deployer.
     SYSTEM = ["superPaymaster", "registry", "staking", "gToken", "xPNTsFactoryV2", "aoaProtocolRegistry",
               "reputationSystem", "blsAggregator", "dvtValidator"]

@@ -266,7 +266,44 @@ export async function pendingSequence(clients,address) {
   }};
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+const CREDIT_POLICY_ABI = parseAbi([
+  'function creditPolicy() view returns (uint8)',
+  'function hasPendingPolicy() view returns (bool)',
+  'function pendingPolicyEta() view returns (uint64)',
+]);
+const OPERATOR_POLICY_ABI = parseAbi([
+  'function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)',
+]);
+
+/** SEC-09: resolve the experiment token from the operator at the final signing pin. */
+export async function checkExperimentCreditPolicy({ clients, superPaymaster, operator, block, record }) {
+  const evidence = { blockNumber: String(block.number), blockHash: block.hash, token: null, A: null, B: null, passed: false };
+  try {
+    const values = await Promise.all(clients.map(async client => {
+      const op = await client.readContract({ address: superPaymaster, abi: OPERATOR_POLICY_ABI,
+        functionName: 'operators', args: [operator], blockNumber: block.number });
+      if (op[1] !== true || !op[3] || BigInt(op[3]) === 0n) throw Error('SEC-09 operator token unavailable');
+      const token = getAddress(op[3]);
+      const [creditPolicy, hasPendingPolicy, pendingPolicyEta] = await Promise.all(
+        ['creditPolicy', 'hasPendingPolicy', 'pendingPolicyEta'].map(functionName => client.readContract({
+          address: token, abi: CREDIT_POLICY_ABI, functionName, blockNumber: block.number })));
+      return { token, state: { creditPolicy, hasPendingPolicy, pendingPolicyEta } };
+    }));
+    evidence.token = values[0].token;
+    evidence.A = values[0].state;
+    evidence.B = values[1].state;
+    evidence.passed = values[0].token === values[1].token && values.every(({state}) =>
+      state.creditPolicy === releaseExpectation.POLICY_OFF && state.hasPendingPolicy === false && state.pendingPolicyEta === BigInt(releaseExpectation.EMPTY_GOVERNANCE_WORD));
+    if (!evidence.passed) throw Error('SEC-09 credit policy must be OFF with no queued enable');
+  } catch {
+    throw Error('SEC-09 credit policy readback failed or is not OFF/empty');
+  } finally {
+    record(evidence);
+  }
+  return evidence;
+}
+
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup, beforeSend }) {
   pendingNonce ||= frozenPlan;
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
@@ -312,9 +349,12 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
       if (!feesWithinRule(config.fees, config.feeRule, block.baseFeePerGas)) throw Error('signing head fee rule');
-      const submit=nonce=>wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
+      const submit=async nonce=>{
+        await beforeSend?.({ clients: [pubA, pubB], block });
+        return wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });
+      };
       return sequence ? sequence.send(publicClients,submit) : submit(await pubA.getTransactionCount({address:accounts.bundler.address}));
     } };
 }

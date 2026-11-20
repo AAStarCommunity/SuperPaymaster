@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import plan_three_arm as q
 import test_three_arm as fixtures
+from test_checker_integration import checker_config
 
 class Daybreak(unittest.TestCase):
     def setUp(self):
@@ -16,12 +17,12 @@ class Daybreak(unittest.TestCase):
     def test_checker_is_executed_and_exact_count_required(self):
         provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         provider.start();self.addCleanup(provider.stop)
-        cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
-        for code,log in [(1,'SUMMARY 251 passed, 0 failed, 251 total'),(0,'SUMMARY 252 passed, 0 failed, 252 total'),(0,'SUMMARY 250 passed, 1 failed, 251 total'),(0,'PASS no summary'),(0,'SUMMARY 251 passed, 0 failed, 251 total\nSUMMARY 251 passed, 0 failed, 251 total')]:
+        cfg=checker_config()
+        for code,log in [(1,'SUMMARY 299 passed, 0 failed, 299 total'),(0,'SUMMARY 300 passed, 0 failed, 300 total'),(0,'SUMMARY 298 passed, 1 failed, 299 total'),(0,'PASS no summary'),(0,'SUMMARY 299 passed, 0 failed, 299 total\nSUMMARY 299 passed, 0 failed, 299 total')]:
             with self.assertRaises(q.a.Gate):
                 q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout=log),commit_reader=lambda:cfg['commit'])
-        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 251 passed, 0 failed, 251 total'),commit_reader=lambda:cfg['commit'])
-        self.assertEqual(result['total'],251)
+        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 299 passed, 0 failed, 299 total'),commit_reader=lambda:cfg['commit'])
+        self.assertEqual(result['total'],299)
         self.assertNotIn('stdout',result)
     def test_dirty_or_wrong_commit_refused(self):
         with self.assertRaises(q.a.Gate):
@@ -163,7 +164,9 @@ class Generation(unittest.TestCase):
         import re
         provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         provider.start();self.addCleanup(provider.stop)
-        f=fixtures.ThreeArm();f.setUp();f.cfg['guardianN']=2
+        f=fixtures.ThreeArm();f.setUp()
+        f.cfg.update(guardianN=2, guardians=checker_config()['guardians'], pnts=fixtures.address(0),
+                     stakeAccounts=[f.cfg['deployer'],f.cfg['genesisOperator'],*checker_config()['guardians']])
         original=copy.deepcopy(f.rpc.head)
         for key,source in q.SYSTEM_SOURCES.items():
             if source:
@@ -185,7 +188,7 @@ class Generation(unittest.TestCase):
             calls=[]
             def runner(command,**kwargs):
                 calls.append(command)
-                return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 251 passed, 0 failed, 251 total')
+                return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 299 passed, 0 failed, 299 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
                     return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])
