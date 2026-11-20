@@ -8,7 +8,7 @@ import shlex
 import time
 from urllib.parse import urlsplit
 import stat
-from deploylive_deploy_day import ROOT, require, integer, redact_error, gas_semantics
+from deploylive_deploy_day import ROOT, require, integer, redact_error, gas_semantics, CAP_FRACTION, TX_GAS_CAP
 from deploylive_runtime import clean_source_commit
 
 TEMPLATE = ROOT / 'script/rehearsal/inputs.template.env'
@@ -121,6 +121,20 @@ class UnsupportedConfig(RuntimeError):
     """Transport verified an unavailable JSON-RPC eth_config response."""
 
 
+class MethodNotFound(RuntimeError):
+    """Transport verified a JSON-RPC method-not-found envelope on HTTP success."""
+
+
+def method_not_found(result):
+    if not isinstance(result, dict):
+        return False
+    error = result.get('error')
+    return (result.get('jsonrpc') == '2.0' and type(result.get('id')) is int and result['id'] == 1
+            and 'result' not in result and isinstance(error, dict)
+            and type(error.get('code')) is int and error['code'] == -32601
+            and isinstance(error.get('message'), str))
+
+
 def config_unavailable(body):
     try:
         result = json.loads(body)
@@ -156,8 +170,9 @@ def hardfork_check(a, b, evidence, confirmations=2):
     def config(rpc, allow_unsupported):
         try: result = rpc('eth_config')
         except RuntimeError as error:
-            require(allow_unsupported and (isinstance(error, UnsupportedConfig) or ('HTTP ' not in str(error) and re.search(r'(?<!\d)-32601(?!\d)', str(error)))), 'eth_config: '+redact_error(error))
-            return 'eth_config unsupported → header-field rule'
+            require(allow_unsupported and isinstance(error, (MethodNotFound, UnsupportedConfig)), 'eth_config: '+redact_error(error))
+            return ('eth_config unsupported (-32601) → header-field rule' if isinstance(error, MethodNotFound)
+                    else 'eth_config unsupported (-32600 unavailable) → header-field rule')
         if rule.get('current'):
             current = result.get('current', {})
             require(current.get('forkId') == rule['current']['forkId']
@@ -181,7 +196,7 @@ def hardfork_check(a, b, evidence, confirmations=2):
     return record
 
 
-def cap_control(rpc, evidence, production=False, sleep=time.sleep, chain=31337):
+def cap_control(rpc, evidence, production=False, sleep=time.sleep, *, chain):
     require(not production, 'cap-control refused in production')
     if gas_semantics(chain) == 'karst':
         record = dict(chainId=chain, status='SKIP', passed=False,
@@ -361,7 +376,7 @@ def safe_logs(evidence, prefix, result, env, after_broadcast=False):
         (evidence/(prefix+'.'+suffix+'.log')).write_text(content)
 
 
-def plan_diff(gated, actual, gas_bounds=None):
+def plan_diff(gated, actual, gas_bounds=None, *, chain=None):
     left, right = gated['transactions'], actual['transactions']
     diff = []
     if len(left) != len(right): diff.append('transaction count mismatch')
@@ -376,12 +391,15 @@ def plan_diff(gated, actual, gas_bounds=None):
             diff.append(f'index={i} field=transactionType')
         if a['transaction'].get('type') != b['transaction'].get('type'):
             diff.append(f'index={i} field=type')
+        name = b.get('contractName') or b.get('function') or str(i)
         a, b = a['transaction'], b['transaction']
         for key in ('to', 'input', 'value', 'from', 'chainId', 'nonce'):
             if key not in a or key not in b or a[key] != b[key]: diff.append(f'index={i} field={key}')
         if gas_bounds is not None:
             low, high = gas_bounds[i]
-            if not low <= integer(b['gas']) <= high: diff.append(f'index={i} gas outside [{low},{high}]')
+            if not low <= integer(b['gas']) <= high: diff.append(f'index={i} gas outside [{low},{high}]: {name}')
+        if chain is not None and gas_semantics(chain) == 'karst' and integer(b['gas']) > int(CAP_FRACTION * TX_GAS_CAP):
+            diff.append(f'index={i} gas above Karst headroom limit: {name}')
     return diff
 
 

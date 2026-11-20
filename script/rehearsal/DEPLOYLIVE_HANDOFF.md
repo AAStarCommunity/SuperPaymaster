@@ -389,7 +389,7 @@ mode. The fork wrapper keeps Prague simulation output in
 `cache/deploylive-rehearsal-out` and its cache in
 `cache/deploylive-rehearsal-cache`, separate from Cancun release artifacts.
 
-Happy mode accepts an OP-mainnet Anvil fork with chain ID 10 (also 31337).
+Happy mode accepts an OP-mainnet Anvil fork with chain ID 10. A 31337 endpoint with an OP upstream source is refused.
 The wrapper explicitly runs `anvil_setCode(deployer, "0x")` before the run:
 this is the selected rehearsal approach for undelegating default-mnemonic OP
 accounts. It is an Anvil-only preparation step, never a production transaction.
@@ -966,3 +966,13 @@ nonce and compares all three addresses. Its cryptography is mocked by the
 existing orchestration fixture. The separate synthetic test executes the real
 BLS precompiles under Prague and calls DeployLiveLocalBundle for the byte-exact
 GUARDIANS control. No Anvil or RPC is required for these unit tests.
+
+### Daybreak round 1 gas gates (2026-11-21)
+
+An OP-chain fork rehearsal must use the real chain id (anvil fork keeps it); 31337 means a local chain with Amsterdam semantics only. The endpoint chain id selects semantics; the upstream source does not override it. `cap_control` requires an explicit keyword `chain`.
+
+Every Karst planned limit must be at most `floor(CAP_FRACTION * 2^24)` (15,099,494). The final pre-broadcast simulation checks every transaction against the gated gas bounds and this headroom limit, reporting the transaction on failure. Amsterdam bounds are unchanged.
+
+Known gap: OP's per-transaction cap has no executable control: anvil --optimism does not reject a gas limit above 2^24 (measured on an OP Sepolia fork, 2026-11-21); the basis is the Karst notice and eth_config; the defences are the pre-broadcast gates (H1a/H1b). Consequently we have no executable evidence that the 2^24 cap is in force on chain; H1a/H1b are designed as if it is, and if it is not they are only more conservative - they can never admit a transaction the chain would reject.
+
+The OP cap control remains SKIP. Forge broadcast is a separate process which estimates its own limits before sending; these gates cannot force it to reuse the final simulation limits. Post-broadcast comparison detects differences but cannot prevent already-sent transactions. Owner-provided rehearsal evidence: 97 successful transactions, multiplier 130, maximum planned limit 11,082,839 (spImpl CREATE), all below the headroom threshold.

@@ -230,6 +230,8 @@ CAP_FRACTION = 0.9  # a limit <= the cap leaves no state-gas reservoir: total ga
 
 
 def gas_semantics(chain):
+    # an OP-chain fork rehearsal must use the real chain id (anvil fork keeps it);
+    # 31337 means a local chain with Amsterdam semantics only.
     # The sole chain-to-semantics mapping, shared by gas gates and cap/hardfork controls.
     semantics = {10: 'karst', 11155420: 'karst', 11155111: 'amsterdam', 31337: 'amsterdam'}
     require(chain in semantics, 'unsupported gas semantics chain')
@@ -245,8 +247,8 @@ def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100, *, c
     if karst:
         for i, tx in enumerate(txs):
             name = tx.get('contractName') or tx.get('function') or str(i)
-            require(integer(tx['transaction']['gas']) <= TX_GAS_CAP,
-                    f'Karst transaction gas limit above {TX_GAS_CAP}: {name} index={i}')
+            require(integer(tx['transaction']['gas']) <= int(CAP_FRACTION * TX_GAS_CAP),
+                    f'Karst transaction gas limit above headroom {int(CAP_FRACTION * TX_GAS_CAP)}: {name} index={i}')
     targets = large_creates(plan)
     try:
         head = rpc('eth_getBlockByNumber', block, False)

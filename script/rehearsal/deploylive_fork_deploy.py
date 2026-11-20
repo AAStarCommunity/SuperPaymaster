@@ -29,12 +29,14 @@ class ReadOnlyRPC:
 
     def __call__(self, method, *params):
         require(method in ('eth_getTransactionCount', 'eth_chainId', 'eth_blockNumber', 'eth_config', 'eth_getBlockByNumber', 'eth_call', 'eth_simulateV1'), 'read-only RPC method required')
-        from deploylive_controls import config_unavailable, UnsupportedConfig
+        from deploylive_controls import config_unavailable, UnsupportedConfig, method_not_found, MethodNotFound
         payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
         for attempt in range(4):
             try:
                 with self.opener.open(Request(self.url, payload, {'Content-Type':'application/json'}), timeout=120) as response:
                     result = json.load(response)
+                if method == 'eth_config' and method_not_found(result):
+                    raise MethodNotFound('eth_config unsupported (-32601)')
                 if method == 'eth_config' and config_unavailable(json.dumps(result)):
                     raise UnsupportedConfig('eth_config unsupported (-32600 unavailable)')
                 require('error' not in result, 'read-only ' + method + ': ' + redact_error(json.dumps(result.get('error'))))
@@ -53,7 +55,7 @@ class ReadOnlyRPC:
                 finally:
                     error.close()
                 raise RuntimeError('STOP read-only ' + method + ': ' + redact_error(detail)) from None
-            except UnsupportedConfig:
+            except (UnsupportedConfig, MethodNotFound):
                 raise
             except Exception as error:
                 raise RuntimeError('STOP read-only ' + method + ': ' + redact_error(error)) from None
@@ -64,6 +66,7 @@ def gate_sources(env, production, chain):
     real = ReadOnlyRPC(env['DEPLOYLIVE_SOURCE_RPC'])
     real_chain = int(real('eth_chainId'), 16)
     require(real_chain in (10, 11155111, 11155420), 'gas source must be a real deployment chain')
+    require(not (chain == 31337 and real_chain in (10, 11155420)), '31337 endpoint cannot rehearse an OP source; preserve the real chain id')
     require(not production or real_chain == chain, 'broadcast/source chain mismatch')
     if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork':
         return real, None
@@ -330,7 +333,7 @@ def main():
                             price_rpcs=price_sources(env, production, recorded('primary', real),
                                                     None, recorded('fork', ReadOnlyRPC(url)))
                             if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork' else None,
-                            chain=int(real('eth_chainId'), 16))
+                            chain=chain)
         finally:
             (evidence/'prebroadcast.log').write_text('\n'.join(lines) + '\n')
             (evidence/'prebroadcast.reads.json').write_text(json.dumps(reads, indent=2) + '\n')
@@ -349,9 +352,9 @@ def main():
         safe_logs(evidence, 'forge.final', final, env)
         require(final.returncode == 0 and plan_path.is_file(), 'final simulation failed')
         final_plan = json.loads(plan_path.read_text())
-        diff = plan_diff(plan, final_plan)
+        diff = plan_diff(plan, final_plan, gas_bounds, chain=chain)
         (evidence/'prebroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), diff=diff))+'\n')
-        require(not diff, 'final simulation differs from gated plan')
+        require(not diff, 'final simulation differs from gated plan: ' + '; '.join(diff))
         broadcast_plan = plan
         if stop:
             plan_path.unlink(missing_ok=True)
@@ -414,7 +417,7 @@ def main():
         elif result.returncode != 0:
             print('BROADCAST MINED: all transactions mined; forge exited non-zero; deployment NOT successful')
         try:
-            diff = plan_diff(broadcast_plan, actual, gas_bounds)
+            diff = plan_diff(broadcast_plan, actual, gas_bounds, chain=chain)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
         (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), broadcastPlanSha256=plan_digest(broadcast_plan), diff=diff))+'\n')

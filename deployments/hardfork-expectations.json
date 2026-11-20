@@ -15,7 +15,7 @@
   },
   "10": {
     "chain": "OP",
-    "allowedHardforks": [],
+    "allowedHardforks": ["op:karst"],
     "hardforkValidation": "TODO: operator must validate forge hardfork on OP Sepolia fork before adding allowed names",
     "current": {
       "forkId": "0xc29239af",
@@ -30,7 +30,7 @@
   },
   "11155420": {
     "chain": "OP Sepolia",
-    "allowedHardforks": [],
+    "allowedHardforks": ["op:karst"],
     "hardforkValidation": "TODO: operator must validate forge hardfork on OP Sepolia fork before adding allowed names",
     "current": {
       "forkId": "0x91620456",

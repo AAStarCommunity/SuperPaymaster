@@ -32,10 +32,11 @@ class OPRulesTest(unittest.TestCase):
                                    [dict(calls=[dict(status='0x1', gasUsed=hex(16_000_000))]) for _ in rows]])
             lines = []
             result = d.gas_crosscheck({'transactions':rows}, rpc, 'latest', .05, lines.append, **kwargs)
-            return ('\n'.join(lines) + json.dumps(result)).encode()
+            return ('\n'.join(lines) + json.dumps(result)).encode(), d.gas_bounds(result[0], result[1], **kwargs)
         # chain is a required keyword: a caller that forgets it fails instead of silently getting Amsterdam rules.
         with self.assertRaises(TypeError): run()
-        self.assertEqual(run(chain=11155111), run(chain=31337))
+        # Golden computed from fc59e8d3 via git show, loaded under /tmp.
+        self.assertEqual(run(chain=11155111), (b'GAS single-endpoint real-chain tolerance=0.05 multiplier=100\nGAS fees index=0 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=1 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=2 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=3 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=4 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=5 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=6 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=7 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS fees index=8 maxFeePerGas=0x3b9aca02 maxPriorityFeePerGas=0x3b9aca00\nGAS index=0 contract=Registry limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=1 contract=xPNTsFactory limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=2 contract=MySBT limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=3 contract=SuperPaymaster limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=4 contract=xPNTsTokenV2Ext limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=5 contract=xPNTsTokenV2 limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=6 contract=BLSAggregator limit=16777217 simulated=16777217 real=16000000 tolerance=0.05\nGAS index=7 contract=TimelockHandoverBootstrap limit=16777217 simulated=16777217 real=16000000 tolerance=0.05[[16000000, 16000000, 16000000, 16000000, 16000000, 16000000, 16000000, 16000000, 16000000], 60000000]', [[16777217, 60000000], [16777217, 60000000], [16777217, 60000000], [16777217, 60000000], [16777217, 60000000], [16777217, 60000000], [16777217, 60000000], [16777217, 60000000], [16777217, 60000000]]))
 
     def test_op_every_transaction_stops_before_simulation(self):
         for chain in (10, 11155420):
@@ -57,8 +58,13 @@ class OPRulesTest(unittest.TestCase):
                 rpc.assert_not_called()
 
     def test_op_hardfork_requires_operator_validated_allowlist(self):
+        # DSR ruling 2026-11-21: only 'op:karst' (run end to end on an OP Sepolia fork with nightly 4e8874b);
+        # forge also parses the alias 'optimism:karst', which stays refused.
+        rules = json.loads(c.EXPECTATIONS.read_text())
         for chain in (10, 11155420):
-            for value in ('', 'amsterdam', 'op:karst', 'optimism:karst'):
+            self.assertEqual(rules[str(chain)]['allowedHardforks'], ['op:karst'])
+            c.validate_hardfork(chain, 'op:karst')
+            for value in ('', 'amsterdam', 'optimism:karst', 'OP:KARST', 'op:isthmus'):
                 with self.assertRaisesRegex(RuntimeError, 'validated.*hardfork'):
                     c.validate_hardfork(chain, value)
         c.validate_hardfork(11155111, 'amsterdam')
@@ -105,13 +111,13 @@ class OPRulesTest(unittest.TestCase):
         with patch.object(f, 'ReadOnlyRPC', return_value=lambda *args: hex(11155420)):
             f.gate_sources({'DEPLOYLIVE_SOURCE_RPC':'unused','DEPLOYLIVE_PRICE_SOURCE':'fork'}, True, 11155420)
 
-    def test_op_at_cap_and_high_real_gas_are_accepted(self):
+    def test_op_at_headroom_boundary_is_accepted(self):
         for chain in (10, 11155420):
-            plan = {'transactions':[dict(transactionType='CALL', contractName='AtCap', transaction={'gas':hex(16777216)})]}
+            plan = {'transactions':[dict(transactionType='CALL', contractName='AtCap', transaction={'gas':hex(int(d.CAP_FRACTION*d.TX_GAS_CAP))})]}
             rpc = Mock(side_effect=[dict(gasLimit=hex(40_000_000), baseFeePerGas='0x1'),
-                                   [dict(calls=[dict(status='0x1', gasUsed=hex(16_000_000))])]])
+                                   [dict(calls=[dict(status='0x1', gasUsed=hex(14_000_000))])]])
             with patch.object(d, 'large_creates', return_value=[]):
-                self.assertEqual(d.gas_crosscheck(plan, rpc, 'latest', .05, chain=chain), ([16_000_000], 40_000_000))
+                self.assertEqual(d.gas_crosscheck(plan, rpc, 'latest', .05, chain=chain), ([14_000_000], 40_000_000))
 
     def test_op_hardfork_operator_filled_allowlist(self):
         rules = json.loads(c.EXPECTATIONS.read_text())
