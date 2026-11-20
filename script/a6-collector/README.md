@@ -449,15 +449,22 @@ signing keys. The default tty flow never stores the password, so this exposure i
    ```
 
    Optional: a dedicated keychain with auto-lock. Auto-lock shortens the exposure but
-   cannot stop same-user reads while the keychain is unlocked. This sequence was run end
-   to end on 2026-11-20 with a fake keystore and fake passwords, under cast 1.7.1 and
-   nightly 4e8874b. The helper signed and `cast wallet verify` accepted the signature.
-   After `lock-keychain` the helper failed closed within about 1 s with `keychain entry
-   missing`, with no dialog and no hang. After `unlock-keychain` it signed again. Deleting
-   the entry left `find-generic-password` at exit code 44, and the search list was restored
-   byte for byte. The auto-lock timer itself was not waited out; only a manual lock was
-   tested. The helper takes no keychain path, so the dedicated keychain must be on the
-   user search list. Steps marked (interactive) prompt for a password:
+   cannot stop same-user reads while the keychain is unlocked. On 2026-11-20 an
+   **equivalent non-interactive** sequence was run end to end with a fake keystore and fake
+   passwords, under cast 1.7.1 and nightly 4e8874b (`script/evidence/keychain-dedicated-2026-11-20/`).
+   It differs from the sequence below in three ways: passwords were passed with `-p`/`-w <pw>`
+   instead of prompts, and the timeout was `-t 600`. Results:
+   - the helper signed, and `cast wallet verify` accepted the signature;
+   - after `lock-keychain` the helper failed closed within about 1 s with `keychain entry
+     missing`, with no dialog in that non-GUI session (in a GUI session a locked keychain may
+     raise an unlock dialog; the helper still fails at its timeout);
+   - after `unlock-keychain` it signed again;
+   - after the entry was deleted, `find-generic-password` returned 44;
+   - the trap restored the search list, and the restored list is printed at the end of each log.
+
+   Not exercised: the auto-lock timer itself (only a manual lock), and the interactive
+   prompts. The helper takes no keychain path, so the dedicated keychain must be on the
+user search list. Steps marked (interactive) prompt for a password:
 
    ```sh
    KC="$HOME/Library/Keychains/aastar-rq3.keychain-db"
@@ -512,8 +519,9 @@ while the keychain is unlocked via
 `/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w`.
 Same-user malware can also read the keystore files and thus obtain signing keys;
 the tty flow never stores the password, so this exposure is new. It is bounded
-by the required deletion step above (entries exist only while they are in use); a
-dedicated auto-locking keychain is optional. Echoed output and Python allocations can leave password bytes in the
+by following the required deletion step above. Nothing in code deletes the entries or
+reminds you: a crash or Ctrl-C leaves them in place until you delete them. A dedicated
+auto-locking keychain is optional. Echoed output and Python allocations can leave password bytes in the
 helper's heap while it lives (freed at exit); the cast process holds the password too. The ECHO check and write are not
 atomic. Abnormal exits through helper cleanup kill the cast process group even if
 its leader was already reaped; an uncatchable helper SIGKILL cannot run cleanup.

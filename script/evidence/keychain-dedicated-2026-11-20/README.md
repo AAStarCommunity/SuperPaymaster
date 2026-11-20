@@ -16,4 +16,4 @@ Logs: `run-nightly.log` (cast 1.8.7-nightly 4e8874b) and `run-171.log` (cast 1.7
 - step 9: after deleting the entry, the lookup returns exit code 44;
 - on exit: the search list is restored.
 
-After the runs, `diff` against the saved original search list was empty. The auto-lock timer itself was not waited out.
+The restored search list is printed at the end of each log. (A separate `diff` against a saved copy, run by hand after the runs, was empty; that check is not among the committed artifacts.) Passwords were passed non-interactively (`-p`, `-w <pw>`), the timeout was 600 s, and the session had no GUI. The auto-lock timer itself was not waited out.
