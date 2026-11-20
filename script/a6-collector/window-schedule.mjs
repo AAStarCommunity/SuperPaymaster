@@ -4,7 +4,7 @@ import { parseAbi } from 'viem';
 import { createFrozenPlan } from './frozen-plan.mjs';
 const names={SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'};
 export function generateSchedule(seed,accounts,chainId) {
-  const chain={10:'op-mainnet',11155111:'sepolia'}[chainId];
+  const chain={10:'op-mainnet',11155420:'op-sepolia',11155111:'sepolia'}[chainId];
   if(!chain || typeof seed!=='string' || !seed || accounts.length!==3 || new Set(accounts.map(a=>a.toLowerCase())).size!==3 || accounts.some(a=>!/^0x[0-9a-f]{40}$/i.test(a))) throw Error('SCHEDULE_INPUT');
   return JSON.parse(execFileSync('python3',['-I','-B',fileURLToPath(new URL('./schedule.py',import.meta.url)),'--seed',seed,'--accounts',...accounts,'--chain',chain],{encoding:'utf8'}));
 }
