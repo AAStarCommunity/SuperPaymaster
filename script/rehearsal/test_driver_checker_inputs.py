@@ -105,6 +105,8 @@ class DriverCheckerInputs(unittest.TestCase):
         for overrides in (
             {'DEPLOYLIVE_EXPECTED_CHAIN_ID': None},
             {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '010'},
+            {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '31337'},
+            {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '1'},
             {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': 'Alchemy'},
             {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': None},
             {'DEPLOYLIVE_RPC': 'https://secondary.infura.io/other'},
@@ -115,7 +117,7 @@ class DriverCheckerInputs(unittest.TestCase):
                 if value is None: candidate.pop(key, None)
                 else: candidate[key] = value
             with self.subTest(overrides=overrides), patch.dict(os.environ, candidate, clear=True), patch.object(f, 'ROOT', self.root), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'verify_build', return_value='forge') as build, patch.object(f, 'config_path', return_value=self.root/'config.json'), patch.object(f.subprocess, 'run') as run, patch.object(f, 'ReadOnlyRPC') as rpc:
-                with self.assertRaisesRegex(RuntimeError, 'STOP (DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid|invalid checker provider pair)'):
+                with self.assertRaisesRegex(RuntimeError, 'STOP (DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid|invalid checker provider pair|production requires DEPLOYLIVE_EXPECTED_CHAIN_ID 10 or 11155111)'):
                     f.stage('predict', ['--production', '--evidence', str(self.root)])
                 run.assert_not_called()
                 build.assert_not_called()

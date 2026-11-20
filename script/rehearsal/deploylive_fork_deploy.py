@@ -73,6 +73,8 @@ def require_checker_inputs(env, chain=None, production=True):
     except ValueError:
         require(False, 'STOP DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid')
     require(chain is None or expected == chain, 'DEPLOYLIVE_EXPECTED_CHAIN_ID differs from the broadcast endpoint chain')
+    # A production predict must fail now, not after PoP/DVT signing, for a chain deploy will refuse.
+    require(not production or expected in (10, 11155111), 'STOP production requires DEPLOYLIVE_EXPECTED_CHAIN_ID 10 or 11155111')
     if production and expected != 31337:
         try:
             second = Path(env['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
