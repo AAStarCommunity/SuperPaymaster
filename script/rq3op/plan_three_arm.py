@@ -208,8 +208,12 @@ def normalized_addresses(cfg, inputs):
         entries=inputs.get(field)
         if isinstance(entries,list):
             for entry in entries:
-                if isinstance(entry,dict) and isinstance(entry.get('address'),str):
-                    entry['address']=entry['address'].lower()
+                value=entry.get('address') if isinstance(entry,dict) else None
+                if isinstance(value,str) and re.fullmatch('0x[0-9a-fA-F]{40}',value):
+                    # Same checksum rule as every other address; zero, malformed and duplicate entries are
+                    # left to the list's own gates (rq3_task_recipients / rq3_extra_endusers).
+                    a.need('rq3_address',value==value.lower() or value==a.cast('to-check-sum-address',value),True)
+                    entry['address']=value.lower()
     return m.fresh_addresses(cfg),m.fresh_addresses(inputs)
 
 

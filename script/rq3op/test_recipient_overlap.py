@@ -15,7 +15,7 @@ class RecipientOverlap(unittest.TestCase):
         self.inputs['taskRecipients'] = [dict(address=who, amount=301)]
         self.cal['setup'].update({'C11.extra.0': 100000,
             **{f'C8.extra.0.{suffix}': 100000 for suffix in ('approve', 'role', 'mint')}})
-        for recipient in (who, '0x' + who[2:].upper()):
+        for recipient in (who, q.a.cast('to-check-sum-address', who)):
             with self.subTest(recipient=recipient):
                 self.inputs['taskRecipients'][0]['address'] = recipient
                 bundle = self.build()
@@ -48,7 +48,7 @@ class RecipientOverlap(unittest.TestCase):
                                         ('taskRecipients', 'amount', 'rq3_task_recipients')):
             for who in sorted(forbidden):
                 with self.subTest(field=field, who=who):
-                    self.inputs[field] = [dict(address='0x' + who[2:].upper(), **{amount_key: 301})]
+                    self.inputs[field] = [dict(address=q.a.cast('to-check-sum-address', who), **{amount_key: 301})]
                     with self.assertRaisesRegex(a.Gate, gate):
                         q.check_inputs(self.cfg, self.inputs, self.evidence)
             self.inputs[field] = []
@@ -59,7 +59,7 @@ class RecipientOverlap(unittest.TestCase):
             with self.subTest(field=field):
                 who = address(0xabc)
                 self.inputs[field] = [dict(address=value, **{amount_key: 301})
-                                      for value in (who, '0x' + who[2:].upper())]
+                                      for value in (who, q.a.cast('to-check-sum-address', who))]
                 with self.assertRaisesRegex(a.Gate, gate):
                     q.check_inputs(self.cfg, self.inputs, self.evidence)
                 self.inputs[field] = []

@@ -61,6 +61,30 @@ class DeployLiveInputs(unittest.TestCase):
         f.inputs['genesis']=t.address(999)
         f.stop('rq3_genesis',lambda:q.check_inputs(f.cfg,f.inputs,f.evidence))
 
+    def test_recipient_and_extra_addresses_get_the_same_checksum_rule(self):
+        # The SDK account enters the planner through these two lists (DSR review of fc59e8d3).
+        good='0xE8Eaad6A4802300F33E53c40e65863CCcDA6898b'
+        bad=good[:-1]+('B' if good[-1]=='b' else 'b')  # flips one letter's case: an invalid EIP-55 checksum
+        for field,entry in (('taskRecipients',dict(address=bad,amount=301)),('extraEndUsers',dict(address=bad,xAmount=1))):
+            with self.subTest(field=field):
+                cfg,inputs=copy.deepcopy(self.f.cfg),copy.deepcopy(self.f.inputs)
+                inputs[field]=[entry]
+                with self.assertRaises(q.a.Gate) as caught: q.normalized_addresses(cfg,inputs)
+                self.assertEqual(caught.exception.record['gate'],'rq3_address')
+        for value in (good,good.lower()):
+            cfg,inputs=copy.deepcopy(self.f.cfg),copy.deepcopy(self.f.inputs)
+            inputs['taskRecipients']=[dict(address=value,amount=301)]; inputs['extraEndUsers']=[dict(address=value,xAmount=1)]
+            _,out=q.normalized_addresses(cfg,inputs)
+            self.assertEqual(out['taskRecipients'][0]['address'],good.lower())
+            self.assertEqual(out['extraEndUsers'][0]['address'],good.lower())
+
+    def test_fresh_address_keys_never_collide_silently(self):
+        low='0xe8eaad6a4802300f33e53c40e65863cccda6898b'; mixed='0xE8Eaad6A4802300F33E53c40e65863CCcDA6898b'
+        self.assertEqual(q.m.fresh_addresses({mixed:1,'other':2}),{low:1,'other':2})
+        with self.assertRaises(q.a.Gate) as caught: q.m.fresh_addresses({low:1,mixed:2})
+        self.assertEqual(caught.exception.record['gate'],'fresh_address_key_collision')
+        with self.assertRaises(q.a.Gate): q.m.fresh_addresses({'x':[{low:1,mixed:2}]})
+
     def test_wrong_checksum(self):
         self.f.cfg['gToken']='0x52908400098527886E0F7030069857D2E4169Ee7'
         self.f.evidence['configSha256']=q.digest(self.f.cfg)

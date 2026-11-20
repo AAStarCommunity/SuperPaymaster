@@ -1366,7 +1366,10 @@ def fresh_addresses(value):
     if isinstance(value,str):
         return value.lower() if re.fullmatch('0x[0-9a-fA-F]{40}',value) else value
     if isinstance(value,dict):
-        return {fresh_addresses(k):fresh_addresses(v) for k,v in value.items()}
+        out={fresh_addresses(k):fresh_addresses(v) for k,v in value.items()}
+        # Two distinct keys that canonicalise to the same address must not silently overwrite each other.
+        a.need('fresh_address_key_collision',len(out)==len(value),True)
+        return out
     if isinstance(value,list):return [fresh_addresses(v) for v in value]
     if isinstance(value,tuple):return tuple(fresh_addresses(v) for v in value)
     return value
