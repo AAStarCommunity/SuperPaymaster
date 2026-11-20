@@ -20,7 +20,7 @@ class PinnedTools:
         for key in ('DEPLOYLIVE_ENDPOINT_PROVIDER', 'DEPLOYLIVE_EVIDENCE_DIR',
                     'DEPLOYLIVE_SECOND_RPC_FILE', 'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER',
                     'DEPLOYLIVE_LOCAL_EVIDENCE', 'DEFAULT_ARTIFACTS_OUT',
-                    'DEPLOYLIVE_SNAPSHOT_BLOCK_HASH'):
+                    'DEPLOYLIVE_SNAPSHOT_BLOCK_HASH', 'ETH_RPC_URL'):
             if key in os.environ: self.env[key] = os.environ[key]
         self.records = {}
         for name, path in paths.items():

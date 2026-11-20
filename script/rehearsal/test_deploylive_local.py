@@ -31,7 +31,7 @@ class LocalForgeTest(unittest.TestCase):
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
         except OSError as error:
-            self.skipTest('cannot start loopback Anvil: '+str(error))
+            self.fail('cannot start loopback Anvil: '+str(error))
         url = f'http://127.0.0.1:{port}'
         opener = build_opener(ProxyHandler({}))
         def rpc(method, *params):
@@ -48,12 +48,12 @@ class LocalForgeTest(unittest.TestCase):
             try:
                 anvil = subprocess.Popen(['anvil', '--host', '127.0.0.1', '--port', str(port), '--chain-id', '31337', '--hardfork', 'prague', '--silent'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
             except OSError as error:
-                self.skipTest('cannot start loopback Anvil: '+str(error))
+                self.fail('cannot start loopback Anvil: '+str(error))
             try:
                 for _ in range(100):
                     try: rpc('eth_chainId'); break
                     except Exception: time.sleep(.1)
-                else: self.skipTest('cannot start loopback Anvil: '+(evidence/'anvil.log').read_text()[-1000:])
+                else: self.fail('cannot start loopback Anvil: '+(evidence/'anvil.log').read_text()[-1000:])
                 sender = rpc('eth_accounts')[0]
                 from deploylive_runtime import clean_source_commit
                 env = dict(os.environ, SP_COMMIT=clean_source_commit(), FOUNDRY_VERBOSITY='2', DEPLOYER_ADDRESS=sender,

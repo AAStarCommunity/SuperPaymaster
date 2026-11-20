@@ -44,7 +44,8 @@ class CheckerIntegration(unittest.TestCase):
                 self.assertEqual(self.calls, [])
 
     def test_snapshot_identity_required(self):
-        for line in ('', 'SNAPSHOT_BLOCK_HASH 0x'+'34'*32, f'SNAPSHOT_BLOCK_HASH {PIN}\nSNAPSHOT_BLOCK_HASH {PIN}'):
+        for line in ('', 'SNAPSHOT_BLOCK_HASH 0x'+'34'*32, f'SNAPSHOT_BLOCK_HASH {PIN}\nSNAPSHOT_BLOCK_HASH {PIN}',
+                     f'SNAPSHOT_BLOCK_HASH {PIN}\nSNAPSHOT_BLOCK_HASH invalid'):
             with self.subTest(line=line), self.assertRaises(q.a.Gate):
                 self.invoke(self.tools(), line+'\nSUMMARY 242 passed, 0 failed, 242 total')
 

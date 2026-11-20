@@ -41,7 +41,7 @@ class Round2(unittest.TestCase):
                 return SimpleNamespace(returncode=0,stdout=raw+b'changed' if path==changed else raw)
             tools.runner=run
             with self.assertRaisesRegex(q.a.Gate,'rq3_checker_blob'):
-                q.run_checker('config',{'commit':'a'*40},'unused',10,
+                q.run_checker('config',{'commit':'a'*40},'unused',10,block='0x'+'12'*32,
                     runner=lambda *args,**kwargs:self.fail('checker executed after blob mismatch'),
                     commit_reader=lambda:'a'*40,tools=tools)
 

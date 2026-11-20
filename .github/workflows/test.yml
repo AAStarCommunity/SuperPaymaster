@@ -189,6 +189,14 @@ jobs:
           DEPLOYLIVE_LOCAL_TEST: '1'
         run: python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
 
+      - name: Require planner final checker acceptance
+        if: steps.changes.outputs.contract == 'true'
+        env:
+          DEPLOYLIVE_LOCAL_TEST: '1'
+        run: |
+          PYTHONPATH=script/rehearsal python3 -m unittest test_deploylive_local.LocalForgeTest.test_planner_final_checker_acceptance -v -b 2>&1 | tee planner-checker-acceptance.log
+          grep -E '^test_planner_final_checker_acceptance .* \.\.\. ok$' planner-checker-acceptance.log
+
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'
         run: |

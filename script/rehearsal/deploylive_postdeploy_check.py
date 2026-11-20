@@ -33,6 +33,8 @@ except (ValueError, OSError) as error:
 results = []
 BLOCK = None
 block = None
+requested_hash = os.environ.get('DEPLOYLIVE_SNAPSHOT_BLOCK_HASH')
+log_heights = set()
 principal_addresses = {DEPLOYER, SAFE}
 
 
@@ -103,12 +105,18 @@ def transport(*args, endpoint=None):
 def local(*args, endpoint=None):
     from deploylive_readback import validate_snapshot_request
     if args[0] == 'rpc':
-        validate_snapshot_request(block, args[1:])
+        validate_snapshot_request(block, args[1:], requested_hash=requested_hash, log_heights=log_heights)
     elif args[0] not in LOCAL | {'decode-abi', 'to-check-sum-address'}:
         raise ValueError('unrecognized checker read')
     r = subprocess.run(['cast', *args], env=dict(os.environ, ETH_RPC_URL=endpoint or RPC), capture_output=True, text=True)
     if r.returncode:
         return r.returncode, " ".join(re.findall(r"0x[0-9a-fA-F]+", r.stderr)) or "RPC/local command failed"
+    if args[:2] == ('rpc', 'eth_getLogs'):
+        query = json.loads(args[2])
+        heights = {int(row['blockNumber'], 16) for row in json.loads(r.stdout)}
+        if any(not int(query['fromBlock'], 16) <= height <= int(block['number'], 16) for height in heights):
+            raise ValueError('log block outside pinned query')
+        log_heights.update(heights)
     return 0, r.stdout.strip()
 
 

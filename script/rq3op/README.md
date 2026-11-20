@@ -23,7 +23,23 @@ number, hash and timestamp on both providers before state reads, then repeats
 canonical checks after replay. The planner requires the checker's
 `SNAPSHOT_BLOCK_HASH` output to equal its own pin. Standalone DeployLive callers
 that omit this input retain head selection. `checker_runner.py` only preserves
-tool/environment isolation; it never rewrites read arguments.
+tool/environment isolation; it never rewrites read arguments. The planner passes
+its primary URL through `ETH_RPC_URL`, not process arguments. On non-31337 chains,
+the planner validates its own two endpoints with the checker's `independent_providers`
+function: approved distinct names, bound hostname suffixes and distinct hostnames.
+The names above identify the planner's primary and secondary endpoints too.
+For every sender, both providers must report pending nonce equal to the nonce at
+the EIP-1898 pin. An in-flight transaction stops planning, including with `--block`.
+
+`eth_feeHistory` is a fee input read by block number, outside the hash pin. Its
+results are compared on both providers and the resulting fee is bounded by
+`feeCeiling <= MAX_FEE`; this does not establish hash-anchored fee history.
+
+| Known gap | Current control and limit |
+|---|---|
+| Fee history is outside the hash pin | `eth_feeHistory` is a fee input read by block number, compared on both providers and bounded by `feeCeiling <= MAX_FEE`; fee-history blocks are not hash-proven. |
+| Check count binds cardinality only | `guardianN` comes from deployment config; a required check-ID list is not implemented. Equal row counts cannot detect substitution or duplication of assertions. |
+| Local integration acceptance | Requires the parent host to run the enabled Anvil test; offline suites cannot establish this acceptance. |
 
 
 1. Deploy with the frozen DeployLive script and complete the handoff checker.
@@ -307,8 +323,9 @@ fetched and no comparator artifact was rebuilt or substituted.
 Use a host that permits binding Anvil to `127.0.0.1`. The existing local test
 command now includes `test_planner_final_checker_acceptance`: it deploys the full
 local system, advances head, and runs the real planner/checker against the earlier
-hash. Startup restrictions are reported as skips; a skip is not acceptance. This
-test also runs in `deploylive-python`, which builds the required `out/` artifacts.
+hash. With `DEPLOYLIVE_LOCAL_TEST=1`, socket, Anvil launch and startup failures fail
+the test. Skipping is allowed only when that variable is unset. CI reruns this
+test verbosely and requires its explicit `... ok` result. This test also runs in `deploylive-python`, which builds the required `out/` artifacts.
 The a3a job runs offline rq3op tests without that build and cannot run this gate.
 
 In the parent session:

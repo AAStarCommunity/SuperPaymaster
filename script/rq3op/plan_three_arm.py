@@ -135,6 +135,14 @@ class Pair:
     def __call__(self, method, params):
         if method in ('eth_call','eth_getCode','eth_getStorageAt','eth_getBalance','eth_getTransactionCount') and params[-1] != 'pending':
             params = [*params[:-1],dict(blockHash=self.head['hash'],requireCanonical=True)]
+        if method == 'eth_getTransactionCount' and params[-1] == 'pending':
+            pinned = [client(method, [params[0], dict(blockHash=self.head['hash'], requireCanonical=True)])
+                      for client in self.clients]
+            pending = [client(method, params) for client in self.clients]
+            for current, frozen in zip(pending, pinned):
+                a.need('rq3_pending_nonce', a.qty(current), a.qty(frozen))
+            a.need('rq3_rpc_agreement', pinned[0], pinned[1])
+            return pinned[0]
         results = [client(method,params) for client in self.clients]
         a.need('rq3_rpc_agreement',results[0],results[1])
         return results[0]
@@ -597,6 +605,7 @@ def http_transport(url,opener=None):
         except Exception: raise a.Gate('rq3_rpc_transport','redacted failure','successful read') from None
         a.need('rq3_rpc_result',isinstance(value,dict) and value.get('jsonrpc')=='2.0' and value.get('id')==1 and 'result' in value and 'error' not in value,True)
         return value['result']
+    rpc.endpoint = url
     return rpc
 
 
@@ -639,7 +648,7 @@ def authenticate_checker(cfg, tools):
     return hashes
 
 
-def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=None,tools=None):
+def run_checker(config_path,cfg,url,chain,*,block,runner=None,commit_reader=None,tools=None):
     import subprocess
     sys.path.insert(0,str(ROOT/'script/rehearsal'))
     from deploylive_runtime import clean_source_commit
@@ -652,18 +661,17 @@ def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=N
                 error = a.Gate('rq3_checker_execution', 'missing '+key, 'required checker input')
                 error.args = ('rq3_checker_execution: missing '+key,)
                 raise error
-    if block is not None:
-        a.need('rq3_checker_execution', True if re.fullmatch(r'0x[0-9a-fA-F]{64}', block) else 'snapshot block hash required', True)
+    a.need('rq3_checker_execution', isinstance(block, str) and bool(re.fullmatch(r'0x[0-9a-fA-F]{64}', block)), True)
     checker=ROOT/'script/rehearsal/deploylive_postdeploy_check.py'
-    executable=[str(ROOT/'script/rq3op/checker_runner.py'),block] if block else [str(checker)]
-    result=(runner or tools.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
-        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=tools.env)
+    executable=[str(ROOT/'script/rq3op/checker_runner.py'),block]
+    result=(runner or tools.run)([sys.executable,'-B',*executable,str(inside(config_path)),
+        cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=dict(tools.env, ETH_RPC_URL=url))
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
     from deploylive_check_count import expected_check_count
     expected=expected_check_count(cfg, load(ROOT/'deployments/readback-policy.json'),
         load(ROOT/'deployments/readback-artifacts.json'), load(ROOT/'deployments/release-versions.rc8.json'))
-    snapshots=re.findall(r'^SNAPSHOT_BLOCK_HASH (0x[0-9a-fA-F]{64})$', result.stdout, re.M)
-    a.need('rq3_checker_execution', True if block is None or snapshots == [block.lower()] else 'snapshot block hash mismatch', True)
+    snapshots=re.findall(r'^SNAPSHOT_BLOCK_HASH(?:[ \t]+(.*))?$', result.stdout, re.M)
+    a.need('rq3_checker_execution', True if snapshots == [block.lower()] else 'snapshot block hash mismatch', True)
     a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
         tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
     return dict(snapshotBlockHash=snapshots[0].lower() if len(snapshots)==1 else None,tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
@@ -763,12 +771,21 @@ def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit
     pair=Pair(left,right)
     if block:
         pair.head=pair('eth_getBlockByNumber',[block,False])
-    checker=run_checker(config_path,cfg,url,a.qty(pair('eth_chainId',[])),checker_runner,commit_reader,pair.head['hash'],tools)
+    chain = a.qty(pair('eth_chainId', []))
+    if chain != 31337:
+        sys.path.insert(0, str(ROOT/'script/rehearsal'))
+        from deploylive_readback import independent_providers
+        try:
+            independent_providers(tools.env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''),
+                                  tools.env.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''),
+                                  getattr(left, 'endpoint', ''), getattr(right, 'endpoint', ''))
+        except ValueError:
+            raise a.Gate('rq3_planner_providers', 'invalid provider pair', 'distinct approved bound endpoints') from None
+    checker=run_checker(config_path,cfg,url,chain,block=pair.head['hash'],runner=checker_runner,commit_reader=commit_reader,tools=tools)
     verify_system(cfg,pair,pair.head['number'],entrypoint_in_builder=True)
     cal=load(inputs['calibration']);verify_calibration(cfg,cal,checker['chainId'],pair)
     def frozen(method,params):
         if method=='eth_getBlockByNumber' and params[0]=='latest':return pair.head
-        if block and method=='eth_getTransactionCount' and params[-1]=='pending':params=[params[0],pair.head['number']]
         return pair(method,params)
     # The pure builder consumes the same validated checker schema as its historical fixtures.
     internal=dict(checker,stdout='PASS verified checker execution\n'+checker['summary'])

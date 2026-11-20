@@ -14,18 +14,18 @@ class Daybreak(unittest.TestCase):
         auth.start();self.addCleanup(auth.stop)
 
     def test_checker_is_executed_and_exact_count_required(self):
-        provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        provider=patch.dict('os.environ', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         provider.start();self.addCleanup(provider.stop)
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
         for code,log in [(1,'SUMMARY 242 passed, 0 failed, 242 total'),(0,'SUMMARY 243 passed, 0 failed, 243 total'),(0,'SUMMARY 241 passed, 1 failed, 242 total'),(0,'PASS no summary'),(0,'SUMMARY 242 passed, 0 failed, 242 total\nSUMMARY 242 passed, 0 failed, 242 total')]:
             with self.assertRaises(q.a.Gate):
-                q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout=log),commit_reader=lambda:cfg['commit'])
-        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 242 passed, 0 failed, 242 total'),commit_reader=lambda:cfg['commit'])
+                q.run_checker('config',cfg,'rpc',10,block='0x'+'12'*32,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout='SNAPSHOT_BLOCK_HASH 0x'+'12'*32+'\n'+log),commit_reader=lambda:cfg['commit'])
+        result=q.run_checker('config',cfg,'rpc',10,block='0x'+'12'*32,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH 0x'+'12'*32+'\nPASS gate\nSUMMARY 242 passed, 0 failed, 242 total'),commit_reader=lambda:cfg['commit'])
         self.assertEqual(result['total'],242)
         self.assertNotIn('stdout',result)
     def test_dirty_or_wrong_commit_refused(self):
         with self.assertRaises(q.a.Gate):
-            q.run_checker('config',{'commit':'a'*40},'rpc',10,commit_reader=lambda:'b'*40)
+            q.run_checker('config',{'commit':'a'*40},'rpc',10,block='0x'+'12'*32,commit_reader=lambda:'b'*40)
     def test_calibration_file_binding(self):
         path=q.ROOT/'cache/3arm/fix/evidence-test.json'
         evidence=dict(chainId=10,superPaymaster='sp',commit='a'*40,blockNumber='0x20',blockHash='0x'+'12'*32,arms={'SP':{'call':1}},setup={'C':1},ownerPreparation={'O':1},ownerMaintenance=[],bundlerMaintenance=[],safeTransactions={'C1':1})
@@ -161,7 +161,7 @@ class Generation(unittest.TestCase):
     def test_verified_generation_reconstructs_exact_bytes_after_head_moves(self):
         import tempfile
         import re
-        provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        provider=patch.dict('os.environ', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         provider.start();self.addCleanup(provider.stop)
         f=fixtures.ThreeArm();f.setUp();f.cfg['guardianN']=2
         original=copy.deepcopy(f.rpc.head)
@@ -175,6 +175,9 @@ class Generation(unittest.TestCase):
             if method=='eth_getCode' and params[0] in [f.cfg[k] for k in q.SYSTEM_SOURCES if k!='entryPoint']:return '0x6000'
             if method=='eth_getBlockByNumber' and params[0]==original['number']:return original
             return f.rpc(method,params)
+        rpc.endpoint = 'https://x.alchemy.com'
+        def second(method, params): return rpc(method, params)
+        second.endpoint = 'https://y.infura.io'
         with tempfile.TemporaryDirectory(dir=q.ROOT/'cache/3arm/fix') as directory:
             root=q.Path(directory);evidence={k:v for k,v in f.cal.items() if k!='source'}
             evidence.update(chainId=10,superPaymaster=f.cfg['superPaymaster'],commit=f.cfg['commit'],blockNumber=original['number'],blockHash=original['hash'])
@@ -188,7 +191,7 @@ class Generation(unittest.TestCase):
                 return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
-                    return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])
+                    return q.generate(root/'config',root/'inputs',rpc,second,'unused',block,runner,lambda:f.cfg['commit'])
             first=generate()
             forged=dict(f.cfg,superPaymaster=fixtures.address(999))
             (root/'config').write_text(json.dumps(forged))
@@ -197,6 +200,8 @@ class Generation(unittest.TestCase):
             (root/'config').write_text(json.dumps(f.cfg))
             f.rpc.head=dict(original,number='0x21',hash='0x'+'34'*32)
             f.rpc.pending=9
+            with self.assertRaisesRegex(q.a.Gate, 'rq3_pending_nonce'): generate(original['number'])
+            f.rpc.pending=0
             self.assertEqual(first,generate(original['number']))
             self.assertTrue(all('checker_runner.py' in command[2] and command[3]==original['hash'] for command in calls))
 
