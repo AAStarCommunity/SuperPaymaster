@@ -590,6 +590,15 @@ old backup defeats rollback detection.
 
 ### Known residual
 
+Safe signatures themselves do not expire. The 24-hour authorization bounds when a
+clearance may be issued; this tool also requires execution within that authorization
+window, but recording a timely execution may happen later.
+
+Clearance issuance requires at least 60 seconds remaining before the smaller of
+the authorization expiry and pin timestamp + 600. This leaves a practical margin
+for submission and a subsequent block, without guaranteeing inclusion. A refusal
+reports the expiry timestamp.
+
 Within the 600-second clearance window the state can still change.
 The post-execution target check detects a step that did not reach its planned target state; it does not detect
 unrelated state changes, or a change that was reverted before the check.

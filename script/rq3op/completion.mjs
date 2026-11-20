@@ -1,4 +1,4 @@
-import {readFileSync,openSync,writeFileSync,fsyncSync,closeSync,renameSync} from 'node:fs';
+import {readFileSync,openSync,writeFileSync,fsyncSync,closeSync,renameSync,lstatSync,unlinkSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {dirname} from 'node:path';
 import {decodeFunctionData,parseAbi,toEventSelector,encodeFunctionData,decodeFunctionResult,encodeAbiParameters,keccak256,stringToHex,concat} from 'viem';
@@ -6,6 +6,7 @@ import {parse} from '../a6-collector/frozen-plan.mjs';
 // Signing may take a day; execution requires a separate fresh state clearance.
 export const AUTH_WINDOW_SECONDS = 86400n;
 export const CLEARANCE_WINDOW_SECONDS = 600n;
+export const MIN_CLEARANCE_SECONDS = 60n;
 export const json = value=>JSON.stringify(value,(_,v)=>typeof v==='bigint'?v.toString():v);
 const same=(a,b)=>String(a).toLowerCase()===String(b).toLowerCase();
 export function canonical(value) {
@@ -42,9 +43,11 @@ export function requireHead(path,digest,{expected,firstRun}) {
 export function appendClearance(path,authorization,pin) {
  const entries=records(path,authorization.bundleSha256);
  if(!entries.some(e=>e.type==='AUTHORIZATION' && e.recordDigest===authorization.recordDigest) || entries.some(e=>e.type==='COMPLETION' && e.authorizationDigest===authorization.recordDigest))throw Error('authorization unavailable');
- if(BigInt(pin.number)<=BigInt(authorization.blockNumber) || BigInt(pin.timestamp)>BigInt(authorization.expiresAtTimestamp))throw Error('authorization expired or clearance pin not new');
+ if(BigInt(pin.number)<=BigInt(authorization.blockNumber))throw Error('clearance pin not new');
  if(entries.some(e=>e.type==='EXECUTION_CLEARANCE' && e.authorizationDigest===authorization.recordDigest && BigInt(e.expiresAtTimestamp)>=BigInt(pin.timestamp) && !entries.some(c=>c.type==='COMPLETION' && c.clearanceDigest===e.recordDigest)))throw Error('clearance already outstanding');
  const expiry=BigInt(pin.timestamp)+CLEARANCE_WINDOW_SECONDS;
+ const limit=expiry<BigInt(authorization.expiresAtTimestamp)?expiry:BigInt(authorization.expiresAtTimestamp);
+ if(limit-BigInt(pin.timestamp)<MIN_CLEARANCE_SECONDS)throw Error('clearance remaining window below 60 seconds; expiry '+limit);
  return append(path,{type:'EXECUTION_CLEARANCE',id:authorization.id,bundleSha256:authorization.bundleSha256,authorizationDigest:authorization.recordDigest,blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(expiry<BigInt(authorization.expiresAtTimestamp)?expiry:BigInt(authorization.expiresAtTimestamp))});
 }
 function validClearanceExpiry(clearance,authorization) {
@@ -69,8 +72,19 @@ function append(path,entry){
  const entries=records(path,entry.bundleSha256);
  const content={...entry,previousDigest:entries.at(-1)?.recordDigest??genesis};
  const record={...content,recordDigest:sha(content)};
+ const temporary=path+'.head.tmp';
+ try{
+  const stat=lstatSync(temporary);
+  unlinkSync(temporary);
+  if(stat.isSymbolicLink())throw Error('completion head temp symlink refused');
+ }catch(error){if(error.code!=='ENOENT')throw error;}
+ // Reserve the temporary file before touching the log; wx refuses raced-in links.
+ const fd=openSync(temporary,'wx',0o600);
+ try{
+  writeFileSync(fd,canonical({count:entries.length+1,digest:record.recordDigest})+'\n');
+  fsyncSync(fd);
+ }finally{closeSync(fd);}
  durable(path,canonical(record)+'\n','a');
- durable(path+'.head.tmp',canonical({count:entries.length+1,digest:record.recordDigest})+'\n','w');
  renameSync(path+'.head.tmp',path+'.head');
  const directory=openSync(dirname(path),'r');try{fsyncSync(directory);}finally{closeSync(directory);}
  return record;
@@ -155,9 +169,9 @@ export async function verifyReceipt(read,step,hash,safe=false,record=null,author
   const version=decodeFunctionResult({abi:getters,functionName:'VERSION',data:await read('eth_call',[{to:step.from,data:encodeFunctionData({abi:getters,functionName:'VERSION'})},receipt.blockNumber])});
   if(!SUPPORTED_SAFE_VERSIONS.includes(version) || version!==auth.version)throw Error('Safe VERSION changed or unsupported');
   const clearanceAnchor=await read('eth_getBlockByNumber',['0x'+BigInt(cleared.blockNumber).toString(16),false]);
-  if(!same(clearanceAnchor.hash,cleared.blockHash))throw Error('execution not cleared: clearance anchor changed');
+  if(!same(clearanceAnchor.hash,cleared.blockHash) || BigInt(clearanceAnchor.timestamp)!==BigInt(cleared.blockTimestamp))throw Error('execution not cleared: clearance anchor changed');
   const anchor=await read('eth_getBlockByNumber' ,['0x'+BigInt(auth.blockNumber).toString(16),false]);
-  if(!same(anchor.hash,auth.blockHash))throw Error('authorization anchor changed');
+  if(!same(anchor.hash,auth.blockHash) || auth.blockTimestamp===undefined || BigInt(anchor.timestamp)!==BigInt(auth.blockTimestamp) || BigInt(auth.expiresAtTimestamp)!==BigInt(auth.blockTimestamp)+AUTH_WINDOW_SECONDS)throw Error('authorization anchor changed');
   const chain=await read('eth_chainId',[]);
   if(BigInt(chain)!==BigInt(auth.chainId)||!same(auth.safe,step.from))throw Error('authorization domain mismatch');
   // The consumed nonce is bound by the signed hash and authenticated ExecutionSuccess event.

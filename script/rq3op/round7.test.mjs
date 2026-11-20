@@ -11,10 +11,10 @@ function live(){
  const names=['to','value','data','operation','safeTxGas','baseGas','gasPrice','gasToken','refundReceiver'];
  const args=decodeFunctionData({abi,data:tx.input}).args;
  const transaction=Object.fromEntries(names.map((n,i)=>[n,args[i]]));transaction.nonce=plan.pin.safeNonce;
- const auth={recordDigest:'a'.repeat(64),safe:tx.to,chainId:plan.chainId,version:'1.4.1',transaction,safeTxHash:plan.safeTxHashes[0],blockNumber:'1',blockHash:receipt.blockHash,expiresAtTimestamp:'2000'};
+ const auth={recordDigest:'a'.repeat(64),safe:tx.to,chainId:plan.chainId,version:'1.4.1',transaction,safeTxHash:plan.safeTxHashes[0],blockNumber:'1',blockHash:receipt.blockHash,blockTimestamp:'900',expiresAtTimestamp:'87300'};
  const clearance={authorizationDigest:auth.recordDigest,blockNumber:'2',blockTimestamp:'1000',blockHash:receipt.blockHash,expiresAtTimestamp:'1600'};
  const step={id:'C1',from:tx.to,...transaction};
- const read=async(m,p)=>({eth_call:encodeAbiParameters([{type:'string'}],['1.4.1']),eth_chainId:tx.chainId,eth_getTransactionReceipt:receipt,eth_getTransactionByHash:{...tx,blockHash:receipt.blockHash},eth_getBlockByNumber:{hash:receipt.blockHash,timestamp:'0x3e8'}}[m]);
+ const read=async(m,p)=>({eth_call:encodeAbiParameters([{type:'string'}],['1.4.1']),eth_chainId:tx.chainId,eth_getTransactionReceipt:receipt,eth_getTransactionByHash:{...tx,blockHash:receipt.blockHash},eth_getBlockByNumber:{hash:receipt.blockHash,timestamp:m==='eth_getBlockByNumber'?(BigInt(p[0])===1n?'0x384':BigInt(p[0])===2n?'0x3e8':'0x44c'):undefined}}[m]);
  return {tx,receipt,auth,clearance,step,read};
 }
 test('A receipt produced on a Sepolia fork by the real Safe 1.4.1 code records indexed hash',async()=>{

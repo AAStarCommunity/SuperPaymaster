@@ -52,7 +52,7 @@ test('M2 reads nonce and version at pinned block',async()=>{
 for(const mutation of ['nonce','event','gas','refund','expired-execution','before-gate','at-expiry','old-signing-fresh-clearance','two-hours-old-clearance','forged-expiry'])test('M2 execution timing and hash: '+mutation,async()=>{
  const hash='0x'+'ef'.repeat(32),safeHash='0x69c955960061a19c54e8456a0a73f453cd4d7dc193b7d65cdfd2db59695aea65';
  const auth={recordDigest:'a'.repeat(64),version:'1.4.1',safe,chainId:'10',blockNumber:'99',blockHash:pin.hash,blockTimestamp:'100',expiresAtTimestamp:'86500',transaction:{...transaction},safeTxHash:safeHash};
- const clearance={authorizationDigest:auth.recordDigest,blockNumber:'100',blockHash:pin.hash,blockTimestamp:'100',expiresAtTimestamp:'700'};
+ const clearance={authorizationDigest:auth.recordDigest,blockNumber:'100',blockHash:pin.hash,blockTimestamp:'101',expiresAtTimestamp:'701'};
  const args=[to,1n,'0x1234',0,0n,0n,0n,zero,zero,'0x'];
  const receipt={transactionHash:hash,status:'0x1',blockNumber:'0x65',blockHash:pin.hash,logs:[{address:safe,topics:[toEventSelector('ExecutionSuccess(bytes32,uint256)'),safeHash],data:encodeAbiParameters([{type:'uint256'}],[0n])}]};
  if(mutation==='nonce')auth.transaction.nonce='8';
@@ -67,7 +67,7 @@ for(const mutation of ['nonce','event','gas','refund','expired-execution','befor
  if(mutation==='forged-expiry')clearance.expiresAtTimestamp='86500';
  if(mutation==='before-gate')receipt.blockNumber='0x64';
  const abi=parseAbi(['function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures) returns (bool success)']);
- const read=async method=>({eth_call:encodeAbiParameters([{type:'string'}],['1.4.1']),eth_chainId:'0xa',eth_getTransactionReceipt:receipt,eth_getBlockByNumber:{hash:pin.hash,timestamp:'0x'+timestamp.toString(16)},eth_getTransactionByHash:{to:safe,blockHash:pin.hash,input:encodeFunctionData({abi,functionName:'execTransaction',args})}}[method]);
+ const read=async (method,params)=>({eth_call:encodeAbiParameters([{type:'string'}],['1.4.1']),eth_chainId:'0xa',eth_getTransactionReceipt:receipt,eth_getBlockByNumber:{hash:pin.hash,timestamp:'0x'+(method==='eth_getBlockByNumber' && BigInt(params[0])===99n?100n:method==='eth_getBlockByNumber' && BigInt(params[0])===100n?BigInt(clearance.blockTimestamp):timestamp).toString(16)},eth_getTransactionByHash:{to:safe,blockHash:pin.hash,input:encodeFunctionData({abi,functionName:'execTransaction',args})}}[method]);
  if(['at-expiry','old-signing-fresh-clearance'].includes(mutation))assert.equal((await c.verifyReceipt(read,step,hash,true,null,auth,clearance)).timestamp,String(timestamp));
  else await assert.rejects(c.verifyReceipt(read,step,hash,true,null,auth,clearance));
 });
