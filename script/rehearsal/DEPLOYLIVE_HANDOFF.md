@@ -8,6 +8,13 @@ machine's process list; nothing else records it). Production never starts Anvil.
 Obtain the approved DVT export after prediction; PoPs bind this request and nonce.
 Do not send deployer transactions or change approved inputs between prediction and deploy.
 
+For production predict and deploy, export `DEPLOYLIVE_ENDPOINT_PROVIDER` and
+`DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER` as distinct approved provider names (not URLs),
+and `DEPLOYLIVE_EXPECTED_CHAIN_ID` as the required positive decimal chain ID.
+Provider/endpoint mismatches, including a second URL differing from the checker's
+`DEPLOYLIVE_SECOND_RPC_FILE`, stop before any forge call; deploy also checks the
+broadcast endpoint's chain against the expected chain (predict stays offline).
+
 Run deploy day from a FRESH clone at the approved commit, never in a worktree that was used
 for a rehearsal: rehearsal and production configs share `deployments/live/config.<ENV>.json`.
 

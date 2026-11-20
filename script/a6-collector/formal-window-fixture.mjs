@@ -26,7 +26,7 @@ export function formalWindowFixture(dir) {
   const triplets=Array.from({length:50},(_,t)=>({tripletIndex:t,armOrder:armOrder(t),matched:true,attempts:[t*3,t*3+1,t*3+2]}));
   const journal=[f.start,...f.attempts,{...end,schema:'a6-gauge/2',rehearsal:false,passport:f.endPassport,triplets}];
   const triples=triplets.map(t=>({tripleIndex:t.tripletIndex,included:true,attempts:t.attempts}));
-  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',rehearsal:false,void:false,stopReason:'COMPLETE',stopAttempt:149,finalBlockCheck:f.finalBlockCheck,endPassport:f.endPassportRef,triples,replacements:[],counts:armCounts(f.rows,triples,[])};
+  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',rehearsal:false,void:false,stopReason:'COMPLETE',stopAttempt:149,finalBlockCheck:f.finalBlockCheck,endPassport:f.endPassportRef,endChecks:['endBlock','finalPassport','anchors'].map(check=>({check,status:'PASS'})),triples,replacements:[],counts:armCounts(f.rows,triples,[])};
   writeFileSync(join(dir,'index.ndjson'),f.rows.map(JSON.stringify).join('\n')+'\n');
   writeFileSync(join(dir,'trailer.json'),JSON.stringify(trailer));
   return journal;

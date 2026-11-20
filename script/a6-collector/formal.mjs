@@ -7,6 +7,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { rawArchive } from './evidence.mjs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { acquireLock } from '../rq3op/setup.mjs';
 // Formal-A6 slice 1. TODO(A6-SOP §2, §4, §5): identity registry, per-op
 // evidence index, exclusion validation and freeze/sampling manifest are later slices.
@@ -229,11 +230,28 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
 
 // Inject createSigner({name,address}, role) in offline tests. Production default delegates
 // only digest signing to Foundry; the collector never opens a keystore/password file.
-export function castSigner(config, _role, run = execFileSync) {
+// keystorePasswordSource: 'tty' (default; cast prompts on /dev/tty) or 'keychain' (opt-in;
+// pty_keystore_sign.py reads the macOS Keychain itself and types the password into cast's pty).
+// Either way the cast argv is identical and the password never passes through this process.
+export const KEYCHAIN_HELPER = fileURLToPath(new URL('./pty_keystore_sign.py', import.meta.url));
+export const KEYSTORE_PASSWORD_SOURCES = ['tty', 'keychain'];
+
+export function withPasswordSource(account, cliSource) {
+  if (cliSource !== undefined && !KEYSTORE_PASSWORD_SOURCES.includes(cliSource)) throw new Error('unknown keystore password source');
+  if (cliSource !== undefined && account.keystorePasswordSource !== undefined && account.keystorePasswordSource !== cliSource) throw new Error('conflicting keystore password source');
+  return { ...account, ...(cliSource === undefined ? {} : { keystorePasswordSource: cliSource }) };
+}
+
+export function castSigner(config, _role, run = execFileSync, pythonPath = '/usr/bin/python3') {
   const address = getAddress(config.address);
+  const source = 'keystorePasswordSource' in config ? config.keystorePasswordSource : 'tty';
+  if (!KEYSTORE_PASSWORD_SOURCES.includes(source)) throw new Error('unknown keystore password source');
+  const invoke = source === 'keychain'
+    ? args => run(pythonPath, ['-I', '-B', KEYCHAIN_HELPER, 'cast', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 150000, killSignal: 'SIGKILL' })
+    : args => run('cast', args, { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
   async function sign(hash) {
     let signature;
-    try { signature = run('cast', ['wallet', 'sign', '--account', config.name, '--no-hash', hash], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] }).trim(); }
+    try { signature = invoke(['wallet', 'sign', '--account', config.name, '--no-hash', hash]).trim(); }
     catch { throw new Error('keystore signing failed (redacted)'); }
     if ((await recoverAddress({ hash, signature })).toLowerCase() !== address.toLowerCase()) throw new Error('keystore signer address mismatch');
     return signature;
@@ -266,8 +284,9 @@ export async function pendingSequence(clients,address) {
   }};
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup, keystorePasswordSource }) {
   pendingNonce ||= frozenPlan;
+  withPasswordSource({}, keystorePasswordSource);
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
   if (rehearsal) {
@@ -293,7 +312,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
   } });
   const accounts = {};
   for (const role of readOnly ? [] : ['owner', 'bundler', 'verifyingSigner']) {
-    accounts[role] = await createSigner(config.accounts[role], role);
+    accounts[role] = await createSigner(withPasswordSource(config.accounts[role], keystorePasswordSource), role);
     if (accounts[role].type !== 'local' || getAddress(accounts[role].address) !== getAddress(config.accounts[role].address)) throw new Error('injected signer identity mismatch');
   }
   const pubA = pinned(publicClients[0]), pubB = pinned(publicClients[1]);
@@ -308,13 +327,17 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
   const sequence=frozenPlan ? await pendingSequence(publicClients,accounts.bundler.address) : null;
   return { pubA, pubB, accounts, archives, refreshPin,
     async writeContract(args) {
+      const {beforeSubmit,...transactionArgs}=args;
+      if(beforeSubmit) await beforeSubmit();
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
       if (!feesWithinRule(config.fees, config.feeRule, block.baseFeePerGas)) throw Error('signing head fee rule');
-      const submit=nonce=>wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
+      const submit=async nonce=>{
+        return wallet.writeContract({ ...transactionArgs, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });
+      };
       return sequence ? sequence.send(publicClients,submit) : submit(await pubA.getTransactionCount({address:accounts.bundler.address}));
     } };
 }

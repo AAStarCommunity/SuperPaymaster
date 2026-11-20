@@ -255,6 +255,16 @@ per-step checks and receipt-block readbacks through this archived transport.
 Readback failure stops; inspect the receipt before retrying. A replay cannot reuse
 the consumed nonce. No local impersonation sender is used.
 
+Keychain password source (opt-in): add `"keystorePasswordSource":"keychain"` to a
+signing-map entry to have `formal.mjs` type that keystore's password from the macOS
+Keychain (service `aastar-rq3-keystore`, account = keystore name)
+through a pseudo-terminal instead of prompting on `/dev/tty`. A missing entry or any
+helper failure stops with `keystore signing failed (redacted)`; there is no fallback.
+See [Keychain password source (opt-in)](../a6-collector/README.md#keychain-password-source-opt-in)
+for the same-user silent-read exposure and the required delete-when-idle step (with its
+read-only check), plus the optional dedicated auto-locking keychain. The default tty flow
+never stores the password.
+
 Sender routing is: genesis for C2/C3/C6/C7/C8; each O for C9.* and C18.approve;
 experiment for comparator deployment/mint/configuration, C5, stakes/deposits and
 ETH top-ups. The DeployLive deployer sends nothing.
@@ -622,6 +632,15 @@ old backup defeats rollback detection.
 
 ### Known residual
 
+Safe signatures themselves do not expire. The 24-hour authorization bounds when a
+clearance may be issued; this tool also requires execution within that authorization
+window, but recording a timely execution may happen later.
+
+Clearance issuance requires at least 60 seconds remaining before the smaller of
+the authorization expiry and pin timestamp + 600. This leaves a practical margin
+for submission and a subsequent block, without guaranteeing inclusion. A refusal
+reports the expiry timestamp.
+
 Within the 600-second clearance window the state can still change.
 The post-execution target check detects a step that did not reach its planned target state; it does not detect
 unrelated state changes, or a change that was reverted before the check.
@@ -632,3 +651,5 @@ name, never an endpoint URL) and an explicit `DEPLOYLIVE_EVIDENCE_DIR` for its e
 Set both before invoking rq3; `PinnedTools` forwards them to the checker. There is no
 fallback to the config file's directory. Provider validation runs during input loading
 and checker startup, before chain reads.
+
+The frozen-plan collector now runs [one public-seed window](../a6-collector/frozen-plan.md) with all three per-sender plans. Under rotation, `phaseC.attempts` remains each sender's budget **per arm** (34/33/33); a window of at most 60 pre-registered slots (stopping after the slot in which complete triplets reach 50, otherwise after slot 60) uses at most 20 of those attempts per sender per arm, with the remainder as margin, and no planner change. Unreached slots are listed as `unusedSlots` in the run_end/trailer `window` record. Known gap: the collector's `validate.mjs` and `evidence-validate.mjs` do not yet accept plan mode.

@@ -82,7 +82,7 @@ export async function main(args=process.argv.slice(2),deps={}) {
   const context={};
   try{return await runMain([...args],deps,context);}
   catch(error){
-    if(args[0]==='safe-clear'){
+    if(context.mode==='safe-clear'){
       if(!error.message.startsWith('DO NOT EXECUTE'))error.message='DO NOT EXECUTE: '+error.message;
       process.stderr.write(error.message+'\n');
     }
@@ -102,6 +102,7 @@ async function runMain(args,deps,context) {
   }
   if(flags.firstRun && flags.expected!==undefined)throw Error('choose --first-run or --expect-head');
   const mode=['safe','safe-clear','safe-record','record'].includes(args[0])?args.shift():'send';
+  context.mode=mode;
   const safe=mode.startsWith('safe'),recording=mode.endsWith('record');
   const transactionHash=args[9];
   const [bundleArg,digest,indexArg,signersArg,rpcAFile,rpcBFile,logArg,configArg,inputsArg]=args;
@@ -116,6 +117,14 @@ async function runMain(args,deps,context) {
   requireSDKClearance(bundle,step);
   const completionPath=inside(bundlePath+'.completions.jsonl');
   context.path=completionPath;context.digest=digest;
+  const auditPath=inside(logArg);
+  const resolvedPath=p=>{try{return realpathSync(p);}catch(error){if(error.code!=='ENOENT')throw error;return resolve(realpathSync(dirname(p)),p.slice(p.lastIndexOf('/')+1));}};
+  const checkAuditPath=()=>{
+    if([completionPath,completionPath+'.head'].some(p=>resolvedPath(p)===resolvedPath(auditPath)))throw Error('audit path conflicts with completion log or head');
+  };
+  checkAuditPath();
+  const appendAudit=value=>{checkAuditPath();appendFileSync(auditPath,json(value)+'\n');};
+  const checkAppend=()=>requireHead(completionPath,digest,flags);
   const experiment=bundle.shared.experiment;
   const lockDir=inside(root+'/cache/3arm');
   mkdirSync(lockDir+'/locks',{recursive:true});
@@ -204,13 +213,13 @@ async function runMain(args,deps,context) {
     let authorization,clearance;
     if(safe){
       pin=await refreshPin();
-      authorization=authorizationEntry(completionPath,digest,step,bundle.chainId,pin);
       await checkAnchor();
     }
     if(safe){
       const rawReceipt=await pairRead('eth_getTransactionReceipt',[hash]);
       if(!rawReceipt)throw Error('completion receipt missing');
       const block=await pairRead('eth_getBlockByNumber',[rawReceipt.blockNumber,false]);
+      authorization=authorizationEntry(completionPath,digest,step,bundle.chainId,{number:rawReceipt.blockNumber,timestamp:block.timestamp});
       clearance=clearanceEntry(completionPath,digest,authorization,{number:rawReceipt.blockNumber,timestamp:block.timestamp});
     }
     const receipt=await verifyReceipt(pairRead,step,hash,safe,null,authorization,clearance);
@@ -220,6 +229,7 @@ async function runMain(args,deps,context) {
     const readback=await gate(bundle,index,'readback',receipt.timestamp,read,{safe});
     await checkAnchor();
     const entry={id:step.id,bundleSha256:digest,...receipt,readback,...(safe?{authorization,authorizationDigest:authorization.recordDigest,clearance,clearanceDigest:clearance.recordDigest}:{})};
+    checkAppend();
     appendCompletion(completionPath,entry);return entry;
   };
   let result;
@@ -233,10 +243,11 @@ async function runMain(args,deps,context) {
       if(signing.transaction.nonce!==authorization.transaction.nonce)throw Error('Safe nonce changed');
       if(signing.safeTxHash!==authorization.safeTxHash || signing.version!==authorization.version)throw Error('Safe signing hash or VERSION changed');
       const anchor=await pairRead('eth_getBlockByNumber',['0x'+BigInt(authorization.blockNumber).toString(16),false]);
-      if(anchor.hash!==authorization.blockHash)throw Error('authorization anchor changed');
+      if(anchor.hash!==authorization.blockHash || BigInt(anchor.timestamp)!==BigInt(authorization.blockTimestamp) || BigInt(authorization.expiresAtTimestamp)!==BigInt(authorization.blockTimestamp)+AUTH_WINDOW_SECONDS)throw Error('authorization anchor changed');
       await checkAnchor();
+      checkAppend();
       result=appendClearance(completionPath,authorization,pin);
-      (deps.emit??(v=>process.stdout.write(json(v)+'\n')))({...result,instruction:'Execute immediately, then safe-record'});
+      context.clearanceRecorded=true;
     }catch(error){throw Object.assign(Error('DO NOT EXECUTE: '+error.message),{record:error.record});}
   }
   else if(safe) {
@@ -244,6 +255,7 @@ async function runMain(args,deps,context) {
       const signing=await safeSigning(step,bundle.chainId,pin,read);
       await checkAnchor();
       const entry={...result,...signing,instruction:'safe -> verify hash in Safe UI and collect signatures -> safe-clear -> execute immediately -> safe-record',type:'AUTHORIZATION',blockNumber:String(pin.number),blockHash:pin.hash,blockTimestamp:String(pin.timestamp),expiresAtTimestamp:String(pin.timestamp+AUTH_WINDOW_SECONDS)};
+      checkAppend();
       return appendAuthorization(completionPath,entry);
     },emit:deps.emit??(v=>process.stdout.write(json(v)+'\n'))});
     if(result.status==='already-satisfied')(deps.emitStatus??(s=>process.stdout.write(s+'\n')))('already-satisfied');
@@ -256,9 +268,11 @@ async function runMain(args,deps,context) {
     receipt:async(i,hash)=>[runtime.pubA,runtime.pubB][i].waitForTransactionReceipt({hash}),
     readback:async (receipt,hash)=>recordCompletion(hash)
   });
-  appendFileSync(inside(logArg),JSON.stringify({id:step.id,bundleSha256:digest,...result},(_,v)=>typeof v==='bigint'?v.toString():v)+'\n');
+  try{appendAudit({id:step.id,bundleSha256:digest,...result});}
+  catch(error){if(context.clearanceRecorded)throw Error('clearance was recorded; audit write failed: '+error.message);throw error;}
+  if(context.clearanceRecorded)(deps.emit??(v=>process.stdout.write(json(v)+'\n')))({...result,instruction:'Execute immediately, then safe-record'});
   } catch(error) {
-    appendFileSync(inside(logArg),json({id:step.id,bundleSha256:digest,status:'stopped',error:error.record??{gate:'setup_execution_stopped'}})+'\n');
+    try{appendAudit({id:step.id,bundleSha256:digest,status:'stopped',error:error.record??{gate:'setup_execution_stopped'}});}catch{}
     throw error;
   } finally {release();}
 }

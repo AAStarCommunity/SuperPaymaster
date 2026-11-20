@@ -153,3 +153,17 @@ test('complete formal CLI window loses acceptance and export classification with
   assert.notEqual(exportRun(negative.path,join(d,'unchecked'),{validate:false}).runType,'formal-candidate');
   assert.throws(()=>exportRun(negative.path,join(d,'checked')),/run not shown consistent/);
 }));
+
+test('formal CLI refuses a COMPLETE trailer without its end-check record',()=>temp(d=>{
+ const journal=formalWindowFixture(d);
+ const positive=cli(d,journal);
+ assert.equal(positive.status,0,JSON.stringify(positive.report));
+ assert.equal(positive.report.accepted,true);
+ const path=join(d,'trailer.json'), trailer=JSON.parse(readFileSync(path,'utf8'));
+ delete trailer.endChecks;
+ writeFileSync(path,JSON.stringify(trailer));
+ const negative=cli(d,journal);
+ assert.equal(negative.status,1);
+ assert.equal(negative.report.accepted,false);
+ assert.match(JSON.stringify(negative.report),/void window.*end-check/);
+}));

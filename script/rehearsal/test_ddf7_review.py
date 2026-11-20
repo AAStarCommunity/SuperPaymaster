@@ -42,7 +42,7 @@ class ReviewTest(unittest.TestCase):
 
     def assert_alias_envs(self):
         for env in self.script_envs:
-            self.assertEqual(env['DEPLOYLIVE_FORGE_RPC_URL'],'primary')
+            self.assertEqual(env['DEPLOYLIVE_FORGE_RPC_URL'],'https://primary.alchemy.com/key')
             self.assertNotIn('ETH_RPC_URL',env)
 
     def test_all_deploy_envs(self):
@@ -53,6 +53,11 @@ class ReviewTest(unittest.TestCase):
     def test_predict_env(self):
         env={key:'value' for key in c.input_keys() if not key.endswith('_FILE')}
         env.update(self.env,DEPLOYLIVE_RPC='primary',ETH_RPC_URL='stale',DEPLOYLIVE_PRICE_SOURCE='chain',FOUNDRY_VERBOSITY='2',REHEARSAL_BLS_SCALARS='[]')
+        second = self.root/'predict-second-rpc'
+        second.write_text('https://secondary.infura.io/key')
+        env.update(DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
+                   DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
+                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second))
         captured=[]
         def predict(argv, **kw):
             captured.append(kw['env'])

@@ -44,6 +44,11 @@ class Round9Test(unittest.TestCase):
         env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
                'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
                'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'safe', 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
+        second = OUTPUT/'second-rpc'
+        second.write_text('https://secondary.infura.io/key')
+        env.update(DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_SECOND_RPC=second.read_text(),
+                   DEPLOYLIVE_SECOND_RPC_FILE=str(second), DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
+                   DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         stamp = OUTPUT/'out.build-stamp.json'
         stamp.write_text('{"forge":{}}')
         (OUTPUT/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":0}}}}')
@@ -61,7 +66,7 @@ class Round9Test(unittest.TestCase):
                 directory = Path(kwargs['env']['DEPLOYLIVE_EVIDENCE_DIR']); directory.mkdir(parents=True, exist_ok=True)
                 (directory/'readback.json').write_text('{}')
             return SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')
-        with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', 'http://127.0.0.1:1', 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(10 if chain == 31337 else chain)), patch.object(fork, 'broadcast_gates', return_value=[[256,256],[256,256]]), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
+        with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', env['DEPLOYLIVE_RPC'], 'deployer', *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(10 if chain == 31337 else chain)), patch.object(fork, 'broadcast_gates', return_value=[[256,256],[256,256]]), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
             fork.main()
         return rpc, run
 

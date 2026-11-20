@@ -41,3 +41,20 @@ class RoundThree(unittest.TestCase):
         pattern = text.split('detect-contract-changes.sh "DeployLive Python rehearsals + local Anvil"',1)[1].split("'",2)[1]
         for path in ('script/rq3op/plan_three_arm.py', 'script/a6-collector/foo.mjs'):
             self.assertRegex(path, pattern)
+
+    def test_state_request_exact_parameter_counts(self):
+        import json
+        block = dict(hash='0x'+'12'*32, number='0x20')
+        selector = json.dumps(dict(blockHash=block['hash'], requireCanonical=True))
+        requests = [
+            ('eth_getCode', '0x1234', selector),
+            ('eth_call', '{}', selector),
+            ('eth_getStorageAt', '0x1234', '0x0', selector),
+            ('eth_getBalance', '0x1234', selector),
+            ('eth_getLogs', json.dumps(dict(fromBlock='0x0', toBlock='0x20'))),
+        ]
+        for args in requests:
+            r.validate_snapshot_request(block, args)
+            for bad in (args[:-1], args[:1] + ('extra',) + args[1:] if args[0] != 'eth_getLogs' else args + ('extra',)):
+                with self.subTest(method=args[0], count=len(bad)), self.assertRaisesRegex(ValueError, 'invalid state request'):
+                    r.validate_snapshot_request(block, bad)

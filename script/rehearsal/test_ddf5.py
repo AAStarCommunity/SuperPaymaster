@@ -27,6 +27,11 @@ class Ddf5Test(unittest.TestCase):
         env={key:'value' for key in c.input_keys() if not key.endswith('_FILE')}
         env.update(self.env, DEPLOYLIVE_RPC='https://rpc.invalid/token',
                    DEPLOYLIVE_PRICE_SOURCE='chain', FOUNDRY_VERBOSITY='2', REHEARSAL_BLS_SCALARS='[]')
+        second = self.root/'predict-second-rpc'
+        second.write_text('https://secondary.infura.io/key')
+        env.update(DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
+                   DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
+                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second))
         def predict(argv, **kwargs):
             self.assertNotIn('--broadcast',argv)
             self.assertNotIn(env['DEPLOYLIVE_RPC'],argv)
@@ -135,7 +140,7 @@ class Ddf5Test(unittest.TestCase):
                 c.deployment_rule(env,self.root,lambda url: url,chain)
                 check.assert_called_once_with('a','b',self.root)
 
-    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None):
+    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None, env_overrides=None):
         import sys
         from types import SimpleNamespace
         plan=json.loads(FIX.read_text()); evidence=self.root
@@ -143,6 +148,13 @@ class Ddf5Test(unittest.TestCase):
             DEPLOYLIVE_HARDFORK='amsterdam',DEPLOYLIVE_PRICE_SOURCE='chain',DEPLOYER_ACCOUNT='unused',
             DEPLOYER_ADDRESS=plan['transactions'][0]['transaction']['from'],DEFAULT_ARTIFACTS_OUT=str(evidence/'out'),
             DEPLOYLIVE_EXPECTED_CHAIN_ID=str(chain))
+        self.env.update(DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura',
+                        DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_SOURCE_RPC='https://primary.alchemy.com/key',
+                        DEPLOYLIVE_SECOND_RPC='https://secondary.infura.io/key', DEPLOYLIVE_SECOND_RPC_FILE=str(evidence/'second-rpc'))
+        (evidence/'second-rpc').write_text(self.env['DEPLOYLIVE_SECOND_RPC'])
+        for key, value in (env_overrides or {}).items():
+            if value is None: self.env.pop(key, None)
+            else: self.env[key] = value
         c.write_manifest(self.env,evidence)
         c.write_conversion(evidence,b'{}',(evidence/'pop-request.json').read_bytes(),b'0x00')
         stamp=evidence/'out.build-stamp.json'; stamp.write_text('{"forge":{}}')
@@ -171,7 +183,7 @@ class Ddf5Test(unittest.TestCase):
             return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 238 passed, 0 failed, 238 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
             return hex(chain) if method=='eth_chainId' else '0x27'
-        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver','primary',self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
+        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver',self.env['DEPLOYLIVE_RPC'],self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
             try: f.main()
             finally: self.calls=calls; self.rule=rule
 
