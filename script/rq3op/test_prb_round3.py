@@ -17,7 +17,7 @@ class RoundThree(unittest.TestCase):
     def test_expected_chain_crosses_sanitized_tool_boundary(self):
         from pinned_tools import PinnedTools
         from pathlib import Path
-        with patch.dict('os.environ', DEPLOYLIVE_EXPECTED_CHAIN_ID='31337'), patch('pinned_tools.shutil.which', return_value='/bin/echo'), patch.object(Path, 'read_bytes', return_value=b'tool'), patch('pinned_tools.subprocess.run', return_value=SimpleNamespace(stdout='version')) as run:
+        with patch.dict('os.environ', DEPLOYLIVE_EXPECTED_CHAIN_ID='31337', CAST_1_7_1='/bin/echo'), patch('pinned_tools.shutil.which', return_value='/bin/echo'), patch.object(Path, 'read_bytes', return_value=b'tool'), patch('pinned_tools.subprocess.run', return_value=SimpleNamespace(stdout='version')) as run:
             tools = PinnedTools()
             self.assertEqual(tools.env.get('DEPLOYLIVE_EXPECTED_CHAIN_ID'), '31337')
             tools.run(['checker'], env={'DEPLOYLIVE_EXPECTED_CHAIN_ID':'10'})

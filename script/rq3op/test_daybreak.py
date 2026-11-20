@@ -10,6 +10,8 @@ import test_three_arm as fixtures
 
 class Daybreak(unittest.TestCase):
     def setUp(self):
+        import shutil
+        self.enterContext(patch.dict("os.environ", CAST_1_7_1=shutil.which("cast")))
         auth=patch.object(q,'authenticate_checker',return_value={})
         auth.start();self.addCleanup(auth.stop)
 
@@ -162,6 +164,10 @@ class FrozenChecker(unittest.TestCase):
             with self.assertRaises(ValueError): validate_snapshot_request(block, args)
 
 class Generation(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.enterContext(patch.dict("os.environ", CAST_1_7_1=shutil.which("cast")))
+
     def test_verified_generation_reconstructs_exact_bytes_after_head_moves(self):
         import tempfile
         import re

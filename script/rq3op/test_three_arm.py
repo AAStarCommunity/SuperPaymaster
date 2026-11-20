@@ -18,7 +18,7 @@ class Fake:
         self.chainId='0xa'; self.pending=0; self.code='0x'; self.balance=10**23
         self.reads = []; self.estimate = 7*10**6
         self.rewards = [10**6, 3*10**6, 2*10**6, 0, 5*10**6]
-        self.head = dict(number='0x20', hash='0x'+'12'*32, timestamp='0x64', baseFeePerGas=hex(10**8))
+        self.head = dict(number='0x20', hash='0x'+'12'*32, timestamp='0x64', gasLimit=hex(30000000), baseFeePerGas=hex(10**8))
     def __call__(self, method, params):
         self.reads.append((method, params))
         if method == 'eth_chainId': return self.chainId
@@ -252,6 +252,21 @@ class ReadGates(unittest.TestCase):
     def test_agreement(self):
         with self.assertRaises(a.Gate) as caught: q.Pair(lambda *x:1,lambda *x:2)
         self.assertEqual(caught.exception.record['gate'],'rq3_rpc_agreement')
+    def test_fee_history_compares_only_consumed_fields(self):
+        # Real providers format a full-blob block's blobGasUsedRatio as 1.0 vs 1 (2026-11-21, Sepolia rehearsal).
+        head=dict(number='0x10',hash='0x'+'12'*32,baseFeePerGas='0x1')
+        def client(ratio,reward='0x5'):
+            def rpc(method,params):
+                if method=='eth_getBlockByNumber': return head
+                return dict(oldestBlock='0x1',baseFeePerGas=['0x1','0x1'],reward=[[reward]],gasUsedRatio=[0.5],blobGasUsedRatio=[ratio])
+            return rpc
+        pair=q.Pair(client(1.0),client(1))
+        self.assertEqual(pair('eth_feeHistory',['0x1','0x10',[50]]),dict(oldestBlock='0x1',baseFeePerGas=['0x1','0x1'],reward=[['0x5']]))
+        pair=q.Pair(client(1.0),client(1.0,reward='0x6'))
+        with self.assertRaises(a.Gate) as caught: pair('eth_feeHistory',['0x1','0x10',[50]])
+        self.assertEqual(caught.exception.record['gate'],'rq3_rpc_agreement')
+        # Other methods keep the strict typed comparison.
+        with self.assertRaises(a.Gate): q.Pair(lambda *x:dict(number='0x10',hash='0x'+'12'*32,v=1.0),lambda *x:dict(number='0x10',hash='0x'+'12'*32,v=1))
     def test_reorg(self):
         rpc=Fake(); pair=q.Pair(rpc,rpc); rpc.head=dict(rpc.head,hash='0x'+'34'*32)
         with self.assertRaises(a.Gate) as caught: pair.finish()

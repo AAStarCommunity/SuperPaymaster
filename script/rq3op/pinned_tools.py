@@ -11,12 +11,14 @@ class PinnedTools:
         self.runner = subprocess.run
         paths = {}
         for name in ('git', 'cast'):
-            found = shutil.which(name)
+            found = os.environ.get('CAST_1_7_1') if name == 'cast' else shutil.which(name)
+            if name == 'cast' and (not found or not Path(found).is_file() or not os.access(found, os.X_OK)):
+                raise RuntimeError('STOP CAST_1_7_1 must name an executable')
             if not found:
                 raise RuntimeError('missing required tool: '+name)
-            paths[name] = str(Path(found).resolve())
-        self.env = {'PATH': ':'.join(dict.fromkeys([*(str(Path(p).parent) for p in paths.values()), '/usr/bin', '/bin'])),
-                    'LC_ALL': 'C'}
+            paths[name] = str(Path(found).absolute())
+        self.env = {'PATH': ':'.join(dict.fromkeys([*(str(Path(p).parent) for p in (paths['cast'], paths['git'])), '/usr/bin', '/bin'])),
+                    'LC_ALL': 'C', 'CAST_1_7_1': paths['cast']}
         for key in ('DEPLOYLIVE_ENDPOINT_PROVIDER', 'DEPLOYLIVE_EVIDENCE_DIR',
                     'DEPLOYLIVE_SECOND_RPC_FILE', 'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER',
                     'DEPLOYLIVE_LOCAL_EVIDENCE', 'DEFAULT_ARTIFACTS_OUT',

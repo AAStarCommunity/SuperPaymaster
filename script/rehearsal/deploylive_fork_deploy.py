@@ -5,6 +5,8 @@ import hashlib
 import shutil
 import json
 import os
+import re
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -86,6 +88,64 @@ def require_checker_inputs(env, chain=None, production=True):
         except (ValueError, OSError, KeyError):
             require(False, 'STOP invalid checker provider pair; distinct approved bound endpoints required')
 
+    from deploylive_cast import stable_cast
+    cast_pin = env.get('CAST_1_7_1', '')
+    require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
+            'STOP CAST_1_7_1 must name an executable')
+    checker_path = str(Path(cast_pin).absolute().parent) + os.pathsep + env.get('PATH', '')
+    resolved = shutil.which('cast', path=checker_path)
+    require(resolved is not None and os.path.samefile(resolved, cast_pin),
+            'STOP CAST_1_7_1 must resolve to the checker cast')
+    require(stable_cast(resolved), 'STOP CAST_1_7_1 must be cast 1.7.1')
+
+
+def writable_evidence(directory, names):
+    directory.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryFile(dir=directory) as probe:
+        probe.write(b'checker preflight')
+        probe.flush()
+    for name in names:
+        target = directory/name
+        if target.is_symlink():
+            raise ValueError('evidence symlink')
+        if target.exists():
+            if not target.is_file():
+                raise ValueError('evidence must be a file')
+            # Opening without truncation checks existing outputs as well as their directory.
+            with target.open('r+b'):
+                pass
+
+
+def prepare_checker(env, evidence, deployer):
+    for key, value in (('DEPLOYER_ADDRESS', deployer), ('GOVERNANCE_OWNER', env.get('GOVERNANCE_OWNER', ''))):
+        require(bool(re.fullmatch(r'0x[0-9a-fA-F]{40}', value)), 'STOP invalid checker ' + key)
+    try:
+        from deploylive_readback import provider_name
+        provider_name(env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
+    except ValueError:
+        require(False, 'STOP invalid checker DEPLOYLIVE_ENDPOINT_PROVIDER')
+    try:
+        (ROOT/'script/rehearsal/deploylive_postdeploy_check.py').read_bytes()
+    except OSError:
+        require(False, 'STOP checker script unavailable')
+    try:
+        writable_evidence(evidence, ('readback.json', 'checker.log', 'checker.stdout.log',
+            'checker.stderr.log', 'checker.PASS.json', 'forge.stdout.log', 'forge.stderr.log',
+            'postbroadcast.diff.json', 'postbroadcast.gas.json', 'REDACTED_AFTER_BROADCAST'))
+    except (OSError, ValueError):
+        require(False, 'STOP deployment evidence unavailable')
+    checker_dir = ROOT/'cache/deploylive-checker'/(env.get('ENV') or 'default')
+    try:
+        candidate = checker_dir/'readback.json'
+        require(candidate.resolve().is_relative_to((ROOT/'cache').resolve())
+                and checker_dir.resolve() != (ROOT/'cache').resolve(), 'STOP checker evidence unavailable')
+        if any(p.is_symlink() for p in (candidate, *candidate.parents)):
+            raise ValueError('evidence symlink')
+        writable_evidence(checker_dir, ('readback.json',))
+    except (OSError, ValueError):
+        require(False, 'STOP checker evidence unavailable')
+    return checker_dir
+
 
 def stage(action, argv):
     parser = argparse.ArgumentParser()
@@ -143,6 +203,40 @@ def stage(action, argv):
     print('SHA256 ' + hashlib.sha256(destination.read_bytes()).hexdigest() + ' ' + str(destination))
 
 
+BROADCAST_PROGRESS_SECONDS = 30
+
+
+def run_broadcast(command, env, rpc, deployer, plan):
+    """Capture forge privately while reporting confirmed nonce progress."""
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    from deploylive_controls import integer
+    start = integer(plan['transactions'][0]['transaction']['nonce'])
+    total = len(plan['transactions'])
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(subprocess.run, command, cwd=ROOT, env=env,
+                                 capture_output=True, text=True)
+        while True:
+            try:
+                return future.result(timeout=BROADCAST_PROGRESS_SECONDS)
+            except TimeoutError:
+                try:
+                    nonce = integer(rpc('eth_getTransactionCount', deployer, 'latest'))
+                except Exception:
+                    print('BROADCAST progress: nonce unavailable', flush=True)
+                    continue
+                print(f'BROADCAST progress: deployer nonce {nonce} (advanced by {nonce - start}; plan has {total} transactions)', flush=True)
+
+
+PRE_SIGNING_CAUSES = ('keystore unlock failed',)
+
+
+def broadcast_failure_cause(result):
+    # Only fixed labels reach the terminal; stderr may contain RPC credentials.
+    if 'failed to decrypt keystore: incorrect password' in result.stderr.lower():
+        return 'keystore unlock failed'
+    return f'forge exit {result.returncode}'
+
+
 def main():
     if sys.argv[1:2] in (['build'], ['predict']):
         return stage(sys.argv[1], sys.argv[2:])
@@ -174,6 +268,7 @@ def main():
     path = config_path(env)
     path.parent.mkdir(parents=True, exist_ok=True)
     from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success, gas_changes, verify_conversion, plan_digest
+    checker_dir = prepare_checker(env, evidence, deployer)
     verify_manifest(env, evidence)
     approved_env = dict(env)
     env['GUARDIANS'] = verify_conversion(approved_env, evidence)
@@ -266,19 +361,62 @@ def main():
         actual_path.unlink(missing_ok=True)
         print_command([binary, *command[1:], '--broadcast'])
         require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
-        result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=forge_env, capture_output=True, text=True)
+        result = run_broadcast([binary, *command[1:], '--broadcast'], forge_env, rpc, deployer, broadcast_plan)
         safe_logs(evidence, 'forge', result, env, after_broadcast=True)
         try:
-            diff = plan_diff(broadcast_plan, json.loads(actual_path.read_text()), gas_bounds)
+            actual = json.loads(actual_path.read_text())
+            receipts = actual.get('receipts', [])
+            mined = len(receipts) if isinstance(receipts, list) else 0
+        except (OSError, ValueError, AttributeError):
+            actual, mined = {}, 0
+        total = len(broadcast_plan['transactions'])
+        if not mined:
+            # forge writes run-latest.json before signing, so a missing record proves nothing. Say "not
+            # broadcast" only when forge failed for a recognised pre-signing cause AND every nonce read
+            # (latest and pending, on each provider) still equals the plan's start nonce.
+            from deploylive_controls import integer
+            start = integer(broadcast_plan['transactions'][0]['transaction']['nonce'])
+            providers = [('primary', real if production else rpc)] + ([('second', corroborating)] if production and corroborating is not None else [])
+            readings, unchanged = [], production is False or corroborating is not None
+            for label, transport in providers:
+                for tag in ('latest', 'pending'):
+                    try:
+                        nonce = integer(transport('eth_getTransactionCount', deployer, tag))
+                        readings.append(f'{label} {tag}={nonce} (advanced by {nonce - start})')
+                        unchanged = unchanged and nonce == start
+                    except Exception:
+                        readings.append(f'{label} {tag}=unreadable')
+                        unchanged = False
+            cause = broadcast_failure_cause(result)
+            if unchanged and cause in PRE_SIGNING_CAUSES:
+                print('NOT BROADCAST: forge failed before signing (' + cause + '); deployer nonce unchanged: ' + '; '.join(readings))
+            else:
+                print('BROADCAST STATE UNKNOWN — do not retry: no receipts recorded; forge: ' + cause + '; deployer nonce: ' + '; '.join(readings))
+            require(False, 'deployment failed; config existence is not success')
+        partial = mined < total
+        if partial:
+            print(f'PARTIAL BROADCAST: forge recorded {mined}/{total} receipts; deployment NOT successful')
+        elif result.returncode != 0:
+            print('BROADCAST MINED: all transactions mined; forge exited non-zero; deployment NOT successful')
+        try:
+            diff = plan_diff(broadcast_plan, actual, gas_bounds)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
         (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), broadcastPlanSha256=plan_digest(broadcast_plan), diff=diff))+'\n')
+        try:
+            changed = gas_changes(broadcast_plan, actual, gas_bounds)
+        except (ValueError, KeyError, TypeError, IndexError):
+            changed = None
+        if changed is not None:
+            (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
         require(not diff, 'post-broadcast diff is not empty; deployment NOT successful')
-        changed = gas_changes(broadcast_plan, json.loads(actual_path.read_text()), gas_bounds)
-        (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
-        print('GAS post-broadcast limits equal to gated plan' if not changed else
-              f'GAS post-broadcast {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
-        require(result.returncode == 0, 'deployment failed; config existence is not success')
+        require(changed is not None, 'malformed post-broadcast gas record; deployment NOT successful')
+        if not partial:
+            require(result.returncode == 0, 'deployment failed; config existence is not success')
+        label = 'GAS partial post-broadcast' if partial else 'GAS post-broadcast'
+        print(label + ' limits equal to gated plan' if not changed else
+              f'{label} {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
+        require(result.returncode == 0 and not partial, 'deployment failed; config existence is not success')
     finally:
         if not production:
             rpc('anvil_stopImpersonatingAccount', deployer)
@@ -288,11 +426,13 @@ def main():
     # The checker only writes readback evidence strictly below <worktree>/cache (deploylive_readback
     # evidence_path); the deploy-day evidence directory lives elsewhere. Give the checker its own fresh
     # cache subdirectory and copy the readback into the evidence directory, byte-identical.
-    checker_dir = ROOT/'cache/deploylive-checker'/(env.get('ENV') or 'default')
-    checker_dir.mkdir(parents=True, exist_ok=True)
     (checker_dir/'readback.json').unlink(missing_ok=True)
     (evidence/'readback.json').unlink(missing_ok=True)
+    cast_pin = env.get('CAST_1_7_1', '')
+    require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
+            'STOP CAST_1_7_1 must name an executable')
     checker_env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(checker_dir))
+    checker_env['PATH'] = str(Path(cast_pin).absolute().parent) + os.pathsep + env.get('PATH', '')
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=checker_env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env, after_broadcast=True)
     (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())

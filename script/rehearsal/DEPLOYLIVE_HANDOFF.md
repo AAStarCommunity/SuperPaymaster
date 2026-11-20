@@ -1,3 +1,5 @@
+CAST_1_7_1 must be a file named cast. Its directory is prepended to the checker PATH; preflight verifies that this resolves to the same stable 1.7.1 executable.
+
 # Deploy-day rehearsal: copy-paste sequence (Sepolia, three guardians)
 
 Prerequisites: reviewed clean HEAD, pinned `FORGE` and matching Anvil binary,

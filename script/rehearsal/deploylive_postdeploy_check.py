@@ -15,6 +15,12 @@ import sys
 import re
 from pathlib import Path
 
+from deploylive_cast import stable_cast
+
+if not stable_cast('cast'):
+    print('FAIL STOP checker requires cast 1.7.1')
+    sys.exit(1)
+
 if len(sys.argv) == 4 and os.environ.get('ETH_RPC_URL'):
     RPC = os.environ['ETH_RPC_URL']
     CONFIG_PATH, DEPLOYER, SAFE = sys.argv[1:]

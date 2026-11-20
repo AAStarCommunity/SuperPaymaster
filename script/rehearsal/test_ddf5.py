@@ -18,7 +18,10 @@ class Ddf5Test(unittest.TestCase):
         base=c.ROOT/'cache/ddf5'; base.mkdir(parents=True, exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=base); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
-        self.env={'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'owner','ENV':'test',
+        cast = self.root/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
+        checker = self.root/'script/rehearsal/deploylive_postdeploy_check.py'
+        checker.parent.mkdir(parents=True); checker.write_text('# checker fixture\n')
+        self.env={'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'0x'+'22'*20,'ENV':'test',
                   'DEPLOYLIVE_EVIDENCE_DIR':str(self.root),'DEFAULT_CACHE_PATH':str(self.root/'build')}
         (self.root/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
 
@@ -33,6 +36,8 @@ class Ddf5Test(unittest.TestCase):
                    DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
                    DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second))
         def predict(argv, **kwargs):
+            if argv[1:] == ['--version']:
+                return SimpleNamespace(returncode=0, stdout='cast Version: 1.7.1-stable', stderr='')
             self.assertNotIn('--broadcast',argv)
             self.assertNotIn(env['DEPLOYLIVE_RPC'],argv)
             (self.root/f.REQUEST_PATH).write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
@@ -140,7 +145,7 @@ class Ddf5Test(unittest.TestCase):
                 c.deployment_rule(env,self.root,lambda url: url,chain)
                 check.assert_called_once_with('a','b',self.root)
 
-    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None, env_overrides=None):
+    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None, env_overrides=None, broadcast_result=None, nonce_after_broadcast=None):
         import sys
         from types import SimpleNamespace
         plan=json.loads(FIX.read_text()); evidence=self.root
@@ -164,6 +169,8 @@ class Ddf5Test(unittest.TestCase):
         calls=[]
         self.script_envs=[]
         def run(argv,**kwargs):
+            if argv[1:] == ['--version']:
+                return SimpleNamespace(returncode=0, stdout='cast Version: 1.7.1-stable', stderr='')
             self.assertFalse(any('primary' in x or 'secondary' in x for x in argv))
             calls.append(argv)
             if 'script' in argv:
@@ -175,17 +182,109 @@ class Ddf5Test(unittest.TestCase):
                 if mutate: mutate(obj,len(calls))
                 target=actual if '--broadcast' in argv else dry
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
-                return SimpleNamespace(returncode=0,stdout=output(argv) if output else '',stderr='')
+                return SimpleNamespace(returncode=broadcast_result[0] if broadcast_result and '--broadcast' in argv else 0,stdout=output(argv) if output else '',stderr=broadcast_result[1] if broadcast_result and '--broadcast' in argv else '')
+            self.checker_env = dict(kwargs['env'])
             if checker_ok:
                 # The driver hands the checker its own cache/ subdirectory (DEPLOYLIVE_EVIDENCE_DIR).
                 checker_dir=Path(kwargs['env']['DEPLOYLIVE_EVIDENCE_DIR']); checker_dir.mkdir(parents=True,exist_ok=True)
                 (checker_dir/'readback.json').write_text('{}')
             return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 238 passed, 0 failed, 238 total' if checker_ok else 'FAIL checker',stderr='')
-        def rpc(method,*args):
-            return hex(chain) if method=='eth_chainId' else '0x27'
-        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver',self.env['DEPLOYLIVE_RPC'],self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
+        def make_rpc(url):
+            # nonce_after_broadcast(url, tag) -> hex nonce or Exception, consulted only after --broadcast.
+            def rpc(method,*args):
+                if method=='eth_getTransactionCount' and nonce_after_broadcast is not None and any('--broadcast' in c for c in calls):
+                    value = nonce_after_broadcast(url, args[-1])
+                    if isinstance(value, Exception): raise value
+                    return value
+                return hex(chain) if method=='eth_chainId' else '0x27'
+            return rpc
+        rpc = make_rpc('local')
+        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver',self.env['DEPLOYLIVE_RPC'],self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',side_effect=(lambda url: (lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27')) if stop else make_rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
             try: f.main()
             finally: self.calls=calls; self.rule=rule
+
+    def test_driver_unmined_broadcast_never_reports_gas(self):
+        import contextlib
+        import io
+        for code in (1, 0):
+            def mutate(plan, index):
+                if index == 3: plan['receipts'] = []
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+                self.driver(mutate, broadcast_result=(code, 'Failed to decrypt keystore: incorrect password https://secret.invalid/key'))
+            self.assertIn('NOT BROADCAST: forge failed before signing (keystore unlock failed)', output.getvalue())
+            self.assertNotIn('GAS post-broadcast', output.getvalue())
+            self.assertNotIn('secret.invalid', output.getvalue())
+
+    def test_driver_no_receipts_never_not_broadcast_unless_every_read_is_unchanged(self):
+        # forge's record is written before signing; NOT BROADCAST needs a pre-signing cause AND
+        # latest+pending on both providers equal to the start nonce (0x27). Anything else is UNKNOWN.
+        import contextlib
+        import io
+        def mutate(plan, index):
+            if index == 3: plan['receipts'] = []
+        second = self.env.get('DEPLOYLIVE_SECOND_RPC', 'https://secondary.infura.io/key')
+        pw = 'Failed to decrypt keystore: incorrect password https://secret.invalid/key'
+        cases = (
+            ('providers disagree', pw, lambda url, tag: '0x2c' if url == second else '0x27'),
+            ('latest unchanged, pending moved', pw, lambda url, tag: '0x28' if tag == 'pending' else '0x27'),
+            ('all moved', pw, lambda url, tag: '0x2c'),
+            ('unreadable', pw, lambda url, tag: RuntimeError('rpc down')),
+            ('not a pre-signing cause', 'boom https://secret.invalid/key', lambda url, tag: '0x27'),
+        )
+        for name, stderr, reader in cases:
+            output = io.StringIO()
+            with self.subTest(name), contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+                self.driver(mutate, broadcast_result=(1, stderr), nonce_after_broadcast=reader)
+            text = output.getvalue()
+            self.assertIn('BROADCAST STATE UNKNOWN — do not retry', text)
+            self.assertNotIn('NOT BROADCAST', text)
+            self.assertNotIn('GAS post-broadcast', text)
+            self.assertNotIn('secret.invalid', text)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+            self.driver(mutate, broadcast_result=(1, pw), nonce_after_broadcast=lambda url, tag: '0x27')
+        self.assertIn('NOT BROADCAST: forge failed before signing (keystore unlock failed)', output.getvalue())
+        self.assertEqual(output.getvalue().count('advanced by 0'), 4)
+
+    def test_driver_failed_exit_with_receipts_has_no_gas_conclusion(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+            self.driver(broadcast_result=(7, 'https://secret.invalid/key'))
+        self.assertEqual(output.getvalue().splitlines().count('BROADCAST MINED: all transactions mined; forge exited non-zero; deployment NOT successful'),1)
+        self.assertEqual(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'],[])
+        self.assertEqual(json.loads((self.root/'postbroadcast.gas.json').read_text()),[])
+        self.assertFalse((self.root/'checker.PASS.json').exists())
+        self.assertNotIn('GAS post-broadcast', output.getvalue())
+        self.assertNotIn('NOT BROADCAST', output.getvalue())
+        self.assertNotIn('secret.invalid', output.getvalue())
+
+    def test_failed_forge_with_mined_diff_preserves_gas(self):
+        import contextlib
+        import io
+        def mutate(plan,index):
+            if index == 3: plan['transactions'][0]['transaction']['input']='0x1234'
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError,'post-broadcast diff'):
+            self.driver(mutate,broadcast_result=(7,'failed'))
+        self.assertTrue(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'])
+        self.assertEqual(json.loads((self.root/'postbroadcast.gas.json').read_text()),[])
+        self.assertIn('BROADCAST MINED:',output.getvalue())
+        self.assertFalse((self.root/'checker.PASS.json').exists())
+
+    def test_driver_partial_broadcast_is_not_success(self):
+        import contextlib
+        import io
+        def mutate(plan, index):
+            if index == 3: plan['receipts'] = plan['receipts'][:1]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+            self.driver(mutate)
+        self.assertIn('PARTIAL BROADCAST: forge recorded 1/', output.getvalue())
+        self.assertIn('GAS partial post-broadcast', output.getvalue())
+        self.assertFalse((self.root/'checker.PASS.json').exists())
 
     def test_driver_success_and_rule_is_mandatory(self):
         self.driver()

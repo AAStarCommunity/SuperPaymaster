@@ -1,5 +1,6 @@
 """Round-seven review regressions; all external execution is faked."""
 import contextlib
+import sys
 import hashlib
 import io
 import json
@@ -57,13 +58,13 @@ class ReviewTest(unittest.TestCase):
         second.write_text('https://secondary.infura.io/key')
         env.update(DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
                    DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
-                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second))
+                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second), CAST_1_7_1=self.env['CAST_1_7_1'])
         captured=[]
         def predict(argv, **kw):
             captured.append(kw['env'])
             (self.root/f.REQUEST_PATH).write_text('{}')
             return SimpleNamespace(returncode=0,stdout='',stderr='')
-        with patch.dict(os.environ,env,clear=True), patch.object(f,'ROOT',self.root), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=self.root/'config.json'), patch.object(f.subprocess,'run',side_effect=predict):
+        with patch('deploylive_cast.stable_cast', return_value=True), patch.dict(os.environ,env,clear=True), patch.object(f,'ROOT',self.root), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=self.root/'config.json'), patch.object(f.subprocess,'run',side_effect=predict):
             f.stage('predict',['--production','--evidence',str(self.root)])
         self.assertEqual(len(captured),1)
         self.script_envs=captured; self.assert_alias_envs()

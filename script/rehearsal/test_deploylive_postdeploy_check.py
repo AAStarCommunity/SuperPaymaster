@@ -210,6 +210,8 @@ class CheckerTest(unittest.TestCase):
         runtime_codes[cfg['xPNTsFactoryV2']] = '0x' + raw.hex()
 
         def fake_run(cmd, **kwargs):
+            if cmd == ["cast", "--version"]:
+                return SimpleNamespace(returncode=0, stdout="cast Version: 1.7.1-stable\n")
             if argv_capture is not None: argv_capture.append(list(sys.argv))
             if cmd[0] == "git":
                 return SimpleNamespace(returncode=0, stdout=(" M file\n" if git_dirty else "") if cmd[-1] == "--porcelain" else "a" * 40 + "\n")
