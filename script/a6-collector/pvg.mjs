@@ -30,18 +30,31 @@ export function computePVG(op,beneficiary) {
 }
 export async function finalizePVG(sign,beneficiary,plan=null) {
   let value=0n;
-  const seen=new Set();
-  while(!seen.has(value) && seen.size<64) {
-    seen.add(value);
-    const result=await sign(value);
+  const order=[];
+  const signAt=async v=>{
+    const result=await sign(v);
     if(plan) checkPVGLengths(result.packed,plan.lengths);
-    if(result.packed.preVerificationGas!==value || result.packed.signature.length!==132) throw Error('PVG_SIGNED_BYTES');
-    const pvg=measurePVG(result.packed,beneficiary);
+    if(result.packed.preVerificationGas!==v || result.packed.signature.length!==132) throw Error('PVG_SIGNED_BYTES');
+    return {result,pvg:measurePVG(result.packed,beneficiary)};
+  };
+  while(!order.includes(value) && order.length<64) {
+    order.push(value);
+    const {result,pvg}=await signAt(value);
     if(plan && pvg.value>BigInt(plan.reserve)) throw Error('PVG_RESERVE');
     if(pvg.value===value) return {...result,pvg};
     value=pvg.value;
   }
-  throw Error('PVG_SIGNED_FIXED_POINT');
+  if(!order.includes(value)) throw Error('PVG_SIGNED_FIXED_POINT');
+  // A deterministic signature (RFC 6979) changes with the PVG word, so its zero-byte count, and hence the
+  // rule value, can alternate (observed 27196 <-> 27208 on the attempt1 fork, pvg-cycle.test.mjs): no exact
+  // fixed point exists. Resolve the cycle at its maximum m: re-signed at m the op's own bytes cost r <= m,
+  // so EntryPoint is charged m (a surplus of m - r, a multiple of 12) and the row declares that surplus.
+  const cycle=order.slice(order.indexOf(value));
+  const top=cycle.reduce((x,y)=>x>y?x:y);
+  if(plan && top>BigInt(plan.reserve)) throw Error('PVG_RESERVE');
+  const {result,pvg}=await signAt(top);
+  if(pvg.value>top) throw Error('PVG_SIGNED_FIXED_POINT');
+  return {...result,pvg:{...pvg,value:top,ruleValue:pvg.value,surplus:top-pvg.value,resolution:'cycle-max',cycle:cycle.map(String)}};
 }
 export function checkPVGLengths(op,lengths) {
   for(const field of ['initCode','callData','paymasterAndData','signature']) {
@@ -82,5 +95,6 @@ export function recordPVG(row,pvg,input=null,receipt=null,event=null) {
     row.opGasPrice=actual>0n && event.actualGasCost!=null?BigInt(event.actualGasCost)/actual:null;
     row.bundlerNetGasExPenalty=row.bundlerNetGas===null || row.unusedGasPenalty===null?null:row.bundlerNetGas-row.unusedGasPenalty;
   }
-  if(row.pvgConsistency!==0n) throw Error('PVG_CONSISTENCY');
+  // Exact fixed points have no surplus; a resolved signature cycle declares its surplus (finalizePVG).
+  if(row.pvgConsistency!==BigInt(pvg.surplus??0n)) throw Error('PVG_CONSISTENCY');
 }
