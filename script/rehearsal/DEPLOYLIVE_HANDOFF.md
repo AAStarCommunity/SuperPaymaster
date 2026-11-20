@@ -2,8 +2,9 @@
 
 Prerequisites: reviewed clean HEAD, pinned `FORGE` and matching Anvil binary,
 cast 1.7.1 (`CAST_1_7_1`), approved principals, and two distinct real-chain RPCs.
-Provision the **loopback forward proxy** on port 18545 separately; its implementation
-is a follow-up outside this change. No upstream URL goes on Anvil's command line.
+A loopback forward proxy is **not provided**. In a fork rehearsal the operator starts Anvil with
+the upstream URL on its own command line, on the operator's own machine only (it is visible in that
+machine's process list; nothing else records it). Production never starts Anvil.
 Obtain the approved DVT export after prediction; PoPs bind this request and nonce.
 Do not send deployer transactions or change approved inputs between prediction and deploy.
 
@@ -33,6 +34,12 @@ mkdir -p deployments/live
 cp -n script/rehearsal/inputs.template.env deployments/live/inputs.sepolia.env
 export INPUTS="$PWD/deployments/live/inputs.sepolia.env"
 "${EDITOR:-vi}" "$INPUTS"
+# Operator-stated values the checker requires on every production chain. They are validated,
+# bound into the input manifest and checked against the endpoints (the driver refuses before any
+# forge run if the chain differs). Use the approved provider names from deployments/readback-providers.json.
+export DEPLOYLIVE_ENDPOINT_PROVIDER=Alchemy            # provider of DEPLOYLIVE_SOURCE_RPC_FILE
+export DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER=Tenderly    # provider of DEPLOYLIVE_SECOND_RPC_FILE
+export DEPLOYLIVE_EXPECTED_CHAIN_ID=11155111           # 10 on OP mainnet; required, no default
 APPROVED_EXPORTS="$(python3 -c 'import os,shlex,sys; sys.path.insert(0,"script/rehearsal"); from deploylive_controls import load_inputs; print("\n".join("export "+k+"="+shlex.quote(v) for k,v in load_inputs(os.environ["INPUTS"]).items()))')" || exit 1
 eval "$APPROVED_EXPORTS"
 unset APPROVED_EXPORTS
@@ -121,8 +128,10 @@ Set `ARCHIVE_DIR` to a new external archive directory in the final step.
 
 7. Deploy and run the integrated checker. The driver reads generated `guardians.hex`;
    it verifies the conversion record before planning, before the final simulation,
-   and immediately before broadcast. It never rebuilds. Expected: `SUMMARY 189 passed, 0 failed, 189 total` for N=3,
-   then `PASS full deployment; post-deploy checker PASS`. N=2 has 187 rows.
+   and immediately before broadcast. It never rebuilds. Expected: `SUMMARY <n> passed, 0 failed, <n> total`, where `<n>` is
+   given by `script/rehearsal/deploylive_check_count.py` for this config (never a fixed number),
+   then `PASS full deployment; post-deploy checker PASS`. The checker writes its readback under
+   `cache/deploylive-checker/<ENV>/`; the driver copies it into the evidence directory byte-identical.
    A config file or successful Forge exit alone is not acceptance.
 
    ```sh
@@ -195,6 +204,29 @@ PYTHONPATH=script/rehearsal python3 -m unittest test_ddf5.Ddf5Test.test_owner_ch
 On deploy day, any owner, recipient, threshold or other manifest input change requires
 new prediction and PoPs. Deploy refuses it with
 `STOP deployment: STOP input manifest mismatch; repeat predict and PoP` before Forge.
+
+## Fork rehearsal coverage and known facts (Sepolia fork pre-run, 2026-11-20)
+
+- **Coverage.** A fork rehearsal covers build → predict → DVT export → deploy → gas comparison
+  only. The post-deploy checker, the RQ3 planner, the three-arm setup and the collector cannot run on
+  a fork with a production chain id: the checker replays every read on the second (real-chain)
+  provider, which does not have the fork's blocks, and a loopback host is not an approved provider.
+  Their first execution is on the real test network (Sepolia), which is the rehearsal for OP mainnet.
+- **Keyless public gateways.** The Tenderly gateways used as second providers (Sepolia and OP) carry
+  no credential; the start-up self-check refuses them unless `DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL=1`
+  is set. The author sets this declaration personally after confirming the URL is a keyless gateway.
+  Tenderly does not implement `eth_config` (recorded, not a failure).
+- **Fork state hand-off.** `anvil_dumpState` of a deployed fork is ~4.6 MB of hex; decode it to JSON
+  and start the receiving Anvil with `--load-state`. Loading it through `anvil_loadState` over RPC
+  resets the connection.
+- **OP mainnet (open, mainnet phase).** Alchemy on OP mainnet answers `eth_config` with HTTP 400 /
+  JSON-RPC -32600 ("not available on OPT_MAINNET"), which the hardfork check does not yet treat as
+  "unsupported" (only -32601), so `hardfork-check` stops there. The verified OP hardfork value for
+  `DEPLOYLIVE_HARDFORK` is also still to be fixed. Both must be resolved before the OP rehearsal.
+- **Mainnet guardian check (hard).** On OP mainnet no guardian may be one of the DVT node_dev rehearsal
+  addresses 0x5D870E132CC010E882E90f4aFaACDC4F19C7Eca3, 0x40F0b12128f256B62Fa22b36D37012Ee004bbd1f,
+  0xD904A706E355D6b48bAeDBec472CE94BC6981601, and the DVT export file name must not contain
+  `REHEARSAL`. On Sepolia these three addresses are the expected guardians.
 
 ## Historical design and acceptance notes
 
