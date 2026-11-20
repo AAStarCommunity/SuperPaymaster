@@ -1,4 +1,8 @@
 {
   "GP_MINPOST_MIN": 500000,
-  "source": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol"
+  "source": "contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol",
+  "MIN_POST_OP_GAS": 500000,
+  "SETTLE_GAS_BOUND": 450000,
+  "C_WRAP_GAS": 5000,
+  "C_POSTOP_GAS": 450000
 }

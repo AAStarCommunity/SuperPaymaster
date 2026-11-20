@@ -286,7 +286,7 @@ def assertions():
     versions = json.loads((ROOT/'deployments/release-versions.rc8.json').read_text())
     for key, name in mapping.items():
         name = PROXY_ABI.get(key, name)
-        if name is None: continue
+        if name is None or name in policy['extensions'].values(): continue
         try:
             has_version = any(f.get('type') == 'function' and f.get('name') == 'version' and not f['inputs'] for f in release_artifact(name)['abi'])
         except (OSError, ValueError, KeyError, TypeError):
@@ -296,6 +296,10 @@ def assertions():
             absent = A.get(key) == "0x" + "0" * 40
             value = None if absent else call(A.get(key, "0x" + "0" * 40), "version()(string)")
             check("version " + key, isinstance(versions.get(name), str) and ((absent and key in policy['zeroAllowedConfigKeys']) or (not absent and value.strip('"') == versions[name])), "zero address; not deployed" if absent else str(versions.get(name)))
+
+    from deploylive_readback import gas_params_rows
+    for index, ok, expected in gas_params_rows(call(sp, 'gasParams()'), policy):
+        check(f"SP.gasParams[{index}]", ok, f"release expected {expected}")
 
     # 1. Owners: no system-internal contract may be owned by the deployer.
     SYSTEM = ["superPaymaster", "registry", "staking", "gToken", "xPNTsFactoryV2", "aoaProtocolRegistry",
@@ -627,7 +631,7 @@ def assertions():
         results.append(ok)
         print(f"{'INFO-PASS' if ok else 'FAIL'}  {key} isolated :: owner {owner}; initializers disabled; upgrades require proxy context")
 
-    for key in ("paymasterV4Impl", "spAdminImpl", "xPNTsTokenV1Impl", "xPNTsTokenV2Impl", "xPNTsTokenV2Ext"):
+    for key in ("paymasterV4Impl", "xPNTsTokenV1Impl", "xPNTsTokenV2Impl"):
         if key in A:
             actual = call(A[key], "owner()(address)")
             print(f"INFO  {key}.owner :: {actual}; recorded {CFG.get(key + 'Owner', 'missing')}")

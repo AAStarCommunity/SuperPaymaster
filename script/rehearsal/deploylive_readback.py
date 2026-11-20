@@ -247,11 +247,11 @@ def collect(config_path, config, chain, block, provider, deps, pins_path, cast):
         item['immutableBindings'] = immutable_bindings(pin, code, policy['immutableBindings'][name], labels, chain=chain, artifact=name) if pin else {}
         abi_name = PROXY_ABI.get(key, name)
         if abi_name:
-            abi = release_artifact(abi_name)['abi']
+            abi = enumeration_abi(abi_name, policy)
             item['addressGetters'], item['unreadable'] = address_getters(abi, lambda sig: read(address, sig), labels, policy['getters'][abi_name], policy['unreadableAllowed'].get(abi_name, {}))
             if any(f.get('type') == 'function' and f.get('name') == 'version' and not f['inputs'] for f in abi):
                 item['version'] = read(address, 'version()(string)')[0]
-        item['erc1967'] = {label: checksum('0x' + invoke('storage', address, slot)[-40:]) for label, slot in SLOTS.items()}
+        item['erc1967'] = {label: checksum('0x' + invoke('storage', address, slot)[-40:]) for label, slot in SLOTS.items()} if name not in policy['extensions'].values() else None
         contracts.append(item)
     wiring = {}
     for prefix, key, getters in (
@@ -324,6 +324,30 @@ def getter_functions(abi):
             and f.get('stateMutability') in ('view', 'pure') and any(map(carries_address, f['outputs']))}
 
 
+def enumeration_abi(name, policy):
+    """Core selectors plus unfiltered fallback selectors from release artifacts."""
+    if name in policy['extensions'].values(): return []
+    abi = release_artifact(name)['abi']
+    extension = policy['extensions'].get(name)
+    if not extension: return abi
+    # Core selectors take precedence; the fallback only receives unknown selectors.
+    functions = {f['name'] + '(' + ','.join(map(abi_type, f['inputs'])) + ')': f
+                 for f in release_artifact(extension)['abi'] if f.get('type') == 'function'}
+    functions.update({f['name'] + '(' + ','.join(map(abi_type, f['inputs'])) + ')': f
+                      for f in abi if f.get('type') == 'function'})
+    return list(functions.values())
+
+
+def gas_params_rows(raw, policy):
+    """Nine exact ABI words; malformed/reverted reads fail every row."""
+    rule = policy['gasParams']
+    release = json.loads((ROOT/rule['expectations']).read_text())
+    expected = [release[key] for key in rule['current']] + [0] * 5
+    if len(expected) != 9: raise ValueError('gasParams policy coverage')
+    words = [int(raw[i:i+64], 16) for i in range(2, len(raw), 64)] if re.fullmatch(r'0x[0-9a-fA-F]{576}', raw) else []
+    return [(i, len(words) == 9 and words[i] == value, value) for i, value in enumerate(expected)]
+
+
 def validate_policy(policy, mapping, config, deps):
     if policy['schema'] != 'readback-policy/1' or policy['rule'] != RULE: raise ValueError('policy schema/rule')
     if any(key not in config or not isinstance(reason, str) or not reason.strip() for key, reason in policy['zeroAllowedConfigKeys'].items()): raise ValueError('zero config policy reason/coverage')
@@ -331,7 +355,7 @@ def validate_policy(policy, mapping, config, deps):
     names.update(PROXY_ABI[k] for k in mapping if k in PROXY_ABI)
     if set(policy['getters']) != names or set(policy['unreadableAllowed']) - names: raise ValueError('policy artifact coverage')
     for name in names:
-        functions = getter_functions(release_artifact(name)['abi'])
+        functions = getter_functions(enumeration_abi(name, policy))
         entries = policy['getters'][name]
         if set(entries) != set(functions) or set(policy['unreadableAllowed'].get(name, {})) - set(functions): raise ValueError('policy getter coverage: ' + name)
         for getter, rule in entries.items():

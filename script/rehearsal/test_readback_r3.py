@@ -34,7 +34,7 @@ class PolicyTest(unittest.TestCase):
 
     def test_empty_only_getter_has_no_allowed_address_leaf(self):
         abi = [dict(ABI[0], outputs=[{'type':'address[]'}])]
-        policy = dict(schema='readback-policy/1', rule=r.RULE, getters={'A': {'target':dict(allowed=[], why='Uninitialized implementation has no supported tokens', emptyAllowed=True)}}, unreadableAllowed={}, zeroAllowedConfigKeys={})
+        policy = dict(schema='readback-policy/1', rule=r.RULE, extensions={}, getters={'A': {'target':dict(allowed=[], why='Uninitialized implementation has no supported tokens', emptyAllowed=True)}}, unreadableAllowed={}, zeroAllowedConfigKeys={})
         with patch.object(r, 'release_artifact', return_value={'abi':abi}):
             r.validate_policy(policy, {'a':'A'}, {'a':ADDR}, {})
         rule = policy['getters']['A']['target']
@@ -43,7 +43,7 @@ class PolicyTest(unittest.TestCase):
 
     def test_policy_refuses_multi_field_and_scalar_empty(self):
         # SDK 2026-11-19: one entry = one address leaf; emptyAllowed only on array outputs.
-        policy = lambda rule: dict(schema='readback-policy/1', rule=r.RULE, getters={'A': {'target': rule}}, unreadableAllowed={}, zeroAllowedConfigKeys={})
+        policy = lambda rule: dict(schema='readback-policy/1', rule=r.RULE, extensions={}, getters={'A': {'target': rule}}, unreadableAllowed={}, zeroAllowedConfigKeys={})
         cases = {
             'tuple': ([{'type': 'tuple', 'components': [{'type': 'address', 'name': 'x'}]}], dict(allowed=['config:a'], why='a')),
             'two_leaves': ([{'type': 'address'}, {'type': 'address'}], dict(allowed=['config:a'], why='a')),
@@ -63,7 +63,7 @@ class PolicyTest(unittest.TestCase):
             r.address_getters(ABI, lambda _: (_ for _ in ()).throw(ValueError()), {}, {'target': dict(allowed=['config:a'], why='a')}, {})
 
     def test_M2_policy_coverage_both_ways(self):
-        policy = dict(schema='readback-policy/1', rule=r.RULE, getters={'A': {'target': dict(allowed=['config:a'], why='a')}}, unreadableAllowed={}, zeroAllowedConfigKeys={})
+        policy = dict(schema='readback-policy/1', rule=r.RULE, extensions={}, getters={'A': {'target': dict(allowed=['config:a'], why='a')}}, unreadableAllowed={}, zeroAllowedConfigKeys={})
         with patch.object(r, 'release_artifact', return_value={'abi': ABI}):
             r.validate_policy(policy, {'a': 'A'}, {'a': ADDR}, {})
             for change in ('missing', 'stale', 'unreadable', 'wide', 'zero'):
