@@ -41,3 +41,36 @@ test('formal transport waits at submission and a deadline refusal never signs or
   assert.equal(gateCalls,3);assert.equal(signed,1);assert.equal(sent,1);assert.equal(time,117n);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
+test('stop rule through the formal transport: after the 50th complete triplet the next slot signs, sends and writes nothing',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'rq3-stop-'));
+ const signer=privateKeyToAccount('0x'+'22'.repeat(32)), hash='0x'+'cd'.repeat(32);
+ let signed=0,sent=0;const rows=[];
+ const config={chainId:10,bundlerGasLimit:100000n,accounts:Object.fromEntries(['owner','bundler','verifyingSigner'].map(r=>[r,{name:r,address:signer.address}])),fees:{maxFeePerGas:5n,maxPriorityFeePerGas:1n},feeRule:{baseFee:1,factor:{numerator:4,denominator:1},ceiling:5}};
+ try {
+  for(const endpoint of ['a','b']) writeFileSync(join(dir,endpoint),`https://${endpoint}.invalid/test`);
+  const runtime=await formalRuntime({config,frozenPlan:true,rpcAFile:join(dir,'a'),rpcBFile:join(dir,'b'),outPath:join(dir,'run'),
+   resolver:async h=>[{address:h.startsWith('a')?'8.8.8.8':'1.1.1.1'}],
+   createSigner:()=>({...signer,signTransaction:async(...args)=>{signed++;return signer.signTransaction(...args);}}),
+   fetchImpl:async(_,{body})=>{
+    const r=JSON.parse(body);
+    if(r.method==='eth_sendRawTransaction') sent++;
+    const results={eth_chainId:'0xa',eth_blockNumber:'0x2a',eth_getTransactionCount:'0x'+(4+sent).toString(16),eth_sendRawTransaction:hash,
+      eth_getBlockByNumber:{number:'0x2a',hash,baseFeePerGas:'0x1',timestamp:'0x6e',transactions:[]}};
+    assert.ok(r.method in results);
+    return new Response(JSON.stringify({jsonrpc:'2.0',id:r.id,result:results[r.method]}));
+   }});
+  const accounts=[200,201,202].map(n=>'0x'+n.toString(16).padStart(40,'0'));
+  const s=w.generateSchedule('public',accounts,10);
+  const args={address:signer.address,abi:parseAbi(['function go()']),functionName:'go'};
+  // Slots 0..2 incomplete: the 50th complete triplet lands in slot 52.
+  const result=await w.runSlots(s,async(slot,arm)=>{
+   await runtime.writeContract(args);
+   const row={attemptIndex:rows.length,block_slot:slot.block_slot,arm,ok:slot.block_slot>=3};rows.push(row);return row;
+  },rs=>rs.every(r=>r.ok));
+  assert.equal(result.status,'COMPLETE');assert.equal(result.complete,50);
+  assert.equal(signed,159);assert.equal(sent,159);assert.equal(rows.length,159);
+  assert.ok(rows.every(r=>r.block_slot<=52));
+  const rec=w.windowRecord(s,result);
+  assert.deepEqual(rec.unusedSlots,[53,54,55,56,57,58,59]);assert.equal(rec.schedule_sha256,s.sha256);
+ } finally {rmSync(dir,{recursive:true,force:true});}
+});

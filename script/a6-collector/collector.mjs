@@ -1,4 +1,4 @@
-import { createWindow, runSlots, waitForSlot } from './window-schedule.mjs';
+import { createWindow, runSlots, waitForSlot, windowRecord } from './window-schedule.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
 import { persistSettlement } from './frozen-plan.mjs';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
@@ -819,6 +819,7 @@ const stateByArm = new Map(), seenTransactions = new Set(), seenOperations = new
 const tally = Object.fromEntries(arms.map((a) => [a, { attempts: 0, verdicts: {} }]));
 let matched = 0;
 const triplets = [];
+let windowOutcome = null;
 try {
   chainId = (await readAB('chainId', (p) => p.getChainId())).value;
   if (formal && chainId !== formalInput.chainId) throw new Error('formal target chainId mismatch');
@@ -868,7 +869,9 @@ try {
       && new Set(rows.map(r=>r.tx.hash.toLowerCase())).size===3);
     matched=result.complete;
     triplets.push(...result.slots.map(s=>({...s,tripletIndex:s.block_slot})));
-    stop={reason:matched>=50?'COMPLETE':'MAX_SLOTS',code:matched>=50?0:10};
+    // Pre-registered stopping rule: COMPLETE at the 50th complete triplet, INCOMPLETE after slot 60.
+    windowOutcome=windowRecord(window.manifest.schedule,result);
+    stop={reason:result.status,code:result.status==='COMPLETE'?0:10};
     selectSender(senderConfigs[0].sender);
   } else for (let t = 0; matched < count; t++) {
     if (arms.some((a) => tally[a].attempts >= maxAttempts)) { stop = { reason: 'MAX_ATTEMPTS', code: 10 }; break; }
@@ -906,6 +909,7 @@ try {
   if (window && e.windowProgress) {
     matched=e.windowProgress.complete;
     triplets.push(...e.windowProgress.slots.map(s=>({...s,tripletIndex:s.block_slot})));
+    windowOutcome=windowRecord(window.manifest.schedule,e.windowProgress);
   }
   if (e instanceof Stop) stop = { reason: e.reason, code: e.code, detail: e.detail };
   else { stop = { reason: 'CRASH', code: 1, detail: String(e?.stack ?? e) }; }
@@ -950,7 +954,7 @@ try {
 }
 exitCode = stop.code;
 writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,
-  ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:60,attemptedSlots:Math.ceil(attemptIndex/3),warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
+  ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:60,attemptedSlots:windowOutcome?.usedSlots ?? Math.ceil(attemptIndex/3),window:windowOutcome,warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
   const triples = [...new Set(evidenceRows.map(r => r.tripleIndex))].map(tripleIndex => ({tripleIndex,
@@ -958,7 +962,7 @@ if (formal) {
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
   writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', rehearsal, windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
-    finalBlockCheck, triples, replacements, counts:armCounts(evidenceRows, triples, replacements)});
+    finalBlockCheck, triples, replacements, counts:armCounts(evidenceRows, triples, replacements), ...(window ? {window:windowOutcome} : {})});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);

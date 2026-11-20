@@ -15,12 +15,22 @@ export function createWindow({readBundle,bundleSha256,seed,chainId,accounts}) {
     if(a.plan.phaseC.addresses.S.toLowerCase()!==account.toLowerCase()) throw Error('PLAN_S_MISMATCH');
     if(a.plan.chainId!==chainId || (!Number.isInteger(a.plan.phaseC.attempts) || a.plan.phaseC.attempts<20)) throw Error('PLAN_WINDOW_BUDGET');
   }
-  return {adapters,manifest:{schema:'rq3-window-v1',schedule,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:50,slotCap:60,warmupAttempts:0,warmup:false}};
+  return {adapters,manifest:{schema:'rq3-window-v1',schedule,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false}};
 }
-/** Fixed traversal: neither a row verdict nor the number of complete slots changes the schedule. */
+export const TARGET_TRIPLETS=50, SLOT_CAP=60;
+export const STOPPING_RULE='pre-registered: advance slots in schedule order; stop after the slot in which complete triplets reach 50 (COMPLETE); stop after slot 60 otherwise (INCOMPLETE); never extend';
+/**
+ * Fixed traversal in schedule order with the pre-registered stopping rule. A row verdict never
+ * reorders, replaces or adds slots; the only result-dependent effect is the pre-registered stop
+ * once TARGET_TRIPLETS complete triplets exist. Incomplete (including partial) slots never stop it.
+ */
 export async function runSlots(schedule,attempt,complete) {
+  const all=schedule.payload.slots;
+  if(all.length!==SLOT_CAP || all.some((slot,i)=>slot.block_slot!==i)) throw Error('SLOT_CAP');
   const slots=[];let matched=0;const allocations=new Map();
-  for(const slot of schedule.payload.slots) {
+  const unused=()=>all.slice(slots.length).map(s=>s.block_slot);
+  for(const slot of all) {
+    if(matched>=TARGET_TRIPLETS) break;
     const rows=[];
     for(const name of slot.order) {
       const arm=names[name],sender=slot.senders[name],key=sender+':'+arm,index=allocations.get(key)??0;
@@ -29,14 +39,19 @@ export async function runSlots(schedule,attempt,complete) {
       catch (error) {
         if(error.attemptRow) rows.push(error.attemptRow);
         slots.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:false,attempts:rows.map(r=>r.attemptIndex)});
-        error.windowProgress={slots,complete:matched};
+        error.windowProgress={slots,complete:matched,status:'STOPPED',unusedSlots:unused()};
         throw error;
       }
     }
     const ok=complete(rows);if(ok) matched++;
     slots.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:ok,attempts:rows.map(r=>r.attemptIndex)});
   }
-  return {slots,complete:matched};
+  return {slots,complete:matched,status:matched>=TARGET_TRIPLETS?'COMPLETE':'INCOMPLETE',unusedSlots:unused()};
+}
+/** Window outcome for the run_end line and trailer; unreached slots are listed, never dropped. */
+export function windowRecord(schedule,progress) {
+  return {schedule_sha256:schedule.sha256,stoppingRule:STOPPING_RULE,status:progress.status,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,
+    scheduledSlots:schedule.payload.slots.length,usedSlots:progress.slots.length,completeTriplets:progress.complete,unusedSlots:[...progress.unusedSlots]};
 }
 const abi=parseAbi(['function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)',
   'function userOpState(address,address) view returns (uint48 lastTimestamp,bool isBlocked)']);

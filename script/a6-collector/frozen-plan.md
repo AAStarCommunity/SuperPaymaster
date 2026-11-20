@@ -25,11 +25,18 @@ a 20-second elapsed bound; Sepolia uses 130/120 seconds. `manifest.json` records
 the complete schedule payload and its SHA-256, qualification payload and hash,
 all three plan SHA-256s, approved bundle hash and window start timestamp.
 
-The collector always traverses the fixed 60 slots, even if it reaches the
-50-complete-triplet target earlier. Each sender is allocated 20 attempts on each
-arm, within the existing plans' 34/33/33 per-arm budgets. Incomplete slots stay
-in the count; there are no result-based retries, replacements, reorderings or
-extensions. Integrity failures can stop the window early and retain partial
+The collector advances the slots in schedule order under a pre-registered
+stopping rule (recorded as `stoppingRule` in `manifest.json`): after each slot,
+if the count of complete triplets has reached 50 it stops and the window is
+COMPLETE; if slot 60 finishes with fewer than 50 it stops and the window is
+INCOMPLETE. It never runs a 61st slot. The schedule still generates all 60
+slots and `manifest.json` keeps the full payload and its SHA-256; slots not
+reached are listed by `block_slot` in `unusedSlots` of the `window` record in
+`run_end` and `trailer.json` (with `status`, `usedSlots`, `completeTriplets`).
+Each sender uses at most 20 attempts on each arm, within the existing plans'
+34/33/33 per-arm budgets. Incomplete slots (including partial ones) stay in the
+count and never trigger the stop; there are no result-based retries,
+replacements, reorderings or extensions. Integrity failures can stop the window early and retain partial
 slot counts. No pilot/warmup attempts run in this mode: `warmupAttempts` is zero
 and every formal attempt row has `warmup:false`. Do any pilot in a separate run;
 its rows must be marked warmup and must not be inserted into this schedule.

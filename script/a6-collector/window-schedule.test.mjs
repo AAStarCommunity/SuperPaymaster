@@ -27,9 +27,10 @@ test('fixed window visits every scheduled arm once regardless of success or fail
  const s=w.generateSchedule('public',accounts,10), traces=[];
  for(const success of [true,false]) {
  const visited=[]; const result=await w.runSlots(s,async(slot,arm,sender,index)=>{visited.push([slot.block_slot,arm,sender,index]);return {ok:success};},rows=>rows.every(r=>r.ok));
- assert.equal(result.slots.length,60);assert.equal(result.complete,success?60:0); traces.push(visited);
+ // Pre-registered stop: all-success reaches 50 complete at slot 49; all-failure runs the 60-slot cap.
+ assert.equal(result.slots.length,success?50:60);assert.equal(result.complete,success?50:0); traces.push(visited);
  }
- assert.deepEqual(traces[0],traces[1]);assert.equal(traces[0].length,180);
+ assert.deepEqual(traces[0],traces[1].slice(0,150));assert.equal(traces[0].length,150);assert.equal(traces[1].length,180);
  assert.ok(traces[0].every(x=>x[3]>=0&&x[3]<20));
 });
 test('window loads three exact plans, records digests, rejects plan.S mismatch',()=>{
@@ -105,4 +106,60 @@ test('fatal stop preserves completed and partial slot counts without retrying th
   return true;
  });
  assert.equal(seen.length,5);
+});
+// Pre-registered stopping rule: stop once 50 complete triplets exist; never extend past slot 60.
+function stopHarness(isComplete) {
+ const effects={signed:0,sent:0,rows:[]},visited=[];
+ const attempt=async(slot,arm,sender,index)=>{
+  visited.push(slot.block_slot);effects.signed++;effects.sent++;
+  const row={attemptIndex:effects.rows.length,block_slot:slot.block_slot,ok:isComplete(slot.block_slot)};effects.rows.push(row);return row;
+ };
+ return {effects,visited,attempt,complete:rows=>rows.length===3&&rows.every(r=>r.ok)};
+}
+test('stop rule: 50th complete triplet in slot k<60 leaves slot k+1 unsent and records unused slots',async()=>{
+ const s=w.generateSchedule('public',accounts,10);
+ // Slots 0..4 incomplete, so the 50th complete triplet lands in slot 54.
+ const h=stopHarness(b=>b>=5);
+ const result=await w.runSlots(s,h.attempt,h.complete);
+ assert.equal(result.complete,50);assert.equal(result.status,'COMPLETE');
+ assert.equal(result.slots.length,55);assert.equal(result.slots.at(-1).block_slot,54);
+ assert.ok(!h.visited.includes(55));assert.equal(Math.max(...h.visited),54);
+ assert.equal(h.effects.signed,165);assert.equal(h.effects.sent,165);assert.equal(h.effects.rows.length,165);
+ assert.ok(h.effects.rows.every(r=>r.block_slot<=54));
+ assert.deepEqual(result.unusedSlots,[55,56,57,58,59]);
+ const rec=w.windowRecord(s,result);
+ assert.equal(rec.status,'COMPLETE');assert.deepEqual(rec.unusedSlots,[55,56,57,58,59]);
+ assert.equal(rec.schedule_sha256,s.sha256);assert.equal(rec.scheduledSlots,60);assert.equal(rec.usedSlots,55);
+ assert.equal(rec.completeTriplets,50);assert.equal(rec.targetTriplets,50);assert.equal(rec.slotCap,60);
+ assert.equal(s.payload.slots.length,60,'the schedule still generates every slot');
+ // Per-sender per-arm usage is at most 20.
+ const used=new Map();for(const slot of s.payload.slots.slice(0,55)) for(const [arm,sender] of Object.entries(slot.senders)) used.set(sender+':'+arm,(used.get(sender+':'+arm)??0)+1);
+ assert.equal(used.size,9);assert.ok([...used.values()].every(n=>n<=20));assert.ok([...used.values()].some(n=>n<20));
+});
+test('stop rule: 60 slots with fewer than 50 complete is INCOMPLETE and there is no 61st slot',async()=>{
+ const s=w.generateSchedule('public',accounts,10);
+ const h=stopHarness(b=>b>=11); // 49 complete
+ const result=await w.runSlots(s,h.attempt,h.complete);
+ assert.equal(result.complete,49);assert.equal(result.status,'INCOMPLETE');
+ assert.equal(result.slots.length,60);assert.equal(h.effects.sent,180);assert.equal(Math.max(...h.visited),59);
+ assert.deepEqual(result.unusedSlots,[]);
+ const rec=w.windowRecord(s,result);assert.equal(rec.status,'INCOMPLETE');assert.deepEqual(rec.unusedSlots,[]);assert.equal(rec.usedSlots,60);
+ // A schedule carrying a 61st slot is refused before anything is sent: never extend beyond 60.
+ const extended={...s,payload:{...s.payload,slots:[...s.payload.slots,{...s.payload.slots[0],block_slot:60,pair_id:'block-60'}]}};
+ const h2=stopHarness(()=>false);
+ await assert.rejects(w.runSlots(extended,h2.attempt,h2.complete),/SLOT_CAP/);
+ assert.equal(h2.effects.sent,0);
+});
+test('stop rule: incomplete slots (including partial ones) never trigger the stop',async()=>{
+ const s=w.generateSchedule('public',accounts,10);
+ // 49 complete, then nine incomplete slots (one of them partial: only two rows), then the 50th in slot 58.
+ const effects={sent:0},visited=[];
+ const result=await w.runSlots(s,async(slot,arm)=>{
+  visited.push(slot.block_slot);effects.sent++;
+  return {attemptIndex:effects.sent-1,ok:slot.block_slot<49||slot.block_slot===58,partial:slot.block_slot===52&&arm==='TPM'};
+ },rows=>rows.length===3&&rows.every(r=>r.ok&&!r.partial));
+ assert.equal(result.complete,50);assert.equal(result.status,'COMPLETE');
+ assert.deepEqual(result.slots.slice(49,58).map(x=>x.matched),Array(9).fill(false));
+ for(let b=49;b<=58;b++) assert.equal(visited.filter(x=>x===b).length,3);
+ assert.deepEqual(result.unusedSlots,[59]);assert.ok(!visited.includes(59));
 });
