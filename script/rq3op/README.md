@@ -159,8 +159,11 @@ stake and ticket, approves staking, calls `safeMintForRole` with community=GENES
 then mints X. Calibrate `C8.extra.<index>.approve`, `.role`, and `.mint`. The plan
 includes role, SBT balance/membership and X balance readbacks; funding includes all
 extra stakes/tickets and X. Zero addresses, duplicate extras and S/O/R collisions
-are refused. Every address recursively found in config and inputs (including
-`taskRecipients`) is excluded from extras. A code-less recipient prints an INFO line to stderr (JSON stays clean).
+are refused. Both lists exclude every address recursively found in config and
+inputs other than `extraEndUsers` and `taskRecipients`, including all principals
+(experiment, genesis, bundler, verifyingSigner, owners, deployer, Safe and timelock).
+Each list is independently unique, case insensitive; an address may appear in both
+lists to receive ENDUSER membership, X and task-token T. A code-less recipient prints an INFO line to stderr (JSON stays clean).
 `Registry.sol:458–475` performs no code check and passes `msg.sender` as sponsor;
 `:494` passes that sponsor to staking. `GTokenStaking.sol:165` transfers from the
 payer. `MySBT.sol:294–319` uses `_mint`, so no ERC721 receiver code is required.
@@ -401,7 +404,11 @@ plan 0's C10 and the exact `execute(T,0,transfer(R,1))` calldata.
 
 `taskRecipients` is required; use `[]` when no extra balances are needed. Each
 entry has `address` and an integer `amount` of at least 301. Addresses must be
-unique (case insensitive), nonzero, and different from R and all three S accounts.
+unique (case insensitive), nonzero, and different from R, all three S accounts,
+and every principal/config address, as for `extraEndUsers`. Cross-list overlap is
+allowed. In plan 0, `C11.extra.<i>` mints T before the appended
+`C8.extra.<j>.approve`, `.role`, `.mint` group; the experiment sends the T mint,
+GENESIS sends the membership/X group, and per-sender nonces remain consecutive.
 Plan 0 mints these balances using the experiment key after C11.S and C11.R,
 with an exact balanceOf readback. Supply calibration `setup` measurements for
 `C11.extra.0`, `C11.extra.1`, etc.; their scaled gas limits count toward the

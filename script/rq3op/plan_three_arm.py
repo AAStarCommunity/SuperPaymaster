@@ -212,13 +212,14 @@ def check_inputs(cfg, inputs, checker):
     a.need('rq3_interval_vs_schedule',inputs['minTxInterval']<=SAMPLER_MIN_SPACING_SECONDS,True)
     extras=inputs.get('extraEndUsers',[])
     a.need('rq3_extra_endusers',isinstance(extras,list),True)
-    excluded=addresses_in(cfg)|addresses_in({k:v for k,v in inputs.items() if k!='extraEndUsers'})|{a.ZERO.lower(),m.DEAD.lower()}
+    excluded=addresses_in(cfg)|addresses_in({k:v for k,v in inputs.items() if k not in ('extraEndUsers','taskRecipients')})|{a.ZERO.lower(),m.DEAD.lower()}
+    seen=excluded.copy()
     for entry in extras:
         a.need('rq3_extra_endusers',isinstance(entry,dict) and set(entry)=={'address','xAmount'},True)
         who,amount=entry['address'],entry['xAmount']
         a.need('rq3_extra_endusers',isinstance(who,str) and bool(re.fullmatch('0x[0-9a-fA-F]{40}',who)) and
-               who.lower() not in excluded and type(amount) is int and 0<amount<2**256,True)
-        excluded.add(who.lower())
+               who.lower() not in seen and type(amount) is int and 0<amount<2**256,True)
+        seen.add(who.lower())
     a.need('rq3_sdk_inputs',all(type(inputs.get(k)) is int and inputs[k]>0 for k in ('sdkRuns','sdkMaxOps','sdkMaxCostPerOp')) and inputs['sdkMaxOps']<=32 and inputs['sdkRuns']<=10000 and inputs['sdkMaxCostPerOp']<=10**18,True)
     a.need('rq3_sdk_old_alias', 'sdkPriceHeadroomBPS' not in inputs, True)
     a.need('rq3_sdk_price_headroom',type(inputs.get('priceHeadroomBPS')) is int and 0<=inputs['priceHeadroomBPS']<10000,True)
@@ -226,7 +227,7 @@ def check_inputs(cfg, inputs, checker):
     a.need('rq3_sdk_cost_cap_commit',commit is None or (isinstance(commit,str) and bool(re.fullmatch('[0-9a-f]{40}',commit))),True)
     recipients=inputs.get('taskRecipients')
     a.need('rq3_task_recipients',isinstance(recipients,list),True)
-    seen={m.DEAD.lower(),a.ZERO.lower(),*(v['account'].lower() for v in accounts)}
+    seen=excluded.copy()
     for entry in recipients:
         a.need('rq3_task_recipients',isinstance(entry,dict) and set(entry)=={'address','amount'},True)
         who,amount=entry['address'],entry['amount']
@@ -519,7 +520,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
            len({pc['taskCallData'] for pc in pcs})==1,True)
     for pc in pcs:
         a.need('rq3_sdk_pricing',all(sdk[k]==pc[k] for k in ('priceCap','priceDecimals','aPNTsPriceUSD','protocolFeeBPS','validationBufferBPS','exchangeRate')),True)
-    excluded=addresses_in(cfg)|addresses_in({k:v for k,v in inputs.items() if k!='extraEndUsers'})|set().union(*(addresses_in(pc['addresses']) for pc in pcs))|{a.ZERO.lower(),m.DEAD.lower()}
+    excluded=addresses_in(cfg)|addresses_in({k:v for k,v in inputs.items() if k not in ('extraEndUsers','taskRecipients')})|set().union(*(addresses_in(pc['addresses']) for pc in pcs))|{a.ZERO.lower(),m.DEAD.lower()}
     for entry in extras:
         a.need('rq3_extra_derived_exclusion',entry['address'].lower() not in excluded,True)
         a.need('rq3_extra_role_absent',a.word(rpc,cfg['registry'],'hasRole(bytes32,address)',
