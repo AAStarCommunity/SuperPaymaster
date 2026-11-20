@@ -428,12 +428,12 @@ macOS Keychain. This is off unless explicitly selected.
    `setup.mjs` signing map). Accepted values are `tty` (default) and `keychain`;
    anything else, or a CLI value that contradicts an account's own value, is refused.
 
-With `keychain`, `castSigner` runs `python3 -I -B script/a6-collector/pty_keystore_sign.py
+With `keychain`, `castSigner` runs `/usr/bin/python3 -I -B script/a6-collector/pty_keystore_sign.py
 cast wallet sign --account NAME --no-hash DIGEST` — the same cast argv as the default.
 The helper (standard library only) reads the password itself with
-`security find-generic-password -s aastar-rq3-keystore -a NAME -w` into memory, starts
+`/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w` into memory, starts
 `cast` on a new pseudo-terminal as its controlling terminal, waits until the password
-prompt has appeared **and** the terminal's ECHO flag is off, writes the password once,
+prompt `Enter keystore password:` has appeared **and** the terminal's ECHO flag is off, writes the password once,
 zeroes its buffer, and returns only cast's single `0x…` signature line. The password is
 never passed through Node, argv or environment variables. Foundry rejects
 `--password-file` from a pipe/FIFO, so process substitution is not an alternative.
@@ -446,8 +446,19 @@ other source. The recovered-address check is unchanged. pty output (prompt, cast
 stderr) is drained and discarded — never logged, stored, echoed or put into an error
 message; the helper's own stderr carries only a fixed stage label.
 
-Offline tests use a fake `security` and a fake `cast` (`pty-fakes/`) on a temporary
-PATH and never touch the login keychain:
+Before reading Keychain, the helper disables core dumps with `RLIMIT_CORE=(0, 0)`.
+It reads into one preallocated bytearray plus a length, validates without password
+slices, and wipes that buffer after writing. Residual risk: echoed output and Python
+allocations can leave password bytes in the helper's heap while it lives (freed at
+exit); the cast process holds the password too. The ECHO check and write are not
+atomic. Abnormal exits through helper cleanup kill the cast process group even if
+its leader was already reaped; an uncatchable helper SIGKILL cannot run cleanup.
+
+The interpreter and Keychain executable use the absolute paths above; cast remains
+PATH-resolved, as in the tty flow. Tests inject executable paths only through internal
+function parameters; the CLI and environment expose no such overrides.
+Offline tests use a directly injected fake `security` and a fake `cast` (`pty-fakes/`)
+on a temporary PATH and never touch the login keychain:
 `node --test script/a6-collector/keychain-signer.test.mjs` and
 `python3 -m unittest script/a6-collector/test_pty_keystore_sign.py`.
 

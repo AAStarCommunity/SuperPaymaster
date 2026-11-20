@@ -1,7 +1,7 @@
 """Offline tests for pty_keystore_sign.py.
 
 Never touches the real login keychain or a real keystore: a fake `security` and a fake
-`cast` are written into a temp dir that is prepended to PATH. Run with
+`cast` are written into a temp dir; only cast is resolved through PATH. Run with
 `python3 -m unittest script/a6-collector/test_pty_keystore_sign.py`.
 """
 import json
@@ -34,7 +34,7 @@ class Env:
     def run(self, account='rq3-bundler', mode='normal', extra=(), timeout=60):
         env = dict(os.environ, PATH='%s:%s' % (self.dir, os.environ['PATH']),
                    FAKE_DIR=str(self.dir), FAKE_CAST_MODE=mode, FAKE_CAST_SIG=SIG)
-        argv = [sys.executable, '-I', '-B', str(HELPER), *extra,
+        argv = [sys.executable, '-I', '-B', str(FAKES / 'run_helper.py'), str(self.dir / 'security'), *extra,
                 'cast', 'wallet', 'sign', '--account', account, '--no-hash', HASH]
         p = subprocess.run(argv, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
         return p, argv, env
@@ -61,10 +61,11 @@ class PtyKeystoreSignTest(unittest.TestCase):
         self.env.close()
 
     def test_a_password_written_once_only_after_echo_off(self):
-        p, argv, env = self.env.run()
+        p, argv, env = self.env.run(mode='count-lines')
         self.assertEqual(p.returncode, 0)
         self.assertEqual(p.stdout, (SIG + '\n').encode())
         [cast] = self.env.records('cast')
+        self.assertEqual(cast['writes'], 1)
         self.assertFalse(cast['early_input'], 'password arrived while ECHO was still on')
         import hashlib
         self.assertEqual(cast['password_sha256'], hashlib.sha256(PASSWORD.encode()).hexdigest())
@@ -104,7 +105,7 @@ class PtyKeystoreSignTest(unittest.TestCase):
         self.assertEqual(self.env.records('cast'), [])
 
     def test_e_timeouts_fail_closed(self):
-        for mode in ('noprompt', 'echo-stays-on', 'hang-after'):
+        for mode in ('noprompt', 'echo-off-no-prompt', 'echo-stays-on', 'hang-after'):
             with self.subTest(mode=mode):
                 for f in (self.env.dir / 'records').iterdir():
                     f.unlink()
@@ -115,6 +116,8 @@ class PtyKeystoreSignTest(unittest.TestCase):
                 [cast] = self.env.records('cast')
                 if mode != 'hang-after':
                     self.assertNotIn('password_sha256', cast, 'password must not be written before prompt+ECHO off')
+                    if mode == 'echo-off-no-prompt':
+                        self.assertFalse(cast['received_input'])
 
     def test_rejects_any_other_argv_shape(self):
         for bad in (['cast', 'wallet', 'sign', '--account', 'rq3-bundler', HASH],
@@ -129,11 +132,42 @@ class PtyKeystoreSignTest(unittest.TestCase):
                 self.assertEqual(self.env.records('security'), [])
                 self.assertEqual(self.env.records('cast'), [])
 
+    def test_cli_ignores_path_security(self):
+        # Execute __main__ with a subprocess guard: absolute security is refused,
+        # while a vulnerable PATH lookup can only reach our fake.
+        code = """
+import runpy, subprocess, sys
+real = subprocess.Popen
+def guarded(args, *a, **kw):
+    if args[0] == '/usr/bin/security':
+        raise OSError('test blocks real keychain')
+    if args[0] != 'security':
+        raise AssertionError('unexpected executable')
+    return real(args, *a, **kw)
+subprocess.Popen = guarded
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name='__main__')
+"""
+        env = dict(os.environ, PATH=str(self.env.dir) + ':' + os.environ['PATH'],
+                   FAKE_DIR=str(self.env.dir))
+        p = subprocess.run([sys.executable, '-I', '-B', '-c', code, str(HELPER),
+                            'cast', 'wallet', 'sign', '--account', 'rq3-bundler',
+                            '--no-hash', HASH], env=env, capture_output=True, timeout=20)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertEqual(self.env.records('security'), [])
+        self.assertEqual(self.env.records('cast'), [])
+
     def test_helper_has_no_password_argv_or_env_input(self):
         src = HELPER.read_text()
         self.assertNotIn('os.environ', src)
         self.assertNotIn('getenv', src)
         self.assertNotIn('--password', src)
+        with self.subTest('core dumps disabled'):
+            self.assertIn('resource.setrlimit(resource.RLIMIT_CORE, (0, 0))', src)
+        with self.subTest('exact pinned prompt'):
+            self.assertIn("PROMPT = b'Enter keystore password:'", src)
+        with self.subTest('cleanup after leader reaped'):
+            self.assertNotIn('if exited is None:\n            kill(pid)', src)
 
 
 if __name__ == '__main__':

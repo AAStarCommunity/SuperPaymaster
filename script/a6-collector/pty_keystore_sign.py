@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Sign one digest with `cast wallet sign`, typing the keystore password from the macOS Keychain.
 
 Opt-in password source for castSigner (formal.mjs, `keystorePasswordSource: 'keychain'`).
@@ -23,6 +23,7 @@ Standard library only.
 import os
 import pty
 import re
+import resource
 import select
 import signal
 import subprocess
@@ -34,7 +35,7 @@ SERVICE = 'aastar-rq3-keystore'
 NAME_RE = re.compile(r'^[\w.-]+$')
 HASH_RE = re.compile(r'^0x[0-9a-fA-F]{64}$')
 SIG_RE = re.compile(rb'^0x[0-9a-fA-F]{130}\n$')
-PROMPT = b'password'
+PROMPT = b'Enter keystore password:'
 DEFAULT_TIMEOUT = 120.0
 MAX_SECRET = 4096
 
@@ -69,16 +70,18 @@ def zero(buf):
         buf[i] = 0
 
 
-def read_keychain(name, deadline):
-    """Return the password as a bytearray (caller zeroes it). Fails closed on any problem."""
+def read_keychain(name, deadline, security_path='/usr/bin/security'):
+    """Return one preallocated buffer and its used length; caller zeroes the buffer."""
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     try:
-        proc = subprocess.Popen(['security', 'find-generic-password', '-s', SERVICE, '-a', name, '-w'],
+        proc = subprocess.Popen([security_path, 'find-generic-password', '-s', SERVICE, '-a', name, '-w'],
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 bufsize=0)
     except OSError:
         raise Fail(3, 'keychain unavailable')
     buf = bytearray(MAX_SECRET + 2)
     n = 0
+    transferred = False
     try:
         fd = proc.stdout.fileno()
         while n < len(buf):
@@ -99,12 +102,13 @@ def read_keychain(name, deadline):
             raise Fail(3, 'keychain entry missing')
         if n and buf[n - 1] == 0x0A:
             n -= 1
-        if n == 0 or 0x0A in buf[:n] or 0x0D in buf[:n]:
+        if n == 0 or any(buf[i] in (0x0A, 0x0D) for i in range(n)):
             raise Fail(3, 'keychain entry unusable')
-        secret = bytearray(buf[:n])
-        return secret
+        transferred = True
+        return buf, n
     finally:
-        zero(buf)
+        if not transferred:
+            zero(buf)
         if proc.poll() is None:
             proc.kill()
             proc.wait()
@@ -134,14 +138,18 @@ def kill(pid):
         pass
 
 
-def sign(timeout, argv):
+def sign(timeout, argv, security_path='/usr/bin/security', cast_path='cast'):
     deadline = time.monotonic() + timeout
-    secret = read_keychain(argv[4], deadline)
-    out_r, out_w = os.pipe()
+    secret, secret_len = read_keychain(argv[4], deadline, security_path)
+    out_r = out_w = None
     try:
+        out_r, out_w = os.pipe()
         pid, master = pty.fork()
     except OSError:
         zero(secret)
+        for fd in (out_r, out_w):
+            if fd is not None:
+                os.close(fd)
         raise Fail(4, 'pty unavailable')
     if pid == 0:
         # Child: new session with the pty slave as controlling terminal (pty.fork does setsid).
@@ -150,7 +158,7 @@ def sign(timeout, argv):
             os.dup2(out_w, 1)
             os.close(out_r)
             os.close(out_w)
-            os.execvp('cast', argv)
+            os.execvp(cast_path, argv)
         finally:
             os._exit(127)
     os.close(out_w)
@@ -158,18 +166,19 @@ def sign(timeout, argv):
     stdout = bytearray()
     written = False
     exited = None
+    succeeded = False
     try:
         # Phase 1: wait for the prompt AND ECHO off, then type the password once.
         while not written:
             if time.monotonic() >= deadline:
                 raise Fail(5, 'password prompt timeout')
-            if PROMPT in bytes(tty_seen).lower():
+            if PROMPT in tty_seen:
                 try:
                     lflag = termios.tcgetattr(master)[3]
                 except termios.error:
                     raise Fail(5, 'pty closed before prompt')
                 if not lflag & termios.ECHO:
-                    view = memoryview(secret)
+                    view = memoryview(secret)[:secret_len]
                     try:
                         while view:
                             view = view[os.write(master, view):]
@@ -208,11 +217,14 @@ def sign(timeout, argv):
             raise Fail(6, 'cast failed')
         if not SIG_RE.match(bytes(stdout)):
             raise Fail(7, 'unexpected cast output')
-        return bytes(stdout)
+        result = bytes(stdout)
+        succeeded = True
+        return result
     finally:
         zero(secret)
         zero(tty_seen)
-        if exited is None:
+        if not succeeded:
+            # Descendants may still own the PTY/stdout after the leader was reaped.
             kill(pid)
         for fd in (master, out_r):
             try:

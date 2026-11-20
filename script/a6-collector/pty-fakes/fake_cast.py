@@ -12,6 +12,15 @@ save()
 tty = os.open('/dev/tty', os.O_RDWR)
 if mode == 'noprompt':
     time.sleep(30); sys.exit(0)
+if mode == 'echo-off-no-prompt':
+    attrs = termios.tcgetattr(tty)
+    attrs[3] &= ~termios.ECHO
+    termios.tcsetattr(tty, termios.TCSANOW, attrs)
+    # Unrelated text containing 'password' must not count as the pinned prompt.
+    os.write(tty, b'password backend ready')
+    out['received_input'] = bool(select.select([tty], [], [], 1)[0])
+    save()
+    time.sleep(30); sys.exit(0)
 os.write(tty, b'Enter keystore password:')
 if mode == 'echo-stays-on':
     time.sleep(30); sys.exit(0)
@@ -27,11 +36,18 @@ while not line.endswith(b'\n'):
     chunk = os.read(tty, 1024)
     if not chunk: break
     line += chunk
+if mode == 'count-lines':
+    # Re-prompt and measure every line arriving during the observation window.
+    os.write(tty, b'Enter keystore password:')
+    until = time.monotonic() + 0.5
+    while time.monotonic() < until:
+        if select.select([tty], [], [], max(0, until - time.monotonic()))[0]:
+            line += os.read(tty, 1024)
 pw = line.rstrip(b'\n')
 attrs[3] |= termios.ECHO
 termios.tcsetattr(tty, termios.TCSANOW, attrs)
 out['password_sha256'] = hashlib.sha256(pw).hexdigest()
-out['writes'] = 1
+out['writes'] = line.count(b'\n')
 save()
 if mode == 'hang-after':
     time.sleep(30)

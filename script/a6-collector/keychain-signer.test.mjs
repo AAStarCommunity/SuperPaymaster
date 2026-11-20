@@ -1,5 +1,5 @@
 // Offline tests for the opt-in Keychain/pty keystore password source of castSigner.
-// Fake `cast` and `security` live in a temp dir prepended to PATH; the real login keychain
+// Fake `security` is injected through a test driver; fake `cast` uses PATH. The real keychain
 // and real keystores are never touched.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +32,7 @@ function fakeEnv(keychain) {
     const env = { ...process.env, PATH: `${dir}:${process.env.PATH}`, FAKE_DIR: dir, FAKE_CAST_MODE: mode, FAKE_CAST_SIG: sig };
     runs.push({ cmd, args, opts, env });
     // stderr is captured here (not inherited) so the test can scan it.
-    return execFileSync(cmd, args, { ...opts, stdio: [opts.stdio[0], 'pipe', 'pipe'], env });
+    return execFileSync('/usr/bin/python3', ['-I', '-B', join(fakes, 'run_helper.py'), join(dir, 'security'), ...args.slice(3)], { ...opts, stdio: [opts.stdio[0], 'pipe', 'pipe'], env });
   };
   return { dir, records, run, runs, close: () => rmSync(dir, { recursive: true, force: true }) };
 }
@@ -65,13 +65,16 @@ test('keychain source routes the identical cast argv through the pty helper', as
   assert.equal(await signer.signMessage({ message: { raw } }), sig);
   assert.equal(calls.length, 1);
   const [{ cmd, args, opts }] = calls;
-  assert.equal(cmd, 'python3');
+  assert.equal(cmd, '/usr/bin/python3');
+  let injected;
+  await castSigner({ name: 'rq3-bundler', address: account.address, keystorePasswordSource: 'keychain' }, 'bundler', cmd => { injected = cmd; return sig; }, '/test/python').signMessage({ message: { raw } });
+  assert.equal(injected, '/test/python');
   assert.deepEqual(args, ['-I', '-B', formal.KEYCHAIN_HELPER, 'cast', 'wallet', 'sign', '--account', 'rq3-bundler', '--no-hash', hash]);
   assert.equal(opts.stdio[0], 'ignore');
   assert.equal(opts.env, undefined, 'no extra environment is handed to the helper');
 });
 
-test('keychain end to end: fake security + fake cast on PATH, password never surfaces', async () => {
+test('keychain end to end: injected security + fake cast on PATH, password never surfaces', async () => {
   const f = fakeEnv({ 'aastar-rq3-keystore|rq3-bundler': PASSWORD });
   try {
     const signer = castSigner({ name: 'rq3-bundler', address: account.address, keystorePasswordSource: 'keychain' }, 'bundler', f.run('normal'));
@@ -100,7 +103,7 @@ test('keychain: missing entry fails closed, no cast spawn, no fallback to /dev/t
     let error;
     await assert.rejects(castSigner({ name: 'rq3-bundler', address: account.address, keystorePasswordSource: 'keychain' }, 'bundler', f.run('normal')).signMessage({ message: { raw } }), e => { error = e; return true; });
     assert.equal(error.message, 'keystore signing failed (redacted)');
-    assert.deepEqual(f.runs.map(r => r.cmd), ['python3'], 'exactly one helper spawn, no direct cast fallback');
+    assert.deepEqual(f.runs.map(r => r.cmd), ['/usr/bin/python3'], 'exactly one helper spawn, no direct cast fallback');
     assert.deepEqual(f.records('cast'), []);
     noPassword(error.message, error.stack);
   } finally { f.close(); }

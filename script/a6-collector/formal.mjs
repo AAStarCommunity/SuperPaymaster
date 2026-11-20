@@ -235,12 +235,12 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
 // Either way the cast argv is identical and the password never passes through this process.
 export const KEYCHAIN_HELPER = fileURLToPath(new URL('./pty_keystore_sign.py', import.meta.url));
 export const KEYSTORE_PASSWORD_SOURCES = ['tty', 'keychain'];
-export function castSigner(config, _role, run = execFileSync) {
+export function castSigner(config, _role, run = execFileSync, pythonPath = '/usr/bin/python3') {
   const address = getAddress(config.address);
   const source = 'keystorePasswordSource' in config ? config.keystorePasswordSource : 'tty';
   if (!KEYSTORE_PASSWORD_SOURCES.includes(source)) throw new Error('unknown keystore password source');
   const invoke = source === 'keychain'
-    ? args => run('python3', ['-I', '-B', KEYCHAIN_HELPER, 'cast', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 150000, killSignal: 'SIGKILL' })
+    ? args => run(pythonPath, ['-I', '-B', KEYCHAIN_HELPER, 'cast', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 150000, killSignal: 'SIGKILL' })
     : args => run('cast', args, { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
   async function sign(hash) {
     let signature;
