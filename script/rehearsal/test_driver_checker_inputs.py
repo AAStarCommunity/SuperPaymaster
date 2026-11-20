@@ -64,6 +64,22 @@ class DriverCheckerInputs(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'differs from the broadcast endpoint chain'):
             f.require_checker_inputs(env, 31337, production=False)
 
+    def test_non_production_cannot_reach_a_real_chain(self):
+        # The provider exemption for non-production rests on this: without --production the
+        # driver builds RPC(url), which requires a loopback HTTP Anvil fork, before any forge call
+        # (deploylive_fork_deploy.py main; deploylive_rehearse.RPC/local_endpoint).
+        import sys
+        import deploylive_fork_deploy as f
+        for url in ('https://eth-sepolia.g.alchemy.com/v2/key', 'http://sepolia.example.org:8545'):
+            with self.subTest(url=url), patch.dict(os.environ, {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '11155111', 'FOUNDRY_VERBOSITY': '2'}, clear=True), \
+                    patch.object(sys, 'argv', ['driver', url, '0x' + '11' * 20]), \
+                    patch.object(f, 'clean_source_commit', return_value='a' * 40), \
+                    patch.object(f.subprocess, 'run') as run, patch.object(f, 'ReadOnlyRPC') as ro:
+                with self.assertRaisesRegex(RuntimeError, 'loopback HTTP endpoint required'):
+                    f.main()
+                run.assert_not_called()
+                ro.assert_not_called()
+
     def test_provider_inputs_stop_before_forge(self):
         for overrides in (
             {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': 'Alchemy'},
