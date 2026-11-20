@@ -11,11 +11,20 @@ import { stateCalls } from './state-evidence.mjs';
 export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false, formalSource=null}={}) {
   const source=formalSource ?? readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
   const template=source[1], inv=source[0].passport.invariant;
-  const config={frozen:true,chainId:31337,operator:inv.superPaymaster.operator.address,factory:template.sender,sender:template.sender,salt:'0',bundlerGasLimit:'3000000',accounts:{owner:{name:'owner',address:template.sender},bundler:{name:'bundler',address:template.bundler},verifyingSigner:{name:'verifier',address:inv.verifyingSigner}},fees:{maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'},task:{token:inv.xPNTs.address,recipient:template.paymaster},gas:Object.fromEntries(['SP','VPM','TPM'].map(arm=>[arm,{callGasLimit:'100000',verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:'480000'}]))};
+  // Synthetic archives preserve the source fee quote; no live fee estimate is invented.
+  const quoted=template.gas ?? inv.gas;
+  const fees={maxFeePerGas:String(quoted.maxFeePerGas),maxPriorityFeePerGas:String(quoted.maxPriorityFeePerGas)};
+  const feeRule={baseFee:String(BigInt(fees.maxFeePerGas)-BigInt(fees.maxPriorityFeePerGas)),factor:{numerator:1,denominator:1},ceiling:Number(fees.maxFeePerGas)};
+  const config={frozen:true,chainId:31337,operator:inv.superPaymaster.operator.address,factory:template.sender,sender:template.sender,salt:'0',bundlerGasLimit:'3000000',accounts:{owner:{name:'owner',address:template.sender},bundler:{name:'bundler',address:template.bundler},verifyingSigner:{name:'verifier',address:inv.verifyingSigner}},feeRule,fees,task:{token:inv.xPNTs.address,recipient:template.paymaster},gas:Object.fromEntries(['SP','VPM','TPM'].map(arm=>[arm,{callGasLimit:'100000',verificationGasLimit:'300000',preVerificationGas:'60000',paymasterVerificationGasLimit:'450000',paymasterPostOpGasLimit:String(arm==='SP'?inv.superPaymaster.minPostOpGas:inv.pmGas[arm].post)}]))};
   if (formalSource) {
     config.chainId=source[0].passport.chainId;
-    // Keep the seed SP reservation quote unchanged at the required 5 gwei cap.
-    config.gas.SP.verificationGasLimit='3150000';
+    // Preserve the seed reservation quote with its actual gas and fees.
+    for (const arm of ['SP','VPM','TPM']) {
+      const row=source.find(r=>r.arm===arm), gas=row.gas;
+      config.gas[arm]={callGasLimit:gas.callGasLimit,verificationGasLimit:gas.verificationGasLimit,
+        preVerificationGas:gas.preVerificationGas,paymasterVerificationGasLimit:row.pmGas.ver,
+        paymasterPostOpGasLimit:arm==='SP'?String(inv.superPaymaster.minPostOpGas):row.pmGas.post};
+    }
   }
   const frozen=formalConfig(config,1);
   writeFileSync(join(dir,'pin'),'fixture pin');
@@ -91,7 +100,7 @@ export function repairFixture(dir,count=3,{advanceHeadBeforeSend=false, formalSo
       a.userOpEvent.userOpHash=hash;a.userOpEvent.nonce=a.nonce;
     }
     a.bundledOps=[a.packedOp];
-    Object.assign(a.tx,{input:encodeFunctionData({abi:bundleAbi,functionName:'handleOps',args:[[a.packedOp],config.accounts.bundler.address]}),handleOpsIndex:0,gasLimit:'3000000',maxFeePerGas:'5000000000',maxPriorityFeePerGas:'1000000000'});
+    Object.assign(a.tx,{input:encodeFunctionData({abi:bundleAbi,functionName:'handleOps',args:[[a.packedOp],config.accounts.bundler.address]}),handleOpsIndex:0,gasLimit:config.bundlerGasLimit,...fees});
     a.tx.raw={type:'0x2',chainId:toHex(config.chainId),nonce:'0x0',value:'0x0',transactionIndex:'0x0',v:'0x1',r:'0x'+'11'.repeat(32),s:'0x'+'22'.repeat(32),accessList:[],gasPrice:'0x3b9aca00',to:a.entryPoint,from:a.tx.from,hash:a.tx.hash,input:a.tx.input,gas:toHex(BigInt(a.tx.gasLimit)),maxFeePerGas:toHex(BigInt(a.tx.maxFeePerGas)),maxPriorityFeePerGas:toHex(BigInt(a.tx.maxPriorityFeePerGas)),blockNumber:toHex(BigInt(a.tx.blockNumber)),blockHash:a.tx.blockHash};
     const archivedTx=structuredClone(a.tx.raw);a.tx.raw=JSON.parse(stringify(formatTransaction(archivedTx)));
     const uoe=a.logs.find(l=>l.topics[1]===a.expectedUserOpHash);a.userOpEvent.logIndex=uoe.logIndex;a.observedUserOpEvent={...a.userOpEvent};

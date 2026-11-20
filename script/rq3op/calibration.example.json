@@ -65,7 +65,8 @@
     "C17.tpm": "<gas units; maximum across senders with source evidence>",
     "C18.mint": "<gas units; maximum across senders with source evidence>",
     "C19": "<gas units; maximum across senders with source evidence>",
-    "C11.extra.0": "<gas units; maximum across senders with source evidence>"
+    "C11.extra.0": "<gas units; maximum across senders with source evidence>",
+    "C3.limits": "<gas units from calibration>"
   },
   "safeTransactions": {
     "C1": "<positive calibrated gas units>",

@@ -69,6 +69,7 @@ const PROTOCOL_N = 50;
 // ── arguments (validated; no silent defaults for the protocol parameters) ─────────────────
 function argVal(flag) { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; }
 function die(msg) { console.error(`collector: ${msg}`); process.exit(2); }
+if (formal && !rehearsal && (!argVal('--frozen-plan') || argVal('--frozen-plan').startsWith('--') || !/^[0-9a-f]{64}$/.test(argVal('--bundle-sha256') ?? ''))) die('non-rehearsal formal requires --frozen-plan and --bundle-sha256');
 const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/;
 const rpcA = argVal('--rpc-a') ?? argVal('--rpc');
 const rpcB = argVal('--rpc-b');

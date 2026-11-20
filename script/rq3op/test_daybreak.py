@@ -164,7 +164,7 @@ class Generation(unittest.TestCase):
                     value=match[1].encode()
                     f.rpc.set(f.cfg[key],'version()',value='0x'+(32).to_bytes(32,'big').hex()+len(value).to_bytes(32,'big').hex()+value.hex())
         def rpc(method,params):
-            if method=='eth_getCode' and params[0] in [f.cfg[k] for k in q.SYSTEM_SOURCES]:return '0x6000'
+            if method=='eth_getCode' and params[0] in [f.cfg[k] for k in q.SYSTEM_SOURCES if k!='entryPoint']:return '0x6000'
             if method=='eth_getBlockByNumber' and params[0]==original['number']:return original
             return f.rpc(method,params)
         with tempfile.TemporaryDirectory(dir=q.ROOT/'cache/3arm/fix') as directory:

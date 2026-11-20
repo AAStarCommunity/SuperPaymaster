@@ -1,3 +1,6 @@
+import { readFileSync as readReleaseFile } from 'node:fs';
+const releaseExpectation = JSON.parse(readReleaseFile(new URL('../../docs/release/rq3-runtime-expectations.json', import.meta.url)));
+import { feesWithinRule } from './fee-policy.mjs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { lookup } from 'node:dns/promises';
@@ -103,7 +106,7 @@ export function formalConfig(c, bMax) {
   if (BigInt(bMax) !== 1n) throw new Error('formal B_max must be 1');
   if (c.frozen !== true) throw new Error('formal gas config must be frozen');
   const fees = Object.fromEntries(['maxFeePerGas', 'maxPriorityFeePerGas'].map(k => [k, BigInt(c.fees[k])]));
-  if (fees.maxFeePerGas !== 5_000_000_000n || fees.maxPriorityFeePerGas !== 1_000_000_000n) throw new Error('formal fees must be 5/1 gwei');
+  if (!feesWithinRule(fees,c.feeRule)) throw new Error('formal fees violate frozen plan fee rule');
   const gas = {}, pmGas = {};
   for (const arm of armOrder(0)) {
     const g = Object.fromEntries(['callGasLimit', 'verificationGasLimit', 'preVerificationGas', 'paymasterVerificationGasLimit', 'paymasterPostOpGasLimit'].map(k => {
@@ -115,7 +118,6 @@ export function formalConfig(c, bMax) {
     gas[arm] = { callGasLimit: g.callGasLimit, verificationGasLimit: g.verificationGasLimit, preVerificationGas: g.preVerificationGas, ...fees };
     pmGas[arm] = { ver: g.paymasterVerificationGasLimit, post: g.paymasterPostOpGasLimit };
   }
-  if (pmGas.SP.post < 480000n) throw new Error('SP post gas below matrix floor');
   if (!/^[1-9]\d*$/.test(String(c.bundlerGasLimit))) throw new Error('bundlerGasLimit required');
   for (const role of ['owner', 'bundler', 'verifyingSigner']) {
     if (!/^[\w.-]+$/.test(c.accounts[role].name)) throw new Error('keystore account name required');
@@ -128,7 +130,7 @@ export function formalConfig(c, bMax) {
   return { gas, pmGas, fees, callData: taskCallData(c.task, c.task.callData) };
 }
 export function requirePostGas(post, minimum) {
-  if (BigInt(post) < BigInt(minimum)) throw new Error('SP paymasterPostOpGasLimit below pinned minPostOpGas');
+  if (BigInt(minimum) <= 0n || BigInt(minimum) < BigInt(releaseExpectation.GP_MINPOST_MIN) || BigInt(post) < BigInt(minimum)) throw new Error('SP paymasterPostOpGasLimit below pinned minPostOpGas');
 }
 export function feePause(block, cap) {
   if (block.baseFeePerGas == null) throw new Error('base fee unavailable');
@@ -264,7 +266,7 @@ export async function pendingSequence(clients,address) {
   }};
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup }) {
   pendingNonce ||= frozenPlan;
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
@@ -290,12 +292,12 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
     return target[key];
   } });
   const accounts = {};
-  for (const role of ['owner', 'bundler', 'verifyingSigner']) {
+  for (const role of readOnly ? [] : ['owner', 'bundler', 'verifyingSigner']) {
     accounts[role] = await createSigner(config.accounts[role], role);
     if (accounts[role].type !== 'local' || getAddress(accounts[role].address) !== getAddress(config.accounts[role].address)) throw new Error('injected signer identity mismatch');
   }
   const pubA = pinned(publicClients[0]), pubB = pinned(publicClients[1]);
-  const wallet = createWalletClient({ account: accounts.bundler, transport: custom(archives[0], { retryCount: 0 }) });
+  const wallet = readOnly ? null : createWalletClient({ account: accounts.bundler, transport: custom(archives[0], { retryCount: 0 }) });
   async function refreshPin() {
     const number = await pubA.getBlockNumber({ cacheTime: 0 });
     const [A, B] = await Promise.all([pubA.getBlock({ blockNumber: number }), pubB.getBlock({ blockNumber: number })]);
@@ -309,6 +311,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
+      if (!feesWithinRule(config.fees, config.feeRule, block.baseFeePerGas)) throw Error('signing head fee rule');
       const submit=nonce=>wallet.writeContract({ ...args, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });

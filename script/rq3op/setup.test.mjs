@@ -17,3 +17,23 @@ for(const [name,change] of [
  ['receipt',d=>d.receipt=async i=>({status:'success',blockHash:i?'different':'0xblock',blockNumber:1n})]]) {
  test('reject '+name,async()=>{const {events,deps}=fixture();change(deps);await assert.rejects(executeStep({tx},deps));assert.equal(events.includes('readback'),false);if(name!=='receipt')assert.equal(events.includes('send'),false);});
 }
+for (const kind of ['approve','limits','mint','safeMintForRole','ETH funding','deposit','stake','deploy','configure','owner settings','Safe transfer','timelock']) {
+ for (const state of ['already-satisfied','initial','partial']) test(`${kind}: ${state} send boundary`,async()=>{
+  const {events,deps}=fixture();
+  deps.precheck=async()=>{if(state==='partial')throw Error('partial');return {status:state,reads:[{observed:123}]};};
+  if(state==='already-satisfied')deps.pendingNonce=async()=>1;
+  if(state==='partial')await assert.rejects(executeStep({tx},deps));
+  else {const result=await executeStep({tx},deps);if(state==='already-satisfied')assert.deepEqual(result,{status:state,reads:[{observed:123}]});}
+  assert.equal(events.filter(e=>e==='send').length,state==='initial'?1:0);
+ });
+}
+for(const kind of ['C8.extra.0.mint','safeMintForRole'])test(`${kind} interrupted readback rerun never pays twice`,async()=>{
+ const {deps}=fixture();let paid=0;
+ deps.precheck=async()=>({status:paid?'already-satisfied':'initial',reads:[]});
+ deps.send=async()=>{paid++;return '0xhash';};
+ deps.readback=async()=>{throw Error('interrupted');};
+ await assert.rejects(executeStep({tx},deps));
+ deps.pendingNonce=async()=>1;
+ const result=await executeStep({tx},deps);
+ assert.equal(result.status,'already-satisfied');assert.equal(paid,1);
+});

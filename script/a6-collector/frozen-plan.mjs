@@ -1,9 +1,10 @@
+import { feesWithinRule } from './fee-policy.mjs';
 import { pvgRule, reservePVG, nullPVGColumns } from './pvg.mjs';
 import { createHash } from 'node:crypto';
 import { parseAbi, keccak256, toHex } from 'viem';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const parse = bytes => JSON.parse(String(bytes), (_key,value,context) => typeof value === 'number' && !Number.isSafeInteger(value) ? BigInt(context.source) : value);
+export const parse = bytes => JSON.parse(String(bytes), (_key,value,context) => typeof value === 'number' && !Number.isSafeInteger(value) ? BigInt(context.source) : value);
 function canonical(value) {
   if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return '['+value.map(canonical).join(',')+']';
@@ -12,7 +13,7 @@ function canonical(value) {
 }
 const need = (ok,code) => { if (!ok) throw Error(code); };
 const same = (a,b) => String(a).toLowerCase()===String(b).toLowerCase();
-const abi=parseAbi(['function gasParams() view returns (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)',
+const abi=parseAbi(['function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)','function gasParams() view returns (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)',
  'function getDepositInfo(address) view returns (uint256 deposit,bool staked,uint112 stake,uint32 unstakeDelaySec,uint48 withdrawTime)']);
 export function createFrozenPlan({readBundle,bundleSha256,account}) {
   const bytes=readBundle(); need(hash(bytes)===bundleSha256,'BUNDLE_DIGEST_MISMATCH');
@@ -22,6 +23,7 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
   need(plan.schema==='rq3-deploylive-1' && plan.gasPolicy.frozen===true,'PLAN_SCHEMA');
   need(['balance','credit'].includes(pc.spBranch),'PLAN_BRANCH_MISSING');
   const fees={maxFeePerGas:BigInt(pc.feeCap),maxPriorityFeePerGas:BigInt(pc.priorityCap)};
+  need(feesWithinRule(fees,pc.feeRule),'PLAN_FEE_CHANGED');
   const gas={},pmGas={};
   for(const arm of ['SP','VPM','TPM']) {
     const b=pc.bounds[arm];
@@ -55,7 +57,7 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
         [baselines.verifyingPaymaster.address,pc.addresses.VPM],[baselines.tokenPaymaster.address,pc.addresses.TPM],
         [baselines.tokenPaymaster.token,pc.addresses.Q],[config.task.token,pc.addresses.T],[config.task.recipient,pc.recipient]]) need(same(actual,expected),'PLAN_CONFIG_MISMATCH');
       need(BigInt(config.salt)===BigInt(input.salt) && config.chainId===plan.chainId,'PLAN_CONFIG_MISMATCH');
-      config.fees=fees; config.bundlerGasLimit=pc.bounds.SP.outer;
+      config.fees=fees; config.feeRule=pc.feeRule; config.bundlerGasLimit=pc.bounds.SP.outer;
       return frozen;
     },
     async send(runtime,arm,args) {
@@ -70,9 +72,11 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
         need(await client.getChainId()===plan.chainId,'PLAN_CHAIN_CHANGED');
         const pinned=await client.getBlock({blockNumber:block.number});
         need(pinned.hash===block.hash && pinned.baseFeePerGas===block.baseFeePerGas,'PLAN_BLOCK_CHANGED');
-        need(block.baseFeePerGas!=null && BigInt(block.baseFeePerGas)+fees.maxPriorityFeePerGas<=fees.maxFeePerGas && fees.maxFeePerGas<=BigInt(pc.feeRule.ceiling),'PLAN_FEE_CHANGED');
+        need(feesWithinRule(fees,pc.feeRule,block.baseFeePerGas),'PLAN_FEE_CHANGED');
         const g=await client.readContract({address:pc.addresses.SP,abi,functionName:'gasParams',blockNumber:block.number});
         need(canonical(g)===canonical(pc.gasTuple),'PLAN_GAS_CHANGED');
+        const operator=await client.readContract({address:pc.addresses.SP,abi,functionName:'operators',args:[plan.deploymentContext.operator],blockNumber:block.number});
+        need(BigInt(operator[5])===BigInt(pc.minTxInterval),'PLAN_INTERVAL_CHANGED');
         const s=await client.readContract({address:plan.addresses.entryPoint,abi,functionName:'getDepositInfo',args:[pc.addresses.SP],blockNumber:block.number});
         const values=Array.isArray(s)?s:[s.deposit,s.staked,s.stake,s.unstakeDelaySec,s.withdrawTime];
         need(values[1]===true && BigInt(values[2])===BigInt(plan.pin.stake)+BigInt(plan.deploymentContext.stakeWei) && BigInt(values[3])===BigInt(plan.deploymentContext.stakeDelay) && BigInt(values[4])===0n,'PLAN_STAKE_CHANGED');

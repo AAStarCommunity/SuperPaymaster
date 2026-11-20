@@ -8,6 +8,17 @@ acceptance has been performed here.
 
 ## Before planning
 
+> **Known intermediate state (until the planner/checker integration PR merges).** On any chain
+> other than 31337 the planner STOPs at `rq3_checker_execution` because:
+> - it does not forward the checker's second-provider inputs (`DEPLOYLIVE_SECOND_RPC_FILE`,
+>   `DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER`);
+> - `checker_runner.py`'s per-read block rewriting is incompatible with the final checker's EIP-1898
+>   snapshot and full replay;
+> - the expected checker count `182 + 2 * guardianN` no longer matches.
+>
+> This fails closed. Do not use this planner on Sepolia or OP mainnet until that PR is merged.
+
+
 1. Deploy with the frozen DeployLive script and complete the handoff checker.
    **No funding or registration before checker PASS.** Preserve its full stdout,
    exit status, config and deployment provenance.
@@ -95,6 +106,41 @@ indivisible remainder assigned to the first input S. This is recorded explicitly
 no attempt is discarded or silently added. Each plan retains the original safety
 margins. Operator funding is `(100+5)*Amax`, shared by all three plans.
 
+v0.7: unused execution gas (callGasLimit + paymasterPostOpGasLimit) is
+charged at 10%, no threshold; preVerificationGas is charged in full;
+verification limits are not charged when unused. See vendored
+[`EntryPoint.sol`](../../singleton-paymaster/lib/account-abstraction-v7/contracts/core/EntryPoint.sol)
+lines 46 (10%), 672 (PVG), 718–727 (unused execution gas). The decomposition
+`A = P + E + floor(max(L-E,0)/10)` and PVG rule are v0.7-only; v0.8 adds a 40k
+penalty threshold. The planner compares one pinned EntryPoint runtime read with
+[`entrypoint-v07.json`](entrypoint-v07.json) and stops on mismatch. This uses the
+committed canonical runtime and its recorded chain provenance, not the stale
+v0.6 deployment artifacts in the vendored v7 directory or a local recompile.
+
+Required `minTxInterval` is an integer uint48 in seconds (RQ2 S1r: **60**).
+`C3.limits` follows `C3.configure`, is signed by GENESIS, uses its own calibration
+measurement, and reads back `operators(genesis).minTxInterval`. Every setup send
+checks the appropriate before/after interval; every sampling send checks the final
+interval. This is self-service, not a timelock operation: `SuperPaymasterAdmin.sol:181`.
+DeployLive registers genesis roles without configuring its operator limits
+(`DeployLive.s.sol:761–765`, `:943–944`); Solidity's default interval is zero.
+The timestamp is keyed by (operator, user), including reverted operations
+(`SuperPaymaster.sol:309–320`, `:455–456`). The external schedule must space each
+account's operations by at least this interval. No `schedule.py` exists in this
+worktree; verification against the actual scheduler remains a cross-repo prerequisite.
+
+Optional `extraEndUsers: [{address, xAmount}]` creates sponsored ENDUSER memberships
+and mints X for **RQ2 live E2E**. These addresses are not S senders. GENESIS pays the
+stake and ticket, approves staking, calls `safeMintForRole` with community=GENESIS,
+then mints X. Calibrate `C8.extra.<index>.approve`, `.role`, and `.mint`. The plan
+includes role, SBT balance/membership and X balance readbacks; funding includes all
+extra stakes/tickets and X. Zero addresses, duplicate extras and S/O/R collisions
+are refused. Every address recursively found in config and inputs (including
+`taskRecipients`) is excluded from extras. A code-less recipient prints an INFO line to stderr (JSON stays clean).
+`Registry.sol:458–475` performs no code check and passes `msg.sender` as sponsor;
+`:494` passes that sponsor to staking. `GTokenStaking.sol:165` transfers from the
+payer. `MySBT.sol:294–319` uses `_mint`, so no ERC721 receiver code is required.
+
 Calibrated gas limits are frozen for the entire plan, including the outer transaction and
 setup limits. PVG freezes the rule in `pvg-rule.json`, with mode `sign-time` and a null
 plan bound/value. Nonce and both signatures are unknown at planning. The shared SP/VPM/TPM
@@ -152,9 +198,8 @@ Before sending, a higher base fee stops execution; it does not revise the plan.
 | schedule SP `addStake(unstakeDelay)` batch | observed threshold | starts 172800-second delay |
 | execute the same batch | observed threshold | after 48 h; attach `stakeWei` ETH |
 
-These are four separate Safe transactions (four times the threshold in signature
-slots, not four distinct people). Even zero-deficit mint/transfer calls are output
-explicitly. The Safe nonce is not reserved: review/order these inner calls in the
+These are separate Safe transactions, each requiring the observed threshold.
+Zero-deficit mint/transfer calls are omitted because they have no planned state change. The Safe nonce is not reserved: review/order these inner calls in the
 Safe workflow. SP's owner must be TL48. The planner never schedules or sends them.
 The normal setup sender stops until the SP stake is active with sufficient amount
 and delay. SP EntryPoint `depositTo` is permissionless and remains a normal setup
@@ -174,13 +219,12 @@ For each zero-based queue index in order:
 ```sh
 node script/rq3op/setup.mjs cache/3arm/rq3-three-arm.10.json <reviewed-raw-file-sha256> \
   <queue-index> cache/3arm/signers.json cache/3arm/rpc-a.url cache/3arm/rpc-b.url \
-  cache/3arm/setup.ndjson cache/3arm/config.json cache/3arm/inputs.json
+  cache/3arm/setup.ndjson cache/3arm/config.json cache/3arm/inputs.json --expect-head <previous-chain-head>
 ```
 
 `formal.mjs` supplies endpoint resolution, secret-redacted raw archives and
-`cast wallet sign --account` signing. The only opt-in change to that module allows
-archived pending nonce reads for setup; normal formal mode keeps its existing
-fixed-block restriction. The setup adapter signs the exact frozen gas, fee, nonce,
+`cast wallet sign --account` signing. Setup enables archived pending nonce reads; normal formal mode keeps its
+fixed-block restriction. Safe emission and completion recording use read-only mode. The setup adapter signs the exact frozen gas, fee, nonce,
 value and calldata. Both endpoints must agree on chain, pending nonce, reads and
 successful receipt. The Python gate worker executes the shared manifest's
 per-step checks and receipt-block readbacks through this archived transport.
@@ -215,11 +259,10 @@ post-setup check. Run it for all three plans before sampling. The old local
 do not run the manifest's local executor on these plans. Fresh planning instead
 pins zero tracked/revenue/backing balances and checks the exact deposit readback.
 
-**The accepted draft still disables broadcasting.** This delivery is the setup
-planner/sender, not an enabled sampler. The unchanged a6 `formalConfig` also retains
-its historical 5/1-gwei rule; do not bypass the new frozen fees by handing it these
-plans as legacy configs. Parent-session sampling must use an adapter that consumes
-the new frozen fields, checks them before sending and archives their provenance.
+**The accepted draft still disables broadcasting.** Sampling consumes frozen-plan
+fees and checks `baseFee + priority <= cap <= ceiling` and `priority <= cap`.
+`formalConfig` uses the same fee predicate; there is no fixed 5/1-gwei requirement.
+The adapter checks the frozen fields before sending and archives their provenance.
 
 ## Separate fixture pins and known dependency gap
 
@@ -247,7 +290,7 @@ fetched and no comparator artifact was rebuilt or substituted.
 | BUFFER / B2a minted buffer | actual fresh backing pin and exact C2 deposit readbacks |
 | activation/B4 / pending token swap | checker evidence and target deployment addresses; no upgrade wait |
 | Sepolia SP/Safe/deployer/factory constants | config addresses, dedicated experiment key and genesis |
-| fixed SP 480000 postOp | own postOp measurement × common gasFactor; effective gasParams minimum is a sanity bound |
+| fixed SP 480000 postOp | max(own postOp measurement × common gasFactor, on-chain minPostOpGas) |
 | implicit 1 ETH/day SP stake | explicit bundler-required amount/delay, value-bearing Safe operation |
 | fixed fees and other gas literals | common input factors, calibration sources, frozen fee ceiling |
 
@@ -361,6 +404,197 @@ until process exit. Active and stale locks are refused, never stolen. Both RPCs
 must agree on the initial pending nonce and on the expected next pending nonce
 immediately before each send. Legacy formal mode retains its fixed-block nonce.
 
+### Round 3 SDK funding and formal gates
+
+All plans require integer `sdkRuns` in `1..10000`, `sdkMaxOps` in `1..32`, and
+integer `sdkMaxCostPerOp` in `1..10^18` wei; stricter downstream bounds are below. There is no warm-up; each operation has signBudget 1.
+`shared.sdkLive` records the pinned pricing and the exact rounded conversion used by
+phase C. With `N = sdkRuns * (4 + sdkMaxOps)`, every extra user's `xAmount` must be
+between `(N+1)*Xmax` and `(N+PC_BETA)*Xmax`, inclusive. `extraEndUsersXTotal` is the
+sum of those amounts. The shared cross-repository vector is `sdk-cost-vector.json`;
+large integers are decimal strings so JavaScript consumers must use BigInt.
+Live SDK cells remain provisional until the SDK pre-sign cost cap merges.
+
+Non-rehearsal formal collection requires both `--frozen-plan` and `--bundle-sha256`
+before config or keystore access. Planner and collector read the repository maximum
+fee from `script/fee-limits.json`. Acceptance recomputes the exact frozen fee from
+its planning base and factor; the current base plus priority must also fit that cap.
+Pinned postOp minima must meet `docs/release/rq3-runtime-expectations.json`, checked
+against the release contract constant by an offline test. EntryPoint pin schema,
+version and chain list are exact; 31337 is reserved for offline/rehearsal fixtures.
+
+### Round 5 completion protocol and Safe handoff
+
+Every step uses a dual-endpoint pinned-head gate. A completion entry plus its
+freshly re-read successful receipt and matching current target state yields
+`already-satisfied`. Without an entry, only the exact initial state permits
+execution. All other combinations stop, including an unlogged target state,
+a missing/failed receipt, or drift after a recorded completion. No-effect calls are omitted during planning and consume no nonce. An unlogged
+step at its target stops even when its initial and target predicates are identical.
+
+The append-only, fsynced log is `<bundle-path>.completions.jsonl`, beside the
+bundle. Completion entries bind the raw bundle SHA-256 and step id to transaction
+hash, block number/hash, receipt status, block timestamp and exact readback values.
+The runner rechecks transaction identity and the canonical receipt block on both
+endpoints. C15 and SP scheduling use the verified receipt timestamp plus the
+planned delay for their target predicate. Keep the log and `.head` with the bundle.
+
+Before owners sign each Safe transaction, run (index into `safeTransactions`):
+
+```sh
+node script/rq3op/setup.mjs safe <bundle> <digest> <index> - \
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> --expect-head <previous-chain-head>
+```
+
+This chain-read-only command verifies the reviewed bundle and gate, records an
+authorization, then emits the inner CALL plus full signing fields, safeTxHash and
+bound digests. A completed step prints `already-satisfied` and emits no transaction;
+a STOP emits none. It constructs no signer. The operator sequence is exactly: `safe` (get transaction + safeTxHash) -> verify
+hash in Safe UI and collect signatures -> `safe-clear` -> execute immediately ->
+`safe-record`. After collecting signatures, run:
+
+```sh
+node script/rq3op/setup.mjs safe-clear <bundle> <digest> <index> - \
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> --expect-head <previous-chain-head>
+```
+
+Only after this succeeds, execute the emitted CALL through `execTransaction`.
+Then record the receipt and readback:
+
+```sh
+node script/rq3op/setup.mjs safe-record <bundle> <digest> <index> - \
+  <rpc-a-file> <rpc-b-file> <audit-log> <config> <inputs> <execution-tx-hash> --expect-head <previous-chain-head>
+```
+
+The recorder verifies the Safe address, exact inner call and `ExecutionSuccess`
+event against the unexpired authorization, then checks receipt-block state. A successful
+outer receipt with a failed Safe inner call is refused. For an interrupted EOA
+send whose completion was not recorded, use the same command with `record` in
+place of `safe-record` and the index into `steps`. It checks every frozen transaction
+field and receipt-block readback before recording. Investigate the transaction
+before using this recovery command; rerunning the send will stop without a record.
+
+SDK-only `C8.extra.*` approve/role/mint steps require literal `sdkLive.status:
+"cleared"` and a lowercase 40-hex `sdkCostCapCommit`. Three-arm steps remain
+available for provisional plans. The input is `priceHeadroomBPS`; the old
+`sdkPriceHeadroomBPS` alias is refused, even when the new field is present.
+
+Operational bounds are `sdkRuns` in 1..10,000, `sdkMaxOps` in 1..32 and
+`sdkMaxCostPerOp` in 1..10^18 wei. These limit the declared experiment to 360,000
+operations per user and at most 1 ETH per operation before stricter token budgets.
+Every SDK converted result, per-user cap/floor, aggregate token funding, stake/ticket
+funding and ETH/gas funding total must fit uint256. Xmax must fit uint128 for token
+locks. `(N+PC_BETA)*Amax` must fit the extra users' existing 5,000 aPNTs allowance
+and total-cap defaults; the planner does not raise these caps. Existing Safe GToken,
+aPNTs supply-cap and sender ETH affordability checks still apply.
+
+Fee ceilings and factor components must be JSON integers. Both fee implementations
+run every case in `script/fee-rule-vectors.json`; formal signing rechecks the full
+frozen rule on its final refreshed head. Setup uses the collector's lossless parser;
+large integers cross the Python line protocol as tagged decimal strings.
+
+### Safe authorization and completion integrity (round 6)
+
+Taking a transaction directly from the plan file is unsupported. Run `safe` first;
+only a successful pinned-head gate appends an `AUTHORIZATION` to the bundle's
+`.completions.jsonl`, fsyncs it and its tail checkpoint, and emits the signing
+information. **Compare `safeTxHash` character by character with the Safe UI**,
+along with the emitted `safe` and `chainId`. `signingTransaction` freezes the
+nonce read from `nonce()` at that pinned block and all ten SafeTx fields.
+`safeTxGas`, `baseGas`, `gasPrice`, `gasToken`, and `refundReceiver` default to
+zero (the zero address for address fields), unless explicitly set in the reviewed
+plan. Do not let the UI substitute different gas/refund parameters.
+
+The only supported `VERSION()` value is 1.4.1 (`SUPPORTED_SAFE_VERSIONS` in completion.mjs). The signing hash
+uses the EIP-712 `EIP712Domain(uint256 chainId,address verifyingContract)` and
+`SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)`
+type hashes, dynamic-data keccak256, and the `0x1901` prefix. Every other version stops,
+including 1.3.0 and 1.4.0: no real receipt in this checkout proves their event layout.
+1.4.1 reads txHash from topics[1], pinned by a receipt produced on a Sepolia fork by the real Safe 1.4.1 code:
+`docs/release/a3a-testsafe-12025632/live/S5b/receipt.json`. **Adding a version requires a
+real receipt of that version as a test fixture**; a synthetic layout test is not enough. A Safe ExecutionFailure always refuses recording.
+The SHA-256 transaction digest also binds Safe, chain and all signing fields.
+
+An authorization records `blockNumber`, `blockHash`, `blockTimestamp`, and
+`expiresAtTimestamp = blockTimestamp + AUTH_WINDOW_SECONDS`. The single named
+constant `AUTH_WINDOW_SECONDS = 86400` provides one day for human multi-owner
+signing, independent of chain block speed. The pin timestamp comes from the
+pinned header cross-checked through both providers; disagreement stops. This is a SIGNING authorization, not permission to execute after collecting signatures.
+`safe-clear` uses a NEW pinned head corroborated by both providers, rechecks the
+step's initial predicates, re-reads nonce and VERSION, and recomputes safeTxHash.
+A changed predicate, nonce, hash or anchor prints `DO NOT EXECUTE` and appends
+nothing. On success it appends an `EXECUTION_CLEARANCE` bound to the signing
+authorization's recordDigest. `CLEARANCE_WINDOW_SECONDS = 600` is the single
+named ten-minute limit; expiry is the smaller of pin timestamp + 600 and the
+signing authorization expiry. There may be only one unconsumed, unexpired
+clearance per authorization. An expired clearance may be replaced after a fresh
+successful gate. The signing authorization still expires after 24 hours.
+
+`safe-record` requires exactly one unused authorization for the step, Safe and
+chain. Both execution and the current agreeing recording head must be strictly
+after the pin block, with block timestamp <= `expiresAtTimestamp` (inclusive).
+An outstanding authorization prevents re-authorization while the new gate's pin
+timestamp is <= the previous expiry, regardless of the number of elapsed blocks.
+The authorization block must remain canonical. The decoded execution
+parameters plus the authorized nonce must reproduce its Safe signing hash and the
+`ExecutionSuccess` event's txHash. That event cryptographically identifies the
+nonce consumed by this execution, even with multiple Safe transactions in one
+block. Execution must be strictly after the clearance pin block and have timestamp
+<= clearance expiry. Missing, expired, consumed or ambiguous clearances refuse
+with `execution not cleared`. Recording rechecks both canonical pin hashes and
+consumes exactly one clearance and its authorization by record digest. A
+clearance cannot extend the signing authorization lifetime. Expired,
+ambiguous, consumed or missing authorizations stop with
+`transaction not authorized by the gate`; an expired execution cannot be recovered
+by authorizing it retrospectively. Re-gating is possible only while the step is
+still in its initial state and the previous authorization has expired.
+
+Every authorization and completion is chained using SHA-256 over canonical full
+record content excluding only `recordDigest`, including `previousDigest`.
+Canonical encoding is compact UTF-8 JSON: object keys sorted lexicographically
+at every level, array order preserved, JSON string escaping, BigInts represented
+as exact decimal JSON number tokens (distinct from strings). Genesis is 64 ASCII zeroes. Every read verifies the entire
+chain and bundle digest before selecting a record. The separate `.head` file
+stores the count and final digest, detecting complete-record suffix truncation
+or removal of the log. Appends fsync the log, atomically replace a fsynced head,
+and fsync its directory. An interrupted append/checkpoint mismatch stops for
+operator review; never delete/reset these files to bypass it. Preserve both files
+together. Every command prints `CHAIN_HEAD <digest>` as its final stdout line;
+save that value separately from the log and its `.head`. Every later invocation
+must pass `--expect-head <digest>` with that saved value. A mismatch refuses
+before state checks or signing. This detects rolling back or deleting both files
+relative to the operator's retained digest. If the bundle cannot be identified or
+the chain is corrupt, output is `CHAIN_HEAD unavailable`, which is not an anchor.
+Existing unchained logs are refused. On rerun, receipt-block target observations
+are obtained again and compared in full to the recorded readback before its
+completion evidence is used for the current-state gate.
+
+### Recovery and first invocation (round 7)
+
+Do not infer initialization from missing files. For the first invocation only,
+use `--first-run` instead of `--expect-head`. It is accepted only with an empty
+history AND every Safe and EOA step in its initial state at one dual-provider
+pinned head. Any target or partial state refuses and directs the operator to
+`--expect-head`; checking only the selected step is insufficient. Sequential
+plans can contain future-step initial predicates that are not yet true, so this
+check is deliberately conservative and may refuse such a plan. Do not use a
+fresh genesis digest to evade a lost history check.
+
+After a refusal, preserve the evidence. Restore the reviewed log and `.head`
+from a trusted backup and compare their head to the separately retained digest.
+Never adopt the current on-disk digest merely to silence a mismatch, and never
+reset to `--first-run` after losing history. If the prior digest or history is
+unavailable, stop and reconcile the receipts and state before resuming. The
+operator-supplied anchor is the trust root; supplying an old digest alongside an
+old backup defeats rollback detection.
+
+### Known residual
+
+Within the 600-second clearance window the state can still change.
+The post-execution target check detects a step that did not reach its planned target state; it does not detect
+unrelated state changes, or a change that was reverted before the check.
+
+After the first Safe transaction of the Sepolia rehearsal executes, its on-chain receipt is added as a fixture.
 The DeployLive readback checker requires `DEPLOYLIVE_ENDPOINT_PROVIDER` (a short provider
 name, never an endpoint URL) and an explicit `DEPLOYLIVE_EVIDENCE_DIR` for its evidence.
 Set both before invoking rq3; `PinnedTools` forwards them to the checker. There is no

@@ -11,8 +11,8 @@ const hash = `0x${'ab'.repeat(32)}`;
 function config() {
   return { frozen: true, chainId: 31337, operator: address(9), factory: address(8), sender: address(7), salt: '0', bundlerGasLimit: '3000000',
     accounts: Object.fromEntries(['owner', 'bundler', 'verifyingSigner'].map((r, i) => [r, { name: r, address: address(i + 1) }])),
-    fees: { maxFeePerGas: '5000000000', maxPriorityFeePerGas: '1000000000' }, task: { token: address(4), recipient: address(5) },
-    gas: Object.fromEntries(armOrder(0).map(arm => [arm, { callGasLimit: '100000', verificationGasLimit: '300000', preVerificationGas: '60000', paymasterVerificationGasLimit: '450000', paymasterPostOpGasLimit: '480000' }])) };
+    feeRule: { baseFee: '1000000000', factor:{numerator:4,denominator:1}, ceiling: 10000000000 }, fees: { maxFeePerGas: '5000000000', maxPriorityFeePerGas: '1000000000' }, task: { token: address(4), recipient: address(5) },
+    gas: Object.fromEntries(armOrder(0).map(arm => [arm, { callGasLimit: '100000', verificationGasLimit: '300000', preVerificationGas: '60000', paymasterVerificationGasLimit: '450000', paymasterPostOpGasLimit: '500000' }])) };
 }
 test('formal endpoint guards normalize host/port without leaking URLs', () => {
   for (const a of ['http://localhost:8545', 'http://127.0.0.1:8545', 'http://127.1:1', 'http://[::1]:1', 'http://LOCALHOST.:1']) assert.throws(() => endpointPair(a, 'https://other.invalid'), /remote/);
@@ -42,9 +42,9 @@ test('frozen fees, B_max, separate accounts and pinned gas minimum enforced', ()
   const c = config();
   assert.equal(formalConfig(c, 1).gas.TPM.maxFeePerGas, 5000000000n);
   assert.throws(() => formalConfig(c, 2), /B_max/);
-  requirePostGas(480000n, 480000n);
-  assert.throws(() => requirePostGas(480000n, 480001n), /pinned/);
-  for (const mutate of [c => c.frozen = false, c => c.fees.maxFeePerGas = '20000000000', c => c.gas.SP.paymasterPostOpGasLimit = '200000', c => c.accounts.bundler = c.accounts.owner]) {
+  requirePostGas(500000n, 500000n);
+  assert.throws(() => requirePostGas(500000n, 500001n), /pinned/);
+  for (const mutate of [c => c.frozen = false, c => c.fees.maxFeePerGas = '20000000000', c => c.gas.SP.paymasterPostOpGasLimit = '0', c => c.accounts.bundler = c.accounts.owner]) {
     const bad = config(); mutate(bad); assert.throws(() => formalConfig(bad, 1));
   }
 });
@@ -117,6 +117,8 @@ test('formal runtime uses injected separate signers, archives signed transaction
     assert.equal(txHash, hash);
     const tx = parseTransaction(calls.find(r => r.method === 'eth_sendRawTransaction').params[0]);
     assert.equal(tx.maxFeePerGas, 5000000000n); assert.equal(tx.maxPriorityFeePerGas, 1000000000n);
+    baseFeePerGas = '0xee6b2801'; // cap - priority + 1: still below cap
+    await assert.rejects(runtime.writeContract({ address: address(1), abi: parseAbi(['function go()']), functionName: 'go' }), /signing head fee rule/);
     baseFeePerGas = '0x12a05f201'; // 5 gwei + 1 wei
     await assert.rejects(runtime.writeContract({ address: address(1), abi: parseAbi(['function go()']), functionName: 'go' }), e => e.pause?.reason === 'basefee_above_cap' && e.pause.baseFeePerGas === 5000000001n);
     assert.equal(calls.filter(r => r.method === 'eth_sendRawTransaction').length, 1, 'pause must not submit a second transaction');
@@ -196,4 +198,23 @@ test('frozen runtime sends exact pending nonce on both endpoints and refuses a j
   assert.equal(new Set(reads.map(r=>r.url)).size,2);
   assert.equal(calls.filter(r=>r.method==='eth_sendRawTransaction').length,2);
  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+test('follow-up accepts chain-derived fees and uses only pinned postOp floor', () => {
+  const c=config(); c.fees={maxFeePerGas:'9000000000',maxPriorityFeePerGas:'2000000000'};
+  c.feeRule={baseFee:'3000000000',factor:{numerator:7,denominator:3},ceiling:10000000000};
+  c.gas.SP.paymasterPostOpGasLimit='500000';
+  assert.equal(formalConfig(c,1).fees.maxFeePerGas,9000000000n);
+});
+test('follow-up rejects cap above plan ceiling', () => {
+  const c=config(); c.feeRule={baseFee:'1000000000',factor:{numerator:4,denominator:1},ceiling:4000000000};
+  assert.throws(()=>formalConfig(c,1),/fee/);
+});
+test('formal config refuses absent zero negative nonnumeric and over-limit ceilings',()=>{
+ for(const ceiling of [undefined,0,-1,'invalid','20000000001']) {
+  const c=config();c.feeRule={baseFee:0,factor:{numerator:2,denominator:1},ceiling};c.fees={maxFeePerGas:'0',maxPriorityFeePerGas:'0'};
+  assert.throws(()=>formalConfig(c,1));
+ }
+ const c=config();c.feeRule={baseFee:'10000000000',factor:{numerator:2,denominator:1},ceiling:20000000001};
+ c.fees={maxFeePerGas:'20000000001',maxPriorityFeePerGas:'1'};
+ assert.throws(()=>formalConfig(c,1));
 });

@@ -6,6 +6,7 @@ cd "$ROOT"
 : "${A6_FOUNDRY_NIGHTLY_DIR:?Set A6_FOUNDRY_NIGHTLY_DIR to the Foundry nightly binary directory}"
 export PATH="$A6_FOUNDRY_NIGHTLY_DIR:$PATH"
 export FOUNDRY_DISABLE_NIGHTLY_WARNING=1
+: "${A6_REHEARSAL_POLICY:?Set A6_REHEARSAL_POLICY to the public calibration and fee policy JSON}"
 # Forge's automatic submodule installation must never write this worktree's .git.
 export GIT_DIR=/dev/null
 unset PRIVATE_KEY PRIVATE_KEY_ANNI DEPLOYER_ACCOUNT
@@ -43,7 +44,7 @@ node script/a6-collector/deploy-baselines.mjs "$A" "$D/baselines-local.json" "$D
 node script/a6-collector/rpc-proxy.mjs --listen "$BPORT" --upstream "$A" > "$D/proxy.log" 2>&1 & P2=$!
 sleep 1
 node script/a6-collector/collector.mjs --rpc-a "$A" --rpc-b "$B" --allow-same-endpoint-local --count 1 --b-max 1 --config "$D/deployment.json" --baselines "$D/baselines-local.json" --out "$D/setup.jsonl" > "$D/setup.log" 2>&1
-node script/a6-collector/rehearsal-setup.mjs "$A" "$D" "$D/deployment.json" "$D/baselines-local.json"
+node script/a6-collector/rehearsal-setup.mjs "$A" "$D" "$D/deployment.json" "$D/baselines-local.json" "$A6_REHEARSAL_POLICY"
 printf '%s' "$A" > "$D/rpc-a"
 printf '%s' "$B" > "$D/rpc-b"
 # Automine plus periodic empty blocks permits the real dual-head gate to advance.
