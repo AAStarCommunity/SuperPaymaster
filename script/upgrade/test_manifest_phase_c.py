@@ -329,6 +329,12 @@ class PhaseCTests(unittest.TestCase):
         self.assertEqual(pc['Amax'], ceil(amax))
         self.assertEqual(pc['operatorTarget'], 105*ceil(amax))
 
+    def test_fresh_address_key_collision(self):
+        # Two distinct keys that canonicalise to the same address must stop, not overwrite.
+        low = '0xe8eaad6a4802300f33e53c40e65863cccda6898b'
+        self.stop('fresh_address_key_collision',
+                  lambda: m.fresh_addresses({low: 1, '0xE8Eaad6A4802300F33E53c40e65863CCcDA6898b': 2}))
+
     def test_pin_price_zero(self):
         pin = copy.deepcopy(self.pin)
         pin['phaseC']['sp']['cachedPrice'] = [0, 0, 0, 8]

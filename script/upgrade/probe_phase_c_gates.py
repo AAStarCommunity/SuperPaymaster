@@ -36,6 +36,7 @@ CASES += [
     (P, 'test_build_C_chain_binding', 'C_chain_binding'),
     (P, 'test_build_C_task_token_distinct', 'C_task_token_distinct'),
     (P, 'test_pin_price_zero', 'C_price_bound_pin'),
+    (P, 'test_fresh_address_key_collision', 'fresh_address_key_collision'),
     (P, 'test_stage_c_boundary_and_prefix', 'prefix_boundary_phase_c'),
     (P, 'test_stage_c_prefix_must_end_in_phase_c', 'prefix_boundary_last'),
     (P, 'test_stage_c_artifact_never_final', 'final_stage'),
