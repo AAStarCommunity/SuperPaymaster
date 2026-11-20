@@ -1,36 +1,69 @@
-# Frozen three-arm collector mode
+# Frozen three-arm collector window
 
-Use Node 24 (lossless JSON number reviver context). Add these options to the
-existing formal collector invocation:
+Use Node 24 (lossless JSON number reviver context) and Python 3. Add these
+options to the existing formal collector invocation:
 
 ```
---frozen-plan rq3-three-arm.<chainId>.json --bundle-sha256 <approved-file-sha256>
+--frozen-plan rq3-three-arm.<chainId>.json --bundle-sha256 <approved-file-sha256> \
+--seed <public-seed> --count 50 --max-attempts 60
 ```
 
-The file is the planner's bundle (`plans` keyed by S). `--formal-config`'s
-`sender` selects one S. Keep the normal formal RPC identity, archive, signer,
-deployment and comparator inputs. Their identities must match the selected
-plan. Set `--max-attempts` to no more than `phaseC.attempts` (34/33/33 in the
-fixture), and set `--count` within that budget. Indices are zero-based per S.
-The SHA-256 is over the exact bundle bytes; each selected whole-plan digest
-uses the planner's sorted, compact, ASCII-escaped JSON encoding. Large JSON
-integers are preserved without floating-point rounding.
+One invocation loads all three per-sender plans from the planner bundle
+(`plans` keyed by S). In `--formal-config`, provide `senders` in the public
+schedule's account order, each with `sender`, `salt`, and `owner: {name,address}`.
+The shared operator, factory, bundler, verifying signer, task, deployment,
+comparator and RPC identity inputs remain the normal formal inputs. Each
+sender identity and owner must match its frozen plan. Addresses are normalized
+to checksum form before generating the schedule. All accounts must already
+exist and be prepared; account creation is refused during collection.
 
-Gas, paymaster gas, outer transaction gas and fees come from the plan.
-Account creation is refused: complete the plan's setup before collection.
-Before sending, both archived endpoints read chain ID, gasParams and SP stake
-at the refreshed fixed block. Base fee plus priority must fit feeCap, itself
-bounded by feeRule.ceiling. Neither fee history nor gas estimates are rerun.
-Every attempt row includes planDigest, bundleSha256, gasSources for its arm,
-spPostOpRule, feeRule and allocation. The receipt path retains raw receipt and
-observed settlement branch before a mismatch stops the run.
+The collector uses the public seed, ordered accounts and frozen chain
+qualification in `chain-params.json` to generate 60 slots: ten batches of all
+six arm permutations, ordered by SHA-256 of seed, batch and permutation. Each
+slot rotates accounts across SP/VPM/TPM. The OP slot period is 30 seconds with
+a 20-second elapsed bound; Sepolia uses 130/120 seconds. `manifest.json` records
+the complete schedule payload and its SHA-256, qualification payload and hash,
+all three plan SHA-256s, approved bundle hash and window start timestamp.
 
-The adapter retains the existing formal runtime's fixed-block archive checks,
-endpoint identity checks, development-method refusal and credential filtering.
-Legacy invocations still use formalConfig and its fixed 5/1-gwei rules.
-The existing standalone A6 validators still enforce that legacy fee policy
-and 50-triplet protocol; they are not a validator for this new plan mode.
+The collector always traverses the fixed 60 slots, even if it reaches the
+50-complete-triplet target earlier. Each sender is allocated 20 attempts on each
+arm, within the existing plans' 34/33/33 per-arm budgets. Incomplete slots stay
+in the count; there are no result-based retries, replacements, reorderings or
+extensions. Integrity failures can stop the window early and retain partial
+slot counts. No pilot/warmup attempts run in this mode: `warmupAttempts` is zero
+and every formal attempt row has `warmup:false`. Do any pilot in a separate run;
+its rows must be marked warmup and must not be inserted into this schedule.
 
-Offline tests generate a bundle with the real planner and ThreeArm fake chain,
-then inject send/read/receipt transports. No Anvil, RPC or keystore is used.
-Fail-first and guard-removal outputs are retained under cache/adapter/.
+Before an SP attempt, both archived endpoints read `operators(operator)` and
+`userOpState(operator,sender)` at a common fixed block. The collector waits for
+`block.timestamp >= lastTimestamp + minTxInterval`, rereading both values at
+each pin. It also waits for the slot start, and refuses submission explicitly
+if the pin or required validAfter exceeds the slot deadline. `spWait` records
+seconds, blocks, values read, validAfter and pin; `slotChecks` retains each gate
+result. A second gate runs at submission, before fresh fee and pending-nonce
+checks. This proves readiness at the observed pin, not a guarantee about future
+inclusion or concurrent external activity. The sampler's 60-second spacing
+qualification does not replace the chain-read rate limit.
+
+Every attempt row and evidence index records `block_slot`, `pair_id`, `seed`,
+`schedule_sha256`, and `sender`. Attempt rows also retain exact plan-derived gas,
+fees, plan/bundle digests and allocation. The bundle SHA-256 covers exact bytes;
+whole-plan hashes use the planner's sorted, compact, ASCII-escaped JSON encoding.
+Large integers remain lossless. Bundle/plan integrity, chain, gas parameters,
+operator interval and stake are checked before sending. No gas estimate or fee
+history is recalculated, and no funding or allowance changes occur mid-window.
+
+The schedule generator lives beside the collector because the collector owns
+window execution; the port contains only schedule generation and the frozen
+chain-parameter qualification it reads. The planner is unchanged. Fixed SP
+allowance/total caps remain a separate resource constraint; see the resource
+audit in `cache/sched/REPORT.md` rather than assuming an attempt budget alone
+proves allowance sufficiency.
+
+Known gap: `validate.mjs` and `evidence-validate.mjs` do not accept this plan
+mode. The schedule evidence writer retains incomplete slots without applying
+the legacy replacement-exclusion policy; this does not add validator support.
+Legacy invocations retain the existing formal configuration and protocol.
+
+Offline tests use the real planner with its fake chain, injected chain clocks,
+RPC transports and signers. No live RPC, Anvil or keystore is used.
