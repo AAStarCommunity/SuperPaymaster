@@ -917,6 +917,8 @@ try {
 }
 let passportEnd = null;
 let finalBlockCheck = null;
+// End checks run on every in-process exit (not on SIGINT/SIGTERM/SIGKILL).
+const endCheckScope = 'on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)';
 const endChecks = [];
 async function endCheck(check, action) {
   try {
@@ -979,7 +981,7 @@ await endCheck('finalPassport', async () => {
 });
 if (formal) await endCheck('anchors', async () => { finalBlockCheck = await revalidateAnchors(runtime.archives); });
 exitCode = stop.code;
-writeLine({ kind: 'run_end', stop, exitCode, endChecks, matchedTriplets: matched, targetTriplets: count, tally, triplets,
+writeLine({ kind: 'run_end', stop, exitCode, endCheckScope, endChecks, matchedTriplets: matched, targetTriplets: count, tally, triplets,
   ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:60,attemptedSlots:windowOutcome?.usedSlots ?? Math.ceil(attemptIndex/3),window:windowOutcome,warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
@@ -988,7 +990,7 @@ if (formal) {
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
   writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', rehearsal, windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
-    finalBlockCheck, endChecks, triples, replacements, counts:armCounts(evidenceRows, triples, replacements), ...(window ? {window:windowOutcome} : {})});
+    finalBlockCheck, endCheckScope, endChecks, triples, replacements, counts:armCounts(evidenceRows, triples, replacements), ...(window ? {window:windowOutcome} : {})});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);

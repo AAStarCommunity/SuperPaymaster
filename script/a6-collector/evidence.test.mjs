@@ -135,7 +135,7 @@ function windowFixture() {
   fixtureCache ??= repairFixture(fixtureDir,153);
   const rows=structuredClone(fixtureCache.rows), p=fixtureCache.passport;
   const triples=Array.from({length:51},(_,i)=>({tripleIndex:i,attempts:[3*i,3*i+1,3*i+2],included:i>0}));
-  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',void:false,stopReason:'COMPLETE',stopAttempt:152,endPassport:p,triples,replacements:[{abandoned:{windowId:'w',tripleIndex:0},replacement:{windowId:'w',tripleIndex:1},reason:'not_included'}],counts:armCounts(rows,triples,[{abandoned:{tripleIndex:0},reason:'not_included'}])};
+  const trailer={schemaVersion:'a6-evidence-trailer/1',windowId:'w',void:false,stopReason:'COMPLETE',stopAttempt:152,endPassport:p,endChecks:['endBlock','finalPassport','anchors'].map(check=>({check,status:'PASS'})),triples,replacements:[{abandoned:{windowId:'w',tripleIndex:0},replacement:{windowId:'w',tripleIndex:1},reason:'not_included'}],counts:armCounts(rows,triples,[{abandoned:{tripleIndex:0},reason:'not_included'}])};
   return {rows,trailer};
 }
 test('successful attempt row has null reason and no final inclusion verdict',()=>{
@@ -260,3 +260,19 @@ test('validator rejects a declared rehearsal state control in a non-rehearsal ru
   rows[1].rehearsalControl={kind:'tpmCacheAged',slots:[3,4]};
   assert.match(run().stdout,/rehearsal control outside a rehearsal TPM attempt/);
 }));
+
+for(const [name,mutate] of [
+ ['missing',t=>{delete t.endChecks;}],
+ ['empty',t=>{t.endChecks=[];}],
+ ['failed',t=>{t.endChecks[1].status='FAIL';}],
+ ['unavailable',t=>{t.endChecks[1].status='UNAVAILABLE';}],
+ ['missing final passport',t=>{t.endChecks.splice(1,1);}],
+ ['duplicate',t=>{t.endChecks.push(t.endChecks[1]);}],
+ ['missing sender passport',t=>{t.window={};}],
+]) test(`end-check record ${name} makes an otherwise complete window void`,()=>{
+ const {rows,trailer}=windowFixture();
+ trailer.endChecks=['endBlock','finalPassport','anchors'].map(check=>({check,status:'PASS'}));
+ assert.deepEqual(windowErrors(rows,trailer),[]);
+ mutate(trailer);
+ assert.match(windowErrors(rows,trailer).join(';'),/void window.*end.check/i);
+});
