@@ -28,7 +28,7 @@ class Round3(unittest.TestCase):
             self.cfg['futureSystem']={'nested':[address(890)]}
             self.evidence['configSha256']=q.digest(self.cfg)
             self.inputs['futureRole']={'nested':[address(891)]}
-            self.inputs['extraEndUsers']=[dict(address=who.upper().replace('0X','0x'),xAmount=1)]
+            self.inputs['extraEndUsers']=[dict(address=q.a.cast('to-check-sum-address',who),xAmount=1)]
             self.stop('rq3_extra_endusers',self.build)
 
     def test_malformed_amounts(self):
