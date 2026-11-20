@@ -32,6 +32,7 @@ except (ValueError, OSError) as error:
     sys.exit(1)
 results = []
 BLOCK = None
+block = None
 principal_addresses = {DEPLOYER, SAFE}
 
 
@@ -100,6 +101,11 @@ def transport(*args, endpoint=None):
 
 
 def local(*args, endpoint=None):
+    from deploylive_readback import validate_snapshot_request
+    if args[0] == 'rpc':
+        validate_snapshot_request(block, args[1:])
+    elif args[0] not in LOCAL | {'decode-abi', 'to-check-sum-address'}:
+        raise ValueError('unrecognized checker read')
     r = subprocess.run(['cast', *args], env=dict(os.environ, ETH_RPC_URL=endpoint or RPC), capture_output=True, text=True)
     if r.returncode:
         return r.returncode, " ".join(re.findall(r"0x[0-9a-fA-F]+", r.stderr)) or "RPC/local command failed"
@@ -162,11 +168,19 @@ except (ValueError, TypeError, OSError):
     print("FAIL external dependencies: missing chain group / unreadable chain")
     sys.exit(1)
 try:
-    rc, raw = cast("rpc", "eth_getBlockByNumber", "latest", "false")
+    requested_hash = os.environ.get('DEPLOYLIVE_SNAPSHOT_BLOCK_HASH')
+    if requested_hash is not None:
+        if not re.fullmatch(r'0x[0-9a-fA-F]{64}', requested_hash): raise ValueError('invalid snapshot hash')
+        rc, raw = cast('rpc', 'eth_getBlockByHash', requested_hash, 'false')
+    else:
+        rc, raw = cast("rpc", "eth_getBlockByNumber", "latest", "false")
     block = json.loads(raw)
     if rc or not isinstance(block, dict) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", block['hash']): raise ValueError('block unreadable')
     BLOCK = hex(integer(block['number']))
     integer(block['timestamp'])
+    if requested_hash is not None and block['hash'].lower() != requested_hash.lower(): raise ValueError('snapshot hash mismatch')
+    from deploylive_readback import recheck_block
+    recheck_block(block, transport)
 except (KeyError, ValueError, TypeError):
     print("FAIL pinned block unreadable")
     sys.exit(1)
@@ -184,6 +198,17 @@ noncontracts = json.loads((ROOT/'deployments/readback-noncontracts.json').read_t
 expected_noncontracts = dict(noncontracts['production'])
 if chain == 31337 and 'expectedGovernor' in CFG:
     expected_noncontracts.update(noncontracts['localOnly'])
+second_url = None
+if not single_provider_allowed(chain, RPC):
+    try:
+        second_url = Path(os.environ['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
+        independent_providers(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''), RPC, second_url)
+        rc, second_chain = local('rpc', 'eth_chainId', endpoint=second_url)
+        if rc or integer(json.loads(second_chain)) != chain: raise ValueError('second chain mismatch')
+        recheck_block(block, lambda *args: local(*args, endpoint=second_url))
+    except (OSError, ValueError, KeyError, TypeError):
+        print('FAIL  second provider header or inputs')
+        sys.exit(1)
 record, collection_ok, coverage_ok = None, False, False
 collection_error = ''
 try:
@@ -672,7 +697,9 @@ try:
 except (ValueError, KeyError, TypeError):
     hash_ok = False
 check('block hash rechecked', hash_ok, 'canonical header unchanged')
-if all(results):
+from deploylive_check_count import expected_check_count
+expected_count = expected_check_count(CFG, policy, mapping, json.loads((ROOT/'deployments/release-versions.rc8.json').read_text()))
+if all(results) and len(results) == expected_count:
     record['block']['hashRechecked'] = True
     record['secondProvider'] = second
     record['singleProvider'] = second is None
@@ -683,6 +710,11 @@ if all(results):
         write(READBACK, record)
     except (OSError, ValueError):
         check('readback', False, 'write failed')
+
+if len(results) != expected_count:
+    check('check count', False, f'expected {expected_count}; observed {len(results)}')
+if all(results):
+    print("SNAPSHOT_BLOCK_HASH " + block['hash'].lower())
 
 print(f"\nSUMMARY {sum(results)} passed, {len(results) - sum(results)} failed, {len(results)} total")
 sys.exit(0 if all(results) else 1)

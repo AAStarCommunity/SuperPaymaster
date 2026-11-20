@@ -74,7 +74,7 @@ class CheckerTest(unittest.TestCase):
             self.assertEqual(code, 1, output)
             self.assertIn("FAIL  external " + getter, output)
 
-    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False, capture_record=None, primary_provider='Alchemy', secondary_provider='Infura'):
+    def run_checker(self, mutation=None, safe_recovery=False, op=False, agents=False, real_proxy=False, git_dirty=False, release_versions=None, check_blocks=False, capture_record=None, primary_provider='Alchemy', secondary_provider='Infura', request_trace=None):
         proxy = json.loads((CHECKER.parents[2] / 'contracts/test/fixtures/deploylive/safe-proxy-v141.json').read_text())
         keys = "registry superPaymaster staking gToken xPNTsFactoryV2 aoaProtocolRegistry reputationSystem blsAggregator dvtValidator xPNTsFactory paymasterFactory paymasterV4Impl microPaymentChannel x402Facilitator aPNTs sbt policyRegistry timelockController handoverBootstrap pnts genesisOperator expectedGovernor expectedGuardian expectedSPGuardian registryImpl spImpl".split()
         keys += "spAdminImpl xPNTsTokenV1Impl xPNTsTokenV2Impl xPNTsTokenV2Ext globalTierSource superPaymasterLens".split()
@@ -216,6 +216,8 @@ class CheckerTest(unittest.TestCase):
             self.assertNotIn("--rpc-url", cmd)
             self.assertIn(kwargs["env"]["ETH_RPC_URL"], ("https://secret.alchemy.com/private-token", "https://independent.infura.io/secret"))
             kind, args = cmd[1], [addr(int(a, 16)) if re.fullmatch(r"0x[0-9a-fA-F]{40}", a) else a for a in cmd[2:]]
+            if request_trace is not None and kind == 'rpc':
+                request_trace.append((list(args), kwargs['env']['ETH_RPC_URL'].startswith('https://independent')))
             if kind == 'rpc' and args[0] in ('eth_getCode', 'eth_getStorageAt', 'eth_getBalance', 'eth_call'):
                 read_key = (kwargs['env']['ETH_RPC_URL'], *args)
                 self.assertNotIn(read_key, seen_reads, 'state read collected more than once')
@@ -288,11 +290,11 @@ class CheckerTest(unittest.TestCase):
                 if args[0] == safe and mutation == "delegated_safe": out = "0xef0100" + "00" * 20
             elif kind == "rpc":
                 if args[0] == 'anvil_nodeInfo': return response(json.dumps({'forkConfig': {'forkUrl': 'https://untrusted.invalid'}}), 0)
-                if args[0] == "eth_getBlockByNumber":
+                if args[0] in ("eth_getBlockByNumber", "eth_getBlockByHash"):
                     block_reads.append(args[1])
                     if mutation == 'reorg' and len(block_reads) > 1: return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
                     if mutation == 'second_header' and kwargs['env']['ETH_RPC_URL'].startswith('https://independent'): return response(json.dumps(dict(number='0x2a', hash='0x'+'34'*32, timestamp='0x1234')))
-                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a' if args[1] == 'latest' else args[1], hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
+                    return SimpleNamespace(returncode=0, stdout=json.dumps(dict(number='0x2a' if args[1] == 'latest' or args[0] == 'eth_getBlockByHash' else args[1], hash='0x'+'12'*32, timestamp='0x1234')), stderr='')
                 if args[0] == "eth_chainId":
                     return SimpleNamespace(returncode=0, stdout=('"0xa"' if op else '"0x7a69"') if mutation != "unknown_chain" else '"0xf423f"', stderr="")
                 if args[0] == "eth_call":

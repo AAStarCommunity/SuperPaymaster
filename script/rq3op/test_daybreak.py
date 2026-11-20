@@ -14,6 +14,8 @@ class Daybreak(unittest.TestCase):
         auth.start();self.addCleanup(auth.stop)
 
     def test_checker_is_executed_and_exact_count_required(self):
+        provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        provider.start();self.addCleanup(provider.stop)
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
         for code,log in [(1,'SUMMARY 242 passed, 0 failed, 242 total'),(0,'SUMMARY 243 passed, 0 failed, 243 total'),(0,'SUMMARY 241 passed, 1 failed, 242 total'),(0,'PASS no summary'),(0,'SUMMARY 242 passed, 0 failed, 242 total\nSUMMARY 242 passed, 0 failed, 242 total')]:
             with self.assertRaises(q.a.Gate):
@@ -136,25 +138,31 @@ class AdditionalGates(unittest.TestCase):
 
 class FrozenChecker(unittest.TestCase):
     def test_readback_commands(self):
-        import checker_runner as c
-        self.assertEqual(c.pin_command(['cast', 'rpc', 'eth_getBlockByNumber', 'latest', 'false'], '0x20')[3], '0x20')
-        for command in ('decode-abi', 'to-check-sum-address'):
-            self.assertEqual(c.pin_command(['cast', command, 'value'], '0x20'), ['cast', command, 'value'])
-        self.assertEqual(c.pin_command(['cast', 'code', 'address', '--block', '0x30'], '0x20'), ['cast', 'code', 'address', '--block', '0x20'])
+        import sys
+        sys.path.insert(0, str(q.ROOT/'script/rehearsal'))
+        from deploylive_readback import validate_snapshot_request
+        block = dict(hash='0x'+'12'*32, number='0x20')
+        pin = json.dumps(dict(blockHash=block['hash'], requireCanonical=True))
+        for method in ('eth_call', 'eth_getCode', 'eth_getBalance', 'eth_getStorageAt'):
+            validate_snapshot_request(block, (method, 'address', pin))
+            with self.assertRaises(ValueError):
+                validate_snapshot_request(block, (method, 'address', '"0x30"'))
 
     def test_checker_reads_original_block(self):
-        import checker_runner as c
-        for command in ('call','code','balance','storage'):
-            self.assertEqual(c.pin_command(['cast',command,'address'],'0x20')[-2:],['--block','0x20'])
-        self.assertEqual(c.pin_command(['cast','rpc','eth_call','{}','latest'],'0x20')[-1],'0x20')
-        command=c.pin_command(['cast','rpc','eth_getLogs','{"fromBlock":"0x1","toBlock":"latest"}'],'0x20')
-        self.assertEqual(json.loads(command[3])['toBlock'],'0x20')
-        with self.assertRaises(ValueError):c.pin_command(['cast','rpc','eth_sendTransaction','{}'],'0x20')
+        import sys
+        sys.path.insert(0, str(q.ROOT/'script/rehearsal'))
+        from deploylive_readback import validate_snapshot_request
+        block = dict(hash='0x'+'12'*32, number='0x20')
+        validate_snapshot_request(block, ('eth_getLogs', '{"fromBlock":"0x1","toBlock":"0x20"}'))
+        for args in (('eth_sendTransaction', '{}'), ('eth_getLogs', '{"fromBlock":"0x1","toBlock":"latest"}')):
+            with self.assertRaises(ValueError): validate_snapshot_request(block, args)
 
 class Generation(unittest.TestCase):
     def test_verified_generation_reconstructs_exact_bytes_after_head_moves(self):
         import tempfile
         import re
+        provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        provider.start();self.addCleanup(provider.stop)
         f=fixtures.ThreeArm();f.setUp();f.cfg['guardianN']=2
         original=copy.deepcopy(f.rpc.head)
         for key,source in q.SYSTEM_SOURCES.items():
@@ -177,7 +185,7 @@ class Generation(unittest.TestCase):
             calls=[]
             def runner(command,**kwargs):
                 calls.append(command)
-                return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
+                return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
                     return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])
@@ -190,7 +198,7 @@ class Generation(unittest.TestCase):
             f.rpc.head=dict(original,number='0x21',hash='0x'+'34'*32)
             f.rpc.pending=9
             self.assertEqual(first,generate(original['number']))
-            self.assertTrue(all('checker_runner.py' in command[2] and command[3]=='0x20' for command in calls))
+            self.assertTrue(all('checker_runner.py' in command[2] and command[3]==original['hash'] for command in calls))
 
 class SourceVersion(unittest.TestCase):
     def test_unparseable_version_refused(self):

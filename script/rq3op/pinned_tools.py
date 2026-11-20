@@ -17,7 +17,10 @@ class PinnedTools:
             paths[name] = str(Path(found).resolve())
         self.env = {'PATH': ':'.join(dict.fromkeys([*(str(Path(p).parent) for p in paths.values()), '/usr/bin', '/bin'])),
                     'LC_ALL': 'C'}
-        for key in ('DEPLOYLIVE_ENDPOINT_PROVIDER', 'DEPLOYLIVE_EVIDENCE_DIR'):
+        for key in ('DEPLOYLIVE_ENDPOINT_PROVIDER', 'DEPLOYLIVE_EVIDENCE_DIR',
+                    'DEPLOYLIVE_SECOND_RPC_FILE', 'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER',
+                    'DEPLOYLIVE_LOCAL_EVIDENCE', 'DEFAULT_ARTIFACTS_OUT',
+                    'DEPLOYLIVE_SNAPSHOT_BLOCK_HASH'):
             if key in os.environ: self.env[key] = os.environ[key]
         self.records = {}
         for name, path in paths.items():
@@ -30,7 +33,11 @@ class PinnedTools:
         name = Path(command[0]).name
         if name in self.records:
             command[0] = self.records[name]['path']
+        overrides = kwargs.get('env', {})
         kwargs['env'] = dict(self.env)
+        # Only explicit per-call endpoint/pin overrides cross the sanitized boundary.
+        for key in ('ETH_RPC_URL', 'DEPLOYLIVE_SNAPSHOT_BLOCK_HASH'):
+            if key in overrides: kwargs['env'][key] = overrides[key]
         return self.runner(command, *args, **kwargs)
 
     @contextmanager

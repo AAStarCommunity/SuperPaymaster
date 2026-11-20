@@ -386,6 +386,22 @@ def validate_config(config, mapping, noncontracts, zero_allowed):
         if any(v.lower() == ZERO for v in values) and key not in zero_allowed: raise ValueError('unexpected zero config address')
 
 
+def validate_snapshot_request(block, args):
+    """Reject unknown reads and selectors before any state transport, even locally."""
+    method = args[0]
+    if method in ('eth_chainId', 'eth_getBlockByNumber', 'eth_getBlockByHash'):
+        return
+    methods = {'eth_call', 'eth_getStorageAt', 'eth_getBalance', 'eth_getLogs', 'eth_getCode'}
+    if method not in methods: raise ValueError('unreplayed snapshot request: ' + method)
+    if block is None: raise ValueError('state request before snapshot pin')
+    if method == 'eth_getLogs':
+        query = json.loads(args[1])
+        if int(query['toBlock'], 16) != int(block['number'], 16):
+            raise ValueError('unpinned request: ' + method)
+    elif json.loads(args[-1]) != dict(blockHash=block['hash'], requireCanonical=True):
+        raise ValueError('unpinned request: ' + method)
+
+
 class Snapshot:
     """One read per request. Freeze before evaluating the assertion pass."""
     def __init__(self, transport):

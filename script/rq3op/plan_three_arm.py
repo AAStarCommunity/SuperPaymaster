@@ -605,7 +605,7 @@ def address_table(cfg):
 
 
 def structured_checker(checker):
-    fields=('result','exitCode','passed','failed','total','summary','configSha256','commit','chainId','stdoutSha256','checkerSha256','tools','checkerFiles')
+    fields=('result','exitCode','passed','failed','total','summary','configSha256','commit','chainId','stdoutSha256','checkerSha256','tools','checkerFiles','snapshotBlockHash')
     result={k:checker[k] for k in fields if k in checker}
     if 'stdout' in checker:
         result['stdoutSha256']=hashlib.sha256(checker['stdout'].encode()).hexdigest()
@@ -629,7 +629,8 @@ def output_bytes(value, secrets=(), patterns=()):
 
 def authenticate_checker(cfg, tools):
     hashes={}
-    for path in ('script/rehearsal/deploylive_postdeploy_check.py','script/rq3op/checker_runner.py'):
+    for path in ('script/rehearsal/deploylive_postdeploy_check.py','script/rq3op/checker_runner.py',
+                 'script/rehearsal/deploylive_check_count.py','script/rehearsal/deploylive_readback.py'):
         committed=tools.run(['git','show',cfg['commit']+':'+path],cwd=ROOT,capture_output=True)
         actual=hashlib.sha256(inside(ROOT/path).read_bytes()).hexdigest()
         a.need('rq3_checker_blob',committed.returncode==0 and
@@ -645,15 +646,27 @@ def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=N
     tools=tools or pinned_tools()
     a.need('rq3_source_commit',cfg['commit'],commit_reader() if commit_reader else clean_source_commit(git_runner=tools.run))
     hashes=authenticate_checker(cfg,tools)
+    if chain != 31337:
+        for key in ('DEPLOYLIVE_SECOND_RPC_FILE', 'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER'):
+            if not tools.env.get(key):
+                error = a.Gate('rq3_checker_execution', 'missing '+key, 'required checker input')
+                error.args = ('rq3_checker_execution: missing '+key,)
+                raise error
+    if block is not None:
+        a.need('rq3_checker_execution', True if re.fullmatch(r'0x[0-9a-fA-F]{64}', block) else 'snapshot block hash required', True)
     checker=ROOT/'script/rehearsal/deploylive_postdeploy_check.py'
     executable=[str(ROOT/'script/rq3op/checker_runner.py'),block] if block else [str(checker)]
     result=(runner or tools.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
         cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=tools.env)
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
-    expected=238+2*int(cfg['guardianN'])  # includes two codehash rows and cap/channel self-address rows
+    from deploylive_check_count import expected_check_count
+    expected=expected_check_count(cfg, load(ROOT/'deployments/readback-policy.json'),
+        load(ROOT/'deployments/readback-artifacts.json'), load(ROOT/'deployments/release-versions.rc8.json'))
+    snapshots=re.findall(r'^SNAPSHOT_BLOCK_HASH (0x[0-9a-fA-F]{64})$', result.stdout, re.M)
+    a.need('rq3_checker_execution', True if block is None or snapshots == [block.lower()] else 'snapshot block hash mismatch', True)
     a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
         tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
-    return dict(tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
+    return dict(snapshotBlockHash=snapshots[0].lower() if len(snapshots)==1 else None,tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
         summary=f'SUMMARY {expected} passed, 0 failed, {expected} total',
         stdoutSha256=hashlib.sha256(result.stdout.encode()).hexdigest(),
         checkerSha256=hashlib.sha256(checker.read_bytes()).hexdigest(),
@@ -750,7 +763,7 @@ def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit
     pair=Pair(left,right)
     if block:
         pair.head=pair('eth_getBlockByNumber',[block,False])
-    checker=run_checker(config_path,cfg,url,a.qty(pair('eth_chainId',[])),checker_runner,commit_reader,pair.head['number'],tools)
+    checker=run_checker(config_path,cfg,url,a.qty(pair('eth_chainId',[])),checker_runner,commit_reader,pair.head['hash'],tools)
     verify_system(cfg,pair,pair.head['number'],entrypoint_in_builder=True)
     cal=load(inputs['calibration']);verify_calibration(cfg,cal,checker['chainId'],pair)
     def frozen(method,params):

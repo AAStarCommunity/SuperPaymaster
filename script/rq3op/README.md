@@ -8,15 +8,22 @@ acceptance has been performed here.
 
 ## Before planning
 
-> **Known intermediate state (until the planner/checker integration PR merges).** On any chain
-> other than 31337 the planner STOPs at `rq3_checker_execution` because:
-> - it does not forward the checker's second-provider inputs (`DEPLOYLIVE_SECOND_RPC_FILE`,
->   `DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER`);
-> - `checker_runner.py`'s per-read block rewriting is incompatible with the final checker's EIP-1898
->   snapshot and full replay;
-> - the expected checker count `182 + 2 * guardianN` no longer matches.
->
-> This fails closed. Do not use this planner on Sepolia or OP mainnet until that PR is merged.
+Supply `DEPLOYLIVE_ENDPOINT_PROVIDER` and an evidence directory below this
+worktree's `cache/` via `DEPLOYLIVE_EVIDENCE_DIR` (or `DEPLOYLIVE_LOCAL_EVIDENCE`).
+Every chain except 31337 also requires `DEPLOYLIVE_SECOND_RPC_FILE`, containing
+the second RPC URL, and `DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER`. Use distinct
+approved provider names and endpoints matching `deployments/readback-providers.json`.
+The planner's two RPC files and the checker's second RPC file must be available
+locally. Release artifacts must be built in `out/`, or in the directory selected
+by `DEFAULT_ARTIFACTS_OUT` matching the deployment config.
+
+The planner selects one block hash and supplies it to the checker through
+`DEPLOYLIVE_SNAPSHOT_BLOCK_HASH`. The checker resolves that hash and checks its
+number, hash and timestamp on both providers before state reads, then repeats
+canonical checks after replay. The planner requires the checker's
+`SNAPSHOT_BLOCK_HASH` output to equal its own pin. Standalone DeployLive callers
+that omit this input retain head selection. `checker_runner.py` only preserves
+tool/environment isolation; it never rewrites read arguments.
 
 
 1. Deploy with the frozen DeployLive script and complete the handoff checker.
@@ -53,7 +60,8 @@ not measured evidence or executable deployment inputs.
 
 The tool runs this checkout's DeployLive checker itself. Pasted checker evidence is
 not accepted. Its exit code must be zero and its sole SUMMARY must report zero
-failures and exactly `182 + 2 * guardianN` checks. `config.commit` must equal HEAD
+failures and exactly the count computed by `deploylive_check_count.expected_check_count` from
+committed policy, artifact mapping and release versions plus `guardianN`. `config.commit` must equal HEAD
 in a clean worktree. Plans contain only structured checker results and the raw
 stdout SHA256, plus a normalized address table. Output is scanned for URLs and
 credentials before writing.
@@ -296,7 +304,14 @@ fetched and no comparator artifact was rebuilt or substituted.
 
 ## Parent-session local acceptance still required
 
-Do not start Anvil in this sandbox. In the parent session:
+Use a host that permits binding Anvil to `127.0.0.1`. The existing local test
+command now includes `test_planner_final_checker_acceptance`: it deploys the full
+local system, advances head, and runs the real planner/checker against the earlier
+hash. Startup restrictions are reported as skips; a skip is not acceptance. This
+test also runs in `deploylive-python`, which builds the required `out/` artifacts.
+The a3a job runs offline rq3op tests without that build and cannot run this gate.
+
+In the parent session:
 
 1. Run `DEPLOYLIVE_LOCAL_TEST=1 python3 -m unittest discover -s script/rehearsal -p
    'test_deploylive_local.py'` and retain the actual DeployLive config and complete
