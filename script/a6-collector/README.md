@@ -407,6 +407,133 @@ archived RPC A. The collector does not open keystore/password files. Tests can
 inject `createSigner(configAccount, role)` into `formalRuntime`; it returns a viem
 local account implementing `signMessage` and `signTransaction`.
 
+#### Keychain password source (opt-in)
+
+By default `cast` prompts for each keystore password on `/dev/tty`. A formal RQ3
+window needs roughly 600–900 signatures, so the password can instead come from the
+macOS Keychain. This is off unless explicitly selected.
+
+**Exposure (read before adding any entry).** An entry created with
+`security add-generic-password` trusts `/usr/bin/security` in its ACL. While the entry
+exists and its keychain is unlocked, **any process running as the same user can read the
+keystore password silently**, with no confirmation dialog, through
+`/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w`. The
+keystore files are readable by the same user too, so same-user malware could obtain the
+signing keys. The default tty flow never stores the password, so this exposure is new.
+
+1. Add one entry per keystore in the **login keychain**, interactively. With `-w` last,
+   `security` prompts for the password twice; it never goes on the command line or into a file:
+
+   ```sh
+   security add-generic-password -s aastar-rq3-keystore -a NAME -w
+   ```
+
+   The service name is fixed (`aastar-rq3-keystore`). `NAME` is the Foundry keystore name
+   used in `accounts.<role>.name`. The helper must run with your real `HOME`: the user
+   keychain search list is read from `$HOME/Library/Preferences`, and under another `HOME`
+   only the System keychain is searched, so the lookup fails closed with `keychain entry
+   missing`.
+
+   **Required: delete the entries whenever they are not in use.** That means right after the
+   collection window, and before any long idle period such as a timelock wait. Re-enter them
+   just before they are next needed. Delete, then check read-only that nothing remains
+   (exit code 44 means "not found"):
+
+   ```sh
+   for NAME in rq3-experiment optimism-anni rq3-owner-0 rq3-owner-1 rq3-owner-2 rq3-verifying-signer rq3-bundler; do
+     security delete-generic-password -s aastar-rq3-keystore -a "$NAME" >/dev/null
+   done
+   for NAME in rq3-experiment optimism-anni rq3-owner-0 rq3-owner-1 rq3-owner-2 rq3-verifying-signer rq3-bundler; do
+     security find-generic-password -s aastar-rq3-keystore -a "$NAME" >/dev/null 2>&1; echo "$NAME $?"
+   done
+   ```
+
+   Optional: a dedicated keychain with auto-lock. Auto-lock shortens the exposure but
+   cannot stop same-user reads while the keychain is unlocked. On 2026-11-20 an
+   **equivalent non-interactive** sequence was run end to end with a fake keystore and fake
+   passwords, under cast 1.7.1 and nightly 4e8874b (`script/evidence/keychain-dedicated-2026-11-20/`).
+   It differs from the sequence below in three ways: passwords were passed with `-p`/`-w <pw>`
+   instead of prompts, and the timeout was `-t 600`. Results:
+   - the helper signed, and `cast wallet verify` accepted the signature;
+   - after `lock-keychain` the helper failed closed within about 1 s with `keychain entry
+     missing`, with no dialog in that non-GUI session (in a GUI session a locked keychain may
+     raise an unlock dialog; the helper still fails at its timeout);
+   - after `unlock-keychain` it signed again;
+   - after the entry was deleted, `find-generic-password` returned 44;
+   - the trap restored the search list, and the restored list is printed at the end of each log.
+
+   Not exercised: the auto-lock timer itself (only a manual lock), and the interactive
+   prompts. The helper takes no keychain path, so the dedicated keychain must be on the
+user search list. Steps marked (interactive) prompt for a password:
+
+   ```sh
+   KC="$HOME/Library/Keychains/aastar-rq3.keychain-db"
+   security list-keychains -d user | tee ~/aastar-rq3-search-list.orig   # save the current list
+   security create-keychain "$KC"                       # (interactive) new keychain password, twice
+   security set-keychain-settings -l -u -t 10800 "$KC"  # lock on sleep and after 3 h idle
+   security list-keychains -d user -s <every path from the saved list> "$KC"
+   security list-keychains -d user                      # check: old entries plus $KC
+   security add-generic-password -s aastar-rq3-keystore -a NAME -w "$KC"   # (interactive) keystore password, twice; once per NAME
+   security unlock-keychain "$KC"                       # (interactive) after an auto-lock
+   # after the window:
+   security delete-generic-password -s aastar-rq3-keystore -a NAME "$KC"   # once per NAME
+   security list-keychains -d user -s <every path from the saved list>
+   security delete-keychain "$KC"
+   security list-keychains -d user | diff - ~/aastar-rq3-search-list.orig && echo restored
+   ```
+
+   Quote each path exactly as `list-keychains` prints it. If the search list is set without
+   the existing entries, the login keychain drops out of the search list until it is
+   restored.
+
+2. Opt in: collector `--keystore-password-source keychain` (formal mode), or
+   `"keystorePasswordSource": "keychain"` on an account object (for example in the
+   `setup.mjs` signing map). Accepted values are `tty` (default) and `keychain`;
+   anything else, or a CLI value that contradicts an account's own value, is refused.
+
+With `keychain`, `castSigner` runs `/usr/bin/python3 -I -B script/a6-collector/pty_keystore_sign.py
+cast wallet sign --account NAME --no-hash DIGEST` — the same cast argv as the default.
+The helper (standard library only) reads the password itself with
+`/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w` into memory, starts
+`cast` on a new pseudo-terminal as its controlling terminal, waits until the password
+prompt `Enter keystore password:` has appeared **and** the terminal's ECHO flag is off, writes the password once,
+zeroes its buffer, and returns only cast's single `0x…` signature line. The password is
+never passed through Node, argv or environment variables. Foundry rejects
+`--password-file` from a pipe/FIFO, so process substitution is not an alternative.
+
+Fail-closed: a missing, empty, or over-1023-byte Keychain entry (cast is then not started), no prompt
+or ECHO never turned off within the timeout, cast exiting nonzero, or any stdout other
+than one signature line all exit nonzero; Node raises
+`keystore signing failed (redacted)` and there is no fallback to `/dev/tty` or any
+other source. The recovered-address check is unchanged. pty output (prompt, cast
+stderr) is drained and discarded — never logged, stored, echoed or put into an error
+message; the helper's own stderr carries only a fixed stage label.
+
+Before reading Keychain, the helper disables core dumps with `RLIMIT_CORE=(0, 0)`.
+It reads into one preallocated bytearray plus a length, validates without password
+slices, and wipes that buffer after writing.
+
+Residual risk: the ACL on entries created with `security add-generic-password`
+trusts `/usr/bin/security`, so ANY same-user process can silently retrieve the password
+while the keychain is unlocked via
+`/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w`.
+Same-user malware can also read the keystore files and thus obtain signing keys;
+the tty flow never stores the password, so this exposure is new. It is bounded
+by following the required deletion step above. Nothing in code deletes the entries or
+reminds you: a crash or Ctrl-C leaves them in place until you delete them. A dedicated
+auto-locking keychain is optional. Echoed output and Python allocations can leave password bytes in the
+helper's heap while it lives (freed at exit); the cast process holds the password too. The ECHO check and write are not
+atomic. Abnormal exits through helper cleanup kill the cast process group even if
+its leader was already reaped; an uncatchable helper SIGKILL cannot run cleanup.
+
+The interpreter and Keychain executable use the absolute paths above; cast remains
+PATH-resolved, as in the tty flow. Tests inject executable paths only through internal
+function parameters; the CLI and environment expose no such overrides.
+Offline tests use a directly injected fake `security` and a fake `cast` (`pty-fakes/`)
+on a temporary PATH and never touch the login keychain:
+`node --test script/a6-collector/keychain-signer.test.mjs` and
+`python3 -m unittest script/a6-collector/test_pty_keystore_sign.py`.
+
 An absent SimpleAccount is created through the configured factory using the
 bundler EOA, then its code, owner and counterfactual address are checked again.
 Existing accounts are also checked. Funding, eligibility, allowances, task token
@@ -491,3 +618,4 @@ including INCOMPLETE and aborted windows. The `run_end` and trailer records carr
 is recorded as UNAVAILABLE, not PASS. A missing trailer or missing, incomplete,
 duplicate, failed or unavailable end-check record makes the window void for evidence
 acceptance, even if its trailer claims COMPLETE. No signal handlers are installed.
+The end-check validator does not bind `endChecks` to the manifest/window and requires sender passports only for senders that appear in rows, since the trailer is author-written.

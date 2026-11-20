@@ -1,0 +1,36 @@
+== cast cast Version: 1.7.1
+== fake keystore
+addr=0x3981fbE9e2f20A31Ca8D3A7E81515752c8E30D14
+rq3-fake-test
+== 1 create-keychain
+rc=0
+== 2 set-keychain-settings -l -u -t 600
+rc=0
+Keychain "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/kcrun/aastar-rq3-fake.keychain-db" lock-on-sleep timeout=600s
+== 3 add to user search list
+rc=0
+    "/Users/jason/Library/Keychains/login.keychain-db"
+    "/private/tmp/claude-502/-Users-jason-Dev-aastar-SuperPaymaster/f3220a32-a76f-4779-8a96-5d9148a2815b/scratchpad/kcrun/aastar-rq3-fake.keychain-db"
+== 4 add entry
+rc=0
+== 5 dump ACL
+        applications: <null>
+        authorizations (6): decrypt derive export_clear export_wrapped mac sign
+        applications (1):
+            0: /usr/bin/security (OK)
+                requirement: identifier "com.apple.security" and anchor apple
+        applications (0):
+== 6 helper sign (unlocked)
+rc=0 sig=0xbc8d33e102…
+verify: Validation succeeded. Address 0x3981fbE9e2f20A31Ca8D3A7E81515752c8E30D14 signed this message.
+== 7 lock-keychain; helper must fail closed
+lockrc=0
+rc=3 after 0s out=[pty keystore signing failed: keychain entry missing]
+== 8 unlock-keychain; helper recovers
+rc=0 sig=0xbc8d33e102…
+== 9 delete entry; read-only check
+password has been deleted.
+rc=0
+find rc=44 (44 = not found)
+RESTORE search list now:
+    "/Users/jason/Library/Keychains/login.keychain-db"
