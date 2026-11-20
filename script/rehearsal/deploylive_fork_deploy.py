@@ -29,11 +29,14 @@ class ReadOnlyRPC:
 
     def __call__(self, method, *params):
         require(method in ('eth_getTransactionCount', 'eth_chainId', 'eth_blockNumber', 'eth_config', 'eth_getBlockByNumber', 'eth_call', 'eth_simulateV1'), 'read-only RPC method required')
+        from deploylive_controls import config_unavailable, UnsupportedConfig
         payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
         for attempt in range(4):
             try:
                 with self.opener.open(Request(self.url, payload, {'Content-Type':'application/json'}), timeout=120) as response:
                     result = json.load(response)
+                if method == 'eth_config' and config_unavailable(json.dumps(result)):
+                    raise UnsupportedConfig('eth_config unsupported (-32600 unavailable)')
                 require('error' not in result, 'read-only ' + method + ': ' + redact_error(json.dumps(result.get('error'))))
                 return result['result']
             except HTTPError as error:
@@ -43,10 +46,15 @@ class ReadOnlyRPC:
                     continue
                 detail = f'HTTP {error.code} {error.reason}'
                 try:
-                    detail += ' ' + error.read().decode('utf-8', errors='replace')
+                    body = error.read().decode('utf-8', errors='replace')
+                    if method == 'eth_config' and error.code == 400 and config_unavailable(body):
+                        raise UnsupportedConfig('eth_config unsupported (-32600 unavailable)')
+                    detail += ' ' + body
                 finally:
                     error.close()
                 raise RuntimeError('STOP read-only ' + method + ': ' + redact_error(detail)) from None
+            except UnsupportedConfig:
+                raise
             except Exception as error:
                 raise RuntimeError('STOP read-only ' + method + ': ' + redact_error(error)) from None
 
@@ -55,7 +63,7 @@ def gate_sources(env, production, chain):
     # Gas always uses this real-chain source, independently of the price mode.
     real = ReadOnlyRPC(env['DEPLOYLIVE_SOURCE_RPC'])
     real_chain = int(real('eth_chainId'), 16)
-    require(real_chain in (10, 11155111), 'gas source must be a real deployment chain')
+    require(real_chain in (10, 11155111, 11155420), 'gas source must be a real deployment chain')
     require(not production or real_chain == chain, 'broadcast/source chain mismatch')
     if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork':
         return real, None
@@ -76,7 +84,7 @@ def require_checker_inputs(env, chain=None, production=True):
         require(False, 'STOP DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid')
     require(chain is None or expected == chain, 'DEPLOYLIVE_EXPECTED_CHAIN_ID differs from the broadcast endpoint chain')
     # A production predict must fail now, not after PoP/DVT signing, for a chain deploy will refuse.
-    require(not production or expected in (10, 11155111), 'STOP production requires DEPLOYLIVE_EXPECTED_CHAIN_ID 10 or 11155111')
+    require(not production or expected in (10, 11155111, 11155420), 'STOP production requires DEPLOYLIVE_EXPECTED_CHAIN_ID 10 or 11155111 or 11155420')
     if production and expected != 31337:
         try:
             second = Path(env['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
@@ -176,6 +184,10 @@ def stage(action, argv):
                DEPLOYLIVE_EVM_VERSION='prague', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
     if args.production:
         require_checker_inputs(env)
+        from deploylive_controls import validate_hardfork, gas_semantics
+        expected = int(env['DEPLOYLIVE_EXPECTED_CHAIN_ID'])
+        if gas_semantics(expected) == 'karst':
+            validate_hardfork(expected, env['DEPLOYLIVE_HARDFORK'])
     binary = verify_build(env, True)
     request = ROOT / REQUEST_PATH
     request.parent.mkdir(parents=True, exist_ok=True)
@@ -257,8 +269,8 @@ def main():
     commit = clean_source_commit()
     rpc = ReadOnlyRPC(url) if production else RPC(url)
     chain = int(rpc('eth_chainId'), 16)
-    require(chain == 31337 if stop else chain in (10, 31337, 11155111), 'unsupported deployment chain')
-    require(not production or chain in (10, 11155111), 'production chain required')
+    require(chain == 31337 if stop else chain in (10, 31337, 11155111, 11155420), 'unsupported deployment chain')
+    require(not production or chain in (10, 11155111, 11155420), 'production chain required')
     require_checker_inputs(dict(os.environ, DEPLOYLIVE_RPC=url), chain, production)
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir() and evidence.is_relative_to(ROOT), 'evidence directory required inside worktree')
@@ -279,7 +291,9 @@ def main():
     deployment_rule(env, evidence, ReadOnlyRPC, chain)
     request = json.loads((evidence/REQUEST_NAME).read_text())
     hardfork = env['DEPLOYLIVE_HARDFORK']
-    require(not production or chain != 11155111 or hardfork == 'amsterdam', 'Sepolia requires hardfork amsterdam')
+    from deploylive_controls import validate_hardfork, gas_semantics
+    if production or gas_semantics(chain) == 'karst':
+        validate_hardfork(chain, hardfork)
     command = [binary, 'script', '--offline', 'contracts/script/v3/DeployLive.s.sol:DeployLive',
                '--sender', deployer, '--slow', '--evm-version', 'prague',
                '--hardfork', hardfork, '--gas-estimate-multiplier', env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130'), '-vv']
@@ -315,7 +329,8 @@ def main():
                             lambda line: (lines.append(line), print(line)),
                             price_rpcs=price_sources(env, production, recorded('primary', real),
                                                     None, recorded('fork', ReadOnlyRPC(url)))
-                            if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork' else None)
+                            if env.get('DEPLOYLIVE_PRICE_SOURCE', 'chain') == 'fork' else None,
+                            chain=int(real('eth_chainId'), 16))
         finally:
             (evidence/'prebroadcast.log').write_text('\n'.join(lines) + '\n')
             (evidence/'prebroadcast.reads.json').write_text(json.dumps(reads, indent=2) + '\n')
@@ -475,7 +490,8 @@ def cli(argv=None):
         return hardfork_check(ReadOnlyRPC(env['DEPLOYLIVE_SOURCE_RPC']), ReadOnlyRPC(env['DEPLOYLIVE_SECOND_RPC']), evidence)
     if args.action == 'cap-control':
         require(not args.production, 'cap-control refused in production')
-        return cap_control(RPC(env['DEPLOYLIVE_RPC']), evidence)
+        rpc = RPC(env['DEPLOYLIVE_RPC'])
+        return cap_control(rpc, evidence, chain=int(rpc('eth_chainId'), 16))
     if args.action == 'archive':
         require(bool(args.to), 'archive requires --to')
         return archive(evidence,args.to,env=env)

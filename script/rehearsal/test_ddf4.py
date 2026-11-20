@@ -53,7 +53,7 @@ class Ddf4Test(unittest.TestCase):
         with self.assertRaises(RuntimeError): c.hardfork_check(bad,self.rpc(),self.root)
 
     def cap_rpc(self, status='0x0', gas=16777216):
-        return Mock(side_effect=lambda m,*p: {'evm_snapshot':'snap','evm_revert':True,'eth_sendTransaction':'tx',
+        return Mock(side_effect=lambda m,*p: {'eth_chainId':hex(31337),'evm_snapshot':'snap','evm_revert':True,'eth_sendTransaction':'tx',
             'eth_getTransactionReceipt':dict(status=status,gasUsed=hex(gas)),
             'eth_getBlockByNumber':dict(hash='head')}.get(m,True))
 
@@ -202,7 +202,7 @@ class Ddf4Test(unittest.TestCase):
             if method=='eth_chainId': return '0xa'
             if method=='eth_config': raise RuntimeError('-32601 method not found')
             if method=='eth_blockNumber': return '0x64'
-            return dict(number=args[0],hash='0x'+'ab'*32)
+            return dict(number=args[0],hash='0x'+'ab'*32,timestamp=hex(1783526401))
         result=c.hardfork_check(Mock(side_effect=op),Mock(side_effect=op),self.root)
         self.assertEqual(result['chainId'],10)
         b=self.rpc(); old=b.side_effect

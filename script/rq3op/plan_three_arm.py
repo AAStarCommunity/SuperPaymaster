@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fresh DeployLive RQ3 plans. Only read RPCs; no signing or broadcasting.
 
-DEPLOYLIVE_EXPECTED_CHAIN_ID is required (e.g. 10, 11155111, or 31337 for local runs); unset stops.
+DEPLOYLIVE_EXPECTED_CHAIN_ID is required (e.g. 10, 11155111, 11155420, or 31337 for local runs); unset stops.
 """
 import sys
 sys.dont_write_bytecode = True
@@ -356,7 +356,12 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
         ownerTarget=target_o,ownerTopUp=m.positive(target_o-p['owner']['balance']),
         endUserStake=facts['minStake'],endUserTicket=facts['ticketPrice'],accountExists=facts['accountExists'],
         accountMember=facts['member'],token=dict(zip(('name','symbol','communityName','communityENS'),m.PC_TOKEN)),
-        treasury=ctx['safe'],recipient=m.DEAD,f1Provenance=m.F1_SCOPE_NOTE)
+        treasury=ctx['safe'],recipient=m.DEAD,f1Provenance='F1TestToken (T/Q) and F1Oracle comparator fixtures permitted on chains 10, 11155111, 11155420 and 31337; not protocol contracts')
+
+
+def require_f1_chain(chain):
+    # Comparator fixture permission is independent of the EntryPoint deployment pin.
+    a.need('rq3_f1_chain', chain in (10, 11155111, 11155420, 31337), True)
 
 
 def build(cfg,inputs,rpc,checker,cal,baselines):
@@ -373,6 +378,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
     rpc=ReadOnly(rpc)
     chain=a.qty(rpc('eth_chainId',[]))
     a.need('rq3_chain',chain in ENTRYPOINT_PIN['chainIds'],True)
+    require_f1_chain(chain)
     a.need('rq3_checker_chain',checker['chainId'],chain)
     head=a.block_data(rpc,'latest'); block=head['number']
     gas_cap=transaction_gas_cap(chain,a.qty(head['gasLimit']))
@@ -856,6 +862,7 @@ def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit
     except ValueError as error:
         raise a.Gate('rq3_expected_chain', str(error), 'DEPLOYLIVE_EXPECTED_CHAIN_ID: positive decimal chain id') from None
     a.need('rq3_expected_chain', a.qty(pair('eth_chainId', [])), chain)
+    require_f1_chain(chain)
     if chain != 31337:
         sys.path.insert(0, str(ROOT/'script/rehearsal'))
         from deploylive_readback import independent_providers

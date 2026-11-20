@@ -308,8 +308,9 @@ artifact SHA256, creation keccak and constructor immutable patch locations. The
 small compiled artifacts are included under `artifacts/`. They were built offline
 with solc 0.8.33, Cancun, viaIR, optimizer 500; release pin files were untouched.
 Its `commit` field records where these two fixtures were built (their build provenance). The planner requires that commit to be an ancestor of the deployment commit, and the artifact SHA256 and creation keccak to match exactly; nothing else is compared.
-Their source comment permits these comparator fixtures on 10 and 11155111; other
-F1 fixtures remain local only. Chain 31337 is accepted for local acceptance.
+The planner enforces permission for these comparator fixtures on 10, 11155111,
+11155420 and 31337 (local acceptance). Other F1 fixtures remain local only.
+This scope supersedes the older source comment without changing pinned fixture sources.
 
 VPM and TPM retain the committed artifact SHA256, source SHA256, constructor ABI
 and deployment runtime-hash checks. The artifacts must equal the files at the
@@ -663,6 +664,8 @@ and checker startup, before chain reads.
 The frozen-plan collector now runs [one public-seed window](../a6-collector/frozen-plan.md) with all three per-sender plans. Under rotation, `phaseC.attempts` remains each sender's budget **per arm** (34/33/33); a window of at most 60 pre-registered slots (stopping after the slot in which complete triplets reach 50, otherwise after slot 60) uses at most 20 of those attempts per sender per arm, with the remainder as margin, and no planner change. Unreached slots are listed as `unusedSlots` in the run_end/trailer `window` record. Known gap: the collector's `validate.mjs` and `evidence-validate.mjs` do not yet accept plan mode.
 
 Every planned transaction gas limit is bounded by the pinned block header gasLimit.
-Optional stricter caps live in tx-gas-caps.json (currently empty: no chains registered).
+Stricter caps live in tx-gas-caps.json: OP mainnet (10) and OP Sepolia (11155420)
+are capped at 16,777,216 by Karst. The entries record provenance and explicitly
+note that no over-cap transaction was sent to validate rejection.
 The shape is {"<decimal chain id>": {"gasLimit": <positive integer>, "source": "<nonempty provenance>"}}.
 Unregistered chains use only the block bound; registered caps cannot relax it.

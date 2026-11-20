@@ -100,7 +100,7 @@ class Ddf6Test(unittest.TestCase):
     def test_gas_equal_and_inside_range(self):
         plan=json.loads(previous.FIX.read_text())
         limits=[int(t['transaction']['gas'],16) for t in plan['transactions']]
-        bounds=d.gas_bounds([100]*len(limits),max(limits)+100)
+        bounds=d.gas_bounds([100]*len(limits),max(limits)+100, chain=11155111)
         for changed in (False,True):
             def mutate(obj,index):
                 if changed and index==3: obj['transactions'][0]['transaction']['gas']=hex(limits[0]+1)
@@ -116,6 +116,6 @@ class Ddf6Test(unittest.TestCase):
         plan=json.loads(previous.FIX.read_text())
         cap=2**24
         for real,limit in [(100,99),(100,30_000_001),(int(cap*.9)+1,cap)]:
-            bounds=d.gas_bounds([real]*len(plan['transactions']),30_000_000)
+            bounds=d.gas_bounds([real]*len(plan['transactions']),30_000_000, chain=11155111)
             bad=copy.deepcopy(plan); bad['transactions'][0]['transaction']['gas']=hex(limit)
             self.assertTrue(any('index=0 gas outside' in item for item in c.plan_diff(plan,bad,bounds)))

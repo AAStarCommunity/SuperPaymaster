@@ -8,7 +8,7 @@ import shlex
 import time
 from urllib.parse import urlsplit
 import stat
-from deploylive_deploy_day import ROOT, require, integer, redact_error
+from deploylive_deploy_day import ROOT, require, integer, redact_error, gas_semantics
 from deploylive_runtime import clean_source_commit
 
 TEMPLATE = ROOT / 'script/rehearsal/inputs.template.env'
@@ -117,6 +117,33 @@ def write_json(directory, name, record):
     (directory/name).write_text(json.dumps(record, indent=2)+'\n')
 
 
+class UnsupportedConfig(RuntimeError):
+    """Transport verified an unavailable JSON-RPC eth_config response."""
+
+
+def config_unavailable(body):
+    try:
+        result = json.loads(body)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(result, dict):
+        return False
+    error = result.get('error')
+    return (result.get('jsonrpc') == '2.0' and type(result.get('id')) is int and result['id'] == 1 and 'result' not in result
+            and isinstance(error, dict) and type(error.get('code')) is int and error['code'] == -32600
+            and isinstance(error.get('message'), str)
+            and re.search(r'\b(?:not available|unavailable|unavailability)\b', error['message'], re.I) is not None)
+
+
+def validate_hardfork(chain, hardfork):
+    rules = json.loads(EXPECTATIONS.read_text())
+    if gas_semantics(chain) == 'karst':
+        allowed = rules[str(chain)].get('allowedHardforks', [])
+        require(isinstance(allowed, list) and bool(hardfork) and hardfork in allowed, 'operator-validated OP hardfork required; fill allowedHardforks after fork validation')
+    elif chain != 31337:
+        require(hardfork == rules[str(chain)]['hardfork'], 'Sepolia requires hardfork amsterdam')
+
+
 def hardfork_check(a, b, evidence, confirmations=2):
     require(type(confirmations) is int and confirmations > 0, 'positive confirmations required')
     chain = integer(a('eth_chainId'))
@@ -129,8 +156,8 @@ def hardfork_check(a, b, evidence, confirmations=2):
     def config(rpc, allow_unsupported):
         try: result = rpc('eth_config')
         except RuntimeError as error:
-            require(allow_unsupported and re.search(r'(?<!\d)-32601(?!\d)', str(error)), 'eth_config: '+redact_error(error))
-            return 'eth_config unsupported (-32601) → header-field rule'
+            require(allow_unsupported and (isinstance(error, UnsupportedConfig) or ('HTTP ' not in str(error) and re.search(r'(?<!\d)-32601(?!\d)', str(error)))), 'eth_config: '+redact_error(error))
+            return 'eth_config unsupported → header-field rule'
         if rule.get('current'):
             current = result.get('current', {})
             require(current.get('forkId') == rule['current']['forkId']
@@ -146,7 +173,7 @@ def hardfork_check(a, b, evidence, confirmations=2):
         require(ha.get(field) == hb.get(field), 'header mismatch: '+field)
         require((ha.get(field) is not None) == rule['headerFields'].get(field, True), 'header-field rule: '+field)
     if rule.get('current'):
-        require(integer(ha['timestamp']) >= rule['current']['activationTime'], 'pinned block predates expected fork')
+        require(integer(ha.get('timestamp', -1)) >= rule['current']['activationTime'], 'pinned block predates expected fork')
     record = dict(chainId=chain, blockNumber=number, confirmations=confirmations,
                   endpointA=dict(eth_config=ca, header=ha), endpointB=dict(eth_config=cb, header=hb))
     write_json(evidence,'hardfork-check.json',record)
@@ -154,8 +181,14 @@ def hardfork_check(a, b, evidence, confirmations=2):
     return record
 
 
-def cap_control(rpc, evidence, production=False, sleep=time.sleep):
+def cap_control(rpc, evidence, production=False, sleep=time.sleep, chain=31337):
     require(not production, 'cap-control refused in production')
+    if gas_semantics(chain) == 'karst':
+        record = dict(chainId=chain, status='SKIP', passed=False,
+                      reason='Karst rejects over-cap transactions as invalid; anvil --optimism rejection not yet validated on OP Sepolia fork')
+        write_json(evidence, 'cap-control.json', record)
+        print('CONTROL SKIP: ' + record['reason'])
+        return record
     sender='0x00000000000000000000000000000000c0ffee02'
     command=dict(from_=sender, data='0x5b600056', gas=hex(20_000_000))
     command['from']=command.pop('from_')

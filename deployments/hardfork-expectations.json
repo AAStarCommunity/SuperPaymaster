@@ -1,14 +1,46 @@
 {
   "11155111": {
-    "chain": "Sepolia", "hardfork": "amsterdam",
-    "current": {"forkId": "0x6c1d9423", "activationTime": 1791294816},
+    "chain": "Sepolia",
+    "hardfork": "amsterdam",
+    "current": {
+      "forkId": "0x6c1d9423",
+      "activationTime": 1791294816
+    },
     "allowUnsupportedA": false,
-    "headerFields": {"blockAccessListHash": true, "slotNumber": true},
+    "headerFields": {
+      "blockAccessListHash": true,
+      "slotNumber": true
+    },
     "basis": "Deploy-day rehearsal eth_config and corroborated headers, 2026-11-19"
   },
   "10": {
-    "chain": "OP", "identificationRule": "unsupported-eth_config-and-headers", "current": null, "allowUnsupportedA": true,
-    "headerFields": {"blockAccessListHash": false, "slotNumber": false},
-    "basis": "eth_config unsupported → header-field rule: neither Amsterdam field is populated; both endpoints must agree at the pinned block. A supported eth_config requires separately approved current fork values."
+    "chain": "OP",
+    "allowedHardforks": [],
+    "hardforkValidation": "TODO: operator must validate forge hardfork on OP Sepolia fork before adding allowed names",
+    "current": {
+      "forkId": "0xc29239af",
+      "activationTime": 1783526401
+    },
+    "allowUnsupportedA": true,
+    "headerFields": {
+      "blockAccessListHash": false,
+      "slotNumber": false
+    },
+    "basis": "OP Upgrade 19 (Karst); eth_config and estimateGas observations supplied by operator; over-cap transaction rejection not tested"
+  },
+  "11155420": {
+    "chain": "OP Sepolia",
+    "allowedHardforks": [],
+    "hardforkValidation": "TODO: operator must validate forge hardfork on OP Sepolia fork before adding allowed names",
+    "current": {
+      "forkId": "0x91620456",
+      "activationTime": 1781712001
+    },
+    "allowUnsupportedA": true,
+    "headerFields": {
+      "blockAccessListHash": false,
+      "slotNumber": false
+    },
+    "basis": "OP Upgrade 19 (Karst); eth_config and estimateGas observations supplied by operator; over-cap transaction rejection not tested"
   }
 }

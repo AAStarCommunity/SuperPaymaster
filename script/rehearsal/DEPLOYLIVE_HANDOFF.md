@@ -260,7 +260,11 @@ export FOUNDRY_OUT=cache/deploylive-rehearsal-out
 export FOUNDRY_CACHE_PATH=cache/deploylive-rehearsal-cache
 export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200
 export DEPLOYLIVE_GAS_TOLERANCE=0.05
-export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia; select the verified matching OP hardfork for OP
+export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia only
+# OP: first validate forge on the fork, fill that chain's allowedHardforks in
+# deployments/hardfork-expectations.json, then supply one of those approved names.
+# The shipped empty OP lists deliberately STOP; cap-control records SKIP pending
+# validation of anvil --optimism Karst rejection (see cache/op/REPORT.md).
 mkdir -p deployments/live "$DEPLOYLIVE_EVIDENCE_DIR"
 python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
 ```

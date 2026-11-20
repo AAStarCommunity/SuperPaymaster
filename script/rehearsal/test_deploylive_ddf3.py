@@ -85,7 +85,7 @@ class Ddf3Test(unittest.TestCase):
             self.assertEqual(calls[45]['maxPriorityFeePerGas'],hex(1_000_000_000))
             self.assertEqual(calls[45]['maxFeePerGas'],hex(200+1_000_000_000))
             return results
-        d.gas_crosscheck(p,rpc,'0xb99f61',.05,lines.append,multiplier=130)
+        d.gas_crosscheck(p,rpc,'0xb99f61',.05,lines.append,multiplier=130, chain=11155111)
         self.assertTrue(any('single-endpoint' in s for s in lines))
         self.assertTrue(any('maxFeePerGas=' in s and 'maxPriorityFeePerGas=' in s for s in lines))
 
@@ -102,7 +102,7 @@ class Ddf3Test(unittest.TestCase):
             if method=='eth_getBlockByNumber':return dict(baseFeePerGas='0x64',gasLimit=hex(200_000_000))
             raise RuntimeError(json.dumps(err))
         with self.assertRaisesRegex(RuntimeError,'-38012.*max fee per gas less than block base fee'):
-            d.gas_crosscheck(p,fail,'latest',.05,lambda s:None)
+            d.gas_crosscheck(p,fail,'latest',.05,lambda s:None, chain=11155111)
 
     def test_http_429_bounded_retry_and_code(self):
         rpc=f.ReadOnlyRPC('https://unused.invalid/key')
@@ -153,7 +153,7 @@ class Ddf3Test(unittest.TestCase):
         self.assertTrue(any('corroboration not applicable on a fork' in s for s in lines))
         chain.return_value={'number':'0x123'}
         with patch.object(d,'gas_crosscheck',return_value=([],200_000_000)) as gas:
-            d.broadcast_gates({'PRICE_STALENESS_THRESHOLD':'4200','ETH_USD_FEED':'feed'},plan(),chain,None,lambda s:None,price_rpcs=(fork,None))
+            d.broadcast_gates({'PRICE_STALENESS_THRESHOLD':'4200','ETH_USD_FEED':'feed'},plan(),chain,None,lambda s:None,price_rpcs=(fork,None), chain=11155111)
         self.assertIs(gas.call_args.args[1],chain)
         self.assertEqual(gas.call_args.args[2],'0x123')
         # No second URL is needed in fork-price mode, and gas retains its own real source.
