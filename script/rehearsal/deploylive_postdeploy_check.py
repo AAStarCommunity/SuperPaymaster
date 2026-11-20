@@ -2,6 +2,8 @@
 """Read-only post-deploy check of a DeployLive-built system against the rc.8 owner-table expectations.
 
 Usage: deploylive_postdeploy_check.py <rpc> deployments/live/config.<ENV>.json <deployer> <safe>
+Alternatively omit <rpc> and set ETH_RPC_URL; argv is left unchanged.
+DEPLOYLIVE_EXPECTED_CHAIN_ID is required (e.g. 10, 11155111, or 31337 for local runs); unset stops.
 Local non-production runs may supply their original deployments/config.<ENV>.json path.
 Prints one PASS/FAIL line per assertion and a summary. Nothing is sent: eth_call only.
 """
@@ -14,24 +16,32 @@ import re
 from pathlib import Path
 
 if len(sys.argv) == 4 and os.environ.get('ETH_RPC_URL'):
-    sys.argv.insert(1, os.environ['ETH_RPC_URL'])
-if len(sys.argv) != 5:
+    RPC = os.environ['ETH_RPC_URL']
+    CONFIG_PATH, DEPLOYER, SAFE = sys.argv[1:]
+elif len(sys.argv) == 5:
+    RPC, CONFIG_PATH, DEPLOYER, SAFE = sys.argv[1:]
+else:
     print("FAIL unknown checker option or missing arguments")
     sys.exit(1)
-from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed
+from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed, expected_chain_id
 try:
     evidence = os.environ.get('DEPLOYLIVE_EVIDENCE_DIR') or os.environ.get('DEPLOYLIVE_LOCAL_EVIDENCE')
     if not evidence: raise ValueError('explicit evidence directory required')
     provider_name(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
-    if not all(re.fullmatch(r'0x[0-9a-fA-F]{40}', v) for v in sys.argv[3:5]):
+    if not all(re.fullmatch(r'0x[0-9a-fA-F]{40}', v) for v in (DEPLOYER, SAFE)):
         raise ValueError('invalid deployer/safe address')
-    RPC, CFG, DEPLOYER, SAFE = sys.argv[1], json.load(open(sys.argv[2])), sys.argv[3].lower(), sys.argv[4].lower()
+    CFG = json.load(open(CONFIG_PATH))
+    DEPLOYER, SAFE = DEPLOYER.lower(), SAFE.lower()
+    chain = expected_chain_id(os.environ)
     READBACK = evidence_path(evidence)
 except (ValueError, OSError) as error:
     print('FAIL ' + str(error))
     sys.exit(1)
 results = []
 BLOCK = None
+block = None
+requested_hash = os.environ.get('DEPLOYLIVE_SNAPSHOT_BLOCK_HASH')
+log_heights = set()
 principal_addresses = {DEPLOYER, SAFE}
 
 
@@ -100,9 +110,20 @@ def transport(*args, endpoint=None):
 
 
 def local(*args, endpoint=None):
+    from deploylive_readback import validate_snapshot_request
+    if args[0] == 'rpc':
+        validate_snapshot_request(block, args[1:], requested_hash=requested_hash, log_heights=log_heights)
+    elif args[0] not in LOCAL | {'decode-abi', 'to-check-sum-address'}:
+        raise ValueError('unrecognized checker read')
     r = subprocess.run(['cast', *args], env=dict(os.environ, ETH_RPC_URL=endpoint or RPC), capture_output=True, text=True)
     if r.returncode:
         return r.returncode, " ".join(re.findall(r"0x[0-9a-fA-F]+", r.stderr)) or "RPC/local command failed"
+    if args[:2] == ('rpc', 'eth_getLogs'):
+        query = json.loads(args[2])
+        heights = {int(row['blockNumber'], 16) for row in json.loads(r.stdout)}
+        if any(not int(query['fromBlock'], 16) <= height <= int(block['number'], 16) for height in heights):
+            raise ValueError('log block outside pinned query')
+        log_heights.update(heights)
     return 0, r.stdout.strip()
 
 
@@ -153,7 +174,9 @@ ROOT = Path(__file__).resolve().parents[2]
 rc, chain_raw = cast("rpc", "eth_chainId")
 try:
     if rc != 0: raise ValueError("chain unreadable")
-    chain = integer(json.loads(chain_raw))
+    if integer(json.loads(chain_raw)) != chain:
+        print('FAIL external dependencies: expected chain mismatch')
+        sys.exit(1)
     deps_path = ROOT / f"deployments/external-deps.{chain}.json"
     if chain == 31337 and agents_enabled:
         deps_path = ROOT / "contracts/test/fixtures/deploylive/external-deps.31337.agents.json"
@@ -162,11 +185,19 @@ except (ValueError, TypeError, OSError):
     print("FAIL external dependencies: missing chain group / unreadable chain")
     sys.exit(1)
 try:
-    rc, raw = cast("rpc", "eth_getBlockByNumber", "latest", "false")
+    requested_hash = os.environ.get('DEPLOYLIVE_SNAPSHOT_BLOCK_HASH')
+    if requested_hash is not None:
+        if not re.fullmatch(r'0x[0-9a-fA-F]{64}', requested_hash): raise ValueError('invalid snapshot hash')
+        rc, raw = cast('rpc', 'eth_getBlockByHash', requested_hash, 'false')
+    else:
+        rc, raw = cast("rpc", "eth_getBlockByNumber", "latest", "false")
     block = json.loads(raw)
     if rc or not isinstance(block, dict) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", block['hash']): raise ValueError('block unreadable')
     BLOCK = hex(integer(block['number']))
     integer(block['timestamp'])
+    if requested_hash is not None and block['hash'].lower() != requested_hash.lower(): raise ValueError('snapshot hash mismatch')
+    from deploylive_readback import recheck_block
+    recheck_block(block, transport)
 except (KeyError, ValueError, TypeError):
     print("FAIL pinned block unreadable")
     sys.exit(1)
@@ -184,12 +215,23 @@ noncontracts = json.loads((ROOT/'deployments/readback-noncontracts.json').read_t
 expected_noncontracts = dict(noncontracts['production'])
 if chain == 31337 and 'expectedGovernor' in CFG:
     expected_noncontracts.update(noncontracts['localOnly'])
+second_url = None
+if not single_provider_allowed(chain, RPC):
+    try:
+        second_url = Path(os.environ['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
+        independent_providers(os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), os.environ.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''), RPC, second_url)
+        rc, second_chain = local('rpc', 'eth_chainId', endpoint=second_url)
+        if rc or integer(json.loads(second_chain)) != chain: raise ValueError('second chain mismatch')
+        recheck_block(block, lambda *args: local(*args, endpoint=second_url))
+    except (OSError, ValueError, KeyError, TypeError):
+        print('FAIL  second provider header or inputs')
+        sys.exit(1)
 record, collection_ok, coverage_ok = None, False, False
 collection_error = ''
 try:
     validate_config(CFG, mapping, expected_noncontracts, policy['zeroAllowedConfigKeys'])
     coverage_ok = True
-    record = collect(sys.argv[2], CFG, chain, block, os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), json.loads(deps_path.read_text()), runtime_path, cast)
+    record = collect(CONFIG_PATH, CFG, chain, block, os.environ.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), json.loads(deps_path.read_text()), runtime_path, cast)
     validate_record(record, CFG, policy)
     collection_ok = True
     principal_addresses.update(a.lower() for a in re.findall(r'0x[0-9a-fA-F]{40}(?![0-9a-fA-F])', json.dumps(record['contracts'])))
@@ -672,7 +714,9 @@ try:
 except (ValueError, KeyError, TypeError):
     hash_ok = False
 check('block hash rechecked', hash_ok, 'canonical header unchanged')
-if all(results):
+from deploylive_check_count import expected_check_count
+expected_count = expected_check_count(CFG, policy, mapping, json.loads((ROOT/'deployments/release-versions.rc8.json').read_text()))
+if all(results) and len(results) == expected_count:
     record['block']['hashRechecked'] = True
     record['secondProvider'] = second
     record['singleProvider'] = second is None
@@ -683,6 +727,11 @@ if all(results):
         write(READBACK, record)
     except (OSError, ValueError):
         check('readback', False, 'write failed')
+
+if len(results) != expected_count:
+    check('check count', False, f'expected {expected_count}; observed {len(results)}')
+if all(results):
+    print("SNAPSHOT_BLOCK_HASH " + block['hash'].lower())
 
 print(f"\nSUMMARY {sum(results)} passed, {len(results) - sum(results)} failed, {len(results)} total")
 sys.exit(0 if all(results) else 1)

@@ -75,12 +75,19 @@ def load_inputs(path, inherited=None, commit_reader=clean_source_commit):
     for key in sorted(input_keys() - optional):
         require(bool(values[key]), 'empty required input ' + key)
     inherited = os.environ if inherited is None else inherited
-    from deploylive_readback import provider_name
+    from deploylive_readback import provider_name, expected_chain_id
     provider_name(inherited.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
+    # The checker needs the second provider's name and the operator-stated chain id on every
+    # production chain; like the primary name they come from the operator's shell, are
+    # validated here, survive the environment allowlist and are bound into the input manifest.
+    if 'DEPLOYLIVE_EXPECTED_CHAIN_ID' in inherited: expected_chain_id(inherited)  # required by the driver before any broadcast
+    if inherited.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER'):
+        provider_name(inherited['DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER'])
     commit = commit_reader()
     require('SP_COMMIT' not in inherited or inherited['SP_COMMIT'] == commit, 'SP_COMMIT mismatch with clean HEAD')
     # Only execution context survives; deployment values always come from the approved file.
-    env = {k: inherited[k] for k in ('PATH', 'HOME', 'TMPDIR', 'LANG', 'DEPLOYLIVE_ENDPOINT_PROVIDER') if k in inherited}
+    env = {k: inherited[k] for k in ('PATH', 'HOME', 'TMPDIR', 'LANG', 'DEPLOYLIVE_ENDPOINT_PROVIDER',
+                                     'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', 'DEPLOYLIVE_EXPECTED_CHAIN_ID') if k in inherited}
     env.update({k:v for k,v in values.items() if v != '' and not (k.endswith('_FILE') and k[:-5] in URL_KEYS)})
     for key in URL_KEYS:
         flag = values.get(key + '_NO_CREDENTIAL', '')
@@ -223,7 +230,9 @@ def manifest_bytes(env, request):
     excluded = {'DEPLOYER_ACCOUNT', 'PRIVATE_KEY_ANNI', 'REHEARSAL_BLS_SCALARS'}
     keys = input_keys() - excluded - {k + '_FILE' for k in URL_KEYS}
     values = {k: env.get(k, '') for k in keys}
-    values.update(DEPLOYLIVE_ENDPOINT_PROVIDER=env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''), SP_COMMIT=env['SP_COMMIT'], POP_REQUEST_SHA256=hashlib.sha256(request.read_bytes()).hexdigest())
+    values.update(DEPLOYLIVE_ENDPOINT_PROVIDER=env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''),
+                  DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER=env.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''),
+                  DEPLOYLIVE_EXPECTED_CHAIN_ID=env.get('DEPLOYLIVE_EXPECTED_CHAIN_ID', ''), SP_COMMIT=env['SP_COMMIT'], POP_REQUEST_SHA256=hashlib.sha256(request.read_bytes()).hexdigest())
     require(all('\n' not in v and '\r' not in v for v in values.values()), 'multiline manifest input')
     return ''.join(k+'='+values[k]+'\n' for k in sorted(values)).encode()
 

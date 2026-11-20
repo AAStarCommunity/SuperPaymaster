@@ -105,7 +105,7 @@ class Round8Test(unittest.TestCase):
             config = root/'config.json'; config.write_text('{}')
             result = subprocess.run([sys.executable, str(r.ROOT/'script/rehearsal/deploylive_postdeploy_check.py'),
                                      'unused', str(config), '0x'+'11'*20, '0x'+'22'*20],
-                                    env=dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(root), DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy'),
+                                    env=dict(os.environ, DEPLOYLIVE_EVIDENCE_DIR=str(root), DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_EXPECTED_CHAIN_ID='10'),
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 1)
             self.assertIn('evidence must be below worktree cache root', result.stdout)

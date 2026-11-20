@@ -64,6 +64,29 @@ def gate_sources(env, production, chain):
     return real, corroborating
 
 
+def require_checker_inputs(env, chain=None, production=True):
+    # Provider independence is enforced only before a production broadcast: a fork rehearsal
+    # (anvil --chain-id 11155111 on 127.0.0.1) has no second provider bound to its endpoint.
+    from deploylive_readback import expected_chain_id, independent_providers
+    try:
+        expected = expected_chain_id(env)
+    except ValueError:
+        require(False, 'STOP DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid')
+    require(chain is None or expected == chain, 'DEPLOYLIVE_EXPECTED_CHAIN_ID differs from the broadcast endpoint chain')
+    # A production predict must fail now, not after PoP/DVT signing, for a chain deploy will refuse.
+    require(not production or expected in (10, 11155111), 'STOP production requires DEPLOYLIVE_EXPECTED_CHAIN_ID 10 or 11155111')
+    if production and expected != 31337:
+        try:
+            second = Path(env['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
+            if second != env.get('DEPLOYLIVE_SECOND_RPC'):
+                raise ValueError('second endpoint mismatch')
+            independent_providers(env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''),
+                                  env.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''),
+                                  env.get('DEPLOYLIVE_RPC', ''), second)
+        except (ValueError, OSError, KeyError):
+            require(False, 'STOP invalid checker provider pair; distinct approved bound endpoints required')
+
+
 def stage(action, argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--production', action='store_true')
@@ -91,6 +114,8 @@ def stage(action, argv):
     guard_bls_verbosity([], env)
     env.update(SP_COMMIT=clean_source_commit(), DEPLOYLIVE_REHEARSAL='0' if args.production else '1',
                DEPLOYLIVE_EVM_VERSION='prague', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
+    if args.production:
+        require_checker_inputs(env)
     binary = verify_build(env, True)
     request = ROOT / REQUEST_PATH
     request.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +165,7 @@ def main():
     chain = int(rpc('eth_chainId'), 16)
     require(chain == 31337 if stop else chain in (10, 31337, 11155111), 'unsupported deployment chain')
     require(not production or chain in (10, 11155111), 'production chain required')
+    require_checker_inputs(dict(os.environ, DEPLOYLIVE_RPC=url), chain, production)
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir() and evidence.is_relative_to(ROOT), 'evidence directory required inside worktree')
     env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='0' if production else '1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
@@ -259,15 +285,32 @@ def main():
     if stop:
         print('PREPARED stopped before H; deployment is not successful')
         return
-    env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(evidence))
-    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=env, capture_output=True, text=True)
+    # The checker only writes readback evidence strictly below <worktree>/cache (deploylive_readback
+    # evidence_path); the deploy-day evidence directory lives elsewhere. Give the checker its own fresh
+    # cache subdirectory and copy the readback into the evidence directory, byte-identical.
+    checker_dir = ROOT/'cache/deploylive-checker'/(env.get('ENV') or 'default')
+    checker_dir.mkdir(parents=True, exist_ok=True)
+    (checker_dir/'readback.json').unlink(missing_ok=True)
+    (evidence/'readback.json').unlink(missing_ok=True)
+    checker_env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(checker_dir))
+    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=checker_env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env, after_broadcast=True)
     (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())
     checker_pass(result)
+    copy_readback(checker_dir/'readback.json', evidence/'readback.json')
     checker_output = (evidence/'checker.stdout.log').read_text()
     print(checker_output, end='' if checker_output.endswith('\n') else '\n')
     write_success(evidence, env, path, actual_path, plan)
     print('PASS full deployment; post-deploy checker PASS')
+
+
+def copy_readback(source, destination):
+    """Copy the checker's readback into the evidence directory and prove the bytes are unchanged."""
+    import hashlib
+    require(source.is_file() and not source.is_symlink(), 'checker readback missing')
+    data = source.read_bytes()
+    destination.write_bytes(data)
+    require(hashlib.sha256(destination.read_bytes()).hexdigest() == hashlib.sha256(data).hexdigest(), 'readback copy differs')
 
 
 def cli(argv=None):

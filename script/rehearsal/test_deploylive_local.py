@@ -21,11 +21,17 @@ class LocalForgeTest(unittest.TestCase):
     def test_a1_real_forge_config(self):
         self.run_real_forge_config(True)
 
-    def run_real_forge_config(self, agents=False):
+    def test_planner_final_checker_acceptance(self):
+        self.run_real_forge_config(False, planner=True)
+
+    def run_real_forge_config(self, agents=False, planner=False):
         evidence = EVIDENCE / ('a1' if agents else 'a0')
         evidence.mkdir(parents=True, exist_ok=True)
-        with socket.socket() as sock:
-            sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        try:
+            with socket.socket() as sock:
+                sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        except OSError as error:
+            self.fail('cannot start loopback Anvil: '+str(error))
         url = f'http://127.0.0.1:{port}'
         opener = build_opener(ProxyHandler({}))
         def rpc(method, *params):
@@ -39,15 +45,18 @@ class LocalForgeTest(unittest.TestCase):
                 result = subprocess.run(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
             self.assertEqual(result.returncode, 0, (evidence/name).read_text()[-6000:])
         with (evidence/'anvil.log').open('w') as log:
-            anvil = subprocess.Popen(['anvil', '--port', str(port), '--chain-id', '31337', '--hardfork', 'prague', '--silent'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+            try:
+                anvil = subprocess.Popen(['anvil', '--host', '127.0.0.1', '--port', str(port), '--chain-id', '31337', '--hardfork', 'prague', '--silent'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+            except OSError as error:
+                self.fail('cannot start loopback Anvil: '+str(error))
             try:
                 for _ in range(100):
                     try: rpc('eth_chainId'); break
                     except Exception: time.sleep(.1)
-                else: self.fail('local Anvil startup failed')
+                else: self.fail('cannot start loopback Anvil: '+(evidence/'anvil.log').read_text()[-1000:])
                 sender = rpc('eth_accounts')[0]
                 from deploylive_runtime import clean_source_commit
-                env = dict(os.environ, SP_COMMIT=clean_source_commit(), FOUNDRY_VERBOSITY='2', DEPLOYER_ADDRESS=sender,
+                env = dict(os.environ, DEPLOYLIVE_EXPECTED_CHAIN_ID='31337', SP_COMMIT=clean_source_commit(), FOUNDRY_VERBOSITY='2', DEPLOYER_ADDRESS=sender,
                            DEFAULT_ARTIFACTS_OUT='out', FOUNDRY_OUT='out-round7-prague', FOUNDRY_CACHE_PATH='cache/round7-prague',
                            ENABLE_AGENT_REGISTRIES=str(int(agents)), AGENT_IDENTITY_REGISTRY='0x'+f'{103 if agents else 0:040x}', AGENT_REPUTATION_REGISTRY='0x'+f'{104 if agents else 0:040x}',
                            DEPLOYLIVE_LOCAL_EVIDENCE=str(evidence.relative_to(ROOT)), DEPLOYLIVE_ENDPOINT_PROVIDER='Anvil',
@@ -91,6 +100,27 @@ class LocalForgeTest(unittest.TestCase):
                 original = config.read_bytes()
                 run([sys.executable, 'script/rehearsal/deploylive_postdeploy_check.py', url, str(config), sender, env['GOVERNANCE_OWNER']], 'local-checker.log', env)
                 self.assertEqual(config.read_bytes(), original, 'checker must use exact forge config')
+                if planner:
+                    from unittest.mock import patch
+                    sys.path.insert(0, str(ROOT/'script/rq3op'))
+                    import plan_three_arm
+                    from deploylive_check_count import expected_check_count
+                    cfg = json.loads(original)
+                    pin = rpc('eth_getBlockByNumber', 'latest', False)['hash']
+                    # Move head to prove the checker consumes the planner-selected hash.
+                    rpc('evm_mine')
+                    with patch.dict(os.environ, env):
+                        result = plan_three_arm.run_checker(config, cfg, url, 31337, block=pin)
+                    expected = expected_check_count(cfg,
+                        json.loads((ROOT/'deployments/readback-policy.json').read_text()),
+                        json.loads((ROOT/'deployments/readback-artifacts.json').read_text()),
+                        json.loads((ROOT/'deployments/release-versions.rc8.json').read_text()))
+                    self.assertEqual(result['result'], 'PASS')
+                    self.assertEqual(result['total'], expected)
+                    self.assertEqual(result['snapshotBlockHash'], pin)
+                    self.assertEqual(json.loads((evidence/'readback.json').read_text())['block']['hash'], pin)
+                    (evidence/'planner-checker.json').write_text(json.dumps(result, indent=2))
+
                 readback = json.loads((evidence/'readback.json').read_text())
                 self.assertEqual(readback['schema'], 'deploylive-readback/1')
                 def unresolved(value):

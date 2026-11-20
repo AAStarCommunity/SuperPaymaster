@@ -164,7 +164,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           bash .github/scripts/detect-contract-changes.sh "DeployLive Python rehearsals + local Anvil" \
-            '^(contracts/|singleton-paymaster/|deployments/|script/rehearsal/|docs/release/a3a-newpin-11995523/boot/plan\.json$|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
+            '^(contracts/|singleton-paymaster/|deployments/|script/rehearsal/|script/rq3op/|script/a6-collector/|docs/release/a3a-newpin-11995523/boot/plan\.json$|foundry\.toml$|remappings\.txt$|\.github/workflows/test\.yml$|\.github/scripts/)'
 
       - name: Install Foundry
         if: steps.changes.outputs.contract == 'true'
@@ -187,7 +187,17 @@ jobs:
         if: steps.changes.outputs.contract == 'true'
         env:
           DEPLOYLIVE_LOCAL_TEST: '1'
-        run: python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
+        # The planner acceptance imports script/a3a/a3a_exec, whose engine directory defaults to a
+        # developer-machine path; point it at the CI-pinned Foundry, as the a3a-executor job does.
+        run: A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" python3 -m unittest discover -s script/rehearsal -p 'test_*.py'
+
+      - name: Require planner final checker acceptance
+        if: steps.changes.outputs.contract == 'true'
+        env:
+          DEPLOYLIVE_LOCAL_TEST: '1'
+        run: |
+          A3A_ENGINE_DIR="$(dirname "$(command -v cast)")" PYTHONPATH=script/rehearsal python3 -m unittest test_deploylive_local.LocalForgeTest.test_planner_final_checker_acceptance -v -b 2>&1 | tee planner-checker-acceptance.log
+          grep -E '^test_planner_final_checker_acceptance .* \.\.\. ok$' planner-checker-acceptance.log
 
       - name: Gate not applicable (no contract-path changes)
         if: steps.changes.outputs.contract != 'true'

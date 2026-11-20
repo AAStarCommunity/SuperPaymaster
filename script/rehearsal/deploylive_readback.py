@@ -85,9 +85,18 @@ def sha(path):
     return '0x' + hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def expected_chain_id(env):
+    """Chain id the operator states they are on; required, never defaulted, never taken from RPC data."""
+    if 'DEPLOYLIVE_EXPECTED_CHAIN_ID' not in env:
+        raise ValueError('DEPLOYLIVE_EXPECTED_CHAIN_ID required')
+    value = env['DEPLOYLIVE_EXPECTED_CHAIN_ID']
+    if not isinstance(value, str) or not re.fullmatch(r'[1-9][0-9]*', value):
+        raise ValueError('invalid expected chain id')
+    return int(value)
+
+
 def single_provider_allowed(chain, endpoint):
-    # These drivers attach to existing nodes; they do not launch Anvil and hold
-    # no process/port/argv attestation. Even loopback forks require corroboration.
+    # Callers must bind RPC chain answers to the operator expectation first.
     return chain == 31337
 
 
@@ -109,6 +118,8 @@ def independent_providers(primary, secondary, primary_url=None, secondary_url=No
         except (ValueError, TypeError):
             valid = False
         if not valid: raise ValueError('provider endpoint binding failed: ' + name)
+    if primary_url is not None and urlsplit(primary_url).hostname == urlsplit(secondary_url).hostname:
+        raise ValueError('independent provider hostnames required')
 
 
 def evidence_path(value):
@@ -384,6 +395,40 @@ def validate_config(config, mapping, noncontracts, zero_allowed):
         values = config[key] if isinstance(config[key], list) else [config[key]]
         if not all(address(v) for v in values): raise ValueError('invalid config address array')
         if any(v.lower() == ZERO for v in values) and key not in zero_allowed: raise ValueError('unexpected zero config address')
+
+
+def validate_snapshot_request(block, args, *, requested_hash=None, log_heights=()):
+    """Reject unknown reads and selectors before any state transport, even locally."""
+    method = args[0]
+    if method == 'eth_chainId':
+        if len(args) != 1: raise ValueError('invalid chain request')
+        return
+    if method in ('eth_getBlockByNumber', 'eth_getBlockByHash'):
+        if len(args) != 3 or args[2] != 'false': raise ValueError('invalid header request')
+        selector = args[1]
+        if not isinstance(selector, str): raise ValueError('header selector must be a string')
+        if block is None:
+            allowed = (method == 'eth_getBlockByHash' and requested_hash is not None and selector.lower() == requested_hash.lower()
+                       or method == 'eth_getBlockByNumber' and requested_hash is None and selector == 'latest')
+        elif method == 'eth_getBlockByHash':
+            allowed = selector.lower() == block['hash'].lower()
+        else:
+            allowed = bool(re.fullmatch(r'0x(0|[1-9a-f][0-9a-f]*)', selector))
+            if allowed:
+                height, pin = int(selector, 16), int(block['number'], 16)
+                allowed = height == pin or (height <= pin and height in log_heights)
+        if not allowed: raise ValueError('unpinned header request')
+        return
+    methods = {'eth_call': 2, 'eth_getStorageAt': 3, 'eth_getBalance': 2, 'eth_getLogs': 1, 'eth_getCode': 2}
+    if method not in methods: raise ValueError('unreplayed snapshot request: ' + method)
+    if len(args) != methods[method] + 1: raise ValueError('invalid state request: ' + method)
+    if block is None: raise ValueError('state request before snapshot pin')
+    if method == 'eth_getLogs':
+        query = json.loads(args[1])
+        if not 0 <= int(query['fromBlock'], 16) <= int(query['toBlock'], 16) == int(block['number'], 16):
+            raise ValueError('unpinned request: ' + method)
+    elif json.loads(args[-1]) != dict(blockHash=block['hash'], requireCanonical=True):
+        raise ValueError('unpinned request: ' + method)
 
 
 class Snapshot:

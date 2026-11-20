@@ -14,16 +14,18 @@ class Daybreak(unittest.TestCase):
         auth.start();self.addCleanup(auth.stop)
 
     def test_checker_is_executed_and_exact_count_required(self):
+        provider=patch.dict('os.environ', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        provider.start();self.addCleanup(provider.stop)
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
         for code,log in [(1,'SUMMARY 242 passed, 0 failed, 242 total'),(0,'SUMMARY 243 passed, 0 failed, 243 total'),(0,'SUMMARY 241 passed, 1 failed, 242 total'),(0,'PASS no summary'),(0,'SUMMARY 242 passed, 0 failed, 242 total\nSUMMARY 242 passed, 0 failed, 242 total')]:
             with self.assertRaises(q.a.Gate):
-                q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout=log),commit_reader=lambda:cfg['commit'])
-        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 242 passed, 0 failed, 242 total'),commit_reader=lambda:cfg['commit'])
+                q.run_checker('config',cfg,'rpc',10,block='0x'+'12'*32,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout='SNAPSHOT_BLOCK_HASH 0x'+'12'*32+'\n'+log),commit_reader=lambda:cfg['commit'])
+        result=q.run_checker('config',cfg,'rpc',10,block='0x'+'12'*32,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH 0x'+'12'*32+'\nPASS gate\nSUMMARY 242 passed, 0 failed, 242 total'),commit_reader=lambda:cfg['commit'])
         self.assertEqual(result['total'],242)
         self.assertNotIn('stdout',result)
     def test_dirty_or_wrong_commit_refused(self):
         with self.assertRaises(q.a.Gate):
-            q.run_checker('config',{'commit':'a'*40},'rpc',10,commit_reader=lambda:'b'*40)
+            q.run_checker('config',{'commit':'a'*40},'rpc',10,block='0x'+'12'*32,commit_reader=lambda:'b'*40)
     def test_calibration_file_binding(self):
         path=q.ROOT/'cache/3arm/fix/evidence-test.json'
         evidence=dict(chainId=10,superPaymaster='sp',commit='a'*40,blockNumber='0x20',blockHash='0x'+'12'*32,arms={'SP':{'call':1}},setup={'C':1},ownerPreparation={'O':1},ownerMaintenance=[],bundlerMaintenance=[],safeTransactions={'C1':1})
@@ -136,25 +138,35 @@ class AdditionalGates(unittest.TestCase):
 
 class FrozenChecker(unittest.TestCase):
     def test_readback_commands(self):
-        import checker_runner as c
-        self.assertEqual(c.pin_command(['cast', 'rpc', 'eth_getBlockByNumber', 'latest', 'false'], '0x20')[3], '0x20')
-        for command in ('decode-abi', 'to-check-sum-address'):
-            self.assertEqual(c.pin_command(['cast', command, 'value'], '0x20'), ['cast', command, 'value'])
-        self.assertEqual(c.pin_command(['cast', 'code', 'address', '--block', '0x30'], '0x20'), ['cast', 'code', 'address', '--block', '0x20'])
+        import sys
+        sys.path.insert(0, str(q.ROOT/'script/rehearsal'))
+        from deploylive_readback import validate_snapshot_request
+        block = dict(hash='0x'+'12'*32, number='0x20')
+        pin = json.dumps(dict(blockHash=block['hash'], requireCanonical=True))
+        # eth_getStorageAt carries a slot, as the checker sends it (deploylive_postdeploy_check.py storage reads).
+        for method, params in (('eth_call', ('address',)), ('eth_getCode', ('address',)),
+                               ('eth_getBalance', ('address',)), ('eth_getStorageAt', ('address', '0x0'))):
+            validate_snapshot_request(block, (method, *params, pin))
+            with self.assertRaises(ValueError):
+                validate_snapshot_request(block, (method, *params, '"0x30"'))
+        with self.assertRaises(ValueError):
+            validate_snapshot_request(block, ('eth_getStorageAt', 'address', pin))
 
     def test_checker_reads_original_block(self):
-        import checker_runner as c
-        for command in ('call','code','balance','storage'):
-            self.assertEqual(c.pin_command(['cast',command,'address'],'0x20')[-2:],['--block','0x20'])
-        self.assertEqual(c.pin_command(['cast','rpc','eth_call','{}','latest'],'0x20')[-1],'0x20')
-        command=c.pin_command(['cast','rpc','eth_getLogs','{"fromBlock":"0x1","toBlock":"latest"}'],'0x20')
-        self.assertEqual(json.loads(command[3])['toBlock'],'0x20')
-        with self.assertRaises(ValueError):c.pin_command(['cast','rpc','eth_sendTransaction','{}'],'0x20')
+        import sys
+        sys.path.insert(0, str(q.ROOT/'script/rehearsal'))
+        from deploylive_readback import validate_snapshot_request
+        block = dict(hash='0x'+'12'*32, number='0x20')
+        validate_snapshot_request(block, ('eth_getLogs', '{"fromBlock":"0x1","toBlock":"0x20"}'))
+        for args in (('eth_sendTransaction', '{}'), ('eth_getLogs', '{"fromBlock":"0x1","toBlock":"latest"}')):
+            with self.assertRaises(ValueError): validate_snapshot_request(block, args)
 
 class Generation(unittest.TestCase):
     def test_verified_generation_reconstructs_exact_bytes_after_head_moves(self):
         import tempfile
         import re
+        provider=patch.dict('os.environ', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_EXPECTED_CHAIN_ID='10')
+        provider.start();self.addCleanup(provider.stop)
         f=fixtures.ThreeArm();f.setUp();f.cfg['guardianN']=2
         original=copy.deepcopy(f.rpc.head)
         for key,source in q.SYSTEM_SOURCES.items():
@@ -167,6 +179,9 @@ class Generation(unittest.TestCase):
             if method=='eth_getCode' and params[0] in [f.cfg[k] for k in q.SYSTEM_SOURCES if k!='entryPoint']:return '0x6000'
             if method=='eth_getBlockByNumber' and params[0]==original['number']:return original
             return f.rpc(method,params)
+        rpc.endpoint = 'https://x.alchemy.com'
+        def second(method, params): return rpc(method, params)
+        second.endpoint = 'https://y.infura.io'
         with tempfile.TemporaryDirectory(dir=q.ROOT/'cache/3arm/fix') as directory:
             root=q.Path(directory);evidence={k:v for k,v in f.cal.items() if k!='source'}
             evidence.update(chainId=10,superPaymaster=f.cfg['superPaymaster'],commit=f.cfg['commit'],blockNumber=original['number'],blockHash=original['hash'])
@@ -177,10 +192,10 @@ class Generation(unittest.TestCase):
             calls=[]
             def runner(command,**kwargs):
                 calls.append(command)
-                return SimpleNamespace(returncode=0,stdout='PASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
+                return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
-                    return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])
+                    return q.generate(root/'config',root/'inputs',rpc,second,'unused',block,runner,lambda:f.cfg['commit'])
             first=generate()
             forged=dict(f.cfg,superPaymaster=fixtures.address(999))
             (root/'config').write_text(json.dumps(forged))
@@ -189,8 +204,10 @@ class Generation(unittest.TestCase):
             (root/'config').write_text(json.dumps(f.cfg))
             f.rpc.head=dict(original,number='0x21',hash='0x'+'34'*32)
             f.rpc.pending=9
+            with self.assertRaisesRegex(q.a.Gate, 'rq3_pending_nonce'): generate(original['number'])
+            f.rpc.pending=0
             self.assertEqual(first,generate(original['number']))
-            self.assertTrue(all('checker_runner.py' in command[2] and command[3]=='0x20' for command in calls))
+            self.assertTrue(all('checker_runner.py' in command[2] and command[3]==original['hash'] for command in calls))
 
 class SourceVersion(unittest.TestCase):
     def test_unparseable_version_refused(self):
