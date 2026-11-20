@@ -18,4 +18,6 @@ def expected_check_count(cfg, policy, artifacts, versions):
     # 191 fixed assertions (including nine exact gasParams words) include schema/policy, provider and header checks,
     # owner/role/Safe/security/ledger checks, and the three non-guardian stakes.
     # Each guardian contributes one membership and one additional stake row.
-    return 191 + runtime_rows + version_rows + immutable_rows + 2 * guardians
+    from deploylive_governance import governance_specs
+    governance_rows = len(governance_specs(cfg, '0x' + '00' * 32))
+    return 191 + governance_rows + runtime_rows + version_rows + immutable_rows + 2 * guardians

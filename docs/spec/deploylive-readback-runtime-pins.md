@@ -478,21 +478,77 @@ it does not add checks for the unchecked parameters.
 | Oracle staleness threshold | SuperPaymaster | priceStalenessThreshold() | Yes: 4200; `script/rehearsal/deploylive_postdeploy_check.py:419` |
 | Chainlink stale threshold | SuperPaymasterAdmin | No public threshold getter (CHAINLINK_STALE_THRESHOLD); isChainlinkStale() returns status | No separate value check; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:39` |
 | Governance delay | TimelockController | getMinDelay() | Yes: 172800; `script/rehearsal/deploylive_postdeploy_check.py:417` |
-| Protocol fee | SuperPaymaster | protocolFeeBPS() | No; declaration `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:109` |
-| aPNTs USD price | SuperPaymaster | aPNTsPriceUSD() | No; declaration `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:106` |
+| Protocol fee | SuperPaymaster | protocolFeeBPS() | Yes (script/rehearsal/deploylive_governance.py:22); release 1000, bound to proxy initializer |
+| aPNTs USD price | SuperPaymaster | aPNTsPriceUSD() | Yes (script/rehearsal/deploylive_governance.py:22); release 20000000000000000, bound to proxy initializer |
 | ETH/USD price bounds | SuperPaymaster | No public getter (MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE) | No separate value check; code constants `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:206` |
-| Withdrawal delay/window | SuperPaymaster | OPERATOR_WITHDRAWAL_DELAY(), OPERATOR_WITHDRAWAL_WINDOW() | No separate value check; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:264` |
-| Pending token/BLS change eta | SuperPaymaster | pendingAPNTsTokenEta(), pendingBLSAggEta() | No; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:147`, `:154` |
-| Emergency price state | SuperPaymaster | priceMode(), emergencyQueuedAt(), emergencyPendingPrice(), emergencyActivatedAt() | No; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:119` |
+| Withdrawal delay/window | SuperPaymaster | OPERATOR_WITHDRAWAL_DELAY(), OPERATOR_WITHDRAWAL_WINDOW() | Yes (script/rehearsal/deploylive_governance.py:22); release 172800 / 86400 |
+| Pending token/BLS change eta | SuperPaymaster | pendingAPNTsTokenEta(), pendingBLSAggEta() | Yes (script/rehearsal/deploylive_governance.py:24); zero |
+| Emergency price state | SuperPaymaster | priceMode(), emergencyQueuedAt(), emergencyPendingPrice(), emergencyActivatedAt() | Yes (script/rehearsal/deploylive_governance.py:24); normal mode and all three emergency words zero |
 | Credit tiers and reputation thresholds | Registry | creditTierConfig(uint256), levelThresholds(uint256) | No; `contracts/src/core/Registry.sol:59` |
 | Credit exposure limits | Registry | maxAggregateCreditUpliftPerProposal(), maxTotalCreditExposure() | No; `contracts/src/core/Registry.sol:1020`, `:1069` |
 | Effective credit tier/floor | GlobalTierSource | tierOf(address,address), creditFloor() | No; `contracts/src/tokens/v2/GlobalTierSource.sol:37`, `:48` |
 | Exchange rate, tx limit, issuance cap | xPNTsTokenV2 | exchangeRate(), maxSingleTxLimit(), issuanceCap() | No; `contracts/src/tokens/v2/xPNTsV2Base.sol:73` |
 | Spender daily limits | xPNTsTokenV2 | spenderDailyCapTokens(), spenderDailyCapOverride(address) | No; `contracts/src/tokens/v2/xPNTsV2Base.sol:97` |
-| Credit policy and pending policy | xPNTsTokenV2 | creditPolicy(), pendingPolicy(), hasPendingPolicy(), pendingPolicyEta() | No; `contracts/src/tokens/v2/xPNTsV2Base.sol:120` |
+| Credit policy and pending policy | xPNTsTokenV2 | creditPolicy(), pendingPolicy(), hasPendingPolicy(), pendingPolicyEta() | Yes (script/rehearsal/deploylive_governance.py:42); template and nonzero config.pnts. Experiment token: Yes (script/a6-collector/formal.mjs:279), OFF / false / zero before each send |
 | Protocol credit/allowance ceilings and delay | xPNTsTokenV2 | SP_DEFAULT_CAP(), SP_CAP_FLOOR(), USER_TOTAL_DEFAULT(), PROTOCOL_MAX_CAP(), PROTOCOL_CREDIT_CEILING(), TIMELOCK() | No separate value check; `contracts/src/tokens/v2/xPNTsV2Base.sol:31` |
 | Factory price and cap ratio (V1) | xPNTsFactory | aPNTsPriceUSD(), industryScaleUSD(string), capRatioBps() | No; `contracts/src/tokens/xPNTsFactory.sol:80` |
 | Factory price and cap ratio (V2) | xPNTsFactoryV2 | aPNTsPriceUSD(), industryScaleUSD(string), capRatioBps() | No; `contracts/src/tokens/v2/xPNTsFactoryV2.sol:100` |
 | Token cap | APNTsCapped | cap() | Config expectedCap comparison, not fixed release value; `script/rehearsal/deploylive_postdeploy_check.py:418` |
 | Validator/slash thresholds | BLSAggregator | minThreshold(), defaultThreshold(), slashThresholds(uint8) | Config comparison, not fixed release values; `script/rehearsal/deploylive_postdeploy_check.py:420` |
 | GToken cap | GTokenAuthorization | cap() / immutable _cap | Yes via immutable _cap = 21000000 × 10^18, not getter; `script/rehearsal/deploylive_postdeploy_check.py:669` |
+
+### PR D governance value checks
+
+The checks in `script/rehearsal/deploylive_postdeploy_check.py:304` use the same
+snapshot collection/freeze and second-provider replay as gasParams. Raw ABI words
+must match exactly, including tuple length; an unreadable getter fails. Expectations
+are in `docs/release/rq3-runtime-expectations.json:8`. Contrary to the possible
+DeployLive-input case, **both** price and fee are source defaults in this release:
+`SuperPaymaster.sol:132` assigns 0.02 ether and `:133` assigns 1000 in the proxy
+initializer. `DeployLive.s.sol:227` supplies owner, token, treasury and staleness,
+with no price/fee argument or later setter. Neither is compared to a config price.
+`test_readback_prd.py:17` binds the release values to those assignments and the
+withdrawal constants (`SuperPaymasterStorage.sol:264`, `:266`). The constants have
+no storage slots; the existing runtime pin already binds their code. Getter reads
+add an explicit, replayed value assertion at the proxy, not an additional storage guarantee.
+
+Fresh queue inventory (`script/rehearsal/deploylive_governance.py:23`):
+
+| Target | Public getters checked empty | Source |
+|---|---|---|
+| SP proxy | pendingOwner, pendingAPNTsToken, pendingAPNTsTokenEta, pendingBLSAgg, pendingBLSAggEta; priceMode normal, emergencyQueuedAt, emergencyActivatedAt, emergencyPendingPrice zero | SuperPaymasterStorage.sol:120, :145, :153; inherited Ownable2Step |
+| SP genesis operator | pendingWithdrawals: amount and readyAt; slashQueues: queuedBy, queuedAt, guardianQueued; isSlashPending | SuperPaymasterStorage.sol:79, :186, :189; SuperPaymasterAdmin.sol:631 |
+| Registry proxy / APNTsCapped | pendingOwner | inherited Ownable2Step; ownership completed by DeployLive |
+| Registry deployment subjects | pendingSBTBurn, pendingMembershipCleanup | Registry.sol:1105 |
+| BLSAggregator | pendingFraudProofVerifier, pendingFraudProofVerifierReadyAt | BLSAggregator.sol:454 |
+| BLS committee guardians | pendingGuardianSlashCount, guardianExitRequests (readyAt, expiresAt), guardianExitCooldownUntil | BLSAggregator.sol:191, :414, :450 |
+| xPNTsTokenV2 template and any nonzero config.pnts clone | pendingPolicy, hasPendingPolicy, pendingPolicyEta, pendingSP, pendingSPEta, pendingSPByFactory, pendingStandby, pendingStandbyEta, pendingTierSource, pendingTierSourceEta; creditPolicy OFF | xPNTsV2Base.sol:80, :120 |
+| Same token targets, config.superPaymaster spender | spenderActivatesAt | xPNTsV2Base.sol:92 |
+| AOAProtocolRegistry | pendingAt(0, bytes32(uint160(config.superPaymaster))), pendingAt(2, keccak256(pinned globalTierSource runtime)) | AOAProtocolRegistry.sol:37; V55Bootstrap.sol:125 |
+
+Registry subjects are the deduplicated deployer, genesisOperator, stakeAccounts,
+and guardians from config. SP mapping scope is genesisOperator; guardian mappings
+use config.guardians. No invented address, spender, proposal or fraud-proof IDs are
+scanned. BLS guardianSlashCases/guardianCaseResolved/usedSlashQueueHashes are keyed by
+case/proof IDs or hashes not created by DeployLive; they have no deployment-defined
+key to query. Their pending effect on the deployed committee is checked through
+pendingGuardianSlashCount. Timelock's one deployment-defined operation is the completed
+handover batch: the existing exact scheduled/executed history and isOperationDone check
+(`deploylive_postdeploy_check.py:613`) rule out it being pending; its timestamp is the
+OpenZeppelin done sentinel, **not zero**. No additional operation IDs are defined.
+Retired pendingDebts, _pendingSlash and _pendingGasParams are internal: the latter two
+are covered through isSlashPending and gasParams. Other release contracts have no
+additional public pending/ETA governance state; extension state is read at the core or
+clone, never at extension implementation addresses. This is bounded key coverage, not
+proof that no arbitrary mapping key has ever been written.
+
+Production DeployLive leaves genesis unconfigured (`DeployLive.s.sol:943`) and config.pnts
+zero; the experiment community token is created by three-arm setup. The collector installs
+`checkExperimentCreditPolicy` at `collector.mjs:131`; `formal.mjs:353` invokes the hook
+inside the final submit closure, after pin/fee/nonce checks and before wallet signing.
+It resolves operators(config.operator).xPNTsToken through both pinned providers, requires
+an initialized nonzero matching token, and requires creditPolicy OFF, hasPendingPolicy false,
+pendingPolicyEta zero on both. All SP/VPM/TPM sends use it, including account preparation.
+Each attempt records `creditPolicyGuard` with block number/hash, token, both values and
+pass/fail (`collector.mjs:572`). RPC failure also records failure and blocks submission.
+This reads the experiment token dynamically, rather than substituting the template or aPNTs.

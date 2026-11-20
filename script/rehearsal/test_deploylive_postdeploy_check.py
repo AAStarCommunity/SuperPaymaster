@@ -41,6 +41,9 @@ def fixture_artifact_json(path):
 CHECKER = Path(__file__).with_name("deploylive_postdeploy_check.py")
 FIXTURE_ARTIFACTS = CHECKER.parents[2]/"contracts/test/fixtures/deploylive/release-artifacts"
 ZERO = "0x" + "0" * 40
+GOVERNANCE_RAW = {n+'()' for n in ('protocolFeeBPS aPNTsPriceUSD OPERATOR_WITHDRAWAL_DELAY OPERATOR_WITHDRAWAL_WINDOW pendingOwner pendingAPNTsToken pendingAPNTsTokenEta pendingBLSAgg pendingBLSAggEta priceMode emergencyQueuedAt emergencyActivatedAt emergencyPendingPrice pendingFraudProofVerifier pendingFraudProofVerifierReadyAt creditPolicy pendingPolicy hasPendingPolicy pendingPolicyEta pendingSP pendingSPEta pendingSPByFactory pendingStandby pendingStandbyEta pendingTierSource pendingTierSourceEta').split()}
+GOVERNANCE_RAW.update(n+'(address)' for n in ('pendingWithdrawals slashQueues isSlashPending pendingSBTBurn pendingMembershipCleanup pendingGuardianSlashCount guardianExitRequests guardianExitCooldownUntil spenderActivatesAt').split())
+GOVERNANCE_RAW.add('pendingAt(uint8,bytes32)')
 
 CHECKSUMMED = json.loads((CHECKER.parents[2] / "contracts/test/fixtures/deploylive/checksummed-addresses.json").read_text())
 
@@ -229,6 +232,11 @@ class CheckerTest(unittest.TestCase):
                 return response(json.dumps('0xff'))
             if kind == 'to-check-sum-address': return response(args[0])
             if kind == 'decode-abi':
+                if re.fullmatch(r'0x[0-9a-fA-F]{64}', args[1]):
+                    number = int(args[1],16)
+                    output_type = args[0].rsplit('(',1)[1].rstrip(')')
+                    value = addr(number) if output_type == 'address' else bool(number) if output_type == 'bool' else number
+                    return response(json.dumps([value]) if '--json' in args else str(value).lower())
                 payload = json.loads(args[1])
                 if '--json' in args:
                     if isinstance(payload, dict): return response(json.dumps(payload['values']))
@@ -255,6 +263,16 @@ class CheckerTest(unittest.TestCase):
                 encoded = result.stdout if input_sig in ('getRoleConfig(bytes32)', 'operators(address)', 'gasParams()') else json.dumps(result.stdout)
                 if input_sig.startswith(('eip712Domain(', 'getMetadata(', 'getSupportedTokensInfo(')):
                     encoded = result.stdout
+                if input_sig in GOVERNANCE_RAW:
+                    text = result.stdout
+                    values = [int(text,16)] if re.fullmatch(r'0x[0-9a-fA-F]{40}', text) else [int(text)] if text.isdigit() else [int(text == 'true')]
+                    if input_sig in ('pendingWithdrawals(address)', 'guardianExitRequests(address)'): values = [0,0]
+                    if input_sig == 'slashQueues(address)': values = [0,0,0]
+                    encoded = '0x' + ''.join(f'{v:064x}' for v in values)
+                    if isinstance(mutation, tuple) and len(mutation) == 4 and mutation[0] != 'immutable':
+                        key, changed_sig, changed_params, replacement = mutation
+                        if target.lower() == cfg[key].lower() and input_sig == changed_sig and [p.lower() for p in params] == [p.lower() for p in changed_params]:
+                            encoded = replacement
                 return response(json.dumps(encoded))
             if mutation == "rpc_error" and kind not in ("keccak", "calldata", "sig"):
                 return SimpleNamespace(returncode=1, stdout="", stderr="connection failed https://secret.alchemy.com/private-token")
@@ -350,7 +368,9 @@ class CheckerTest(unittest.TestCase):
                 if mutation == 'version_revert' and target == cfg['staking'] and sig.startswith('version('): return response('revert', 1)
                 getter = sig.split('(')[0]
                 key = next((k for k in mapping if cfg[k].lower() == target.lower()), '')
-                if getter == 'gasParams': out = '0x' + ''.join(f'{v:064x}' for v in (500000, 450000, 5000, 450000, 0, 0, 0, 0, 0))
+                if getter in ('protocolFeeBPS','aPNTsPriceUSD','OPERATOR_WITHDRAWAL_DELAY','OPERATOR_WITHDRAWAL_WINDOW'):
+                    out = str(dict(protocolFeeBPS=1000,aPNTsPriceUSD=20000000000000000,OPERATOR_WITHDRAWAL_DELAY=172800,OPERATOR_WITHDRAWAL_WINDOW=86400)[getter])
+                elif getter == 'gasParams': out = '0x' + ''.join(f'{v:064x}' for v in (500000, 450000, 5000, 450000, 0, 0, 0, 0, 0))
                 elif getter == 'eip712Domain': out = json.dumps(dict(values=['0x0f', '', '1', 31337, target, '0x'+'00'*32, []], text='domain'))
                 elif getter == 'getMetadata': out = json.dumps(dict(values=['', '', '', '', ZERO], text='metadata'))
                 elif getter == 'getSupportedTokensInfo': out = json.dumps(dict(values=[[], [], []], text='tokens'))
@@ -401,6 +421,7 @@ class CheckerTest(unittest.TestCase):
                 elif sig == "totalSupply()(uint256)": out = "2166"
                 elif sig == "getLockedStake(address,bytes32)(uint256)": out = "50" if params[1] == digest("PAYMASTER_SUPER") else "30" if params[1] == digest("DVT") else "0"
                 elif sig == "version()(string)": out = json.dumps(release_versions["SuperPaymaster"]) if release_versions and target==cfg["superPaymaster"] else json.dumps(versions.get(PROXY_ABI.get(next((k for k in mapping if cfg[k] == target), ''), mapping.get(next((k for k in mapping if cfg[k] == target), ''))), 'fixture'))
+                elif sig.split(')')[0]+')' in GOVERNANCE_RAW: out = '0'
                 else: self.fail(f"Unhandled {sig}")
                 if mutation == 'getter_unaccounted' and key == 'globalTierSource' and getter == 'REGISTRY': out = addr(999)
                 if key in ('spImpl','spAdminImpl') and getter not in immutable_sp | {'version'}: out = deployer if getter == 'owner' and key == 'spImpl' else ZERO
@@ -797,7 +818,7 @@ class DeployDayPrincipalTest(unittest.TestCase):
     def test_readback_row_count(self):
         code, output = self.run_checker()
         self.assertEqual(code, 0, output)
-        self.assertIn('SUMMARY 251 passed, 0 failed, 251 total', output)
+        self.assertIn('SUMMARY 299 passed, 0 failed, 299 total', output)
 
     def test_readback_version_tampered(self):
         code, output = self.run_checker(('staking', 'version()(string)', [], '"wrong"'))

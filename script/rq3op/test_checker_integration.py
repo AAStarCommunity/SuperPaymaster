@@ -8,6 +8,13 @@ from pinned_tools import PinnedTools
 
 PIN = '0x' + '12' * 32
 
+def checker_config():
+    address = lambda n: '0x'+format(n,'040x')
+    return dict(commit='a'*40, guardianN=2, deployer=address(1), governanceOwner=address(6),
+                genesisOperator=address(2), superPaymaster=address(5), pnts=address(0),
+                guardians=[address(3),address(4)], stakeAccounts=[address(1),address(2),address(3),address(4)])
+
+
 class CheckerIntegration(unittest.TestCase):
     def tools(self):
         with patch.dict(os.environ, {'PATH': os.environ['PATH']}, clear=True):
@@ -16,11 +23,11 @@ class CheckerIntegration(unittest.TestCase):
         return tools
 
     def invoke(self, tools, output=None):
-        cfg = dict(commit='a'*40, guardianN=2, deployer='d', governanceOwner='s')
+        cfg = checker_config()
         self.calls = []
         def runner(command, **kwargs):
             self.calls.append((command, kwargs))
-            return SimpleNamespace(returncode=0, stdout=output or f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 251 passed, 0 failed, 251 total')
+            return SimpleNamespace(returncode=0, stdout=output or f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 299 passed, 0 failed, 299 total')
         with patch.object(q, 'authenticate_checker', return_value={}):
             return q.run_checker('config', cfg, 'unused', 11155111, runner=runner,
                                  commit_reader=lambda: cfg['commit'], block=PIN, tools=tools)
@@ -46,7 +53,7 @@ class CheckerIntegration(unittest.TestCase):
     def test_snapshot_identity_required(self):
         for line in ('', 'SNAPSHOT_BLOCK_HASH 0x'+'34'*32, f'SNAPSHOT_BLOCK_HASH {PIN}\nSNAPSHOT_BLOCK_HASH {PIN}'):
             with self.subTest(line=line), self.assertRaises(q.a.Gate):
-                self.invoke(self.tools(), line+'\nSUMMARY 251 passed, 0 failed, 251 total')
+                self.invoke(self.tools(), line+'\nSUMMARY 299 passed, 0 failed, 299 total')
 
     def test_count_one_more_or_less_rejected(self):
         # A committed mapping change adds one runtime row. The expected value
@@ -58,10 +65,10 @@ class CheckerIntegration(unittest.TestCase):
                 value = dict(value, extraRuntime='ERC1967Proxy')
             return value
         with patch.object(q, 'load', side_effect=load):
-            for count in (251, 253):
+            for count in (299, 301):
                 with self.subTest(count=count), self.assertRaises(q.a.Gate):
                     self.invoke(self.tools(), f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY {count} passed, 0 failed, {count} total')
-            self.assertEqual(self.invoke(self.tools(), f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 252 passed, 0 failed, 252 total')['total'], 252)
+            self.assertEqual(self.invoke(self.tools(), f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 300 passed, 0 failed, 300 total')['total'], 300)
 
     def test_endpoint_override_survives_without_ambient_environment(self):
         tools = self.tools(); calls = []
