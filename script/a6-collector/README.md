@@ -484,3 +484,10 @@ It derives fees from the current base fee and node priority estimate and applies
 the supplied factor/ceiling; SP postOp is the maximum of the scaled measurement
 and `gasParams()[0]`. Offline repair preserves its archived fee quote and uses the
 archived SP minimum; its synthetic feeRule is explicitly not a live estimate.
+
+End-of-window integrity checks run **on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)**,
+including INCOMPLETE and aborted windows. The `run_end` and trailer records carry
+`endCheckScope` and individual `endChecks` outcomes. An unavailable start passport
+is recorded as UNAVAILABLE, not PASS. A missing trailer or missing, incomplete,
+duplicate, failed or unavailable end-check record makes the window void for evidence
+acceptance, even if its trailer claims COMPLETE. No signal handlers are installed.

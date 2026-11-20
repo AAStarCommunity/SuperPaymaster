@@ -6,7 +6,7 @@ const names={SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'};
 export function generateSchedule(seed,accounts,chainId) {
   const chain={10:'op-mainnet',11155111:'sepolia'}[chainId];
   if(!chain || typeof seed!=='string' || !seed || accounts.length!==3 || new Set(accounts.map(a=>a.toLowerCase())).size!==3 || accounts.some(a=>!/^0x[0-9a-f]{40}$/i.test(a))) throw Error('SCHEDULE_INPUT');
-  return JSON.parse(execFileSync('python3',['-B',fileURLToPath(new URL('./schedule.py',import.meta.url)),'--seed',seed,'--accounts',...accounts,'--chain',chain],{encoding:'utf8'}));
+  return JSON.parse(execFileSync('python3',['-I','-B',fileURLToPath(new URL('./schedule.py',import.meta.url)),'--seed',seed,'--accounts',...accounts,'--chain',chain],{encoding:'utf8'}));
 }
 export function createWindow({readBundle,bundleSha256,seed,chainId,accounts}) {
   const schedule=generateSchedule(seed,accounts,chainId);
@@ -15,7 +15,7 @@ export function createWindow({readBundle,bundleSha256,seed,chainId,accounts}) {
     if(a.plan.phaseC.addresses.S.toLowerCase()!==account.toLowerCase()) throw Error('PLAN_S_MISMATCH');
     if(a.plan.chainId!==chainId || (!Number.isInteger(a.plan.phaseC.attempts) || a.plan.phaseC.attempts<20)) throw Error('PLAN_WINDOW_BUDGET');
   }
-  return {adapters,manifest:{schema:'rq3-window-v1',schedule,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false}};
+  return {adapters,manifest:{schema:'rq3-window-v1',pythonVersion:execFileSync('python3',['-I','-B','-c','import sys; print(sys.version)'],{encoding:'utf8'}).trim(),schedule,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false}};
 }
 export const TARGET_TRIPLETS=50, SLOT_CAP=60;
 export const STOPPING_RULE='pre-registered: advance slots in schedule order; stop after the slot in which complete triplets reach 50 (COMPLETE); stop after slot 60 otherwise (INCOMPLETE); never extend';

@@ -23,7 +23,7 @@ test('schedule port preserves sampler payload, digest, permutations and 20 alloc
  assert.throws(()=>w.generateSchedule('s',[accounts[0],accounts[0],accounts[2]],10));
  assert.throws(()=>w.generateSchedule('s',accounts,1));
 });
-test('fixed window visits every scheduled arm once regardless of success or failure',async()=>{
+test('fixed window all-success stops at 50 slots; all-failure runs 60 slots',async()=>{
  const s=w.generateSchedule('public',accounts,10), traces=[];
  for(const success of [true,false]) {
  const visited=[]; const result=await w.runSlots(s,async(slot,arm,sender,index)=>{visited.push([slot.block_slot,arm,sender,index]);return {ok:success};},rows=>rows.every(r=>r.ok));

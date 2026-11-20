@@ -27,6 +27,15 @@ export function windowErrors(rows, trailer, journal = null) {
   if (!trailer) return ['missing trailer: interrupted window'];
   if (trailer.schemaVersion !== 'a6-evidence-trailer/1') fail('invalid trailer version');
   if (trailer.void !== false || trailer.stopReason !== 'COMPLETE') fail('void window / fail-closed stop');
+  // Missing completion records (including signal interruption) cannot authorize evidence.
+  const requiredEndChecks = ['endBlock','finalPassport','anchors',
+    ...(trailer.window ? [...new Set(rows.map(r=>r.sender))].map(sender=>'senderPassport:'+sender) : [])];
+  const checks = trailer.endChecks;
+  if (!Array.isArray(checks) || checks.some(c=>!c || typeof c.check !== 'string' || c.status !== 'PASS') ||
+      new Set(checks.map(c=>c.check)).size !== checks.length ||
+      requiredEndChecks.some(check=>!checks.some(c=>c.check===check))) {
+    fail('void window / missing or unsuccessful end-check record');
+  }
   if (!trailer.endPassport?.path || !trailer.endPassport?.raw) fail('missing end Passport');
   if (trailer.stopAttempt !== (rows.at(-1)?.attempt ?? null)) fail('stop attempt mismatch');
   const groups = new Map();

@@ -159,13 +159,14 @@ const pubB = formal ? runtime.pubB : createPublicClient({ transport: http(rpcB, 
 const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
 function collectorHead() {
+  const python = window ? {pythonVersion:window.manifest.pythonVersion} : {};
   const files = ['collector.mjs', ...(adapter ? ['window-schedule.mjs','schedule.py','chain-params.json','frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
     const dirty = execSync('git status --porcelain -- script/a6-collector script/b-layer/lib.mjs', { cwd: ROOT }).toString().trim() !== '';
-    return { head, collectorDirty: dirty, codeSha256 };
-  } catch { return { head: null, collectorDirty: null, codeSha256 }; }
+    return { head, collectorDirty: dirty, codeSha256, ...python };
+  } catch { return { head: null, collectorDirty: null, codeSha256, ...python }; }
 }
 
 // ── append-only JSONL ─────────────────────────────────────────────────────────────────────
@@ -916,8 +917,26 @@ try {
 }
 let passportEnd = null;
 let finalBlockCheck = null;
-try {
-  if (passportStart && stop.reason !== 'RPC_DISAGREEMENT') {
+// End checks run on every in-process exit (not on SIGINT/SIGTERM/SIGKILL).
+const endCheckScope = 'on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)';
+const endChecks = [];
+async function endCheck(check, action) {
+  try {
+    const result = await action();
+    endChecks.push({check, status:'PASS', ...result});
+  } catch (e) {
+    const failure = e instanceof Stop
+      ? {reason:e.reason, code:e.code, detail:e.detail}
+      : {reason:'END_PASSPORT_ERROR', code:29, detail:String(e)};
+    endChecks.push({check, status:'FAIL', ...failure});
+    if (stop.code === 0) {
+      stop = failure;
+      if (windowOutcome) windowOutcome.status = 'STOPPED';
+    }
+  }
+}
+await endCheck('endBlock', async () => {
+  if (passportStart) {
     // Wait for an independently read later block; never relabel the last receipt block.
     const deadline = Date.now() + 60_000;
     const finalHeight = BigInt(lastAttemptBlock?.blockNumber ?? passportStart.block.number);
@@ -928,32 +947,41 @@ try {
       if (Date.now() >= deadline) throw new Stop('END_BLOCK_NOT_ADVANCED', 21, { finalHeight });
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    if (window) {
-      for (const config of senderConfigs) {
-        selectSender(config.sender);
-        const end = await passportAB('end');
-        savePassport('end-'+sender,end);
-        if(diffPaths(senderPassports.get(sender).invariant,end.invariant).length) throw new Stop('PASSPORT_DRIFT',21,{sender});
+  } else return {status:'UNAVAILABLE',reason:'NO_START_PASSPORT'};
+});
+if (window) {
+  for (const config of senderConfigs) {
+    await endCheck('senderPassport:'+config.sender, async () => {
+      const start = senderPassports.get(config.sender);
+      if (!start) {
+        return {status:'UNAVAILABLE',reason:'NO_START_PASSPORT'};
       }
-      selectSender(senderConfigs[0].sender);
-    }
+      selectSender(config.sender);
+      const end = await passportAB('end');
+      savePassport('end-'+sender,end);
+      const drift = diffPaths(start.invariant,end.invariant);
+      if (drift.length) throw new Stop('PASSPORT_DRIFT',21,{sender,drift});
+    });
+  }
+}
+await endCheck('finalPassport', async () => {
+  if (!passportStart) return {status:'UNAVAILABLE',reason:'NO_START_PASSPORT'};
+  if (passportStart) {
+    if (window) selectSender(senderConfigs[0].sender);
     passportEnd = await passportAB('end');
-    if (formal) { finalBlockCheck = await revalidateAnchors(runtime.archives); passportRefs.end = savePassport('end',passportEnd); }
+    if (formal) passportRefs.end = savePassport('end',passportEnd);
     const last = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
     const endHeight = BigInt(passportEnd.block.number), lastHeight = BigInt(last.blockNumber);
     const sameHash = passportEnd.block.hash.toLowerCase() === last.blockHash.toLowerCase();
-    if ((passportEnd.chainId !== passportStart.chainId || endHeight <= lastHeight || sameHash || seenBlocks.has(passportEnd.block.hash.toLowerCase()) || passportEnd.block.hash.toLowerCase() === passportStart.block.hash.toLowerCase()) && stop.code === 0) stop = { reason: 'PASSPORT_WINDOW_MISMATCH', code: 21 };
-    if (lastAttemptBlock && BigInt(passportEnd.volatile.operatorBalance) !== BigInt(lastAttemptBlock.operatorBalance) && stop.code === 0) stop = { reason: 'END_BALANCE_MISMATCH', code: 21 };
+    if ((passportEnd.chainId !== passportStart.chainId || endHeight <= lastHeight || sameHash || seenBlocks.has(passportEnd.block.hash.toLowerCase()) || passportEnd.block.hash.toLowerCase() === passportStart.block.hash.toLowerCase())) throw new Stop('PASSPORT_WINDOW_MISMATCH',21);
+    if (lastAttemptBlock && BigInt(passportEnd.volatile.operatorBalance) !== BigInt(lastAttemptBlock.operatorBalance)) throw new Stop('END_BALANCE_MISMATCH',21);
     const drift = diffPaths(passportStart.invariant, passportEnd.invariant);
-    if (drift.length && stop.code === 0) stop = { reason: 'PASSPORT_DRIFT', code: 21, detail: { drift } };
+    if (drift.length) throw new Stop('PASSPORT_DRIFT',21,{drift});
   }
-} catch (e) {
-  if (stop.code === 0) stop = e instanceof Stop
-    ? { reason: e.reason, code: e.code, detail: e.detail }
-    : { reason: 'END_PASSPORT_ERROR', code: 29, detail: String(e) };
-}
+});
+if (formal) await endCheck('anchors', async () => { finalBlockCheck = await revalidateAnchors(runtime.archives); });
 exitCode = stop.code;
-writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,
+writeLine({ kind: 'run_end', stop, exitCode, endCheckScope, endChecks, matchedTriplets: matched, targetTriplets: count, tally, triplets,
   ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:60,attemptedSlots:windowOutcome?.usedSlots ?? Math.ceil(attemptIndex/3),window:windowOutcome,warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
@@ -962,7 +990,7 @@ if (formal) {
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
   writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', rehearsal, windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
-    finalBlockCheck, triples, replacements, counts:armCounts(evidenceRows, triples, replacements), ...(window ? {window:windowOutcome} : {})});
+    finalBlockCheck, endCheckScope, endChecks, triples, replacements, counts:armCounts(evidenceRows, triples, replacements), ...(window ? {window:windowOutcome} : {})});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);
