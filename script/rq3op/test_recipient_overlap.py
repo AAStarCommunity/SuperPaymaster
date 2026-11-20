@@ -36,7 +36,7 @@ class RecipientOverlap(unittest.TestCase):
                     self.inputs['genesis'], pc['endUserStake'])))
                 self.assertEqual(groups[3]['tx']['to'], pc['addresses']['X'])
                 self.assertEqual(groups[3]['tx']['data'], a.calldata('mint(address,uint256)', who, amount))
-                self.assertEqual(bundle['shared']['recipientPurposes'][recipient],
+                self.assertEqual(bundle['shared']['recipientPurposes'][recipient.lower()],
                                  ['task recipient', 'RQ2 live E2E'])
                 for sender in {s['tx']['from'] for s in steps}:
                     nonces = [a.qty(s['tx']['nonce']) for s in steps if s['tx']['from'] == sender]

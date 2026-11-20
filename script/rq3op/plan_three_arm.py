@@ -110,6 +110,10 @@ READS = {'eth_chainId','eth_getBlockByNumber','eth_call','eth_getCode','eth_getS
          'eth_getTransactionCount','eth_getBalance','eth_feeHistory','eth_maxPriorityFeePerGas'}
 
 
+# eth_feeHistory fields the planner reads (priority from reward; oldestBlock recorded; baseFeePerGas kept for audit).
+FEE_HISTORY_FIELDS=('oldestBlock','baseFeePerGas','reward')
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 
@@ -147,6 +151,13 @@ class Pair:
             a.need('rq3_rpc_agreement', pinned[0], pinned[1])
             return pinned[0]
         results = [client(method,params) for client in self.clients]
+        if method == 'eth_feeHistory':
+            # Providers differ in JSON number formatting of the float ratio fields (a full-blob block's
+            # blobGasUsedRatio is 1.0 on one and 1 on another), and the strict typed comparison treats that
+            # as disagreement. The planner consumes only these integer fields; compare exactly those.
+            used=lambda r: {k:r.get(k) for k in FEE_HISTORY_FIELDS} if isinstance(r,dict) else r
+            a.need('rq3_rpc_agreement',used(results[0]),used(results[1]))
+            return used(results[0])
         a.need('rq3_rpc_agreement',results[0],results[1])
         return results[0]
     def finish(self):
@@ -181,6 +192,53 @@ def fees_within_rule(fees,rule,current):
     except (a.Gate,KeyError,TypeError): return False
 
 
+def normalized_addresses(cfg, inputs):
+    cfg, inputs = copy.deepcopy(cfg), copy.deepcopy(inputs)
+    def address(value):
+        a.need('rq3_address',isinstance(value,str) and
+               bool(re.fullmatch('0x[0-9a-fA-F]{40}',value)) and value.lower()!=a.ZERO,True)
+        a.need('rq3_address',value==value.lower() or value==a.cast('to-check-sum-address',value),True)
+        return value.lower()
+    for key in CONFIG_ADDRESSES: cfg[key]=address(cfg[key])
+    for key in ('experiment','genesis','bundler','verifyingSigner'): inputs[key]=address(inputs[key])
+    for account in inputs['accounts']:
+        for key in ('account','accountOwner','accountImplementation'):
+            if key in account: account[key]=address(account[key])
+    for field in ('taskRecipients','extraEndUsers'):
+        entries=inputs.get(field)
+        if isinstance(entries,list):
+            for entry in entries:
+                if isinstance(entry,dict) and isinstance(entry.get('address'),str):
+                    entry['address']=entry['address'].lower()
+    return m.fresh_addresses(cfg),m.fresh_addresses(inputs)
+
+
+def expected_cap(value):
+    valid=type(value) is int or (isinstance(value,str) and bool(re.fullmatch('[0-9]+',value)))
+    a.need('rq3_cap_headroom',valid,True)
+    # Bound the string before conversion, including Python's integer parsing limit.
+    if isinstance(value,str):
+        value=value.lstrip('0') or '0'
+        a.need('rq3_cap_headroom',len(value)<=78,True)
+    value=int(value)
+    a.need('rq3_cap_headroom',0<=value<2**256,True)
+    return value
+
+
+def transaction_gas_cap(chain, block_limit):
+    caps=json.loads(Path(__file__).with_name('tx-gas-caps.json').read_text())
+    if str(chain) not in caps:
+        return block_limit
+    entry=caps[str(chain)]
+    a.need('rq3_transaction_gas_cap_parameters',type(entry.get('gasLimit')) is int and
+           entry['gasLimit']>0 and isinstance(entry.get('source'),str) and bool(entry['source'].strip()),True)
+    return min(block_limit,entry['gasLimit'])
+
+
+def transaction_gas(step_id, limit, cap):
+    a.need('rq3_transaction_gas/'+step_id,limit<=cap,True)
+
+
 def check_inputs(cfg, inputs, checker):
     a.need('rq3_commit',bool(re.fullmatch('[0-9a-f]{40}',str(cfg.get('commit','')))),True)
     a.need('rq3_checker_pass',checker.get('result')=='PASS' and bool(re.fullmatch(
@@ -190,6 +248,7 @@ def check_inputs(cfg, inputs, checker):
            stdout.strip().endswith(checker['summary']) and not re.search(r'^FAIL\b',stdout,re.M) and
            bool(re.search(r'^(?:PASS|INFO-PASS)\b',stdout,re.M)),True)
     a.need('rq3_checker_binding',[checker.get('configSha256'),checker.get('commit')],[digest(cfg),cfg['commit']])
+    cfg,inputs=normalized_addresses(cfg,inputs)
     a.need('rq3_uniform_factor','armFactors' not in inputs,True)
     for key in ('gasFactor','feeFactor'): factor(inputs[key])
     a.need('rq3_priority_rule',set(inputs.get('priorityRule',{}))=={'blocks','percentile'} and
@@ -234,6 +293,7 @@ def check_inputs(cfg, inputs, checker):
         a.need('rq3_task_recipients',isinstance(who,str) and bool(re.fullmatch('0x[0-9a-fA-F]{40}',who)) and
                who.lower() not in seen and type(amount) is int and 301<=amount<2**256,True)
         seen.add(who.lower())
+    return cfg,inputs
 
 
 
@@ -302,7 +362,8 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
 def build(cfg,inputs,rpc,checker,cal,baselines):
     # Pure assembly layer; generate() authenticates files, checker and deployment before calling.
     check_entrypoint_pin(ENTRYPOINT_PIN)
-    check_inputs(cfg,inputs,checker)
+    config_digest=digest(cfg); inputs_digest=digest(inputs)
+    cfg,inputs=check_inputs(cfg,inputs,checker)
     check_calibration_fields(cal)
     limit_gas=cal.get('setup',{}).get('C3.limits')
     a.need('rq3_limits_calibration',type(limit_gas) is int and limit_gas>0,True)
@@ -310,9 +371,11 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         value=cal.get('setup',{}).get('C11.extra.'+str(i))
         a.need('rq3_task_calibration',type(value) is int and value>0,True)
     rpc=ReadOnly(rpc)
-    chain=a.qty(rpc('eth_chainId',[])); a.need('rq3_chain',chain in ENTRYPOINT_PIN['chainIds'],True)
+    chain=a.qty(rpc('eth_chainId',[]))
+    a.need('rq3_chain',chain in ENTRYPOINT_PIN['chainIds'],True)
     a.need('rq3_checker_chain',checker['chainId'],chain)
     head=a.block_data(rpc,'latest'); block=head['number']
+    gas_cap=transaction_gas_cap(chain,a.qty(head['gasLimit']))
     ep_hash=a.keccak(u.code(rpc,cfg['entryPoint'],block))
     a.need('rq3_entrypoint_v07',ep_hash,ENTRYPOINT_PIN['codehash'])
     ep_pin=dict(ENTRYPOINT_PIN,address=cfg['entryPoint'],blockHash=head['hash'])
@@ -369,7 +432,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         c=dict(account,bundler=inputs['bundler'],verifyingSigner=inputs['verifyingSigner'],rehearsal=cal)
         pin=dict(capped=cfg['aPNTs'],immutables=dict(entryPoint=cfg['entryPoint']),senders=copy.deepcopy(senders),
                  block=block,blockHash=head['hash'],stake=ep_info[2],stakeDelay=ep_info[3],entryPointDeposit=ep_info[0])
-        pin['phaseC']=m.collect_phase_c(rpc,block,{'data':{'phaseC':c}},pin,context=ctx)
+        pin['phaseC']=m.fresh_addresses(m.collect_phase_c(rpc,block,{'data':{'phaseC':c}},pin,context=ctx))
         p=pin['phaseC']; a.need('rq3_genesis_unconfigured',p['sp']['deployerOperator'][:4],[0]*4)
         # Three identical pricing/cap reads must refer to the same deployment state.
         if pins: a.need('rq3_shared_pin',[p[k] for k in ('sp','capped','endUser')],[pins[0]['phaseC'][k] for k in ('sp','capped','endUser')])
@@ -380,7 +443,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
     for entry in extras:
         a.need('rq3_sdk_amount',sdk['perUserFloor']<=entry['xAmount']<=sdk['perUserCap'],True)
     operator_top=first['operatorTarget']; mint=m.positive(operator_top-p['capped']['deployerBalance'])
-    a.need('rq3_cap_headroom',p['capped']['totalSupply']+mint<=p['capped']['cap'] and p['capped']['cap']==cfg['expectedCap'],True)
+    a.need('rq3_cap_headroom',p['capped']['totalSupply']+mint<=p['capped']['cap'] and p['capped']['cap']==expected_cap(cfg['expectedCap']),True)
     tickets=sum(w['endUserStake']+w['endUserTicket'] for w in worksheets if not w['accountMember'])
     extra_tickets=len(extras)*(first['endUserStake']+first['endUserTicket'])
     tickets+=extra_tickets
@@ -468,16 +531,16 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
                           priority=dict(rule='eth_feeHistory median of per-block percentile',blocks=rule['blocks'],
                                         percentile=rule['percentile'],newestBlock=block,oldestBlock=history.get('oldestBlock'),
                                         rewards=rewards,value=priority))
-        plan=dict(entryPointPin=ep_pin,extraEndUsers=copy.deepcopy(extras),recipientPurposes=purposes,planIndex=i,taskRecipients=copy.deepcopy(inputs['taskRecipients']),schema='rq3-deploylive-1',deploymentContext=ctx,chainId=chain,commit=cfg['commit'],configSha256=digest(cfg),
+        plan=dict(entryPointPin=ep_pin,extraEndUsers=copy.deepcopy(extras),recipientPurposes=purposes,planIndex=i,taskRecipients=copy.deepcopy(inputs['taskRecipients']),schema='rq3-deploylive-1',deploymentContext=ctx,chainId=chain,commit=cfg['commit'],configSha256=config_digest,
                   checker=structured_checker(checker),pin=pin,phaseC=pc,steps=local_steps,addresses=address_table(cfg),
-                  externalInputs={'sha256':digest(inputs),'data':{'phaseC':c,'sampled':[ctx['operator']]}},
+                  externalInputs={'sha256':inputs_digest,'data':{'phaseC':c,'sampled':[ctx['operator']]}},
                   gasPolicy=dict(factor=inputs['gasFactor'],frozen=True,source=cal['source']))
         plans[c['account']]=plan
         all_steps.extend(dict(s,id=str(i)+'/'+s['id']) for s in local_steps)
         x_supply+=ws['userTarget']
         if not ws['accountMember']: gt_balance-=ws['endUserStake']+ws['endUserTicket']
     # No Safe signing here: output inner calls, including schedule/execute for a value-bearing batch.
-    target=ctx['SP']; data=a.calldata('addStake(uint32)',inputs['unstakeDelay']); salt=a.keccak('rq3/'+digest(cfg)+'/'+digest(inputs))
+    target=ctx['SP']; data=a.calldata('addStake(uint32)',inputs['unstakeDelay']); salt=a.keccak('rq3/'+config_digest+'/'+inputs_digest)
     targets='['+target+']'; values='['+str(inputs['stakeWei'])+']'; datas='['+data+']'
     encoded=a.cast('abi-encode','c(address[],uint256[],bytes[],bytes32,bytes32)',targets,values,datas,a.ZERO32,salt)
     op=dict(targets=[target],values=[inputs['stakeWei']],data=[data],predecessor=a.ZERO32,salt=salt,id=a.keccak(encoded),delay=delay)
@@ -528,8 +591,15 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         if u.code(rpc,entry['address'],block)=='0x':
             print(f"INFO extraEndUser {entry['address']} has no code; sponsor-funded RQ2 live E2E",file=sys.stderr)
     shared=dict(sdkLive=sdk,extraEndUsersXTotal=sum(e['xAmount'] for e in extras),extraEndUsers=copy.deepcopy(extras),recipientPurposes=purposes,T=pcs[0]['addresses']['T'],R=m.DEAD,SP=ctx['SP'],chainId=chain,
-                commit=cfg['commit'],configSha256=digest(cfg),taskCallData=pcs[0]['taskCallData'],
+                commit=cfg['commit'],configSha256=config_digest,taskCallData=pcs[0]['taskCallData'],
                 taskRecipients=copy.deepcopy(inputs['taskRecipients']),experiment=inputs['experiment'])
+    for step in all_steps: transaction_gas(step['id'],a.qty(step['tx']['gas']),gas_cap)
+    for step in safe_txs: transaction_gas('Safe/'+step['id'],a.qty(step['gas']),gas_cap)
+    for i,pc in enumerate(pcs):
+        for sid,limit in pc['ownerPreparation'].items(): transaction_gas(f'{i}/'+sid,limit,gas_cap)
+        for group in ('ownerMaintenance','bundlerMaintenance'):
+            for step in pc[group]: transaction_gas(f'{i}/{group}/'+step['name'],step['gas'],gas_cap)
+        for arm,bounds in pc['bounds'].items(): transaction_gas(f'{i}/{arm}/handleOps',bounds['outer'],gas_cap)
     funding=funding_table(all_steps,safe_txs,rpc,block,pcs,mint,transfer,cfg)
     funding['genesisGToken']=dict(address=ctx['operator'],stakeAndTickets=tickets,extraEndUsers=extra_tickets,
                                   held=genesis_held,safeTransfer=transfer)
@@ -541,7 +611,7 @@ def build(cfg,inputs,rpc,checker,cal,baselines):
         return True
     a.need('rq3_funding_uint256',bounded(funding) and bounded(shared),True)
     return dict(shared=shared,plans=plans,steps=all_steps,safeTransactions=safe_txs,timelockOperation=op,
-                configSha256=digest(cfg),commit=cfg['commit'],chainId=chain,checker=structured_checker(checker),funding=funding)
+                configSha256=config_digest,commit=cfg['commit'],chainId=chain,checker=structured_checker(checker),funding=funding)
 
 
 def pre_send(rpc,plan,step=None):
@@ -570,11 +640,12 @@ def pre_send(rpc,plan,step=None):
     return dict(block=block,blockHash=head['hash'],gasTuple=gas)
 
 
-def load_baselines(cfg,inputs):
+def load_baselines(cfg,inputs,tools=None):
     """Separate comparator pins; never modify DeployLive's 25 release pins."""
     a.need('rq3_commit',bool(re.fullmatch('[0-9a-f]{40}',str(cfg.get('commit','')))),True)
     pins=load(inputs['fixturePins']); result={}
-    a.need('rq3_fixture_commit',pins['commit'],cfg['commit'])
+    git=tools.run if tools else m.subprocess.run
+    a.need('rq3_fixture_commit',isinstance(pins.get('commit'),str) and bool(re.fullmatch('[0-9a-fA-F]{40}',pins['commit'])),True)
     for name in ('F1TestToken','F1Oracle'):
         entry=pins['contracts'][name]; raw=inside(entry['artifact']).read_bytes(); art=json.loads(raw)
         a.need('rq3_fixture_artifact',hashlib.sha256(raw).hexdigest(),entry['artifactSha256'])
@@ -586,7 +657,7 @@ def load_baselines(cfg,inputs):
         result[name]=dict(bytecode=art['bytecode']['object'],runtimeIdentity=entry['runtimeIdentity'],source=m.F1_SOURCE,commit=cfg['commit'])
     for name,path in m.BASELINE_ARTIFACTS.items():
         raw=inside(path).read_bytes(); art=json.loads(raw)
-        committed=m.subprocess.run(['git','show',cfg['commit']+':'+path],cwd=ROOT,capture_output=True)
+        committed=git(['git','show',cfg['commit']+':'+path],cwd=ROOT,capture_output=True)
         a.need('rq3_baseline_commit',committed.returncode==0 and committed.stdout==raw,True)
         a.need('rq3_baseline_artifact',hashlib.sha256(raw).hexdigest(),inputs['baselineSha256'][name])
         a.need('rq3_baseline_source',hashlib.sha256(inside(art['source']).read_bytes()).hexdigest(),art['sourceSha256'])
@@ -595,6 +666,9 @@ def load_baselines(cfg,inputs):
         result[name]=dict(bytecode=art['bytecode'],artifact=path,artifactSha256=hashlib.sha256(raw).hexdigest(),
             source=art['source'],sourceSha256=art['sourceSha256'],commit=cfg['commit'],
             constructor='c('+','.join(m.abi_type(x) for x in ctor[0]['inputs'])+')')
+    # generate() routes subprocess through the pinned git tool's active context.
+    ancestry=git(['git','merge-base','--is-ancestor',pins['commit'],cfg['commit']],cwd=ROOT,capture_output=True)
+    a.need('rq3_fixture_commit',ancestry.returncode==0,True)
     return result
 
 
@@ -723,7 +797,7 @@ def verify_calibration(cfg,cal,chain,rpc):
     a.need('rq3_calibration_pvg', all('preVerification' not in b for b in cal['arms'].values()), True)
     source=cal['source'];raw=inside(source['evidenceFile']).read_bytes()
     a.need('rq3_calibration_hash',hashlib.sha256(raw).hexdigest(),source['evidenceSha256'])
-    evidence=json.loads(raw)
+    evidence=m.fresh_addresses(json.loads(raw));cfg=m.fresh_addresses(cfg)
     a.need('rq3_calibration_identity',[evidence.get(k) for k in ('chainId','superPaymaster','commit')],
            [chain,cfg['superPaymaster'],cfg['commit']])
     block=rpc('eth_getBlockByNumber',[evidence['blockNumber'],False])
@@ -799,7 +873,7 @@ def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit
         return pair(method,params)
     # The pure builder consumes the same validated checker schema as its historical fixtures.
     internal=dict(checker,stdout='PASS verified checker execution\n'+checker['summary'])
-    result=build(cfg,inputs,frozen,internal,cal,load_baselines(cfg,inputs))
+    result=build(cfg,inputs,frozen,internal,cal,load_baselines(cfg,inputs,tools=tools))
     result['checker']=checker
     for plan in result['plans'].values():plan['checker']=checker
     pair.finish()

@@ -1361,6 +1361,17 @@ def single_line(value):
     return isinstance(value, str) and re.fullmatch(r'\S(?:[^\r\n]*\S)?', value) is not None
 
 
+def fresh_addresses(value):
+    """Canonical address values and keys at fresh-planner boundaries; no legacy mutation."""
+    if isinstance(value,str):
+        return value.lower() if re.fullmatch('0x[0-9a-fA-F]{40}',value) else value
+    if isinstance(value,dict):
+        return {fresh_addresses(k):fresh_addresses(v) for k,v in value.items()}
+    if isinstance(value,list):return [fresh_addresses(v) for v in value]
+    if isinstance(value,tuple):return tuple(fresh_addresses(v) for v in value)
+    return value
+
+
 def pc_address(gate, value):
     a.need(gate, isinstance(value, str) and a.ADDRESS_RX.fullmatch(value) is not None
            and value == value.lower() and value != a.ZERO, True)
@@ -1476,6 +1487,8 @@ def collect_phase_c(rpc, block, inputs, pin, context=None):
 def phase_c_pin_gates(pin, c, context=None):
     context = context or dict(operator=u.DEPLOYER, SP=u.SP, safe=u.SAFE, registry=u.REG, accountFactory=ACCOUNT_FACTORY)
     """Chain preconditions for Phase C, evaluated offline from the archived pin reads."""
+    if context.get('fresh'):
+        pin,c,context=map(fresh_addresses,(pin,c,context))
     p = pin['phaseC']
     a.exact_keys('phase_c_pin', p, ('owner', 'bundler', 'verifyingSigner', 'capped', 'sp', 'roles', 'endUser', 'account'))
     for label, key in (('owner', 'accountOwner'), ('bundler', 'bundler'), ('verifyingSigner', 'verifyingSigner')):
@@ -2125,6 +2138,10 @@ def build_phase_c(*, pin, inputs, context, chain_id, commit, factory, tier, ep, 
                   counters, safe_n, steps, add, sp_deposit_before, sp_stake,
                   worksheet=None, baselines=None, policy='legacy', task_recipients=()):
     """Build Phase C independently; all deployment identities are supplied by the caller."""
+    if policy == 'fresh':
+        pin,inputs,context,addresses=map(fresh_addresses,(pin,inputs,context,addresses))
+        factory,tier,ep=map(fresh_addresses,(factory,tier,ep))
+        task_recipients=fresh_addresses(task_recipients)
     phase_c = {}
     # Phase C (§3): after 6d and B4, before Phase D, on the same sender/Safe counters.
     c, p = inputs, pin['phaseC']

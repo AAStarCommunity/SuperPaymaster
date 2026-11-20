@@ -76,6 +76,41 @@ class CheckerPreflight(unittest.TestCase):
                     if kind == 'absent': self.env['CAST_1_7_1'] = str(self.root/'absent')
                     self.check_stop('STOP CAST_1_7_1', predict)
 
+    def test_alias_cast_before_forge(self):
+        for same_directory in (False, True):
+            with self.subTest(same_directory=same_directory):
+                alias=self.root/('cast-stable' if same_directory else 'cast-1.7.1')
+                alias.write_bytes(self.cast.read_bytes()); alias.chmod(0o755)
+                nightly=self.root if same_directory else self.root/'nightly'
+                nightly.mkdir(exist_ok=True)
+                (nightly/'cast').write_text('#!/bin/sh\necho "cast Version: 1.7.1-nightly"\n')
+                (nightly/'cast').chmod(0o755)
+                self.env.update(CAST_1_7_1=str(alias), PATH=str(nightly))
+                self.cast.unlink() if not same_directory else None
+                self.cast=alias
+                for predict in (False, True):
+                    self.check_stop('STOP CAST_1_7_1', predict)
+
+    def test_named_cast_passes(self):
+        driver.require_checker_inputs(self.env,11155111)
+
+    def test_evidence_file_symlink_before_forge(self):
+        victim=self.root/'victim'; victim.write_text('unchanged')
+        (self.evidence/'checker.log').symlink_to(victim)
+        self.check_stop('STOP deployment evidence unavailable')
+        self.assertEqual(victim.read_text(),'unchanged')
+
+    def test_existing_evidence_file_write_probe_before_forge(self):
+        target=self.evidence/'checker.log'; target.write_text('unchanged')
+        original=Path.open
+        def opened(path, mode='r', *args, **kwargs):
+            if path == target and mode == 'r+b':
+                raise PermissionError('existing output is not writable')
+            return original(path,mode,*args,**kwargs)
+        with patch.object(Path,'open',opened):
+            self.check_stop('STOP deployment evidence unavailable')
+        self.assertEqual(target.read_text(),'unchanged')
+
     def test_checker_arguments_before_forge(self):
         for key in ('GOVERNANCE_OWNER', 'DEPLOYER_ADDRESS'):
             original = self.env[key]

@@ -253,9 +253,26 @@ class Ddf5Test(unittest.TestCase):
         output = io.StringIO()
         with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
             self.driver(broadcast_result=(7, 'https://secret.invalid/key'))
+        self.assertEqual(output.getvalue().splitlines().count('BROADCAST MINED: all transactions mined; forge exited non-zero; deployment NOT successful'),1)
+        self.assertEqual(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'],[])
+        self.assertEqual(json.loads((self.root/'postbroadcast.gas.json').read_text()),[])
+        self.assertFalse((self.root/'checker.PASS.json').exists())
         self.assertNotIn('GAS post-broadcast', output.getvalue())
         self.assertNotIn('NOT BROADCAST', output.getvalue())
         self.assertNotIn('secret.invalid', output.getvalue())
+
+    def test_failed_forge_with_mined_diff_preserves_gas(self):
+        import contextlib
+        import io
+        def mutate(plan,index):
+            if index == 3: plan['transactions'][0]['transaction']['input']='0x1234'
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError,'post-broadcast diff'):
+            self.driver(mutate,broadcast_result=(7,'failed'))
+        self.assertTrue(json.loads((self.root/'postbroadcast.diff.json').read_text())['diff'])
+        self.assertEqual(json.loads((self.root/'postbroadcast.gas.json').read_text()),[])
+        self.assertIn('BROADCAST MINED:',output.getvalue())
+        self.assertFalse((self.root/'checker.PASS.json').exists())
 
     def test_driver_partial_broadcast_is_not_success(self):
         import contextlib

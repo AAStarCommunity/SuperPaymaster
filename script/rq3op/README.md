@@ -307,6 +307,7 @@ The adapter checks the frozen fields before sending and archives their provenanc
 artifact SHA256, creation keccak and constructor immutable patch locations. The
 small compiled artifacts are included under `artifacts/`. They were built offline
 with solc 0.8.33, Cancun, viaIR, optimizer 500; release pin files were untouched.
+Its `commit` field records where these two fixtures were built (their build provenance). The planner requires that commit to be an ancestor of the deployment commit, and the artifact SHA256 and creation keccak to match exactly; nothing else is compared.
 Their source comment permits these comparator fixtures on 10 and 11155111; other
 F1 fixtures remain local only. Chain 31337 is accepted for local acceptance.
 
@@ -660,3 +661,8 @@ fallback to the config file's directory. Provider validation runs during input l
 and checker startup, before chain reads.
 
 The frozen-plan collector now runs [one public-seed window](../a6-collector/frozen-plan.md) with all three per-sender plans. Under rotation, `phaseC.attempts` remains each sender's budget **per arm** (34/33/33); a window of at most 60 pre-registered slots (stopping after the slot in which complete triplets reach 50, otherwise after slot 60) uses at most 20 of those attempts per sender per arm, with the remainder as margin, and no planner change. Unreached slots are listed as `unusedSlots` in the run_end/trailer `window` record. Known gap: the collector's `validate.mjs` and `evidence-validate.mjs` do not yet accept plan mode.
+
+Every planned transaction gas limit is bounded by the pinned block header gasLimit.
+Optional stricter caps live in tx-gas-caps.json (currently empty: no chains registered).
+The shape is {"<decimal chain id>": {"gasLimit": <positive integer>, "source": "<nonempty provenance>"}}.
+Unregistered chains use only the block bound; registered caps cannot relax it.

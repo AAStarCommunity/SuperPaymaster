@@ -92,7 +92,11 @@ def require_checker_inputs(env, chain=None, production=True):
     cast_pin = env.get('CAST_1_7_1', '')
     require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
             'STOP CAST_1_7_1 must name an executable')
-    require(stable_cast(cast_pin), 'STOP CAST_1_7_1 must be cast 1.7.1')
+    checker_path = str(Path(cast_pin).absolute().parent) + os.pathsep + env.get('PATH', '')
+    resolved = shutil.which('cast', path=checker_path)
+    require(resolved is not None and os.path.samefile(resolved, cast_pin),
+            'STOP CAST_1_7_1 must resolve to the checker cast')
+    require(stable_cast(resolved), 'STOP CAST_1_7_1 must be cast 1.7.1')
 
 
 def writable_evidence(directory, names):
@@ -393,15 +397,22 @@ def main():
         if partial:
             print(f'PARTIAL BROADCAST: forge recorded {mined}/{total} receipts; deployment NOT successful')
         elif result.returncode != 0:
-            require(False, 'deployment failed; config existence is not success')
+            print('BROADCAST MINED: all transactions mined; forge exited non-zero; deployment NOT successful')
         try:
             diff = plan_diff(broadcast_plan, actual, gas_bounds)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
         (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), broadcastPlanSha256=plan_digest(broadcast_plan), diff=diff))+'\n')
+        try:
+            changed = gas_changes(broadcast_plan, actual, gas_bounds)
+        except (ValueError, KeyError, TypeError, IndexError):
+            changed = None
+        if changed is not None:
+            (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
         require(not diff, 'post-broadcast diff is not empty; deployment NOT successful')
-        changed = gas_changes(broadcast_plan, actual, gas_bounds)
-        (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
+        require(changed is not None, 'malformed post-broadcast gas record; deployment NOT successful')
+        if not partial:
+            require(result.returncode == 0, 'deployment failed; config existence is not success')
         label = 'GAS partial post-broadcast' if partial else 'GAS post-broadcast'
         print(label + ' limits equal to gated plan' if not changed else
               f'{label} {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
