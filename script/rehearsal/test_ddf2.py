@@ -93,8 +93,14 @@ class PredictionExecutionTest(unittest.TestCase):
                     self.assertIn('--sender', command)
                     (root/kwargs['env']['DEPLOYLIVE_POP_REQUEST_OUT']).write_text('{"request":true}')
                     return SimpleNamespace(returncode=0, stdout="", stderr="")
+                second = root/'second-rpc'
+                second.write_text('https://secondary.infura.io/key')
+                env = dict(dict.fromkeys(keys, 'fixed'), DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111',
+                           DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura',
+                           DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_SECOND_RPC=second.read_text(),
+                           DEPLOYLIVE_SECOND_RPC_FILE=str(second))
                 output = io.StringIO()
-                with patch.dict(os.environ, dict.fromkeys(keys, 'fixed'), clear=True), patch.object(f, 'ROOT', root), patch.object(f, 'guard_bls_verbosity'), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'verify_build', return_value='/forge') as verify, patch.object(f, 'config_path', return_value=root/'config.json'), patch.object(f.subprocess, 'run', side_effect=run), contextlib.redirect_stdout(output):
+                with patch.dict(os.environ, env, clear=True), patch.object(f, 'ROOT', root), patch.object(f, 'guard_bls_verbosity'), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'verify_build', return_value='/forge') as verify, patch.object(f, 'config_path', return_value=root/'config.json'), patch.object(f.subprocess, 'run', side_effect=run), contextlib.redirect_stdout(output):
                     f.stage('predict', ['--evidence', 'evidence'] + (['--production'] if production else []))
                 verify.assert_called_once()
                 self.assertEqual((root/'evidence/pop-request.json').read_text(), '{"request":true}')

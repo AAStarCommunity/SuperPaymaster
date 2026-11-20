@@ -419,8 +419,9 @@ def validate_snapshot_request(block, args, *, requested_hash=None, log_heights=(
                 allowed = height == pin or (height <= pin and height in log_heights)
         if not allowed: raise ValueError('unpinned header request')
         return
-    methods = {'eth_call', 'eth_getStorageAt', 'eth_getBalance', 'eth_getLogs', 'eth_getCode'}
+    methods = {'eth_call': 2, 'eth_getStorageAt': 3, 'eth_getBalance': 2, 'eth_getLogs': 1, 'eth_getCode': 2}
     if method not in methods: raise ValueError('unreplayed snapshot request: ' + method)
+    if len(args) != methods[method] + 1: raise ValueError('invalid state request: ' + method)
     if block is None: raise ValueError('state request before snapshot pin')
     if method == 'eth_getLogs':
         query = json.loads(args[1])

@@ -49,10 +49,61 @@ class DriverCheckerInputs(unittest.TestCase):
         self.assertFalse(any('script' in call for call in getattr(self, 'calls', [])), 'no forge before the chain check')
 
     def test_driver_requires_expected_chain(self):
-        with self.assertRaisesRegex(ValueError, 'DEPLOYLIVE_EXPECTED_CHAIN_ID required'):
-            import deploylive_fork_deploy as f
-            from deploylive_readback import expected_chain_id
-            expected_chain_id({})
+        with self.assertRaisesRegex(RuntimeError, 'STOP DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid'):
+            self.driver(env_overrides={'DEPLOYLIVE_EXPECTED_CHAIN_ID': None})
+        self.assertEqual(self.calls, [])
+
+    def test_fork_rehearsal_skips_provider_binding_production_does_not(self):
+        # A fork rehearsal (anvil --chain-id 11155111 on 127.0.0.1) has no bound second provider;
+        # the provider check applies only before a production broadcast. Same inputs, both modes.
+        import deploylive_fork_deploy as f
+        env = {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '11155111', 'DEPLOYLIVE_RPC': 'http://127.0.0.1:8545'}
+        self.assertIsNone(f.require_checker_inputs(env, 11155111, production=False))
+        with self.assertRaisesRegex(RuntimeError, 'STOP invalid checker provider pair'):
+            f.require_checker_inputs(env, 11155111, production=True)
+        with self.assertRaisesRegex(RuntimeError, 'differs from the broadcast endpoint chain'):
+            f.require_checker_inputs(env, 31337, production=False)
+
+    def test_provider_inputs_stop_before_forge(self):
+        for overrides in (
+            {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': 'Alchemy'},
+            {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': None},
+            {'DEPLOYLIVE_RPC': 'https://secondary.infura.io/other'},
+            {'DEPLOYLIVE_SECOND_RPC': 'https://different.infura.io/key'},
+            {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '010'},
+        ):
+            with self.subTest(overrides=overrides):
+                with self.assertRaisesRegex(RuntimeError, 'STOP'):
+                    self.driver(env_overrides=overrides)
+                self.assertEqual(self.calls, [])
+
+    def test_production_predict_checker_inputs_before_forge(self):
+        import deploylive_fork_deploy as f
+        env = {key: 'value' for key in c.input_keys() if not key.endswith('_FILE')}
+        second = self.root/'second-rpc'
+        second.write_text('https://secondary.infura.io/key')
+        env.update(self.env, DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
+                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second),
+                   DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura',
+                   DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_PRICE_SOURCE='chain', FOUNDRY_VERBOSITY='2')
+        for overrides in (
+            {'DEPLOYLIVE_EXPECTED_CHAIN_ID': None},
+            {'DEPLOYLIVE_EXPECTED_CHAIN_ID': '010'},
+            {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': 'Alchemy'},
+            {'DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER': None},
+            {'DEPLOYLIVE_RPC': 'https://secondary.infura.io/other'},
+            {'DEPLOYLIVE_SECOND_RPC': 'https://different.infura.io/key'},
+        ):
+            candidate = dict(env)
+            for key, value in overrides.items():
+                if value is None: candidate.pop(key, None)
+                else: candidate[key] = value
+            with self.subTest(overrides=overrides), patch.dict(os.environ, candidate, clear=True), patch.object(f, 'ROOT', self.root), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'verify_build', return_value='forge') as build, patch.object(f, 'config_path', return_value=self.root/'config.json'), patch.object(f.subprocess, 'run') as run, patch.object(f, 'ReadOnlyRPC') as rpc:
+                with self.assertRaisesRegex(RuntimeError, 'STOP (DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid|invalid checker provider pair)'):
+                    f.stage('predict', ['--production', '--evidence', str(self.root)])
+                run.assert_not_called()
+                build.assert_not_called()
+                rpc.assert_not_called()
 
 
 import json

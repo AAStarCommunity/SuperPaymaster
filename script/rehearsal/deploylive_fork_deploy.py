@@ -64,6 +64,27 @@ def gate_sources(env, production, chain):
     return real, corroborating
 
 
+def require_checker_inputs(env, chain=None, production=True):
+    # Provider independence is enforced only before a production broadcast: a fork rehearsal
+    # (anvil --chain-id 11155111 on 127.0.0.1) has no second provider bound to its endpoint.
+    from deploylive_readback import expected_chain_id, independent_providers
+    try:
+        expected = expected_chain_id(env)
+    except ValueError:
+        require(False, 'STOP DEPLOYLIVE_EXPECTED_CHAIN_ID required or invalid')
+    require(chain is None or expected == chain, 'DEPLOYLIVE_EXPECTED_CHAIN_ID differs from the broadcast endpoint chain')
+    if production and expected != 31337:
+        try:
+            second = Path(env['DEPLOYLIVE_SECOND_RPC_FILE']).read_text().strip()
+            if second != env.get('DEPLOYLIVE_SECOND_RPC'):
+                raise ValueError('second endpoint mismatch')
+            independent_providers(env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''),
+                                  env.get('DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER', ''),
+                                  env.get('DEPLOYLIVE_RPC', ''), second)
+        except (ValueError, OSError, KeyError):
+            require(False, 'STOP invalid checker provider pair; distinct approved bound endpoints required')
+
+
 def stage(action, argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--production', action='store_true')
@@ -91,6 +112,8 @@ def stage(action, argv):
     guard_bls_verbosity([], env)
     env.update(SP_COMMIT=clean_source_commit(), DEPLOYLIVE_REHEARSAL='0' if args.production else '1',
                DEPLOYLIVE_EVM_VERSION='prague', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
+    if args.production:
+        require_checker_inputs(env)
     binary = verify_build(env, True)
     request = ROOT / REQUEST_PATH
     request.parent.mkdir(parents=True, exist_ok=True)
@@ -140,8 +163,7 @@ def main():
     chain = int(rpc('eth_chainId'), 16)
     require(chain == 31337 if stop else chain in (10, 31337, 11155111), 'unsupported deployment chain')
     require(not production or chain in (10, 11155111), 'production chain required')
-    from deploylive_readback import expected_chain_id
-    require(expected_chain_id(os.environ) == chain, 'DEPLOYLIVE_EXPECTED_CHAIN_ID differs from the broadcast endpoint chain')
+    require_checker_inputs(dict(os.environ, DEPLOYLIVE_RPC=url), chain, production)
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir() and evidence.is_relative_to(ROOT), 'evidence directory required inside worktree')
     env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='0' if production else '1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
