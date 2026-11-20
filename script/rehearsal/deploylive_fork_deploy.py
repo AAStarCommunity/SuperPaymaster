@@ -259,6 +259,7 @@ def main():
     if stop:
         print('PREPARED stopped before H; deployment is not successful')
         return
+    env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(evidence))
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env, after_broadcast=True)
     (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())

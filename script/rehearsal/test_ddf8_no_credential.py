@@ -45,17 +45,17 @@ class NoCredentialTest(unittest.TestCase):
 
     def test_load_inputs_flag_rules(self):
         with self.assertRaisesRegex(RuntimeError, 'NO_CREDENTIAL=1'):
-            c.load_inputs(self.inputs(), {}, commit_reader=lambda: 'a'*40)
-        env = c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1'), {}, commit_reader=lambda: 'a'*40)
+            c.load_inputs(self.inputs(), {'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'}, commit_reader=lambda: 'a'*40)
+        env = c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1'), {'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'}, commit_reader=lambda: 'a'*40)
         self.assertEqual(env['DEPLOYLIVE_SECOND_RPC'], 'https://b.example/public')
         with self.assertRaisesRegex(RuntimeError, 'must be empty or 1'):
-            c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='yes'), {}, commit_reader=lambda: 'a'*40)
+            c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='yes'), {'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'}, commit_reader=lambda: 'a'*40)
         with self.assertRaisesRegex(RuntimeError, 'set without REHEARSAL_SOURCE_RPC_FILE'):
-            c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1', REHEARSAL_SOURCE_RPC_NO_CREDENTIAL='1'), {}, commit_reader=lambda: 'a'*40)
+            c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1', REHEARSAL_SOURCE_RPC_NO_CREDENTIAL='1'), {'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'}, commit_reader=lambda: 'a'*40)
 
     def test_declaration_is_part_of_the_manifest(self):
         request = self.root / 'pop-request.json'; request.write_text('{}')
-        env = c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1'), {}, commit_reader=lambda: 'a'*40)
+        env = c.load_inputs(self.inputs(DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL='1'), {'DEPLOYLIVE_ENDPOINT_PROVIDER':'Fixture'}, commit_reader=lambda: 'a'*40)
         with_flag = c.manifest_bytes(env, request)
         self.assertIn(b'DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL=1\n', with_flag)
         self.assertNotEqual(with_flag, c.manifest_bytes(dict(env, DEPLOYLIVE_SECOND_RPC_NO_CREDENTIAL=''), request))

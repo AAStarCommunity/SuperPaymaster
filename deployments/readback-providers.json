@@ -1,0 +1,18 @@
+{
+  "alchemy": [
+    ".alchemy.com"
+  ],
+  "tenderly": [
+    ".tenderly.co"
+  ],
+  "publicnode": [
+    ".publicnode.com"
+  ],
+  "infura": [
+    ".infura.io"
+  ],
+  "quicknode": [
+    ".quiknode.pro",
+    ".quicknode.com"
+  ]
+}

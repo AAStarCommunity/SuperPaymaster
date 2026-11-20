@@ -5,5 +5,6 @@
   "agentIdentityRegistry": "0x0000000000000000000000000000000000000000",
   "agentReputationRegistry": "0x0000000000000000000000000000000000000000",
   "agentValidationRegistry": "0x0000000000000000000000000000000000000000",
-  "source": "Read on Sepolia 2026-11-18 at blocks 12160325 (Alchemy) and 12160326 (Tenderly): ETH/USD feed code 6992 B, 8 decimals, description \"ETH / USD\"; EntryPoint v0.7 code 16035 B; SimpleAccountFactory code 2288 B whose entryPoint() is v0.7. Agent registries are not configured for the Sepolia fresh deployment (a=0 only): an a=1 run on this chain must first record verified ERC-8004 addresses here."
+  "source": "Read on Sepolia 2026-11-18 at blocks 12160325 (Alchemy) and 12160326 (Tenderly): ETH/USD feed code 6992 B, 8 decimals, description \"ETH / USD\"; EntryPoint v0.7 code 16035 B; SimpleAccountFactory code 2288 B whose entryPoint() is v0.7. Agent registries are not configured for the Sepolia fresh deployment (a=0 only): an a=1 run on this chain must first record verified ERC-8004 addresses here.",
+  "ethSentinel": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 }

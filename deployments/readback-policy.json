@@ -1,0 +1,1234 @@
+{
+  "schema": "readback-policy/1",
+  "rule": "resolved \u2229 allowed \u2260 \u2205; resolved = [] fails; array outputs: each element independently",
+  "getters": {
+    "AOAProtocolRegistry": {
+      "owner": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      }
+    },
+    "APNTsCapped": {
+      "owner": {
+        "allowed": [
+          "config:timelockController"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "eip712Domain": {
+        "allowed": [
+          "config:aPNTs"
+        ],
+        "why": "ERC20Permit/EIP712.eip712Domain returns address(this); V2 base override xPNTsV2Base.sol:249-264 also returns address(this)."
+      },
+      "capGuardian": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "minter": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "pendingOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier.",
+        "zeroAllowed": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier."
+      }
+    },
+    "BLSAggregator": {
+      "owner": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "DVT_VALIDATOR": {
+        "allowed": [
+          "config:dvtValidator"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "SUPERPAYMASTER": {
+        "allowed": [
+          "config:superPaymaster"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "slashPolicyAdmin": {
+        "allowed": [
+          "config:SLASH_POLICY_ADMIN"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "fraudProofVerifier": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier.",
+        "zeroAllowed": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier."
+      },
+      "pendingFraudProofVerifier": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier.",
+        "zeroAllowed": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier."
+      }
+    },
+    "DVTValidator": {
+      "owner": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "BLS_AGGREGATOR": {
+        "allowed": [
+          "config:blsAggregator"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "ERC1967Proxy": {},
+    "GTokenAuthorization": {
+      "owner": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "eip712Domain": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "ERC20Permit/EIP712.eip712Domain returns address(this); V2 base override xPNTsV2Base.sol:249-264 also returns address(this)."
+      },
+      "factory": {
+        "allowed": [
+          "config:xPNTsFactory"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "mySBT": {
+        "allowed": [
+          "config:sbt"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "GTokenStaking": {
+      "owner": {
+        "allowed": [
+          "config:timelockController"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "GTOKEN": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "treasury": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "GlobalTierSource": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "MicroPaymentChannel": {
+      "owner": {
+        "allowed": [
+          "config:MPC_OWNER"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "eip712Domain": {
+        "allowed": [
+          "config:microPaymentChannel"
+        ],
+        "why": "ERC20Permit/EIP712.eip712Domain returns address(this); V2 base override xPNTsV2Base.sol:249-264 also returns address(this)."
+      }
+    },
+    "MySBT": {
+      "GTOKEN": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN_STAKING": {
+        "allowed": [
+          "config:staking"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "daoMultisig": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "reputationCalculator": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier.",
+        "zeroAllowed": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier."
+      }
+    },
+    "Paymaster": {
+      "owner": {
+        "allowed": [
+          "config:PAYMASTER_FACTORY_OWNER"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "registry": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "entryPoint": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Paymaster.sol:60-65 sets only immutable registry and disables initializers; template has no EntryPoint/feed/treasury configuration.",
+        "zeroAllowed": "Paymaster.sol:60-65 sets only immutable registry and disables initializers; template has no EntryPoint/feed/treasury configuration."
+      },
+      "ethUsdPriceFeed": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Paymaster.sol:60-65 sets only immutable registry and disables initializers; template has no EntryPoint/feed/treasury configuration.",
+        "zeroAllowed": "Paymaster.sol:60-65 sets only immutable registry and disables initializers; template has no EntryPoint/feed/treasury configuration."
+      },
+      "treasury": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Paymaster.sol:60-65 sets only immutable registry and disables initializers; template has no EntryPoint/feed/treasury configuration.",
+        "zeroAllowed": "Paymaster.sol:60-65 sets only immutable registry and disables initializers; template has no EntryPoint/feed/treasury configuration."
+      },
+      "getSupportedTokens": {
+        "allowed": [],
+        "why": "Paymaster.sol:60-65 disables template initialization; DeployLive never configures template gas tokens. Only an empty list is valid.",
+        "emptyAllowed": true
+      },
+      "getSupportedTokensInfo": {
+        "allowed": [],
+        "why": "Paymaster.sol:60-65 disables template initialization; DeployLive never configures template gas tokens. Only an empty list is valid.",
+        "emptyAllowed": true
+      }
+    },
+    "PaymasterFactory": {
+      "owner": {
+        "allowed": [
+          "config:PAYMASTER_FACTORY_OWNER"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "registry": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "PolicyRegistry": {
+      "guardian": {
+        "allowed": [
+          "config:expectedGuardian"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "timelock": {
+        "allowed": [
+          "config:timelockController"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "ETH_SENTINEL": {
+        "allowed": [
+          "external:ethSentinel"
+        ],
+        "why": "contracts/src/core/PolicyRegistry.sol:32 canonical native-ETH sentinel; not a deployed contract."
+      }
+    },
+    "Registry": {
+      "GTOKEN_STAKING": {
+        "allowed": [
+          "config:staking",
+          "zero"
+        ],
+        "why": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero.",
+        "zeroAllowed": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero."
+      },
+      "MYSBT": {
+        "allowed": [
+          "config:sbt",
+          "zero"
+        ],
+        "why": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero.",
+        "zeroAllowed": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero."
+      },
+      "SUPER_PAYMASTER": {
+        "allowed": [
+          "config:superPaymaster",
+          "zero"
+        ],
+        "why": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero.",
+        "zeroAllowed": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero."
+      },
+      "blsAggregator": {
+        "allowed": [
+          "config:blsAggregator",
+          "zero"
+        ],
+        "why": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero.",
+        "zeroAllowed": "Registry.sol:86-95 disables template initialization; DeployLive.s.sol:189-190,559-561 wires the proxy. Template storage remains zero."
+      },
+      "owner": {
+        "allowed": [
+          "config:timelockController",
+          "config:deployer"
+        ],
+        "why": "Registry.sol:86 constructor owns the implementation; DeployLive.s.sol:867-879 hands the proxy to the timelock."
+      },
+      "pendingOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier.",
+        "zeroAllowed": "Fresh deployment defaults to zero; DeployLive completes pending ownership and never configures this optional calculator/verifier."
+      }
+    },
+    "ReputationSystem": {
+      "owner": {
+        "allowed": [
+          "config:REPUTATION_OWNER"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "SuperPaymaster": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "ETH_USD_PRICE_FEED": {
+        "allowed": [
+          "external:ethUsdFeed"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "entryPoint": {
+        "allowed": [
+          "external:entryPoint"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "pendingAPNTsToken": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
+        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
+      },
+      "pendingBLSAgg": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
+        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
+      },
+      "pendingOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
+        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
+      },
+      "EXTENSION": {
+        "allowed": [
+          "config:spAdminImpl"
+        ],
+        "why": "SuperPaymaster.sol:103 creates the admin implementation; DeployLive.s.sol:997 records EXTENSION."
+      },
+      "owner": {
+        "allowed": [
+          "config:timelockController",
+          "config:deployer"
+        ],
+        "why": "BasePaymasterUpgradeable constructor owns the template; DeployLive.s.sol:867-879 hands the initialized proxy to timelock."
+      },
+      "APNTS_TOKEN": {
+        "allowed": [
+          "config:aPNTs",
+          "zero"
+        ],
+        "why": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage.",
+        "zeroAllowed": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage."
+      },
+      "BLS_AGGREGATOR": {
+        "allowed": [
+          "config:blsAggregator",
+          "zero"
+        ],
+        "why": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage.",
+        "zeroAllowed": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage."
+      },
+      "treasury": {
+        "allowed": [
+          "config:governanceOwner",
+          "zero"
+        ],
+        "why": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage.",
+        "zeroAllowed": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage."
+      },
+      "guardian": {
+        "allowed": [
+          "config:expectedSPGuardian",
+          "zero"
+        ],
+        "why": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage.",
+        "zeroAllowed": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage."
+      },
+      "xpntsFactory": {
+        "allowed": [
+          "config:xPNTsFactoryV2",
+          "zero"
+        ],
+        "why": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage.",
+        "zeroAllowed": "SuperPaymaster.sol:114-135 initializes proxy; DeployLive.s.sol:229,557-568 and production handover wire proxy. Direct template retains zero storage."
+      },
+      "agentIdentityRegistry": {
+        "allowed": [
+          "external:agentIdentityRegistry",
+          "zero"
+        ],
+        "why": "DeployLive agent opt-in wiring; disabled proxy and direct template retain zero. External dependency checks separately enforce switch.",
+        "zeroAllowed": "DeployLive agent opt-in wiring; disabled proxy and direct template retain zero. External dependency checks separately enforce switch."
+      },
+      "agentReputationRegistry": {
+        "allowed": [
+          "external:agentReputationRegistry",
+          "zero"
+        ],
+        "why": "DeployLive agent opt-in wiring; disabled proxy and direct template retain zero. External dependency checks separately enforce switch.",
+        "zeroAllowed": "DeployLive agent opt-in wiring; disabled proxy and direct template retain zero. External dependency checks separately enforce switch."
+      }
+    },
+    "SuperPaymasterAdmin": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "ETH_USD_PRICE_FEED": {
+        "allowed": [
+          "external:ethUsdFeed"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "entryPoint": {
+        "allowed": [
+          "external:entryPoint"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "pendingAPNTsToken": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
+        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
+      },
+      "pendingBLSAgg": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
+        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
+      },
+      "pendingOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
+        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
+      },
+      "APNTS_TOKEN": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "BLS_AGGREGATOR": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "treasury": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "guardian": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "xpntsFactory": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "agentIdentityRegistry": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "agentReputationRegistry": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      },
+      "owner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
+        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
+      }
+    },
+    "SuperPaymasterLens": {},
+    "TimelockController": {},
+    "TimelockHandoverBootstrap": {},
+    "X402Facilitator": {
+      "owner": {
+        "allowed": [
+          "config:X402_OWNER"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "XPNTS_FACTORY": {
+        "allowed": [
+          "config:xPNTsFactory"
+        ],
+        "why": "DeployLive.s.sol:465-468 passes legacy xpntsFactory to V54Bootstrap.sol:102-103 constructor."
+      }
+    },
+    "xPNTsFactory": {
+      "owner": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "SUPERPAYMASTER": {
+        "allowed": [
+          "config:superPaymaster"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "implementation": {
+        "allowed": [
+          "config:xPNTsTokenV1Impl"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "getAllTokens": {
+        "allowed": [],
+        "why": "DeployLive.s.sol:214-216 deploys production aPNTs directly; :266 skips Mycelium issuance. No factory token is issued in this production run, so only an empty list is valid.",
+        "emptyAllowed": true
+      }
+    },
+    "xPNTsFactoryV2": {
+      "owner": {
+        "allowed": [
+          "config:governanceOwner"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:817-915 final ownership handover; resolved input choice where applicable."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "SUPERPAYMASTER": {
+        "allowed": [
+          "config:superPaymaster"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "implementation": {
+        "allowed": [
+          "config:xPNTsTokenV2Impl"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "defaultTierSource": {
+        "allowed": [
+          "config:globalTierSource"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "getAllTokens": {
+        "allowed": [],
+        "why": "DeployLive.s.sol:214-216 deploys production aPNTs directly; :266 skips Mycelium issuance. No factory token is issued in this production run, so only an empty list is valid.",
+        "emptyAllowed": true
+      }
+    },
+    "xPNTsToken": {
+      "eip712Domain": {
+        "allowed": [
+          "config:xPNTsTokenV1Impl"
+        ],
+        "why": "ERC20Permit/EIP712.eip712Domain returns address(this); V2 base override xPNTsV2Base.sol:249-264 also returns address(this)."
+      },
+      "FACTORY": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage.",
+        "zeroAllowed": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage."
+      },
+      "SUPERPAYMASTER_ADDRESS": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage.",
+        "zeroAllowed": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage."
+      },
+      "communityOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage.",
+        "zeroAllowed": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage."
+      },
+      "emergencyRevokedAddress": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage.",
+        "zeroAllowed": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage."
+      },
+      "getMetadata": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage.",
+        "zeroAllowed": "xPNTsToken.sol:303 constructor disables initializers; direct V1 implementation retains empty metadata and zero storage."
+      }
+    },
+    "xPNTsTokenV2": {
+      "eip712Domain": {
+        "allowed": [
+          "config:xPNTsTokenV2Impl",
+          "config:pnts"
+        ],
+        "why": "xPNTsV2Base.sol:249-264 returns address(this): template address when called directly; pnts clone when called through the optional clone."
+      },
+      "PROTOCOL_REGISTRY": {
+        "allowed": [
+          "config:aoaProtocolRegistry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "EXTENSION": {
+        "allowed": [
+          "config:xPNTsTokenV2Ext"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "FACTORY": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "SUPERPAYMASTER_ADDRESS": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "community": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "communityOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "creditTierSource": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "emergencyRevokedAddress": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "pendingSP": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "pendingStandby": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "pendingTierSource": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "standbySP": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      }
+    },
+    "xPNTsTokenV2Ext": {
+      "eip712Domain": {
+        "allowed": [
+          "config:xPNTsTokenV2Ext"
+        ],
+        "why": "ERC20Permit/EIP712.eip712Domain returns address(this); V2 base override xPNTsV2Base.sol:249-264 also returns address(this)."
+      },
+      "PROTOCOL_REGISTRY": {
+        "allowed": [
+          "config:aoaProtocolRegistry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "FACTORY": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "SUPERPAYMASTER_ADDRESS": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "community": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "communityOwner": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "creditTierSource": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "emergencyRevokedAddress": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "pendingSP": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "pendingStandby": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "pendingTierSource": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "standbySP": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
+      },
+      "getMetadata": {
+        "allowed": [
+          "zero"
+        ],
+        "why": "Direct extension has no initialized community metadata: xPNTsV2Base.sol:222-226.",
+        "zeroAllowed": "Direct extension has no initialized community metadata: xPNTsV2Base.sol:222-226."
+      }
+    }
+  },
+  "unreadableAllowed": {},
+  "zeroAllowedConfigKeys": {
+    "pnts": "contracts/script/v3/DeployLive.s.sol:266 skips Mycelium in production; :1027 records pntsAddr (zero).",
+    "aPNTsPaymasterV4": "contracts/script/v3/DeployLive.s.sol:259-260 production uses guardian registration instead of AOA orchestration; :1031 records absent clone.",
+    "spAdminImplOwner": "SuperPaymasterAdmin.sol:60 explicitly clears owner; DeployLive.s.sol:998 records it.",
+    "agentIdentityRegistry": "DeployLiveInputs.sol:138-139 requires zero when disabled; DeployLive.s.sol:601-608 and :1034-1045 record the optional production pointer.",
+    "agentReputationRegistry": "DeployLiveInputs.sol:138-139 requires zero when disabled; DeployLive.s.sol:601-608 and :1034-1045 record the optional production pointer.",
+    "agentValidationRegistry": "DeployLive.s.sol:608 explicitly sets validation to zero when agent registries are disabled; :1047 records it."
+  },
+  "immutableBindings": {
+    "AOAProtocolRegistry": {},
+    "APNTsCapped": {
+      "_cachedThis": {
+        "allowed": [
+          "config:aPNTs"
+        ],
+        "why": "Constructor caches address(this) in APNTsCapped; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "_name": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_version": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedName": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedVersion": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
+      }
+    },
+    "BLSAggregator": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "DVTValidator": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "ERC1967Proxy": {},
+    "GTokenAuthorization": {
+      "factory": {
+        "allowed": [
+          "config:xPNTsFactory"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "_cachedThis": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "Constructor caches address(this) in GTokenAuthorization; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "_cap": {
+        "expectedUint": "21000000000000000000000000",
+        "why": "contracts/script/v3/DeployLive.s.sol:175 passes uint256(21_000_000 * 1e18); this is GToken cap, not APNTs expectedCap."
+      },
+      "_name": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_version": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedName": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedVersion": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
+      }
+    },
+    "GTokenStaking": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "GlobalTierSource": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "MicroPaymentChannel": {
+      "_cachedThis": {
+        "allowed": [
+          "config:microPaymentChannel"
+        ],
+        "why": "contracts/lib/solady/src/utils/EIP712.sol:54 stores uint256(uint160(address(this))); require zero high twelve bytes and direct channel address."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
+      },
+      "_cachedNameHash": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedVersionHash": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      }
+    },
+    "MySBT": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN_STAKING": {
+        "allowed": [
+          "config:staking"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "GTOKEN": {
+        "allowed": [
+          "config:gToken"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "Paymaster": {
+      "registry": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "PaymasterFactory": {},
+    "PolicyRegistry": {
+      "timelock": {
+        "allowed": [
+          "config:timelockController"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "Registry": {
+      "__self": {
+        "allowed": [
+          "config:registryImpl"
+        ],
+        "why": "Constructor caches address(this) in Registry; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "ReputationSystem": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "SuperPaymaster": {
+      "entryPoint": {
+        "allowed": [
+          "external:entryPoint"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "EXTENSION": {
+        "allowed": [
+          "config:spAdminImpl"
+        ],
+        "why": "SuperPaymaster.sol:103 creates the admin implementation; DeployLive.s.sol:997 records EXTENSION."
+      },
+      "__self": {
+        "allowed": [
+          "config:spImpl"
+        ],
+        "why": "Constructor caches address(this) in SuperPaymaster; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "ETH_USD_PRICE_FEED": {
+        "allowed": [
+          "external:ethUsdFeed"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      }
+    },
+    "SuperPaymasterAdmin": {
+      "entryPoint": {
+        "allowed": [
+          "external:entryPoint"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "ETH_USD_PRICE_FEED": {
+        "allowed": [
+          "external:ethUsdFeed"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
+      },
+      "__self": {
+        "allowed": [
+          "config:spAdminImpl"
+        ],
+        "why": "Constructor caches address(this) in SuperPaymasterAdmin; bind the direct implementation/runtime address, not a proxy or clone."
+      }
+    },
+    "SuperPaymasterLens": {},
+    "TimelockController": {},
+    "TimelockHandoverBootstrap": {},
+    "X402Facilitator": {
+      "XPNTS_FACTORY": {
+        "allowed": [
+          "config:xPNTsFactory"
+        ],
+        "why": "DeployLive.s.sol:465-468 passes legacy xpntsFactory to V54Bootstrap.sol:102-103 constructor."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "xPNTsFactory": {
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "implementation": {
+        "allowed": [
+          "config:xPNTsTokenV1Impl"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "xPNTsFactoryV2": {
+      "implementation": {
+        "allowed": [
+          "config:xPNTsTokenV2Impl"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "REGISTRY": {
+        "allowed": [
+          "config:registry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "implementationCodehash": {
+        "codehashOf": "config:xPNTsTokenV2Impl",
+        "why": "Factory constructor pins the deployed helper runtime."
+      },
+      "extensionCodehash": {
+        "codehashOf": "config:xPNTsTokenV2Ext",
+        "why": "Factory constructor pins the deployed helper runtime."
+      }
+    },
+    "xPNTsToken": {
+      "_cachedThis": {
+        "allowed": [
+          "config:xPNTsTokenV1Impl"
+        ],
+        "why": "Constructor caches address(this) in xPNTsToken; bind the direct implementation/runtime address, not a proxy or clone."
+      },
+      "_name": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_version": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedDomainSeparator": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedName": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_hashedVersion": {
+        "unbound": "Constructor-derived EIP-712 hash or ShortString; guaranteed by creation-code pin and plan comparison on deployment path, not proved by post-deploy checker."
+      },
+      "_cachedChainId": {
+        "chainId": true,
+        "why": "EIP-712 constructor chain cache must equal the observed chain ID."
+      }
+    },
+    "xPNTsTokenV2": {
+      "EXTENSION": {
+        "allowed": [
+          "config:xPNTsTokenV2Ext"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      },
+      "PROTOCOL_REGISTRY": {
+        "allowed": [
+          "config:aoaProtocolRegistry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    },
+    "xPNTsTokenV2Ext": {
+      "PROTOCOL_REGISTRY": {
+        "allowed": [
+          "config:aoaProtocolRegistry"
+        ],
+        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
+      }
+    }
+  }
+}

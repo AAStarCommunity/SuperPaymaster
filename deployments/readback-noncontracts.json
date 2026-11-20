@@ -1,0 +1,33 @@
+{
+  "production": {
+    "deployer": "DeployLive.s.sol:964: transaction signer, checked against CLI and code-empty constraint.",
+    "governanceOwner": "DeployLive.s.sol:969: reviewed governance Safe input, independently checked Safe state.",
+    "SLASH_POLICY_ADMIN": "DeployLive.s.sol:985: resolved _ownerKey(0), checked authority Safe or timelock.",
+    "X402_OWNER": "DeployLive.s.sol:985: resolved _ownerKey(1), checked authority Safe or timelock.",
+    "REPUTATION_OWNER": "DeployLive.s.sol:985: resolved _ownerKey(2), checked authority Safe or timelock.",
+    "MPC_OWNER": "DeployLive.s.sol:985: resolved _ownerKey(3), checked authority Safe or timelock.",
+    "PAYMASTER_FACTORY_OWNER": "DeployLive.s.sol:985: resolved _ownerKey(4), checked authority Safe or timelock.",
+    "deployerGTokenRecipient": "DeployLive.s.sol:986: reviewed residual-token recipient, checked authority.",
+    "registryImplOwner": "DeployLive.s.sol:993: observed implementation owner, existing deployer principal.",
+    "spImplOwner": "DeployLive.s.sol:994: observed implementation owner, existing deployer principal.",
+    "paymasterV4ImplOwner": "DeployLive.s.sol:995: observed implementation owner, resolved PAYMASTER_FACTORY_OWNER principal.",
+    "spAdminImplOwner": "DeployLive.s.sol:998: inert admin implementation owner (zero); not a deployment.",
+    "expectedGuardian": "DeployLive.s.sol:1002: policy guardian input principal.",
+    "expectedSPGuardian": "DeployLive.s.sol:1003: SuperPaymaster guardian input principal.",
+    "genesisOperator": "DeployLive.s.sol:1004: genesis operator input principal, registration checked.",
+    "simpleAccountFactory": "DeployLive.s.sol:1026: pre-existing external account factory, external-deps accountFactory.",
+    "aPNTsPaymasterV4": "DeployLive.s.sol:1031: production explicitly creates no AOA clone (259-260); required zero by checker.",
+    "agentIdentityRegistry": "DeployLive.s.sol:1039: optional external ERC-8004 pointer; opt-in checked.",
+    "agentReputationRegistry": "DeployLive.s.sol:1044: optional external ERC-8004 pointer; opt-in checked.",
+    "agentValidationRegistry": "DeployLive.s.sol:1047: optional external ERC-8004 pointer recorded for future use.",
+    "priceFeed": "DeployLive.s.sol:1068: external Chainlink feed input, external-deps ethUsdFeed.",
+    "entryPoint": "DeployLive.s.sol:1069: external ERC-4337 v0.7 EntryPoint input, external-deps entryPoint.",
+    "guardians": "Non-contract signing principals for the guardian committee.",
+    "gTokenMintRecipients": "Non-contract classification: token allocation recipients, not newly deployed artifacts.",
+    "stakeAccounts": "Non-contract classification: staking ledger accounts, not deployed artifacts.",
+    "ticketTreasuries": "Non-contract classification: ticket allocation beneficiaries, not deployed artifacts."
+  },
+  "localOnly": {
+    "expectedGovernor": "contracts/script/v3/DeployLive.s.sol:984 emitted only outside production."
+  }
+}

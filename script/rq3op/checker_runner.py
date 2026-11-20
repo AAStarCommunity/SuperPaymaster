@@ -15,12 +15,15 @@ def pin_command(command,block):
     if not re.fullmatch(r'0x[0-9a-fA-F]+',block):raise ValueError('invalid checker block')
     args=list(command)
     if Path(args[0]).name!='cast':return args
-    if args[1] in ('keccak','calldata','sig','abi-encode'):return args
+    if args[1] in ('keccak','calldata','sig','abi-encode','decode-abi','to-check-sum-address'):return args
     if args[1] in ('call','code','balance','storage'):
+        if '--block' in args:
+            index=args.index('--block');args[index+1]=block;return args
         return [*args,'--block',block]
     if args[1]=='rpc':
         method=args[2]
         if method=='eth_chainId':return args
+        if method=='eth_getBlockByNumber':args[3]=block;return args
         if method=='eth_call':args[4]=block;return args
         if method=='eth_getLogs':
             query=json.loads(args[3]);query['toBlock']=block;args[3]=json.dumps(query);return args

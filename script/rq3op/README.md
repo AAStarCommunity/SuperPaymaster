@@ -584,3 +584,8 @@ The post-execution target check detects a step that did not reach its planned ta
 unrelated state changes, or a change that was reverted before the check.
 
 After the first Safe transaction of the Sepolia rehearsal executes, its on-chain receipt is added as a fixture.
+The DeployLive readback checker requires `DEPLOYLIVE_ENDPOINT_PROVIDER` (a short provider
+name, never an endpoint URL) and an explicit `DEPLOYLIVE_EVIDENCE_DIR` for its evidence.
+Set both before invoking rq3; `PinnedTools` forwards them to the checker. There is no
+fallback to the config file's directory. Provider validation runs during input loading
+and checker startup, before chain reads.

@@ -650,7 +650,7 @@ def run_checker(config_path,cfg,url,chain,runner=None,commit_reader=None,block=N
     result=(runner or tools.run)([sys.executable,'-B',*executable,url,str(inside(config_path)),
         cfg['deployer'],cfg['governanceOwner']],capture_output=True,text=True,cwd=ROOT,env=tools.env)
     matches=re.findall(r'^SUMMARY (\d+) passed, (\d+) failed, (\d+) total$',result.stdout,re.M)
-    expected=182+2*int(cfg['guardianN'])
+    expected=238+2*int(cfg['guardianN'])  # includes two codehash rows and cap/channel self-address rows
     a.need('rq3_checker_execution',result.returncode==0 and len(matches)==1 and
         tuple(map(int,matches[0]))==(expected,0,expected) and not re.search(r'^FAIL\b',result.stdout,re.M),True)
     return dict(tools=tools.records,checkerFiles=hashes,result='PASS',exitCode=0,passed=expected,failed=0,total=expected,
@@ -672,12 +672,16 @@ RELEASE_NAMES=dict(superPaymaster='SuperPaymaster',registry='Registry',xPNTsFact
     staking='GTokenStaking',gToken='GTokenAuthorization',aPNTs='APNTsCapped')
 
 
+DEPLOYED_RELEASE_NAMES = frozenset('AOAProtocolRegistry APNTsCapped BLSAggregator DVTValidator GTokenAuthorization GTokenStaking GlobalTierSource MicroPaymentChannel MySBT Paymaster PaymasterFactory PolicyRegistry Registry ReputationSystem SuperPaymaster SuperPaymasterLens X402Facilitator xPNTsFactory xPNTsFactoryV2 xPNTsToken xPNTsTokenV2'.split())
+SOURCE_ONLY_RELEASE_NAMES = frozenset({"GToken"})
+
+
 def verify_system(cfg,rpc,block,*,entrypoint_in_builder=False):
     try:
         versions=load(ROOT/'deployments/release-versions.rc8.json')
     except (ValueError, OSError):
         raise a.Gate('rq3_release_versions','invalid table','reviewed release table') from None
-    a.need('rq3_release_versions',set(versions),set(RELEASE_NAMES.values()))
+    a.need('rq3_release_versions',set(versions) == DEPLOYED_RELEASE_NAMES | SOURCE_ONLY_RELEASE_NAMES,True)
     for key in SYSTEM_SOURCES:
         if key=='entryPoint' and entrypoint_in_builder: continue
         address=cfg[key]

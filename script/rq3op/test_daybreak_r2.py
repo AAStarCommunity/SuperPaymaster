@@ -9,6 +9,13 @@ import plan_three_arm as q
 import test_three_arm as fixtures
 
 class Round2(unittest.TestCase):
+    def test_provider_name_reaches_checker_environment(self):
+        import os
+        from pinned_tools import PinnedTools
+        with patch.dict(os.environ, DEPLOYLIVE_ENDPOINT_PROVIDER='Fixture'):
+            tools = PinnedTools()
+        self.assertEqual(tools.env.get('DEPLOYLIVE_ENDPOINT_PROVIDER'), 'Fixture')
+
     def test_pinned_tools_environment_and_metadata(self):
         tools=q.pinned_tools()
         calls=[]
@@ -40,11 +47,12 @@ class Round2(unittest.TestCase):
 
     def test_release_table_matches_source_literals(self):
         expected={}
-        for key,source in q.SYSTEM_SOURCES.items():
-            if source:
-                text=(q.ROOT/'contracts/src'/source).read_text()
-                name=re.search(r'^contract\s+(\w+)',text,re.M)[1]
-                expected[name]=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)[1]
+        names = 'AOAProtocolRegistry APNTsCapped BLSAggregator DVTValidator GToken GTokenAuthorization GTokenStaking GlobalTierSource MicroPaymentChannel MySBT Paymaster PaymasterFactory PolicyRegistry Registry ReputationSystem SuperPaymaster SuperPaymasterLens X402Facilitator xPNTsFactory xPNTsFactoryV2 xPNTsToken xPNTsTokenV2'.split()
+        for name in names:
+            paths = list((q.ROOT/'contracts/src').rglob(name + '.sol'))
+            self.assertEqual(len(paths), 1)
+            text = paths[0].read_text()
+            expected[name]=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)[1]
         self.assertEqual(json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text()),expected)
 
     def test_planner_task_collisions(self):
@@ -77,9 +85,17 @@ class Round2(unittest.TestCase):
         q.verify_system(cfg,lambda method,params:'0x6000' if method=='eth_getCode' else encoded[params[0]['to']],'0x20')
         # The checker consumes injected release artifacts so this control also runs
         # on a clean CI checkout with no ignored out/ directory. matches() is real.
-        def artifact(name):
-            code='0x60'+hashlib.sha256(name.encode()).hexdigest()
-            return dict(bytecode={'object':code},deployedBytecode={'object':code,'immutableReferences':{}},
+        def artifact(name, directory=None):
+            pin = json.loads((q.ROOT/'deployments/runtime-pins.31337.json').read_text())['artifacts'][name]
+            prefix = '60806040525f80fd' if name == 'TimelockHandoverBootstrap' else '60'
+            code = '0x' + prefix + '00' * (int(pin['runtimeLength']) - len(prefix)//2)
+            refs = {}
+            for ref in pin['immutableRanges']:
+                refs.setdefault(ref['id'], []).append({'start': int(ref['start']), 'length': int(ref['length'])})
+            abi_path = q.ROOT/'abis'/f'{name}.json'
+            abi = json.loads(abi_path.read_text()) if abi_path.exists() else []
+            if isinstance(abi, dict): abi = abi['abi']
+            return dict(abi=abi, bytecode={'object':'0x60'+hashlib.sha256(name.encode()).hexdigest()},deployedBytecode={'object':code,'immutableReferences':refs},
                 metadata={'settings':{'evmVersion':'cancun','viaIR':True,
                     'optimizer':{'runs':200 if name in ('Registry','TimelockHandoverBootstrap') else 500}}})
         with patch('deploylive_runtime.release_artifact',side_effect=artifact):
@@ -88,4 +104,4 @@ class Round2(unittest.TestCase):
             rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=versions)
         self.assertEqual(rc,1,out)
         self.assertIn('sp="SuperPaymaster-5.5.3"',out)
-        self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  runtime SuperPaymaster'])
+        self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  readback snapshot policy', 'FAIL  runtime spImpl'])
