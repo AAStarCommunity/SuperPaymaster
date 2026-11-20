@@ -413,16 +413,72 @@ By default `cast` prompts for each keystore password on `/dev/tty`. A formal RQ3
 window needs roughly 600–900 signatures, so the password can instead come from the
 macOS Keychain. This is off unless explicitly selected.
 
-1. Add one entry per keystore yourself, interactively (the password is typed at the
-   `security` prompt, never on the command line or in a file):
+**Exposure (read before adding any entry).** An entry created with
+`security add-generic-password` trusts `/usr/bin/security` in its ACL. While the entry
+exists and its keychain is unlocked, **any process running as the same user can read the
+keystore password silently**, with no confirmation dialog, through
+`/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w`. The
+keystore files are readable by the same user too, so same-user malware could obtain the
+signing keys. The default tty flow never stores the password, so this exposure is new.
+
+1. Add one entry per keystore in the **login keychain**, interactively. With `-w` last,
+   `security` prompts for the password twice; it never goes on the command line or into a file:
 
    ```sh
-   security add-generic-password -s aastar-rq3-keystore -a <keystore-name> -w
+   security add-generic-password -s aastar-rq3-keystore -a NAME -w
    ```
 
-   The service name is fixed (`aastar-rq3-keystore`); the account is the Foundry
-   keystore name used in `accounts.<role>.name`. On first use macOS may ask whether
-   `security` may read the item.
+   The service name is fixed (`aastar-rq3-keystore`). `NAME` is the Foundry keystore name
+   used in `accounts.<role>.name`. The helper must run with your real `HOME`: the user
+   keychain search list is read from `$HOME/Library/Preferences`, and under another `HOME`
+   only the System keychain is searched, so the lookup fails closed with `keychain entry
+   missing`.
+
+   **Required: delete the entries whenever they are not in use.** That means right after the
+   collection window, and before any long idle period such as a timelock wait. Re-enter them
+   just before they are next needed. Delete, then check read-only that nothing remains
+   (exit code 44 means "not found"):
+
+   ```sh
+   for NAME in rq3-experiment optimism-anni rq3-owner-0 rq3-owner-1 rq3-owner-2 rq3-verifying-signer rq3-bundler; do
+     security delete-generic-password -s aastar-rq3-keystore -a "$NAME" >/dev/null
+   done
+   for NAME in rq3-experiment optimism-anni rq3-owner-0 rq3-owner-1 rq3-owner-2 rq3-verifying-signer rq3-bundler; do
+     security find-generic-password -s aastar-rq3-keystore -a "$NAME" >/dev/null 2>&1; echo "$NAME $?"
+   done
+   ```
+
+   Optional: a dedicated keychain with auto-lock. Auto-lock shortens the exposure but
+   cannot stop same-user reads while the keychain is unlocked. This sequence was run end
+   to end on 2026-11-20 with a fake keystore and fake passwords, under cast 1.7.1 and
+   nightly 4e8874b. The helper signed and `cast wallet verify` accepted the signature.
+   After `lock-keychain` the helper failed closed within about 1 s with `keychain entry
+   missing`, with no dialog and no hang. After `unlock-keychain` it signed again. Deleting
+   the entry left `find-generic-password` at exit code 44, and the search list was restored
+   byte for byte. The auto-lock timer itself was not waited out; only a manual lock was
+   tested. The helper takes no keychain path, so the dedicated keychain must be on the
+   user search list. Steps marked (interactive) prompt for a password:
+
+   ```sh
+   KC="$HOME/Library/Keychains/aastar-rq3.keychain-db"
+   security list-keychains -d user | tee ~/aastar-rq3-search-list.orig   # save the current list
+   security create-keychain "$KC"                       # (interactive) new keychain password, twice
+   security set-keychain-settings -l -u -t 10800 "$KC"  # lock on sleep and after 3 h idle
+   security list-keychains -d user -s <every path from the saved list> "$KC"
+   security list-keychains -d user                      # check: old entries plus $KC
+   security add-generic-password -s aastar-rq3-keystore -a NAME -w "$KC"   # (interactive) keystore password, twice; once per NAME
+   security unlock-keychain "$KC"                       # (interactive) after an auto-lock
+   # after the window:
+   security delete-generic-password -s aastar-rq3-keystore -a NAME "$KC"   # once per NAME
+   security list-keychains -d user -s <every path from the saved list>
+   security delete-keychain "$KC"
+   security list-keychains -d user | diff - ~/aastar-rq3-search-list.orig && echo restored
+   ```
+
+   Quote each path exactly as `list-keychains` prints it. If the search list is set without
+   the existing entries, the login keychain drops out of the search list until it is
+   restored.
+
 2. Opt in: collector `--keystore-password-source keychain` (formal mode), or
    `"keystorePasswordSource": "keychain"` on an account object (for example in the
    `setup.mjs` signing map). Accepted values are `tty` (default) and `keychain`;
@@ -438,7 +494,7 @@ zeroes its buffer, and returns only cast's single `0x…` signature line. The pa
 never passed through Node, argv or environment variables. Foundry rejects
 `--password-file` from a pipe/FIFO, so process substitution is not an alternative.
 
-Fail-closed: a missing or empty Keychain entry (cast is then not started), no prompt
+Fail-closed: a missing, empty, or over-1023-byte Keychain entry (cast is then not started), no prompt
 or ECHO never turned off within the timeout, cast exiting nonzero, or any stdout other
 than one signature line all exit nonzero; Node raises
 `keystore signing failed (redacted)` and there is no fallback to `/dev/tty` or any
@@ -448,9 +504,17 @@ message; the helper's own stderr carries only a fixed stage label.
 
 Before reading Keychain, the helper disables core dumps with `RLIMIT_CORE=(0, 0)`.
 It reads into one preallocated bytearray plus a length, validates without password
-slices, and wipes that buffer after writing. Residual risk: echoed output and Python
-allocations can leave password bytes in the helper's heap while it lives (freed at
-exit); the cast process holds the password too. The ECHO check and write are not
+slices, and wipes that buffer after writing.
+
+Residual risk: the ACL on entries created with `security add-generic-password`
+trusts `/usr/bin/security`, so ANY same-user process can silently retrieve the password
+while the keychain is unlocked via
+`/usr/bin/security find-generic-password -s aastar-rq3-keystore -a NAME -w`.
+Same-user malware can also read the keystore files and thus obtain signing keys;
+the tty flow never stores the password, so this exposure is new. It is bounded
+by the required deletion step above (entries exist only while they are in use); a
+dedicated auto-locking keychain is optional. Echoed output and Python allocations can leave password bytes in the
+helper's heap while it lives (freed at exit); the cast process holds the password too. The ECHO check and write are not
 atomic. Abnormal exits through helper cleanup kill the cast process group even if
 its leader was already reaped; an uncatchable helper SIGKILL cannot run cleanup.
 

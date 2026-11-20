@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Test-only stand-in for `cast wallet sign`: prompts on /dev/tty with ECHO on, records
 # whether input arrived before ECHO was turned off, then reads the password.
-import hashlib, json, os, select, sys, termios, time
+import hashlib, json, os, select, signal, sys, termios, time
 rec = os.environ['FAKE_DIR']
 mode = os.environ.get('FAKE_CAST_MODE', 'normal')
 out = {'argv': sys.argv, 'env': dict(os.environ), 'mode': mode}
@@ -9,6 +9,24 @@ path = os.path.join(rec, 'records', 'cast-%d.json' % os.getpid())
 def save():
     with open(path, 'w') as f: json.dump(out, f)
 save()
+if mode == 'orphan-child':
+    # Ignore terminal hangup so closing the PTY cannot substitute for killpg.
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    ready_r, ready_w = os.pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(ready_r)
+        os.write(ready_w, b'1')
+        os.close(ready_w)
+        time.sleep(30)
+        os._exit(0)
+    os.close(ready_w)
+    os.read(ready_r, 1)
+    os.close(ready_r)
+    out.update(group=os.getpgrp(), child=child, child_group=os.getpgid(child))
+    save()
+    # The child retains stdout/PTY after the leader exits.
+    os._exit(1)
 tty = os.open('/dev/tty', os.O_RDWR)
 if mode == 'noprompt':
     time.sleep(30); sys.exit(0)

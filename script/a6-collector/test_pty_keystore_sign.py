@@ -7,6 +7,8 @@ Never touches the real login keychain or a real keystore: a fake `security` and 
 import json
 import os
 import subprocess
+import signal
+import time
 import sys
 import tempfile
 import unittest
@@ -31,11 +33,11 @@ class Env:
             p.chmod(0o755)
         (self.dir / 'keychain.json').write_text(json.dumps(keychain))
 
-    def run(self, account='rq3-bundler', mode='normal', extra=(), timeout=60):
+    def run(self, account='rq3-bundler', mode='normal', extra=(), timeout=60, digest=HASH):
         env = dict(os.environ, PATH='%s:%s' % (self.dir, os.environ['PATH']),
                    FAKE_DIR=str(self.dir), FAKE_CAST_MODE=mode, FAKE_CAST_SIG=SIG)
         argv = [sys.executable, '-I', '-B', str(FAKES / 'run_helper.py'), str(self.dir / 'security'), *extra,
-                'cast', 'wallet', 'sign', '--account', account, '--no-hash', HASH]
+                'cast', 'wallet', 'sign', '--account', account, '--no-hash', digest]
         p = subprocess.run(argv, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
         return p, argv, env
 
@@ -131,6 +133,61 @@ class PtyKeystoreSignTest(unittest.TestCase):
                 self.assertNotEqual(p.returncode, 0)
                 self.assertEqual(self.env.records('security'), [])
                 self.assertEqual(self.env.records('cast'), [])
+
+    def test_rejects_trailing_newline_and_non_ascii(self):
+        for account, digest in (('rq3-bundler\n', HASH), ('rq3-bundler', HASH + '\n'),
+                                ('rq3-bundlér', HASH)):
+            with self.subTest(account=account, digest=digest):
+                p, _, _ = self.env.run(account=account, digest=digest)
+                self.assertEqual(p.returncode, 2)
+                self.assertEqual(p.stderr, b'pty keystore signing failed: usage\n')
+                self.assertEqual(self.env.records('security'), [])
+                self.assertEqual(self.env.records('cast'), [])
+
+    def test_oversized_secret_rejected_before_cast(self):
+        for password in ('x' * 1024, 'é' * 512, 'x' * 1100):
+            with self.subTest(bytes=len(password.encode())):
+                (self.env.dir / 'keychain.json').write_text(json.dumps({
+                    'aastar-rq3-keystore|rq3-bundler': password}))
+                started = time.monotonic()
+                p, _, _ = self.env.run(mode='noprompt', extra=('--timeout', '4'))
+                self.assertEqual(p.returncode, 3)
+                self.assertEqual(p.stderr, b'pty keystore signing failed: keychain entry too long\n')
+                self.assertEqual(p.stdout, b'')
+                self.assertEqual(self.env.records('cast'), [])
+                self.assertLess(time.monotonic() - started, 3)
+
+    def test_failure_removes_group_after_leader_exit(self):
+        group = None
+        try:
+            p, _, _ = self.env.run(mode='orphan-child', extra=('--timeout', '2'))
+            [cast] = self.env.records('cast')
+            group = cast['group']
+            self.assertEqual(cast['child_group'], group)
+            self.assertNotEqual(cast['child'], group)
+            self.assertEqual(p.returncode, 5)
+            self.assertEqual(p.stdout, b'')
+            self.assertIn(p.stderr, (b'pty keystore signing failed: password prompt timeout\n',
+                                    b'pty keystore signing failed: pty closed before prompt\n'))
+            until = time.monotonic() + 3
+            while time.monotonic() < until:
+                try:
+                    os.killpg(group, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.02)
+            else:
+                self.fail('cast process group survived failure cleanup')
+        finally:
+            # Mutants must not leave the fake descendant running.
+            if group is None:
+                records = self.env.records('cast')
+                group = records[0].get('group') if records else None
+            if group is not None:
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     def test_cli_ignores_path_security(self):
         # Execute __main__ with a subprocess guard: absolute security is refused,

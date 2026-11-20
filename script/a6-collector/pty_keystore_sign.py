@@ -32,12 +32,13 @@ import termios
 import time
 
 SERVICE = 'aastar-rq3-keystore'
-NAME_RE = re.compile(r'^[\w.-]+$')
-HASH_RE = re.compile(r'^0x[0-9a-fA-F]{64}$')
+NAME_RE = re.compile(r'[\w.-]+', re.ASCII)
+HASH_RE = re.compile(r'0x[0-9a-fA-F]{64}', re.ASCII)
 SIG_RE = re.compile(rb'^0x[0-9a-fA-F]{130}\n$')
 PROMPT = b'Enter keystore password:'
 DEFAULT_TIMEOUT = 120.0
-MAX_SECRET = 4096
+# macOS canonical input allows 1024 bytes including the terminating newline.
+MAX_SECRET = 1023
 
 
 class Fail(Exception):
@@ -60,7 +61,7 @@ def parse(argv):
             raise Fail(2, 'usage')
         argv = argv[2:]
     if (len(argv) != 7 or argv[:4] != ['cast', 'wallet', 'sign', '--account'] or argv[5] != '--no-hash'
-            or not NAME_RE.match(argv[4]) or not HASH_RE.match(argv[6])):
+            or not NAME_RE.fullmatch(argv[4]) or not HASH_RE.fullmatch(argv[6])):
         raise Fail(2, 'usage')
     return timeout, argv
 
@@ -102,6 +103,8 @@ def read_keychain(name, deadline, security_path='/usr/bin/security'):
             raise Fail(3, 'keychain entry missing')
         if n and buf[n - 1] == 0x0A:
             n -= 1
+        if n > MAX_SECRET:
+            raise Fail(3, 'keychain entry too long')
         if n == 0 or any(buf[i] in (0x0A, 0x0D) for i in range(n)):
             raise Fail(3, 'keychain entry unusable')
         transferred = True

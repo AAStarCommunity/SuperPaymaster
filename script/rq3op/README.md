@@ -233,11 +233,13 @@ the consumed nonce. No local impersonation sender is used.
 
 Keychain password source (opt-in): add `"keystorePasswordSource":"keychain"` to a
 signing-map entry to have `formal.mjs` type that keystore's password from the macOS
-Keychain (service `aastar-rq3-keystore`, account = keystore name, added by the author
-with `security add-generic-password -s aastar-rq3-keystore -a <keystore-name> -w`)
+Keychain (service `aastar-rq3-keystore`, account = keystore name)
 through a pseudo-terminal instead of prompting on `/dev/tty`. A missing entry or any
 helper failure stops with `keystore signing failed (redacted)`; there is no fallback.
-See "Keychain password source (opt-in)" in `script/a6-collector/README.md`.
+See [Keychain password source (opt-in)](../a6-collector/README.md#keychain-password-source-opt-in)
+for the same-user silent-read exposure and the required delete-when-idle step (with its
+read-only check), plus the optional dedicated auto-locking keychain. The default tty flow
+never stores the password.
 
 Sender routing is: genesis for C2/C3/C6/C7/C8; each O for C9.* and C18.approve;
 experiment for comparator deployment/mint/configuration, C5, stakes/deposits and
