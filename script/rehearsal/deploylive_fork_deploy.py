@@ -164,8 +164,10 @@ def run_broadcast(command, env, rpc, deployer, plan):
                 except Exception:
                     print('BROADCAST progress: nonce unavailable', flush=True)
                     continue
-                mined = max(0, min(total, nonce - start))
-                print(f'BROADCAST progress: nonce {nonce} ({mined}/{total} mined)', flush=True)
+                print(f'BROADCAST progress: deployer nonce {nonce} (advanced by {nonce - start}; plan has {total} transactions)', flush=True)
+
+
+PRE_SIGNING_CAUSES = ('keystore unlock failed',)
 
 
 def broadcast_failure_cause(result):
@@ -308,24 +310,31 @@ def main():
             actual, mined = {}, 0
         total = len(broadcast_plan['transactions'])
         if not mined:
-            # forge writes run-latest.json before signing, so a missing record proves nothing: ask the
-            # chain before ever saying "not broadcast" (a mined sequence must never read as unsent).
+            # forge writes run-latest.json before signing, so a missing record proves nothing. Say "not
+            # broadcast" only when forge failed for a recognised pre-signing cause AND every nonce read
+            # (latest and pending, on each provider) still equals the plan's start nonce.
             from deploylive_controls import integer
             start = integer(broadcast_plan['transactions'][0]['transaction']['nonce'])
-            try:
-                onchain = integer(rpc('eth_getTransactionCount', deployer, 'latest')) - start
-            except Exception:
-                onchain = None
-            if onchain is None:
-                print('BROADCAST STATE UNKNOWN: no receipts recorded and deployer nonce unreadable; check the chain before any retry')
-            elif onchain > 0:
-                print(f'BROADCAST STATE MISMATCH: chain shows {onchain}/{total} mined but forge recorded no receipts; do not retry')
+            providers = [('primary', real if production else rpc)] + ([('second', corroborating)] if production and corroborating is not None else [])
+            readings, unchanged = [], production is False or corroborating is not None
+            for label, transport in providers:
+                for tag in ('latest', 'pending'):
+                    try:
+                        nonce = integer(transport('eth_getTransactionCount', deployer, tag))
+                        readings.append(f'{label} {tag}={nonce} (advanced by {nonce - start})')
+                        unchanged = unchanged and nonce == start
+                    except Exception:
+                        readings.append(f'{label} {tag}=unreadable')
+                        unchanged = False
+            cause = broadcast_failure_cause(result)
+            if unchanged and cause in PRE_SIGNING_CAUSES:
+                print('NOT BROADCAST: forge failed before signing (' + cause + '); deployer nonce unchanged: ' + '; '.join(readings))
             else:
-                print('NOT BROADCAST: forge failed before any transaction was mined (' + broadcast_failure_cause(result) + ')')
+                print('BROADCAST STATE UNKNOWN — do not retry: no receipts recorded; forge: ' + cause + '; deployer nonce: ' + '; '.join(readings))
             require(False, 'deployment failed; config existence is not success')
         partial = mined < total
         if partial:
-            print(f'PARTIAL BROADCAST: {mined}/{total} mined; deployment NOT successful')
+            print(f'PARTIAL BROADCAST: forge recorded {mined}/{total} receipts; deployment NOT successful')
         elif result.returncode != 0:
             require(False, 'deployment failed; config existence is not success')
         try:

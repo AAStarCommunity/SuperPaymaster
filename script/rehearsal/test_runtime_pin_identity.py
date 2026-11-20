@@ -21,6 +21,23 @@ class RuntimePinIdentityTest(unittest.TestCase):
             ref['id'] = '999'
         check_runtime_pins(self.expected, self.actual, compare_types=False)
 
+    def test_grouping_of_ranges_still_compares(self):
+        # Ids are canonicalised per artifact by first appearance, so which ranges share an immutable
+        # is still compared: the committed pin has both ranges on one immutable (same id).
+        split = copy.deepcopy(self.actual)
+        split['artifacts']['Example']['immutableRanges'][1]['id'] = '2'
+        with self.assertRaisesRegex(ValueError, 'runtime pin mismatch'):
+            check_runtime_pins(self.expected, split, compare_types=False)
+        expected = copy.deepcopy(self.expected)
+        expected['artifacts']['Example']['immutableRanges'][1].update(id='7', name='admin')
+        merged = copy.deepcopy(self.actual)
+        with self.assertRaisesRegex(ValueError, 'runtime pin mismatch'):
+            check_runtime_pins(expected, merged, compare_types=False)
+        renamed = copy.deepcopy(split)
+        renamed['artifacts']['Example']['immutableRanges'][0]['id'] = '500'
+        renamed['artifacts']['Example']['immutableRanges'][1]['id'] = '501'
+        check_runtime_pins(expected, renamed, compare_types=False)
+
     def test_typed_build_ignores_ids_but_still_checks_descriptions(self):
         actual = copy.deepcopy(self.expected)
         for ref in actual['artifacts']['Example']['immutableRanges']:
