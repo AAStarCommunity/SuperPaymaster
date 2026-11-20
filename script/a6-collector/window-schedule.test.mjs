@@ -23,6 +23,20 @@ test('schedule port preserves sampler payload, digest, permutations and 20 alloc
  assert.throws(()=>w.generateSchedule('s',[accounts[0],accounts[0],accounts[2]],10));
  assert.throws(()=>w.generateSchedule('s',accounts,1));
 });
+test('OP Sepolia (11155420) uses the OP timing: 30 s slots, 20 s elapsed bound, OP mainnet qualification values',()=>{
+ const op=w.generateSchedule('public 🐈',accounts,10), ops=w.generateSchedule('public 🐈',accounts,11155420), sep=w.generateSchedule('public 🐈',accounts,11155111);
+ assert.equal(ops.payload.slot_period_seconds,30);
+ assert.equal(ops.payload.max_elapsed_seconds,20);
+ assert.equal(sep.payload.slot_period_seconds,130);
+ const q=chain=>JSON.parse(execFileSync('python3.11',['-I','-B','-c',`import json,sys;sys.path.insert(0,'script/a6-collector');import schedule;print(json.dumps(schedule.qualification('${chain}')))`]));
+ const {chain:_a,...opq}=q('op-mainnet').payload, {chain:_b,...opsq}=q('op-sepolia').payload;
+ assert.deepEqual(opsq,opq);
+ assert.equal(q('op-sepolia').payload.chain,'op-sepolia');
+ // The chain name is part of the frozen qualification, so the two OP chains never share a digest.
+ assert.notEqual(q('op-sepolia').sha256,q('op-mainnet').sha256);
+ assert.notEqual(ops.sha256,op.sha256);
+ assert.throws(()=>w.generateSchedule('public 🐈',accounts,11155421));
+});
 test('fixed window all-success stops at 50 slots; all-failure runs 60 slots',async()=>{
  const s=w.generateSchedule('public',accounts,10), traces=[];
  for(const success of [true,false]) {

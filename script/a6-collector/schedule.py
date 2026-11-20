@@ -25,7 +25,7 @@ def qualification(chain):
 def generate(seed, accounts, slot_period=None, max_elapsed=None, chain="op-mainnet"):
     frozen = qualification(chain)
     bound = frozen["payload"]["max_elapsed_seconds"]
-    slot_period = slot_period if slot_period is not None else (30 if chain == "op-mainnet" else 130)
+    slot_period = slot_period if slot_period is not None else (30 if chain in ("op-mainnet", "op-sepolia") else 130)
     max_elapsed = bound if max_elapsed is None else max_elapsed
     if max_elapsed != bound:
         raise ValueError("elapsed bound must match frozen chain parameters")
@@ -58,6 +58,6 @@ if __name__ == '__main__':
     parser.add_argument('--accounts', nargs=3, required=True)
     parser.add_argument('--slot-period', type=int)
     parser.add_argument('--max-elapsed', type=int)
-    parser.add_argument("--chain", choices=("op-mainnet", "sepolia"), default="op-mainnet")
+    parser.add_argument("--chain", choices=("op-mainnet", "op-sepolia", "sepolia"), default="op-mainnet")
     args = parser.parse_args()
     print(json.dumps(generate(args.seed, args.accounts, args.slot_period, args.max_elapsed, args.chain), indent=2))
