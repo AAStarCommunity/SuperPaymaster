@@ -235,6 +235,13 @@ export function archivedRpc({ url, endpoint, append, fetchImpl = fetch, secrets 
 // Either way the cast argv is identical and the password never passes through this process.
 export const KEYCHAIN_HELPER = fileURLToPath(new URL('./pty_keystore_sign.py', import.meta.url));
 export const KEYSTORE_PASSWORD_SOURCES = ['tty', 'keychain'];
+
+export function withPasswordSource(account, cliSource) {
+  if (cliSource !== undefined && !KEYSTORE_PASSWORD_SOURCES.includes(cliSource)) throw new Error('unknown keystore password source');
+  if (cliSource !== undefined && account.keystorePasswordSource !== undefined && account.keystorePasswordSource !== cliSource) throw new Error('conflicting keystore password source');
+  return { ...account, ...(cliSource === undefined ? {} : { keystorePasswordSource: cliSource }) };
+}
+
 export function castSigner(config, _role, run = execFileSync, pythonPath = '/usr/bin/python3') {
   const address = getAddress(config.address);
   const source = 'keystorePasswordSource' in config ? config.keystorePasswordSource : 'tty';
@@ -279,7 +286,7 @@ export async function pendingSequence(clients,address) {
 
 export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup, keystorePasswordSource }) {
   pendingNonce ||= frozenPlan;
-  if (keystorePasswordSource !== undefined && !KEYSTORE_PASSWORD_SOURCES.includes(keystorePasswordSource)) throw new Error('unknown keystore password source');
+  withPasswordSource({}, keystorePasswordSource);
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
   let resolved;
   if (rehearsal) {
@@ -305,9 +312,7 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
   } });
   const accounts = {};
   for (const role of readOnly ? [] : ['owner', 'bundler', 'verifyingSigner']) {
-    const own = config.accounts[role].keystorePasswordSource;
-    if (keystorePasswordSource !== undefined && own !== undefined && own !== keystorePasswordSource) throw new Error('conflicting keystore password source');
-    accounts[role] = await createSigner(keystorePasswordSource === undefined ? config.accounts[role] : { ...config.accounts[role], keystorePasswordSource }, role);
+    accounts[role] = await createSigner(withPasswordSource(config.accounts[role], keystorePasswordSource), role);
     if (accounts[role].type !== 'local' || getAddress(accounts[role].address) !== getAddress(config.accounts[role].address)) throw new Error('injected signer identity mismatch');
   }
   const pubA = pinned(publicClients[0]), pubB = pinned(publicClients[1]);

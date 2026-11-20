@@ -52,7 +52,7 @@ import {
   keccak256, createPublicClient, http, encodeFunctionData, decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, castSigner, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
+import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, castSigner, withPasswordSource, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
 const formal = process.argv.includes('--formal') || rehearsal || process.argv.includes('--frozen-plan');
 // Do not even load the development key module in formal mode.
@@ -112,6 +112,8 @@ const scheduled = Boolean(argVal('--frozen-plan'));
 if (scheduled && (count !== 50 || maxAttempts !== 60 || !argVal('--seed'))) die('frozen window requires --seed, --count 50 and --max-attempts 60');
 if (scheduled && (!Array.isArray(formalInput.senders) || formalInput.senders.length !== 3)) die('formal config requires three senders: {sender,salt,owner:{name,address}}');
 const senderConfigs = scheduled ? formalInput.senders.map(s => ({...formalInput,sender:getAddress(s.sender),salt:s.salt,accounts:{...formalInput.accounts,owner:s.owner}})) : [];
+// Refuse conflicts across all rotating owners before runtime can start a signer process.
+for (const config of senderConfigs) withPasswordSource(config.accounts.owner, argVal('--keystore-password-source'));
 const window = scheduled ? createWindow({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),seed:argVal('--seed'),chainId:formalInput.chainId,accounts:senderConfigs.map(c=>c.sender)}) : null;
 let adapter = window ? window.adapters.get(senderConfigs[0].sender) : null;
 if (window) Object.assign(formalInput,senderConfigs[0]);
@@ -827,7 +829,9 @@ try {
   if (formal && chainId !== formalInput.chainId) throw new Error('formal target chainId mismatch');
   if (window) {
     for (const config of senderConfigs) {
-      owners.set(config.sender,await castSigner(config.accounts.owner,'owner'));
+      const owner = await castSigner(withPasswordSource(config.accounts.owner, argVal('--keystore-password-source')), 'owner');
+      if (owner.type !== 'local' || getAddress(owner.address) !== getAddress(config.accounts.owner.address)) throw new Error('injected signer identity mismatch');
+      owners.set(config.sender,owner);
       selectSender(config.sender);
       await setup();
       await adapter.beforeSend(runtime);

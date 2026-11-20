@@ -618,3 +618,4 @@ including INCOMPLETE and aborted windows. The `run_end` and trailer records carr
 is recorded as UNAVAILABLE, not PASS. A missing trailer or missing, incomplete,
 duplicate, failed or unavailable end-check record makes the window void for evidence
 acceptance, even if its trailer claims COMPLETE. No signal handlers are installed.
+The end-check validator does not bind `endChecks` to the manifest/window and requires sender passports only for senders that appear in rows, since the trailer is author-written.
