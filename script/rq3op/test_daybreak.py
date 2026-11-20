@@ -143,10 +143,14 @@ class FrozenChecker(unittest.TestCase):
         from deploylive_readback import validate_snapshot_request
         block = dict(hash='0x'+'12'*32, number='0x20')
         pin = json.dumps(dict(blockHash=block['hash'], requireCanonical=True))
-        for method in ('eth_call', 'eth_getCode', 'eth_getBalance', 'eth_getStorageAt'):
-            validate_snapshot_request(block, (method, 'address', pin))
+        # eth_getStorageAt carries a slot, as the checker sends it (deploylive_postdeploy_check.py storage reads).
+        for method, params in (('eth_call', ('address',)), ('eth_getCode', ('address',)),
+                               ('eth_getBalance', ('address',)), ('eth_getStorageAt', ('address', '0x0'))):
+            validate_snapshot_request(block, (method, *params, pin))
             with self.assertRaises(ValueError):
-                validate_snapshot_request(block, (method, 'address', '"0x30"'))
+                validate_snapshot_request(block, (method, *params, '"0x30"'))
+        with self.assertRaises(ValueError):
+            validate_snapshot_request(block, ('eth_getStorageAt', 'address', pin))
 
     def test_checker_reads_original_block(self):
         import sys
