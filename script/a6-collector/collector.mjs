@@ -127,7 +127,8 @@ if (adapter) {
   const release=acquireBundlerLock(resolve(ROOT,'cache/3arm/collector-locks'),formalInput.chainId,formalInput.accounts.bundler.address);
   process.once('exit',release);
 }
-const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
+// --keystore-password-source keychain: opt-in Keychain+pty password delivery (see README); default prompts on /dev/tty.
+const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath, keystorePasswordSource: argVal('--keystore-password-source') }) : null;
 let frozenArm;
 if (adapter) {
   const write = runtime.writeContract;

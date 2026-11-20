@@ -407,6 +407,50 @@ archived RPC A. The collector does not open keystore/password files. Tests can
 inject `createSigner(configAccount, role)` into `formalRuntime`; it returns a viem
 local account implementing `signMessage` and `signTransaction`.
 
+#### Keychain password source (opt-in)
+
+By default `cast` prompts for each keystore password on `/dev/tty`. A formal RQ3
+window needs roughly 600–900 signatures, so the password can instead come from the
+macOS Keychain. This is off unless explicitly selected.
+
+1. Add one entry per keystore yourself, interactively (the password is typed at the
+   `security` prompt, never on the command line or in a file):
+
+   ```sh
+   security add-generic-password -s aastar-rq3-keystore -a <keystore-name> -w
+   ```
+
+   The service name is fixed (`aastar-rq3-keystore`); the account is the Foundry
+   keystore name used in `accounts.<role>.name`. On first use macOS may ask whether
+   `security` may read the item.
+2. Opt in: collector `--keystore-password-source keychain` (formal mode), or
+   `"keystorePasswordSource": "keychain"` on an account object (for example in the
+   `setup.mjs` signing map). Accepted values are `tty` (default) and `keychain`;
+   anything else, or a CLI value that contradicts an account's own value, is refused.
+
+With `keychain`, `castSigner` runs `python3 -I -B script/a6-collector/pty_keystore_sign.py
+cast wallet sign --account NAME --no-hash DIGEST` — the same cast argv as the default.
+The helper (standard library only) reads the password itself with
+`security find-generic-password -s aastar-rq3-keystore -a NAME -w` into memory, starts
+`cast` on a new pseudo-terminal as its controlling terminal, waits until the password
+prompt has appeared **and** the terminal's ECHO flag is off, writes the password once,
+zeroes its buffer, and returns only cast's single `0x…` signature line. The password is
+never passed through Node, argv or environment variables. Foundry rejects
+`--password-file` from a pipe/FIFO, so process substitution is not an alternative.
+
+Fail-closed: a missing or empty Keychain entry (cast is then not started), no prompt
+or ECHO never turned off within the timeout, cast exiting nonzero, or any stdout other
+than one signature line all exit nonzero; Node raises
+`keystore signing failed (redacted)` and there is no fallback to `/dev/tty` or any
+other source. The recovered-address check is unchanged. pty output (prompt, cast
+stderr) is drained and discarded — never logged, stored, echoed or put into an error
+message; the helper's own stderr carries only a fixed stage label.
+
+Offline tests use a fake `security` and a fake `cast` (`pty-fakes/`) on a temporary
+PATH and never touch the login keychain:
+`node --test script/a6-collector/keychain-signer.test.mjs` and
+`python3 -m unittest script/a6-collector/test_pty_keystore_sign.py`.
+
 An absent SimpleAccount is created through the configured factory using the
 bundler EOA, then its code, owner and counterfactual address are checked again.
 Existing accounts are also checked. Funding, eligibility, allowances, task token
