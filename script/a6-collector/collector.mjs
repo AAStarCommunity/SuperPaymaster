@@ -1,5 +1,6 @@
+import { createWindow, runSlots, waitForSlot, windowRecord } from './window-schedule.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
-import { createFrozenPlan, persistSettlement } from './frozen-plan.mjs';
+import { persistSettlement } from './frozen-plan.mjs';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 import { rehearsalTpmRefresh } from './rehearsal-refresh.mjs';
 import { traceTPM } from './trace-policy.mjs';
@@ -51,7 +52,7 @@ import {
   keccak256, createPublicClient, http, encodeFunctionData, decodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
+import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, castSigner, withPasswordSource, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
 const formal = process.argv.includes('--formal') || rehearsal || process.argv.includes('--frozen-plan');
 // Do not even load the development key module in formal mode.
@@ -86,7 +87,7 @@ const count = Number(countRaw);
 const bMaxRaw = argVal('--b-max');
 if (!bMaxRaw || !/^[1-9]\d*$/.test(bMaxRaw) || Number(bMaxRaw) > 1_000_000) die('--b-max is required: an integer in [1, 1000000]');
 const bMax = BigInt(bMaxRaw);
-const maxAttemptsRaw = argVal('--max-attempts') ?? String(count * 2);
+const maxAttemptsRaw = argVal('--max-attempts') ?? (argVal('--frozen-plan') ? '60' : String(count * 2));
 if (!/^[1-9]\d*$/.test(maxAttemptsRaw) || Number(maxAttemptsRaw) < count) die('--max-attempts must be an integer >= --count (attempt budget per arm)');
 const maxAttempts = Number(maxAttemptsRaw);
 const ARM_NAMES = ['SP', 'VPM', 'TPM'];
@@ -107,9 +108,17 @@ const registry = formal ? loadRegistry(argVal('--rpc-registry')) : null;
 const windowPath = dirname(resolve(outPath));
 if (formal && (existsSync(resolve(windowPath, 'raw')) || existsSync(resolve(windowPath, 'index.ndjson')) || existsSync(resolve(windowPath, 'manifest.json')))) die('formal window already exists');
 if (formal) formalInput.factory ??= DEFAULT_FACTORY;
-const adapter = argVal('--frozen-plan') ? createFrozenPlan({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),account:formalInput.sender}) : null;
+const scheduled = Boolean(argVal('--frozen-plan'));
+if (scheduled && (count !== 50 || maxAttempts !== 60 || !argVal('--seed'))) die('frozen window requires --seed, --count 50 and --max-attempts 60');
+if (scheduled && (!Array.isArray(formalInput.senders) || formalInput.senders.length !== 3)) die('formal config requires three senders: {sender,salt,owner:{name,address}}');
+const senderConfigs = scheduled ? formalInput.senders.map(s => ({...formalInput,sender:getAddress(s.sender),salt:s.salt,accounts:{...formalInput.accounts,owner:s.owner}})) : [];
+// Refuse conflicts across all rotating owners before runtime can start a signer process.
+for (const config of senderConfigs) withPasswordSource(config.accounts.owner, argVal('--keystore-password-source'));
+const window = scheduled ? createWindow({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),seed:argVal('--seed'),chainId:formalInput.chainId,accounts:senderConfigs.map(c=>c.sender)}) : null;
+let adapter = window ? window.adapters.get(senderConfigs[0].sender) : null;
+if (window) Object.assign(formalInput,senderConfigs[0]);
 if (adapter && rehearsal) die('frozen plan requires formal transport');
-const frozen = adapter ? adapter.frozen : formal ? formalConfig(formalInput, bMax) : null;
+let frozen = adapter ? adapter.frozen : formal ? formalConfig(formalInput, bMax) : null;
 const configPath = argVal('--config') ?? resolve(ROOT, 'deployments/config.anvil.json');
 const baselinesPath = argVal('--baselines') ?? resolve(ROOT, 'script/a6-collector/dryrun-output/baselines.anvil.json');
 const expectEp = argVal('--expect-entrypoint') ?? null;
@@ -122,19 +131,27 @@ if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(ex
 }
 const SPA = getAddress(cfg.superPaymaster);
 if (new Set([SPA, baselines.verifyingPaymaster.address, baselines.tokenPaymaster.address].map(a => getAddress(a).toLowerCase())).size !== 3) die('SP/VPM/TPM paymasters must be distinct');
-if (adapter) adapter.bind(formalInput,cfg,baselines,bMax,maxAttempts);
+if (window) for (const config of senderConfigs) window.adapters.get(config.sender).bind(config,cfg,baselines,bMax,20);
+if (adapter) adapter.bind(formalInput,cfg,baselines,bMax,20);
 if (adapter) {
   const release=acquireBundlerLock(resolve(ROOT,'cache/3arm/collector-locks'),formalInput.chainId,formalInput.accounts.bundler.address);
   process.once('exit',release);
 }
-const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath }) : null;
-let frozenArm;
+// --keystore-password-source keychain: opt-in Keychain+pty password delivery (see README); default prompts on /dev/tty.
+const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath, keystorePasswordSource: argVal('--keystore-password-source') }) : null;
+let frozenArm, activeSlot, activeRow, windowStart;
+const owners = new Map();
+const senderPassports = new Map();
+const senderPassportRefs = new Map();
 if (adapter) {
   const write = runtime.writeContract;
   runtime.writeContract = async args => {
     return adapter.send({...runtime,writeContract: async checked => {
       formalInput.bundlerGasLimit = checked.gas;
-      return write(checked);
+      return write({...checked, beforeSubmit: async () => {
+        const result = await slotGate(frozenArm,activeRow);
+        if (!result.allowed) throw Object.assign(Error('SLOT_DEADLINE'),{slotResult:result});
+      }});
     }},frozenArm,args);
   };
 }
@@ -145,13 +162,14 @@ const pubB = formal ? runtime.pubB : createPublicClient({ transport: http(rpcB, 
 const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
 function collectorHead() {
-  const files = ['collector.mjs', ...(adapter ? ['frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
+  const python = window ? {pythonVersion:window.manifest.pythonVersion} : {};
+  const files = ['collector.mjs', ...(adapter ? ['window-schedule.mjs','schedule.py','chain-params.json','frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
     const dirty = execSync('git status --porcelain -- script/a6-collector script/b-layer/lib.mjs', { cwd: ROOT }).toString().trim() !== '';
-    return { head, collectorDirty: dirty, codeSha256 };
-  } catch { return { head: null, collectorDirty: null, codeSha256 }; }
+    return { head, collectorDirty: dirty, codeSha256, ...python };
+  } catch { return { head: null, collectorDirty: null, codeSha256, ...python }; }
 }
 
 // ── append-only JSONL ─────────────────────────────────────────────────────────────────────
@@ -172,9 +190,10 @@ function savePassport(name, passport) {
 function writeLine(obj) {
   if (formal && obj.kind === 'attempt') {
     obj.evidenceEnd = runtime.archives.map(a => a.ids.length);
-    const index = evidenceIndex(obj, {windowId:runId, archives:runtime.archives, pins:evidencePins, rpcIdentity:rpcIdentityPin,
+    const index = evidenceIndex(obj, {schedule:Boolean(window),windowId:runId, archives:runtime.archives, pins:evidencePins, rpcIdentity:rpcIdentityPin,
       passports:{start:passportRefs.start, attempt:passportRefs[obj.attemptIndex]},
       stopReason:obj.stoppedBy?.reason ?? null, replaces:pendingReplacement});
+    if (window) Object.assign(index,{block_slot:obj.block_slot,pair_id:obj.pair_id,seed:obj.seed,schedule_sha256:obj.schedule_sha256,warmup:false,spWait:obj.spWait,slotChecks:obj.slotChecks,scheduleDisposition:obj.scheduleDisposition});
     appendIndex(windowPath, index);
     evidenceRows.push(index);
   }
@@ -284,9 +303,9 @@ const u128 = (v) => pad(toHex(v), { size: 16 });
 // xPNTs V2 default maxSingleTxLimit (5000e18) and validation fails with AA34.
 const LOCAL_GAS = { callGasLimit: 100_000n, verificationGasLimit: 300_000n, preVerificationGas: 60_000n,
   maxFeePerGas: 5_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n };
-const MAX_FEE_CEILING = formal ? frozen.fees.maxFeePerGas : LOCAL_GAS.maxFeePerGas;
+let MAX_FEE_CEILING = formal ? frozen.fees.maxFeePerGas : LOCAL_GAS.maxFeePerGas;
 const gasFor = arm => formal ? frozen.gas[arm] : LOCAL_GAS;
-const PM_GAS = frozen?.pmGas ?? {
+let PM_GAS = frozen?.pmGas ?? {
   SP: { ver: 400_000n, post: 200_000n },   // D7 finding: 5.5.0 validation needs >150k
   VPM: { ver: 100_000n, post: 50_000n },
   TPM: { ver: 150_000n, post: 120_000n },
@@ -507,7 +526,7 @@ async function setup() {
     if ([spToken, cfg.aPNTs, baselines.tokenPaymaster.token].some(a => a?.toLowerCase() === formalInput.task.token.toLowerCase())) throw new Error('task must use a separate plain ERC20 token');
     for (const who of [sender, formalInput.task.recipient]) {
       const balance = await readAB('task balance', p => p.readContract({ address: formalInput.task.token, abi: TOKEN_ABI, functionName: 'balanceOf', args: [who] }));
-      if (balance.value < (who === sender ? 300n : 1n)) throw new Error('task requires warmed, funded token balances');
+      if (balance.value < (who === sender ? (window ? BigInt(adapter.plan.phaseC.taskSender) : 300n) : 1n)) throw new Error('task requires warmed, funded token balances');
     }
     return;
   }
@@ -567,20 +586,22 @@ let previousInclusion = null;
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
-  const st = { row: { ...(adapter ? adapter.row(arm,tripletIndex) : {}), kind: 'attempt', spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: armOrder(tripletIndex) } : {}) }, written: false };
+  const st = { row: { ...(adapter ? adapter.row(arm,activeSlot.allocationIndex) : {}), ...(window ? {block_slot:activeSlot.block_slot,pair_id:activeSlot.pair_id,seed:window.manifest.schedule.payload.seed,schedule_sha256:window.manifest.schedule.sha256,sender,warmup:false} : {}), kind: 'attempt', spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: window ? activeSlot.order.map(a=>({SP:"SP",VerifyingPaymaster:"VPM",TokenPaymaster:"TPM"}[a])) : armOrder(tripletIndex) } : {}) }, written: false };
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {
     if (!st.written) {
-      writeLine({ ...st.row, verdict: st.row.verdict ?? 'STOPPED', stoppedBy: e instanceof Stop ? { reason: e.reason, detail: e.detail } : { reason: 'CRASH', detail: String(e) },
-        exclusion: 'STOPPED', collectedAtUtc: new Date().toISOString() });
+      writeLine(Object.assign(st.row, { verdict: st.row.verdict ?? 'STOPPED', stoppedBy: e instanceof Stop ? { reason: e.reason, detail: e.detail } : { reason: 'CRASH', detail: String(e) },
+        exclusion: 'STOPPED', collectedAtUtc: new Date().toISOString() }));
       st.written = true;
     }
+    e.attemptRow=st.row;
     throw e;
   }
 }
 async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   frozenArm = arm;
+  activeRow = st.row;
   const GAS = {...gasFor(arm)};
   if (formal && previousInclusion) st.row.priorInclusionHeads = await waitAfterInclusion([pubA,pubB], previousInclusion);
   if (formal) {
@@ -591,6 +612,13 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     st.row.passport = p.A;
     passportRefs[idx] = savePassport(`attempt-${idx}`, p.A);
     if (diffPaths(passportStart.invariant, p.A.invariant).length) throw new Stop('PASSPORT_DRIFT',21,{attemptIndex:idx});
+  }
+  if (window) {
+    const result = await slotGate(arm,st.row);
+    if (!result.allowed) {
+      const row = {...st.row,sent:false,tx:null,verdict:VERDICTS.NOT_SENT,failingCheck:result.reason,scheduleDisposition:result.reason,collectedAtUtc:new Date().toISOString()};
+      writeLine(row);st.written=true;return row;
+    }
   }
   const pm = pmAddrOf(arm);
   const callData = fixture === 'exec-revert' ? revertingCallData() : defaultCallData();
@@ -661,6 +689,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   try { txHash = await bundler.wallet.writeContract({ address: EP, abi: HANDLE_OPS_ABI, functionName: 'handleOps',
     args: [bundled, bundler.account.address], chain: null });
   } catch (e) {
+    if (window && e.slotResult) return finish({sent:false,tx:null,verdict:VERDICTS.NOT_SENT,failingCheck:e.slotResult.reason,scheduleDisposition:e.slotResult.reason});
     if (formal && e.message === 'basefee_above_cap') return finish(e.pause);
     if (formal) { row.reason = 'bundler_error'; const raw=runtime.archives[0].records.findLast(r=>r.method==='eth_sendRawTransaction' && r.response); const error=raw && JSON.parse(Buffer.from(raw.response,'base64')).error; if (error) row.submissionException = { message: error.message }; }
     throw e;
@@ -747,17 +776,19 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const previousBlock = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
   checks.push({ id: 'continuity.block', ok: formal ? BigInt(before.A.blockNumber) >= BigInt(previousBlock.blockNumber) : BigInt(before.A.blockNumber) === BigInt(previousBlock.blockNumber) && before.A.blockHash.toLowerCase() === previousBlock.blockHash.toLowerCase() });
   const prior = stateByArm.get(arm);
+  const senderPrior = stateByArm.get(arm+':'+sender);
+  const senderFields = ['userXPNTs','lockedOf','debts','creditReservedOf'];
   // A declared rehearsal cache-aging control (rehearsal-refresh.mjs) changes only the TPM cache timestamp between attempts.
   const aged = rehearsal && st.row.rehearsalControl?.kind === 'tpmCacheAged' && arm === 'TPM' ? ['tpmCachedPriceTimestamp'] : [];
   if (prior) for (const f of Object.keys(prior).filter(f => ![...aged, 'blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
-    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], prior[f]).length === 0 });
+    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], window && senderFields.includes(f) ? (senderPrior?.[f] ?? before.A[f]) : window && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? before.A[f].sender} : prior[f]).length === 0 });
   }
   checks.push(...operatorBalanceContinuity(arm, before.A, after.A, lastAttemptBlock?.operatorBalance ?? passportStart.volatile.operatorBalance));
   if (arm === 'SP') checks.push({ id: 'continuity.new_op_lock_empty', ok: BigInt(before.A.lockXLocked) === 0n });
   for (const [value, seen, label] of [[txHash, seenTransactions, 'tx'], [expectedHash, seenOperations, 'op'], [tx.blockHash, seenBlocks, 'block']]) {
     checks.push({ id: `unique.${label}`, ok: !seen.has(value.toLowerCase()) }); seen.add(value.toLowerCase());
   }
-  stateByArm.set(arm, after.A); lastAttemptBlock = after.A;
+  stateByArm.set(arm, after.A); stateByArm.set(arm+':'+sender, after.A); lastAttemptBlock = after.A;
   if (cls.event) {
     const dDep = BigInt(after.A.epDeposit) - BigInt(before.A.epDeposit);
     checks.push({ id: 'D1.ep_deposit_delta_eq_minus_actualGasCost', ok: dDep === -BigInt(cls.event.actualGasCost),
@@ -792,11 +823,27 @@ const stateByArm = new Map(), seenTransactions = new Set(), seenOperations = new
 const tally = Object.fromEntries(arms.map((a) => [a, { attempts: 0, verdicts: {} }]));
 let matched = 0;
 const triplets = [];
+let windowOutcome = null;
 try {
   chainId = (await readAB('chainId', (p) => p.getChainId())).value;
   if (formal && chainId !== formalInput.chainId) throw new Error('formal target chainId mismatch');
-  await setup();
-  passportStart = await passportAB('start');
+  if (window) {
+    for (const config of senderConfigs) {
+      const owner = await castSigner(withPasswordSource(config.accounts.owner, argVal('--keystore-password-source')), 'owner');
+      if (owner.type !== 'local' || getAddress(owner.address) !== getAddress(config.accounts.owner.address)) throw new Error('injected signer identity mismatch');
+      owners.set(config.sender,owner);
+      selectSender(config.sender);
+      await setup();
+      await adapter.beforeSend(runtime);
+      const start = await passportAB('start');
+      senderPassports.set(sender,start);
+      senderPassportRefs.set(sender,savePassport('start-'+sender,start));
+    }
+    selectSender(senderConfigs[0].sender);
+    windowStart = (await runtime.refreshPin()).timestamp;
+    writeArtifact(windowPath,'manifest.json',{...window.manifest,windowId:runId,startTimestamp:windowStart});
+  } else await setup();
+  passportStart = window ? senderPassports.get(sender) : await passportAB('start');
   if (formal) passportRefs.start = savePassport('start', passportStart);
   if (formal) {
     requirePostGas(frozen.pmGas.SP.post, passportStart.invariant.superPaymaster.minPostOpGas);
@@ -813,7 +860,26 @@ try {
     setupLog, passport: passportStart, startedAtUtc: new Date().toISOString() });
   console.log(`A6 gauge ${runId}: N=${count} bMax=${bMax} maxAttempts/arm=${maxAttempts} arms=${arms} fixture=${fixture ?? 'none'}`);
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
-  for (let t = 0; matched < count; t++) {
+  if (window) {
+    const result = await runSlots(window.manifest.schedule,async (slot,arm,account,allocationIndex) => {
+      activeSlot={...slot,allocationIndex};
+      selectSender(account);
+      passportRefs.start=senderPassportRefs.get(sender);
+      tally[arm].attempts++;
+      const row=await attempt(arm,slot.block_slot,senderPassports.get(sender));
+      tally[arm].verdicts[row.verdict]=(tally[arm].verdicts[row.verdict]??0)+1;
+      return row;
+    },rows=>rows.length===3 && rows.every(r=>r.verdict===VERDICTS.USEROP_SUCCESS && r.postOpRefreshed!==true && r.conservation?.evaluated && r.conservation.ok)
+      && new Set(rows.map(r=>r.callDataHash)).size===1
+      && ['paymaster','expectedUserOpHash'].every(f=>new Set(rows.map(r=>r[f].toLowerCase())).size===3)
+      && new Set(rows.map(r=>r.tx.hash.toLowerCase())).size===3);
+    matched=result.complete;
+    triplets.push(...result.slots.map(s=>({...s,tripletIndex:s.block_slot})));
+    // Pre-registered stopping rule: COMPLETE at the 50th complete triplet, INCOMPLETE after slot 60.
+    windowOutcome=windowRecord(window.manifest.schedule,result);
+    stop={reason:result.status,code:result.status==='COMPLETE'?0:10};
+    selectSender(senderConfigs[0].sender);
+  } else for (let t = 0; matched < count; t++) {
     if (arms.some((a) => tally[a].attempts >= maxAttempts)) { stop = { reason: 'MAX_ATTEMPTS', code: 10 }; break; }
     if (formal && pendingReplacement) replacements.push({abandoned:pendingReplacement,
       replacement:{windowId:runId,tripleIndex:t}, reason:pendingReplacementReason});
@@ -846,13 +912,36 @@ try {
   }
   if (!stop) stop = { reason: 'COMPLETE', code: 0 };
 } catch (e) {
+  if (window && e.windowProgress) {
+    matched=e.windowProgress.complete;
+    triplets.push(...e.windowProgress.slots.map(s=>({...s,tripletIndex:s.block_slot})));
+    windowOutcome=windowRecord(window.manifest.schedule,e.windowProgress);
+  }
   if (e instanceof Stop) stop = { reason: e.reason, code: e.code, detail: e.detail };
   else { stop = { reason: 'CRASH', code: 1, detail: String(e?.stack ?? e) }; }
 }
 let passportEnd = null;
 let finalBlockCheck = null;
-try {
-  if (passportStart && stop.reason !== 'RPC_DISAGREEMENT') {
+// End checks run on every in-process exit (not on SIGINT/SIGTERM/SIGKILL).
+const endCheckScope = 'on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)';
+const endChecks = [];
+async function endCheck(check, action) {
+  try {
+    const result = await action();
+    endChecks.push({check, status:'PASS', ...result});
+  } catch (e) {
+    const failure = e instanceof Stop
+      ? {reason:e.reason, code:e.code, detail:e.detail}
+      : {reason:'END_PASSPORT_ERROR', code:29, detail:String(e)};
+    endChecks.push({check, status:'FAIL', ...failure});
+    if (stop.code === 0) {
+      stop = failure;
+      if (windowOutcome) windowOutcome.status = 'STOPPED';
+    }
+  }
+}
+await endCheck('endBlock', async () => {
+  if (passportStart) {
     // Wait for an independently read later block; never relabel the last receipt block.
     const deadline = Date.now() + 60_000;
     const finalHeight = BigInt(lastAttemptBlock?.blockNumber ?? passportStart.block.number);
@@ -863,24 +952,42 @@ try {
       if (Date.now() >= deadline) throw new Stop('END_BLOCK_NOT_ADVANCED', 21, { finalHeight });
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
+  } else return {status:'UNAVAILABLE',reason:'NO_START_PASSPORT'};
+});
+if (window) {
+  for (const config of senderConfigs) {
+    await endCheck('senderPassport:'+config.sender, async () => {
+      const start = senderPassports.get(config.sender);
+      if (!start) {
+        return {status:'UNAVAILABLE',reason:'NO_START_PASSPORT'};
+      }
+      selectSender(config.sender);
+      const end = await passportAB('end');
+      savePassport('end-'+sender,end);
+      const drift = diffPaths(start.invariant,end.invariant);
+      if (drift.length) throw new Stop('PASSPORT_DRIFT',21,{sender,drift});
+    });
+  }
+}
+await endCheck('finalPassport', async () => {
+  if (!passportStart) return {status:'UNAVAILABLE',reason:'NO_START_PASSPORT'};
+  if (passportStart) {
+    if (window) selectSender(senderConfigs[0].sender);
     passportEnd = await passportAB('end');
-    if (formal) { finalBlockCheck = await revalidateAnchors(runtime.archives); passportRefs.end = savePassport('end',passportEnd); }
+    if (formal) passportRefs.end = savePassport('end',passportEnd);
     const last = lastAttemptBlock ?? { blockNumber: passportStart.block.number, blockHash: passportStart.block.hash };
     const endHeight = BigInt(passportEnd.block.number), lastHeight = BigInt(last.blockNumber);
     const sameHash = passportEnd.block.hash.toLowerCase() === last.blockHash.toLowerCase();
-    if ((passportEnd.chainId !== passportStart.chainId || endHeight <= lastHeight || sameHash || seenBlocks.has(passportEnd.block.hash.toLowerCase()) || passportEnd.block.hash.toLowerCase() === passportStart.block.hash.toLowerCase()) && stop.code === 0) stop = { reason: 'PASSPORT_WINDOW_MISMATCH', code: 21 };
-    if (lastAttemptBlock && BigInt(passportEnd.volatile.operatorBalance) !== BigInt(lastAttemptBlock.operatorBalance) && stop.code === 0) stop = { reason: 'END_BALANCE_MISMATCH', code: 21 };
+    if ((passportEnd.chainId !== passportStart.chainId || endHeight <= lastHeight || sameHash || seenBlocks.has(passportEnd.block.hash.toLowerCase()) || passportEnd.block.hash.toLowerCase() === passportStart.block.hash.toLowerCase())) throw new Stop('PASSPORT_WINDOW_MISMATCH',21);
+    if (lastAttemptBlock && BigInt(passportEnd.volatile.operatorBalance) !== BigInt(lastAttemptBlock.operatorBalance)) throw new Stop('END_BALANCE_MISMATCH',21);
     const drift = diffPaths(passportStart.invariant, passportEnd.invariant);
-    if (drift.length && stop.code === 0) stop = { reason: 'PASSPORT_DRIFT', code: 21, detail: { drift } };
+    if (drift.length) throw new Stop('PASSPORT_DRIFT',21,{drift});
   }
-} catch (e) {
-  if (stop.code === 0) stop = e instanceof Stop
-    ? { reason: e.reason, code: e.code, detail: e.detail }
-    : { reason: 'END_PASSPORT_ERROR', code: 29, detail: String(e) };
-}
+});
+if (formal) await endCheck('anchors', async () => { finalBlockCheck = await revalidateAnchors(runtime.archives); });
 exitCode = stop.code;
-writeLine({ kind: 'run_end', stop, exitCode, matchedTriplets: matched, targetTriplets: count, tally, triplets,
-  ...(formal ? {finalBlockCheck, rehearsal} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
+writeLine({ kind: 'run_end', stop, exitCode, endCheckScope, endChecks, matchedTriplets: matched, targetTriplets: count, tally, triplets,
+  ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:60,attemptedSlots:windowOutcome?.usedSlots ?? Math.ceil(attemptIndex/3),window:windowOutcome,warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
   const triples = [...new Set(evidenceRows.map(r => r.tripleIndex))].map(tripleIndex => ({tripleIndex,
@@ -888,8 +995,27 @@ if (formal) {
     included:stop.code === 0 && triplets.some(t => t.tripletIndex === tripleIndex && t.matched)}));
   writeTrailer(windowPath, {schemaVersion:'a6-evidence-trailer/1', rehearsal, windowId:runId, void:stop.code !== 0,
     stopReason:stop.reason, stopAttempt:evidenceRows.at(-1)?.attempt ?? null, endPassport:passportRefs.end ?? null,
-    finalBlockCheck, triples, replacements, counts:armCounts(evidenceRows, triples, replacements)});
+    finalBlockCheck, endCheckScope, endChecks, triples, replacements, counts:armCounts(evidenceRows, triples, replacements), ...(window ? {window:windowOutcome} : {})});
 }
 console.log(`stop=${stop.reason} exit=${exitCode} matched=${matched}/${count} ${JSON.stringify(tally)}`);
 if (stop.detail) console.log(`detail: ${JSON.stringify(jsonable(stop.detail)).slice(0, 2000)}`);
 process.exit(exitCode);
+
+function selectSender(account) {
+  const config=senderConfigs.find(c=>c.sender===account);
+  Object.assign(formalInput,config);
+  adapter=window.adapters.get(account);frozen=adapter.frozen;
+  adapter.bind(formalInput,cfg,baselines,bMax,20);
+  PM_GAS=frozen.pmGas;MAX_FEE_CEILING=frozen.fees.maxFeePerGas;
+  sender=account;runtime.accounts.owner=owners.get(account);
+}
+async function slotGate(arm,row) {
+  const result=await waitForSlot({runtime,arm,operator:ctx.account.address,sender,paymaster:SPA,
+    start:windowStart+BigInt(activeSlot.start_seconds),deadline:windowStart+BigInt(activeSlot.deadline_seconds)});
+  (row.slotChecks??=[]).push(result);
+  if(arm==='SP') {
+    const previous=row.spWait;
+    row.spWait={...result.wait,seconds:(previous?.seconds??0n)+result.wait.seconds,blocks:(previous?.blocks??0n)+result.wait.blocks};
+  }
+  return result;
+}
