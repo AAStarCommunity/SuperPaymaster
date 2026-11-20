@@ -59,7 +59,7 @@ class Round9Test(unittest.TestCase):
                 plan.parent.mkdir(parents=True, exist_ok=True)
                 transactions = [dict(transactionType='CREATE', contractName=name, transaction=dict(nonce=hex(i), to=None, input='0x00', value='0x0', **{'from':'deployer', 'chainId':hex(chain), 'gas':'0x100'})) for i, name in enumerate(('Registry', 'TimelockHandoverBootstrap'))]
                 if kwargs['env']['DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP'] == '1': transactions = transactions[:-1]
-                plan.write_text(json.dumps(dict(transactions=transactions)))
+                plan.write_text(json.dumps(dict(transactions=transactions, receipts=[{'status': '0x1'} for _ in transactions] if '--broadcast' in command else [])))
                 (plan.parent.parent/'run-latest.json').write_text(plan.read_text())
             if any('postdeploy_check' in str(part) for part in command):
                 # Like the real checker, write readback into the directory the driver hands it.

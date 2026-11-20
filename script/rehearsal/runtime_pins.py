@@ -99,7 +99,14 @@ def check_runtime_pins(expected, actual, *, compare_types=True):
                 if ref['id'] in typed and typed[ref['id']] != description:
                     raise ValueError('inconsistent committed immutable type')
                 typed[ref['id']] = description
-    if expected != actual: raise ValueError('runtime pin mismatch')
+    # AST ids identify declarations only inside one compiler output, not across builds.
+    def comparable(pins):
+        pins = json.loads(json.dumps(pins))
+        for pin in pins['artifacts'].values():
+            for ref in pin['immutableRanges']:
+                ref.pop('id', None)
+        return pins
+    if comparable(expected) != comparable(actual): raise ValueError('runtime pin mismatch')
 
 
 def main():

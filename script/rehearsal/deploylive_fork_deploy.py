@@ -143,6 +143,38 @@ def stage(action, argv):
     print('SHA256 ' + hashlib.sha256(destination.read_bytes()).hexdigest() + ' ' + str(destination))
 
 
+BROADCAST_PROGRESS_SECONDS = 30
+
+
+def run_broadcast(command, env, rpc, deployer, plan):
+    """Capture forge privately while reporting confirmed nonce progress."""
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    from deploylive_controls import integer
+    start = integer(plan['transactions'][0]['transaction']['nonce'])
+    total = len(plan['transactions'])
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(subprocess.run, command, cwd=ROOT, env=env,
+                                 capture_output=True, text=True)
+        while True:
+            try:
+                return future.result(timeout=BROADCAST_PROGRESS_SECONDS)
+            except TimeoutError:
+                try:
+                    nonce = integer(rpc('eth_getTransactionCount', deployer, 'latest'))
+                except Exception:
+                    print('BROADCAST progress: nonce unavailable', flush=True)
+                    continue
+                mined = max(0, min(total, nonce - start))
+                print(f'BROADCAST progress: nonce {nonce} ({mined}/{total} mined)', flush=True)
+
+
+def broadcast_failure_cause(result):
+    # Only fixed labels reach the terminal; stderr may contain RPC credentials.
+    if 'failed to decrypt keystore: incorrect password' in result.stderr.lower():
+        return 'keystore unlock failed'
+    return f'forge exit {result.returncode}'
+
+
 def main():
     if sys.argv[1:2] in (['build'], ['predict']):
         return stage(sys.argv[1], sys.argv[2:])
@@ -266,19 +298,48 @@ def main():
         actual_path.unlink(missing_ok=True)
         print_command([binary, *command[1:], '--broadcast'])
         require(verify_conversion(approved_env, evidence) == env['GUARDIANS'], 'conversion changed during deployment')
-        result = subprocess.run([binary, *command[1:], '--broadcast'], cwd=ROOT, env=forge_env, capture_output=True, text=True)
+        result = run_broadcast([binary, *command[1:], '--broadcast'], forge_env, rpc, deployer, broadcast_plan)
         safe_logs(evidence, 'forge', result, env, after_broadcast=True)
         try:
-            diff = plan_diff(broadcast_plan, json.loads(actual_path.read_text()), gas_bounds)
+            actual = json.loads(actual_path.read_text())
+            receipts = actual.get('receipts', [])
+            mined = len(receipts) if isinstance(receipts, list) else 0
+        except (OSError, ValueError, AttributeError):
+            actual, mined = {}, 0
+        total = len(broadcast_plan['transactions'])
+        if not mined:
+            # forge writes run-latest.json before signing, so a missing record proves nothing: ask the
+            # chain before ever saying "not broadcast" (a mined sequence must never read as unsent).
+            from deploylive_controls import integer
+            start = integer(broadcast_plan['transactions'][0]['transaction']['nonce'])
+            try:
+                onchain = integer(rpc('eth_getTransactionCount', deployer, 'latest')) - start
+            except Exception:
+                onchain = None
+            if onchain is None:
+                print('BROADCAST STATE UNKNOWN: no receipts recorded and deployer nonce unreadable; check the chain before any retry')
+            elif onchain > 0:
+                print(f'BROADCAST STATE MISMATCH: chain shows {onchain}/{total} mined but forge recorded no receipts; do not retry')
+            else:
+                print('NOT BROADCAST: forge failed before any transaction was mined (' + broadcast_failure_cause(result) + ')')
+            require(False, 'deployment failed; config existence is not success')
+        partial = mined < total
+        if partial:
+            print(f'PARTIAL BROADCAST: {mined}/{total} mined; deployment NOT successful')
+        elif result.returncode != 0:
+            require(False, 'deployment failed; config existence is not success')
+        try:
+            diff = plan_diff(broadcast_plan, actual, gas_bounds)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
         (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), broadcastPlanSha256=plan_digest(broadcast_plan), diff=diff))+'\n')
         require(not diff, 'post-broadcast diff is not empty; deployment NOT successful')
-        changed = gas_changes(broadcast_plan, json.loads(actual_path.read_text()), gas_bounds)
+        changed = gas_changes(broadcast_plan, actual, gas_bounds)
         (evidence/'postbroadcast.gas.json').write_text(json.dumps(changed, indent=2)+'\n')
-        print('GAS post-broadcast limits equal to gated plan' if not changed else
-              f'GAS post-broadcast {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
-        require(result.returncode == 0, 'deployment failed; config existence is not success')
+        label = 'GAS partial post-broadcast' if partial else 'GAS post-broadcast'
+        print(label + ' limits equal to gated plan' if not changed else
+              f'{label} {len(changed)} limit(s) differ from the gated plan, all inside the gated range')
+        require(result.returncode == 0 and not partial, 'deployment failed; config existence is not success')
     finally:
         if not production:
             rpc('anvil_stopImpersonatingAccount', deployer)

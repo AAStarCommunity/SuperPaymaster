@@ -38,11 +38,14 @@ class DriverTest(unittest.TestCase):
                 calls.append(command)
                 if 'script' in command:
                     plan.parent.mkdir(parents=True, exist_ok=True)
-                    plan.write_text('{"transactions":[]}')
+                    plan.write_text(json.dumps({'transactions': [{'transactionType': 'CALL', 'transaction': {
+                        'nonce': '0x0', 'gas': '0x5208', 'to': 'target', 'input': '0x',
+                        'value': '0x0', 'from': 'deployer', 'chainId': '0xaa36a7'}}],
+                        'receipts': [{'status': '0x1'}]}))
                     (plan.parent.parent/'run-latest.json').write_text(plan.read_text())
                     return SimpleNamespace(returncode=0, stdout='config written', stderr='')
                 return SimpleNamespace(returncode=1, stdout='SUMMARY 187 passed, 1 failed, 188 total', stderr='')
-            with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.dict(os.environ, env), patch.object(sys, 'argv', ['driver','--production','deployer']), patch.object(f, 'ROOT', root), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'guard_bls_verbosity'), patch.object(f, 'ReadOnlyRPC', return_value=lambda *a: '0xaa36a7'), patch.object(f, 'config_path', return_value=cfg), patch.object(f, 'build'), patch.object(f, 'verify_build', return_value='/forge'), patch.object(f, 'broadcast_gates', return_value=[]), patch.object(d, 'stamp_path', return_value=stamp), patch.object(f.subprocess, 'run', side_effect=run), contextlib.redirect_stdout(io.StringIO()) as output:
+            with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.dict(os.environ, env), patch.object(sys, 'argv', ['driver','--production','deployer']), patch.object(f, 'ROOT', root), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'guard_bls_verbosity'), patch.object(f, 'ReadOnlyRPC', return_value=lambda *a: '0xaa36a7'), patch.object(f, 'config_path', return_value=cfg), patch.object(f, 'build'), patch.object(f, 'verify_build', return_value='/forge'), patch.object(f, 'broadcast_gates', return_value=[[21000, 21000]]), patch.object(d, 'stamp_path', return_value=stamp), patch.object(f.subprocess, 'run', side_effect=run), contextlib.redirect_stdout(io.StringIO()) as output:
                 with self.assertRaisesRegex(RuntimeError, 'checker'):
                     f.main()
                 self.assertNotIn('PASS full deployment', output.getvalue())

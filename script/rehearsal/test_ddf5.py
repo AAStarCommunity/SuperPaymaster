@@ -140,7 +140,7 @@ class Ddf5Test(unittest.TestCase):
                 c.deployment_rule(env,self.root,lambda url: url,chain)
                 check.assert_called_once_with('a','b',self.root)
 
-    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None, env_overrides=None):
+    def driver(self, mutate=None, checker_ok=True, chain=11155111, bounds=None, stop=False, output=None, stopped_mutate=None, env_overrides=None, broadcast_result=None, nonce_after_broadcast=None):
         import sys
         from types import SimpleNamespace
         plan=json.loads(FIX.read_text()); evidence=self.root
@@ -175,17 +175,71 @@ class Ddf5Test(unittest.TestCase):
                 if mutate: mutate(obj,len(calls))
                 target=actual if '--broadcast' in argv else dry
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
-                return SimpleNamespace(returncode=0,stdout=output(argv) if output else '',stderr='')
+                return SimpleNamespace(returncode=broadcast_result[0] if broadcast_result and '--broadcast' in argv else 0,stdout=output(argv) if output else '',stderr=broadcast_result[1] if broadcast_result and '--broadcast' in argv else '')
             if checker_ok:
                 # The driver hands the checker its own cache/ subdirectory (DEPLOYLIVE_EVIDENCE_DIR).
                 checker_dir=Path(kwargs['env']['DEPLOYLIVE_EVIDENCE_DIR']); checker_dir.mkdir(parents=True,exist_ok=True)
                 (checker_dir/'readback.json').write_text('{}')
             return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 238 passed, 0 failed, 238 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
+            if method=='eth_getTransactionCount' and nonce_after_broadcast is not None and any('--broadcast' in c for c in calls):
+                if isinstance(nonce_after_broadcast, Exception): raise nonce_after_broadcast
+                return nonce_after_broadcast
             return hex(chain) if method=='eth_chainId' else '0x27'
         with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver',self.env['DEPLOYLIVE_RPC'],self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=(lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27') if stop else rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
             try: f.main()
             finally: self.calls=calls; self.rule=rule
+
+    def test_driver_unmined_broadcast_never_reports_gas(self):
+        import contextlib
+        import io
+        for code in (1, 0):
+            def mutate(plan, index):
+                if index == 3: plan['receipts'] = []
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+                self.driver(mutate, broadcast_result=(code, 'Failed to decrypt keystore: incorrect password https://secret.invalid/key'))
+            self.assertIn('NOT BROADCAST: forge failed before any transaction was mined (keystore unlock failed)', output.getvalue())
+            self.assertNotIn('GAS post-broadcast', output.getvalue())
+            self.assertNotIn('secret.invalid', output.getvalue())
+
+    def test_driver_no_receipts_but_chain_moved_is_never_not_broadcast(self):
+        # forge's record is written before signing: with zero recorded receipts the chain decides.
+        import contextlib
+        import io
+        def mutate(plan, index):
+            if index == 3: plan['receipts'] = []
+        for nonce, expected in (('0x2c', 'BROADCAST STATE MISMATCH: chain shows 5/'),
+                                (RuntimeError('rpc down'), 'BROADCAST STATE UNKNOWN')):
+            output = io.StringIO()
+            with self.subTest(nonce=nonce), contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+                self.driver(mutate, broadcast_result=(1, 'boom https://secret.invalid/key'), nonce_after_broadcast=nonce)
+            self.assertIn(expected, output.getvalue())
+            self.assertNotIn('NOT BROADCAST', output.getvalue())
+            self.assertNotIn('GAS post-broadcast', output.getvalue())
+            self.assertNotIn('secret.invalid', output.getvalue())
+
+    def test_driver_failed_exit_with_receipts_has_no_gas_conclusion(self):
+        import contextlib
+        import io
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+            self.driver(broadcast_result=(7, 'https://secret.invalid/key'))
+        self.assertNotIn('GAS post-broadcast', output.getvalue())
+        self.assertNotIn('NOT BROADCAST', output.getvalue())
+        self.assertNotIn('secret.invalid', output.getvalue())
+
+    def test_driver_partial_broadcast_is_not_success(self):
+        import contextlib
+        import io
+        def mutate(plan, index):
+            if index == 3: plan['receipts'] = plan['receipts'][:1]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaisesRegex(RuntimeError, 'deployment failed'):
+            self.driver(mutate)
+        self.assertIn('PARTIAL BROADCAST: 1/', output.getvalue())
+        self.assertIn('GAS partial post-broadcast', output.getvalue())
+        self.assertFalse((self.root/'checker.PASS.json').exists())
 
     def test_driver_success_and_rule_is_mandatory(self):
         self.driver()
