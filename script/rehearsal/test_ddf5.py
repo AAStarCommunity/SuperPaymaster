@@ -18,8 +18,10 @@ class Ddf5Test(unittest.TestCase):
         base=c.ROOT/'cache/ddf5'; base.mkdir(parents=True, exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=base); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
-        cast = self.root/'cast'; cast.write_text('#!/bin/sh\nexit 0\n'); cast.chmod(0o755)
-        self.env={'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'owner','ENV':'test',
+        cast = self.root/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
+        checker = self.root/'script/rehearsal/deploylive_postdeploy_check.py'
+        checker.parent.mkdir(parents=True); checker.write_text('# checker fixture\n')
+        self.env={'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'0x'+'22'*20,'ENV':'test',
                   'DEPLOYLIVE_EVIDENCE_DIR':str(self.root),'DEFAULT_CACHE_PATH':str(self.root/'build')}
         (self.root/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
 
@@ -34,6 +36,8 @@ class Ddf5Test(unittest.TestCase):
                    DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
                    DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second))
         def predict(argv, **kwargs):
+            if argv[1:] == ['--version']:
+                return SimpleNamespace(returncode=0, stdout='cast Version: 1.7.1-stable', stderr='')
             self.assertNotIn('--broadcast',argv)
             self.assertNotIn(env['DEPLOYLIVE_RPC'],argv)
             (self.root/f.REQUEST_PATH).write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
@@ -165,6 +169,8 @@ class Ddf5Test(unittest.TestCase):
         calls=[]
         self.script_envs=[]
         def run(argv,**kwargs):
+            if argv[1:] == ['--version']:
+                return SimpleNamespace(returncode=0, stdout='cast Version: 1.7.1-stable', stderr='')
             self.assertFalse(any('primary' in x or 'secondary' in x for x in argv))
             calls.append(argv)
             if 'script' in argv:

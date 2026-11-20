@@ -15,13 +15,9 @@ import sys
 import re
 from pathlib import Path
 
-try:
-    cast_version = subprocess.run(['cast', '--version'], capture_output=True, text=True)
-    stable_cast = cast_version.returncode == 0 and re.search(
-        r'^cast Version: 1\.7\.1(?:-stable)?(?:[ \t].*)?$', cast_version.stdout, re.M)
-except OSError:
-    stable_cast = False
-if not stable_cast:
+from deploylive_cast import stable_cast
+
+if not stable_cast('cast'):
     print('FAIL STOP checker requires cast 1.7.1')
     sys.exit(1)
 

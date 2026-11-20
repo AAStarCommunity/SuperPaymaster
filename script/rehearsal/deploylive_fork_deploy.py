@@ -5,6 +5,8 @@ import hashlib
 import shutil
 import json
 import os
+import re
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -85,6 +87,60 @@ def require_checker_inputs(env, chain=None, production=True):
                                   env.get('DEPLOYLIVE_RPC', ''), second)
         except (ValueError, OSError, KeyError):
             require(False, 'STOP invalid checker provider pair; distinct approved bound endpoints required')
+
+    from deploylive_cast import stable_cast
+    cast_pin = env.get('CAST_1_7_1', '')
+    require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
+            'STOP CAST_1_7_1 must name an executable')
+    require(stable_cast(cast_pin), 'STOP CAST_1_7_1 must be cast 1.7.1')
+
+
+def writable_evidence(directory, names):
+    directory.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryFile(dir=directory) as probe:
+        probe.write(b'checker preflight')
+        probe.flush()
+    for name in names:
+        target = directory/name
+        if target.is_symlink():
+            raise ValueError('evidence symlink')
+        if target.exists():
+            if not target.is_file():
+                raise ValueError('evidence must be a file')
+            # Opening without truncation checks existing outputs as well as their directory.
+            with target.open('r+b'):
+                pass
+
+
+def prepare_checker(env, evidence, deployer):
+    for key, value in (('DEPLOYER_ADDRESS', deployer), ('GOVERNANCE_OWNER', env.get('GOVERNANCE_OWNER', ''))):
+        require(bool(re.fullmatch(r'0x[0-9a-fA-F]{40}', value)), 'STOP invalid checker ' + key)
+    try:
+        from deploylive_readback import provider_name
+        provider_name(env.get('DEPLOYLIVE_ENDPOINT_PROVIDER', ''))
+    except ValueError:
+        require(False, 'STOP invalid checker DEPLOYLIVE_ENDPOINT_PROVIDER')
+    try:
+        (ROOT/'script/rehearsal/deploylive_postdeploy_check.py').read_bytes()
+    except OSError:
+        require(False, 'STOP checker script unavailable')
+    try:
+        writable_evidence(evidence, ('readback.json', 'checker.log', 'checker.stdout.log',
+            'checker.stderr.log', 'checker.PASS.json', 'forge.stdout.log', 'forge.stderr.log',
+            'postbroadcast.diff.json', 'postbroadcast.gas.json', 'REDACTED_AFTER_BROADCAST'))
+    except (OSError, ValueError):
+        require(False, 'STOP deployment evidence unavailable')
+    checker_dir = ROOT/'cache/deploylive-checker'/(env.get('ENV') or 'default')
+    try:
+        candidate = checker_dir/'readback.json'
+        require(candidate.resolve().is_relative_to((ROOT/'cache').resolve())
+                and checker_dir.resolve() != (ROOT/'cache').resolve(), 'STOP checker evidence unavailable')
+        if any(p.is_symlink() for p in (candidate, *candidate.parents)):
+            raise ValueError('evidence symlink')
+        writable_evidence(checker_dir, ('readback.json',))
+    except (OSError, ValueError):
+        require(False, 'STOP checker evidence unavailable')
+    return checker_dir
 
 
 def stage(action, argv):
@@ -208,6 +264,7 @@ def main():
     path = config_path(env)
     path.parent.mkdir(parents=True, exist_ok=True)
     from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success, gas_changes, verify_conversion, plan_digest
+    checker_dir = prepare_checker(env, evidence, deployer)
     verify_manifest(env, evidence)
     approved_env = dict(env)
     env['GUARDIANS'] = verify_conversion(approved_env, evidence)
@@ -358,8 +415,6 @@ def main():
     # The checker only writes readback evidence strictly below <worktree>/cache (deploylive_readback
     # evidence_path); the deploy-day evidence directory lives elsewhere. Give the checker its own fresh
     # cache subdirectory and copy the readback into the evidence directory, byte-identical.
-    checker_dir = ROOT/'cache/deploylive-checker'/(env.get('ENV') or 'default')
-    checker_dir.mkdir(parents=True, exist_ok=True)
     (checker_dir/'readback.json').unlink(missing_ok=True)
     (evidence/'readback.json').unlink(missing_ok=True)
     cast_pin = env.get('CAST_1_7_1', '')

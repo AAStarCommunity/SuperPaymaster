@@ -15,7 +15,7 @@ class DriverCastPin(unittest.TestCase):
 
     def test_checker_path_starts_with_cast_pin(self):
         cast = self.root/'stable'/'cast'
-        cast.parent.mkdir(); cast.write_text('#!/bin/sh\nexit 0\n'); cast.chmod(0o755)
+        cast.parent.mkdir(); cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
         self.driver(env_overrides={'CAST_1_7_1': str(cast), 'PATH': '/nightly:/usr/bin:/bin'})
         self.assertEqual(self.checker_env['PATH'].split(os.pathsep)[0], str(cast.parent))
 
