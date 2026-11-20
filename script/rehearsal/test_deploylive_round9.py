@@ -42,7 +42,7 @@ class Round9Test(unittest.TestCase):
     def run_fork(self, chain, extra=()):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
         cast = OUTPUT/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
-        env = {'CAST_1_7_1':str(cast), 'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
+        env = {'PATH':'/usr/bin:/bin', 'CAST_1_7_1':str(cast), 'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
                'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
                'DEPLOYLIVE_HARDFORK':'op:karst' if chain in (10, 11155420) else 'prague', 'GOVERNANCE_OWNER':'0x'+'22'*20, 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
         # Model an operator-approved fork name in test-only data; committed OP lists stay empty.

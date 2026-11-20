@@ -307,7 +307,7 @@ The adapter checks the frozen fields before sending and archives their provenanc
 artifact SHA256, creation keccak and constructor immutable patch locations. The
 small compiled artifacts are included under `artifacts/`. They were built offline
 with solc 0.8.33, Cancun, viaIR, optimizer 500; release pin files were untouched.
-Its `commit` field records where these two fixtures were built (their build provenance). The planner requires that commit to be an ancestor of the deployment commit, and the artifact SHA256 and creation keccak to match exactly; nothing else is compared.
+Its `commit` field records where these two fixtures were built (their build provenance). The planner requires that commit to be an ancestor of the deployment commit, and checks exact matches for each artifact SHA256, creation keccak, the fixture source SHA256 (`sourceSha256`), and `runtimeIdentity` (artifact runtime bytecode and MINTER immutable ranges).
 The planner enforces permission for these comparator fixtures on 10, 11155111,
 11155420 and 31337 (local acceptance). Other F1 fixtures remain local only.
 This scope supersedes the older source comment without changing pinned fixture sources.

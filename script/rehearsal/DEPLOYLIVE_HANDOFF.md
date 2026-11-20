@@ -1,6 +1,6 @@
-CAST_1_7_1 must be a file named cast. Its directory is prepended to the checker PATH; preflight verifies that this resolves to the same stable 1.7.1 executable.
-
 # Deploy-day rehearsal: copy-paste sequence (Sepolia, three guardians)
+
+Resolving `cast` on the checker PATH must give the same file as `CAST_1_7_1`, and it must report stable 1.7.1. Naming the pin `cast` is the simple way. Its directory is prepended to the checker PATH; all entries must be absolute and non-empty or preflight stops before Forge (entry indices are zero-based).
 
 Prerequisites: reviewed clean HEAD, pinned `FORGE` and matching Anvil binary,
 cast 1.7.1 (`CAST_1_7_1`), approved principals, and two distinct real-chain RPCs.

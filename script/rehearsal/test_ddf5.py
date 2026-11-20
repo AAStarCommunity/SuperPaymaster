@@ -21,7 +21,7 @@ class Ddf5Test(unittest.TestCase):
         cast = self.root/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
         checker = self.root/'script/rehearsal/deploylive_postdeploy_check.py'
         checker.parent.mkdir(parents=True); checker.write_text('# checker fixture\n')
-        self.env={'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'0x'+'22'*20,'ENV':'test',
+        self.env={'PATH':'/usr/bin:/bin', 'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'0x'+'22'*20,'ENV':'test',
                   'DEPLOYLIVE_EVIDENCE_DIR':str(self.root),'DEFAULT_CACHE_PATH':str(self.root/'build')}
         (self.root/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
 

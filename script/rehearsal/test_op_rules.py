@@ -146,6 +146,6 @@ class OPRulesTest(unittest.TestCase):
             second = Path(tmp)/'rpc'; second.write_text('https://secondary.infura.io/key')
             env = dict(DEPLOYLIVE_EXPECTED_CHAIN_ID='11155420', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
                        DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second),
-                       DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', CAST_1_7_1=str(cast))
+                       DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', PATH='/usr/bin:/bin', CAST_1_7_1=str(cast))
             with patch('deploylive_cast.stable_cast', return_value=True):
                 f.require_checker_inputs(env, 11155420, production=True)

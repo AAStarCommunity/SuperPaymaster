@@ -103,11 +103,15 @@ def require_checker_inputs(env, chain=None, production=True):
     cast_pin = env.get('CAST_1_7_1', '')
     require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
             'STOP CAST_1_7_1 must name an executable')
-    checker_path = str(Path(cast_pin).absolute().parent) + os.pathsep + env.get('PATH', '')
-    resolved = shutil.which('cast', path=checker_path)
+    checker_path = [str(Path(cast_pin).absolute().parent), *env.get('PATH', '').split(os.pathsep)]
+    for index, entry in enumerate(checker_path):
+        require(bool(entry) and Path(entry).is_absolute(),
+                f'STOP checker PATH entry {index} must be absolute and non-empty: {entry!r}')
+    resolved = shutil.which('cast', path=os.pathsep.join(checker_path))
     require(resolved is not None and os.path.samefile(resolved, cast_pin),
             'STOP CAST_1_7_1 must resolve to the checker cast')
     require(stable_cast(resolved), 'STOP CAST_1_7_1 must be cast 1.7.1')
+    return checker_path
 
 
 def writable_evidence(directory, names):
@@ -274,7 +278,7 @@ def main():
     chain = int(rpc('eth_chainId'), 16)
     require(chain == 31337 if stop else chain in (10, 31337, 11155111, 11155420), 'unsupported deployment chain')
     require(not production or chain in (10, 11155111, 11155420), 'production chain required')
-    require_checker_inputs(dict(os.environ, DEPLOYLIVE_RPC=url), chain, production)
+    checker_path = require_checker_inputs(dict(os.environ, DEPLOYLIVE_RPC=url), chain, production)
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir() and evidence.is_relative_to(ROOT), 'evidence directory required inside worktree')
     env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='0' if production else '1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')
@@ -450,7 +454,7 @@ def main():
     require(bool(cast_pin) and Path(cast_pin).is_file() and os.access(cast_pin, os.X_OK),
             'STOP CAST_1_7_1 must name an executable')
     checker_env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(checker_dir))
-    checker_env['PATH'] = str(Path(cast_pin).absolute().parent) + os.pathsep + env.get('PATH', '')
+    checker_env['PATH'] = os.pathsep.join(checker_path)
     result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=checker_env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env, after_broadcast=True)
     (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())

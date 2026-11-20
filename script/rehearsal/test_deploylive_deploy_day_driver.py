@@ -24,7 +24,7 @@ class DriverTest(unittest.TestCase):
             stamp=root/'out.build-stamp.json'; stamp.write_text('{"forge":{}}')
             plan=root/'broadcast/DeployLive.s.sol/11155111/dry-run/run-latest.json'
             cast = root/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
-            env=dict(CAST_1_7_1=str(cast), DEPLOYLIVE_RPC='rpc', DEPLOYLIVE_SOURCE_RPC='rpc', DEPLOYLIVE_SECOND_RPC='other',
+            env=dict(PATH='/usr/bin:/bin', CAST_1_7_1=str(cast), DEPLOYLIVE_RPC='rpc', DEPLOYLIVE_SOURCE_RPC='rpc', DEPLOYLIVE_SECOND_RPC='other',
                      DEPLOYLIVE_HARDFORK='amsterdam', DEPLOYER_ACCOUNT='unused', GOVERNANCE_OWNER='0x'+'22'*20, DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111',
                      DEPLOYLIVE_EVIDENCE_DIR=tmp, DEFAULT_ARTIFACTS_OUT=str(root/'out'))
             second = root/'second-rpc'

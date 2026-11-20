@@ -177,7 +177,7 @@ class Ddf3Test(unittest.TestCase):
                 second.write_text('https://secondary.infura.io/key')
                 env.update(DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_SECOND_RPC=second.read_text(),
                            DEPLOYLIVE_SECOND_RPC_FILE=str(second), DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
-                           DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', CAST_1_7_1=str(cast), GOVERNANCE_OWNER='0x'+'22'*20)
+                           DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', PATH='/usr/bin:/bin', CAST_1_7_1=str(cast), GOVERNANCE_OWNER='0x'+'22'*20)
                 with patch('deploylive_cast.stable_cast', return_value=True), patch('deploylive_controls.verify_manifest'), patch('deploylive_controls.verify_conversion',return_value='0x'), patch.dict(f.os.environ,env,clear=True), patch.object(sys,'argv',['driver','deploy','--production','0x'+'11'*20]), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=lambda *a:'0xaa36a7'), patch.object(f,'build') as build, patch.object(f,'verify_build',side_effect=RuntimeError('STOP '+failure)), patch.object(f.subprocess,'run') as run:
                     with self.assertRaisesRegex(RuntimeError,failure):f.main()
                     build.assert_not_called(); run.assert_not_called()

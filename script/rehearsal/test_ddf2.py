@@ -101,7 +101,7 @@ class PredictionExecutionTest(unittest.TestCase):
                 env = dict(dict.fromkeys(keys, 'fixed'), DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111',
                            DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura',
                            DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_SECOND_RPC=second.read_text(),
-                           DEPLOYLIVE_SECOND_RPC_FILE=str(second), CAST_1_7_1=str(cast))
+                           DEPLOYLIVE_SECOND_RPC_FILE=str(second), PATH='/usr/bin:/bin', CAST_1_7_1=str(cast))
                 output = io.StringIO()
                 with patch('deploylive_cast.stable_cast', return_value=True), patch.dict(os.environ, env, clear=True), patch.object(f, 'ROOT', root), patch.object(f, 'guard_bls_verbosity'), patch.object(f, 'clean_source_commit', return_value='a'*40), patch.object(f, 'verify_build', return_value='/forge') as verify, patch.object(f, 'config_path', return_value=root/'config.json'), patch.object(f.subprocess, 'run', side_effect=run), contextlib.redirect_stdout(output):
                     f.stage('predict', ['--evidence', 'evidence'] + (['--production'] if production else []))
