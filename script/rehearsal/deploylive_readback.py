@@ -86,8 +86,10 @@ def sha(path):
 
 
 def expected_chain_id(env):
-    """Operator override; the committed default is Optimism (10), never RPC data."""
-    value = env.get('DEPLOYLIVE_EXPECTED_CHAIN_ID', '10')
+    """Chain id the operator states they are on; required, never defaulted, never taken from RPC data."""
+    if 'DEPLOYLIVE_EXPECTED_CHAIN_ID' not in env:
+        raise ValueError('DEPLOYLIVE_EXPECTED_CHAIN_ID required')
+    value = env['DEPLOYLIVE_EXPECTED_CHAIN_ID']
     if not isinstance(value, str) or not re.fullmatch(r'[1-9][0-9]*', value):
         raise ValueError('invalid expected chain id')
     return int(value)

@@ -1,5 +1,6 @@
 """Expected chain must precede planner exemptions."""
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import plan_three_arm as q
@@ -21,3 +22,17 @@ class RoundThree(unittest.TestCase):
             self.assertEqual(tools.env.get('DEPLOYLIVE_EXPECTED_CHAIN_ID'), '31337')
             tools.run(['checker'], env={'DEPLOYLIVE_EXPECTED_CHAIN_ID':'10'})
             self.assertEqual(run.call_args.kwargs['env']['DEPLOYLIVE_EXPECTED_CHAIN_ID'], '10')
+
+
+class ExpectedChainRequired(unittest.TestCase):
+    """DSR: no default — the operator must state the chain; unset stops on both sides."""
+    def test_unset_is_refused(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'script/rehearsal'))
+        from deploylive_readback import expected_chain_id
+        with self.assertRaisesRegex(ValueError, 'DEPLOYLIVE_EXPECTED_CHAIN_ID required'):
+            expected_chain_id({})
+        for bad in ('', '0', '010', 'ten', '-1'):
+            with self.assertRaises(ValueError):
+                expected_chain_id({'DEPLOYLIVE_EXPECTED_CHAIN_ID': bad})
+        self.assertEqual(expected_chain_id({'DEPLOYLIVE_EXPECTED_CHAIN_ID': '11155111'}), 11155111)

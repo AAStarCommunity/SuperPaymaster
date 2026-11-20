@@ -9,7 +9,7 @@ PIN = '0x'+'12'*32
 
 class RoundTwo(unittest.TestCase):
     def test_planner_provider_independence(self):
-        env = dict(DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        env = dict(DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_EXPECTED_CHAIN_ID='10')
         for first, second, names in (
             ('https://x.alchemy.com', 'https://x.alchemy.com', env),
             ('https://x.alchemy.com', 'https://y.infura.io', dict(env, DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Alchemy')),

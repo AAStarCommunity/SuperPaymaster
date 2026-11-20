@@ -161,7 +161,7 @@ class Generation(unittest.TestCase):
     def test_verified_generation_reconstructs_exact_bytes_after_head_moves(self):
         import tempfile
         import re
-        provider=patch.dict('os.environ', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
+        provider=patch.dict('os.environ', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_EXPECTED_CHAIN_ID='10')
         provider.start();self.addCleanup(provider.stop)
         f=fixtures.ThreeArm();f.setUp();f.cfg['guardianN']=2
         original=copy.deepcopy(f.rpc.head)

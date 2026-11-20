@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fresh DeployLive RQ3 plans. Only read RPCs; no signing or broadcasting.
 
-DEPLOYLIVE_EXPECTED_CHAIN_ID defaults to pinned chain 10; local runs require 31337.
+DEPLOYLIVE_EXPECTED_CHAIN_ID is required (e.g. 10, 11155111, or 31337 for local runs); unset stops.
 """
 import sys
 sys.dont_write_bytecode = True
@@ -778,8 +778,8 @@ def _generate(config_path,inputs_path,left,right,url,block,checker_runner,commit
     from deploylive_readback import expected_chain_id
     try:
         chain = expected_chain_id(tools.env)
-    except ValueError:
-        raise a.Gate('rq3_expected_chain', 'invalid expected chain id', 'positive decimal chain id') from None
+    except ValueError as error:
+        raise a.Gate('rq3_expected_chain', str(error), 'DEPLOYLIVE_EXPECTED_CHAIN_ID: positive decimal chain id') from None
     a.need('rq3_expected_chain', a.qty(pair('eth_chainId', [])), chain)
     if chain != 31337:
         sys.path.insert(0, str(ROOT/'script/rehearsal'))
