@@ -17,11 +17,11 @@ class Daybreak(unittest.TestCase):
         provider=patch.dict('os.environ', DEPLOYLIVE_SECOND_RPC_FILE='cache/second-rpc', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura')
         provider.start();self.addCleanup(provider.stop)
         cfg={'commit':'a'*40,'guardianN':2,'deployer':'d','governanceOwner':'s'}
-        for code,log in [(1,'SUMMARY 242 passed, 0 failed, 242 total'),(0,'SUMMARY 243 passed, 0 failed, 243 total'),(0,'SUMMARY 241 passed, 1 failed, 242 total'),(0,'PASS no summary'),(0,'SUMMARY 242 passed, 0 failed, 242 total\nSUMMARY 242 passed, 0 failed, 242 total')]:
+        for code,log in [(1,'SUMMARY 251 passed, 0 failed, 251 total'),(0,'SUMMARY 252 passed, 0 failed, 252 total'),(0,'SUMMARY 250 passed, 1 failed, 251 total'),(0,'PASS no summary'),(0,'SUMMARY 251 passed, 0 failed, 251 total\nSUMMARY 251 passed, 0 failed, 251 total')]:
             with self.assertRaises(q.a.Gate):
                 q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=code,stdout=log),commit_reader=lambda:cfg['commit'])
-        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 242 passed, 0 failed, 242 total'),commit_reader=lambda:cfg['commit'])
-        self.assertEqual(result['total'],242)
+        result=q.run_checker('config',cfg,'rpc',10,runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout='PASS gate\nSUMMARY 251 passed, 0 failed, 251 total'),commit_reader=lambda:cfg['commit'])
+        self.assertEqual(result['total'],251)
         self.assertNotIn('stdout',result)
     def test_dirty_or_wrong_commit_refused(self):
         with self.assertRaises(q.a.Gate):
@@ -185,7 +185,7 @@ class Generation(unittest.TestCase):
             calls=[]
             def runner(command,**kwargs):
                 calls.append(command)
-                return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 242 passed, 0 failed, 242 total')
+                return SimpleNamespace(returncode=0,stdout='SNAPSHOT_BLOCK_HASH '+original['hash']+'\nPASS offline\nSUMMARY 251 passed, 0 failed, 251 total')
             def generate(block=None):
                 with patch.object(q,'authenticate_checker',return_value={}),patch.object(q,'load_baselines',return_value=f.bases),patch.object(q.m,'collect_phase_c',side_effect=copy.deepcopy(f.pins)):
                     return q.generate(root/'config',root/'inputs',rpc,rpc,'unused',block,runner,lambda:f.cfg['commit'])

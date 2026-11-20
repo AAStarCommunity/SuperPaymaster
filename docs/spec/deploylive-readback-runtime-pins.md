@@ -160,7 +160,7 @@ Field sources:
   paymasterFactory, paymasterV4Impl, microPaymentChannel, x402Facilitator, timelockController,
   handoverBootstrap; only policy-authorized zero-address keys are listed with `address` zero and all reads `null`). The
   configKey→artifact mapping is a committed table in the PR (`deployments/readback-artifacts.json`), not inferred.
-- `erc1967` is read for EVERY contract (not only known proxies); a non-proxy shows zero addresses. The SDK should
+- `erc1967` is read for every contract except extension implementations (not only known proxies); a non-proxy shows zero addresses. The SDK should
   treat "is a proxy" as "implementation != 0", and check implementation == the matching `*Impl` config key.
 - `version`: present for contracts whose ABI has `version()` (on main: AOAProtocolRegistry, APNTsCapped,
   BLSAggregator, DVTValidator, GToken, GTokenAuthorization, GTokenStaking, GlobalTierSource, MicroPaymentChannel,
@@ -409,3 +409,90 @@ component are forbidden. Test-only explicit artifact-helper injection is separat
 selection. Path checks cannot recognize fixtures copied into an innocuously named directory:
 artifact provenance for that case rests on the deploy-day build stamp (clean HEAD plus
 `foundry.toml` hash). No additional copied-artifact detector is claimed.
+
+## PR C: extension routing, gas parameters, and known gaps
+
+The `extensions` table in `deployments/readback-policy.json:1055` pairs SuperPaymaster with
+SuperPaymasterAdmin and xPNTsTokenV2 with xPNTsTokenV2Ext. At the core, proxy, or clone address,
+`enumeration_abi` (`script/rehearsal/deploylive_readback.py:327`) uses both release artifacts,
+selected through `release_artifact` from `out/`. Core selectors take precedence over fallback
+selectors. Coverage is exact over the union of zero-argument address-returning views/pures.
+The structural reference is the union recomputed from `out/`, rather than `abis/*.full.json`:
+the release selector validates compilation target/settings and supplies the runtime pins; the
+exported ABI copies have no equivalent release-selection check. This is a provenance choice,
+not a finding that the exported ABIs are wrong. The measured extension-only difference is
+empty for SuperPaymaster and `{getMetadata}` for xPNTsTokenV2.
+
+The source fallback bodies forward all calldata to immutable EXTENSION without selector filtering
+(`SuperPaymaster.sol:142`, `tokens/v2/xPNTsTokenV2.sol:56`). The structural regression checks the
+pairing, immutable declaration, fallback forwarding, release union, and policy equality.
+Extension implementation addresses have code and immutable checks only: `addressGetters: {}`,
+`unreadable: []`, `version: null`, `erc1967: null`. No business calls, including informational
+owner calls, are sent to those implementations. Shared immutables bind to the same singleton
+expectations as the core: REGISTRY, ETH_USD_PRICE_FEED, entryPoint for SuperPaymasterAdmin;
+PROTOCOL_REGISTRY for xPNTsTokenV2Ext. Constructor self-addresses remain implementation-specific.
+
+`script/rehearsal/deploylive_postdeploy_check.py:300` reads `gasParams()` at the SuperPaymaster
+proxy via the normal pinned snapshot transport; its exact raw nine-word result is replayed by
+the second provider. Words 0–3 must equal 500000, 450000, 5000, 450000; words 4–8 must be zero.
+The four release values live in `docs/release/rq3-runtime-expectations.json:4`; policy references
+the file and constant names. Wrong length, revert, or any differing word fails. These checks
+produce nine assertion rows; they are not new address-getter fields in readback JSON.
+
+### Parameterized extension views and mappings (source inventory)
+
+SuperPaymasterAdmin inherits `operators(address)` from `SuperPaymasterStorage.sol:100`; its
+OperatorConfig contains xPNTsToken and treasury (`interfaces/ISuperPaymaster.sol:30`, `:35`).
+It also inherits `slashQueues(address)` (`SuperPaymasterStorage.sol:189`), whose SlashQueue
+contains queuedBy (`:84`). Both return addresses and require parameters, so neither belongs
+to zero-argument getter enumeration. The checker separately reads the genesis operator's
+isConfigured field; that does not validate the address fields of the mapping.
+
+The other public mappings in SuperPaymasterStorage are userOpState, sbtHolders, slashHistory
+(`:102`–`:104`), pendingWithdrawals (`:186`), and inflightReserved (`:197`); their outputs contain
+no addresses. `SuperPaymasterAdmin.sol:575`, `:631`, `:813`, `:817`, `:821` define parameterized
+views getAvailableCredit, isSlashPending, getSlashHistory, getSlashCount, getLatestSlash; none
+returns an address (SlashRecord fields are at `interfaces/ISuperPaymaster.sol:42`).
+
+xPNTsTokenV2Ext defines no parameterized address-returning view and no public mapping of its own.
+Its inherited public mappings (`tokens/v2/xPNTsV2Base.sol:88`–`:131`) are historicalSP,
+autoApprovedSpenders, spenderActivatesAt, approvedFacilitators, spenderRateLimit,
+spenderDailyCapOverride, autoRenewUsed, renewalMode, spenderDisabled, lockedOf, debts,
+creditReq, creditReservedOf, usedOpHashes, actionNonce; none returns an address. The address-bearing
+LockRec and CreditRes mappings are internal (`:109`–`:119`). The `operators(address)` declaration
+at `xPNTsTokenV2Ext.sol:21` is in the external ISPStakeViewV2 interface, not the extension's
+callable surface. `actionDigest` (`:102`) takes parameters and returns bytes32; `getMetadata`
+(`:515`) is a zero-argument view returning communityOwner.
+
+### Known gaps: value-type governance parameters
+
+“Checked” below means an explicit getter-value comparison against a release expectation.
+A runtime pin binds code, including constants, but is not a separate getter-value assertion.
+Input/config comparisons are identified separately. This table describes the current checker;
+it does not add checks for the unchecked parameters.
+
+| Name | Contract | Getter | Checked? (file:line) |
+|---|---|---|---|
+| Current gas tuple | SuperPaymaster proxy → Admin | gasParams(), words 0–3 | Yes: release JSON values; `script/rehearsal/deploylive_postdeploy_check.py:300` |
+| Pending gas tuple and eta | SuperPaymaster proxy → Admin | gasParams(), words 4–8 | Yes: all zero; `script/rehearsal/deploylive_readback.py:341` |
+| Oracle staleness threshold | SuperPaymaster | priceStalenessThreshold() | Yes: 4200; `script/rehearsal/deploylive_postdeploy_check.py:419` |
+| Chainlink stale threshold | SuperPaymasterAdmin | No public threshold getter (CHAINLINK_STALE_THRESHOLD); isChainlinkStale() returns status | No separate value check; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol:39` |
+| Governance delay | TimelockController | getMinDelay() | Yes: 172800; `script/rehearsal/deploylive_postdeploy_check.py:417` |
+| Protocol fee | SuperPaymaster | protocolFeeBPS() | No; declaration `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:109` |
+| aPNTs USD price | SuperPaymaster | aPNTsPriceUSD() | No; declaration `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:106` |
+| ETH/USD price bounds | SuperPaymaster | No public getter (MIN_ETH_USD_PRICE, MAX_ETH_USD_PRICE) | No separate value check; code constants `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:206` |
+| Withdrawal delay/window | SuperPaymaster | OPERATOR_WITHDRAWAL_DELAY(), OPERATOR_WITHDRAWAL_WINDOW() | No separate value check; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:264` |
+| Pending token/BLS change eta | SuperPaymaster | pendingAPNTsTokenEta(), pendingBLSAggEta() | No; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:147`, `:154` |
+| Emergency price state | SuperPaymaster | priceMode(), emergencyQueuedAt(), emergencyPendingPrice(), emergencyActivatedAt() | No; `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol:119` |
+| Credit tiers and reputation thresholds | Registry | creditTierConfig(uint256), levelThresholds(uint256) | No; `contracts/src/core/Registry.sol:59` |
+| Credit exposure limits | Registry | maxAggregateCreditUpliftPerProposal(), maxTotalCreditExposure() | No; `contracts/src/core/Registry.sol:1020`, `:1069` |
+| Effective credit tier/floor | GlobalTierSource | tierOf(address,address), creditFloor() | No; `contracts/src/tokens/v2/GlobalTierSource.sol:37`, `:48` |
+| Exchange rate, tx limit, issuance cap | xPNTsTokenV2 | exchangeRate(), maxSingleTxLimit(), issuanceCap() | No; `contracts/src/tokens/v2/xPNTsV2Base.sol:73` |
+| Spender daily limits | xPNTsTokenV2 | spenderDailyCapTokens(), spenderDailyCapOverride(address) | No; `contracts/src/tokens/v2/xPNTsV2Base.sol:97` |
+| Credit policy and pending policy | xPNTsTokenV2 | creditPolicy(), pendingPolicy(), hasPendingPolicy(), pendingPolicyEta() | No; `contracts/src/tokens/v2/xPNTsV2Base.sol:120` |
+| Protocol credit/allowance ceilings and delay | xPNTsTokenV2 | SP_DEFAULT_CAP(), SP_CAP_FLOOR(), USER_TOTAL_DEFAULT(), PROTOCOL_MAX_CAP(), PROTOCOL_CREDIT_CEILING(), TIMELOCK() | No separate value check; `contracts/src/tokens/v2/xPNTsV2Base.sol:31` |
+| Factory price and cap ratio (V1) | xPNTsFactory | aPNTsPriceUSD(), industryScaleUSD(string), capRatioBps() | No; `contracts/src/tokens/xPNTsFactory.sol:80` |
+| Factory price and cap ratio (V2) | xPNTsFactoryV2 | aPNTsPriceUSD(), industryScaleUSD(string), capRatioBps() | No; `contracts/src/tokens/v2/xPNTsFactoryV2.sol:100` |
+| Token cap | APNTsCapped | cap() | Config expectedCap comparison, not fixed release value; `script/rehearsal/deploylive_postdeploy_check.py:418` |
+| Validator/slash thresholds | BLSAggregator | minThreshold(), defaultThreshold(), slashThresholds(uint8) | Config comparison, not fixed release values; `script/rehearsal/deploylive_postdeploy_check.py:420` |
+| GToken cap | GTokenAuthorization | cap() / immutable _cap | Yes via immutable _cap = 21000000 × 10^18, not getter; `script/rehearsal/deploylive_postdeploy_check.py:669` |

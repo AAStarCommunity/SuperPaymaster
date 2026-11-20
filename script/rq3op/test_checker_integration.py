@@ -20,7 +20,7 @@ class CheckerIntegration(unittest.TestCase):
         self.calls = []
         def runner(command, **kwargs):
             self.calls.append((command, kwargs))
-            return SimpleNamespace(returncode=0, stdout=output or f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 242 passed, 0 failed, 242 total')
+            return SimpleNamespace(returncode=0, stdout=output or f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 251 passed, 0 failed, 251 total')
         with patch.object(q, 'authenticate_checker', return_value={}):
             return q.run_checker('config', cfg, 'unused', 11155111, runner=runner,
                                  commit_reader=lambda: cfg['commit'], block=PIN, tools=tools)
@@ -46,7 +46,7 @@ class CheckerIntegration(unittest.TestCase):
     def test_snapshot_identity_required(self):
         for line in ('', 'SNAPSHOT_BLOCK_HASH 0x'+'34'*32, f'SNAPSHOT_BLOCK_HASH {PIN}\nSNAPSHOT_BLOCK_HASH {PIN}'):
             with self.subTest(line=line), self.assertRaises(q.a.Gate):
-                self.invoke(self.tools(), line+'\nSUMMARY 242 passed, 0 failed, 242 total')
+                self.invoke(self.tools(), line+'\nSUMMARY 251 passed, 0 failed, 251 total')
 
     def test_count_one_more_or_less_rejected(self):
         # A committed mapping change adds one runtime row. The expected value
@@ -58,10 +58,10 @@ class CheckerIntegration(unittest.TestCase):
                 value = dict(value, extraRuntime='ERC1967Proxy')
             return value
         with patch.object(q, 'load', side_effect=load):
-            for count in (242, 244):
+            for count in (251, 253):
                 with self.subTest(count=count), self.assertRaises(q.a.Gate):
                     self.invoke(self.tools(), f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY {count} passed, 0 failed, {count} total')
-            self.assertEqual(self.invoke(self.tools(), f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 243 passed, 0 failed, 243 total')['total'], 243)
+            self.assertEqual(self.invoke(self.tools(), f'SNAPSHOT_BLOCK_HASH {PIN}\nSUMMARY 252 passed, 0 failed, 252 total')['total'], 252)
 
     def test_endpoint_override_survives_without_ambient_environment(self):
         tools = self.tools(); calls = []

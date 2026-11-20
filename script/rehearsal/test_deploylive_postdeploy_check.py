@@ -248,11 +248,11 @@ class CheckerTest(unittest.TestCase):
                 sig = abi_signatures.get((target.lower(), input_sig), input_sig)
                 safe_signatures = {'getThreshold()':'(uint256)', 'getOwners()':'(address[])', 'getModulesPaginated(address,uint256)':'(address[],address)', 'owner()':'(address)'}
                 if input_sig in safe_signatures and (target.lower(),input_sig) not in abi_signatures: sig += safe_signatures[input_sig]
-                if input_sig in ('getRoleConfig(bytes32)', 'operators(address)'): sig = input_sig
+                if input_sig in ('getRoleConfig(bytes32)', 'operators(address)', 'gasParams()'): sig = input_sig
                 result = fake_run(['cast','call',target,sig,*params], **kwargs)
                 if result.returncode: return result
                 # Raw ABI consumers keep their raw bytes; decoded consumers get a fixture envelope.
-                encoded = result.stdout if input_sig in ('getRoleConfig(bytes32)', 'operators(address)') else json.dumps(result.stdout)
+                encoded = result.stdout if input_sig in ('getRoleConfig(bytes32)', 'operators(address)', 'gasParams()') else json.dumps(result.stdout)
                 if input_sig.startswith(('eip712Domain(', 'getMetadata(', 'getSupportedTokensInfo(')):
                     encoded = result.stdout
                 return response(json.dumps(encoded))
@@ -350,7 +350,8 @@ class CheckerTest(unittest.TestCase):
                 if mutation == 'version_revert' and target == cfg['staking'] and sig.startswith('version('): return response('revert', 1)
                 getter = sig.split('(')[0]
                 key = next((k for k in mapping if cfg[k].lower() == target.lower()), '')
-                if getter == 'eip712Domain': out = json.dumps(dict(values=['0x0f', '', '1', 31337, target, '0x'+'00'*32, []], text='domain'))
+                if getter == 'gasParams': out = '0x' + ''.join(f'{v:064x}' for v in (500000, 450000, 5000, 450000, 0, 0, 0, 0, 0))
+                elif getter == 'eip712Domain': out = json.dumps(dict(values=['0x0f', '', '1', 31337, target, '0x'+'00'*32, []], text='domain'))
                 elif getter == 'getMetadata': out = json.dumps(dict(values=['', '', '', '', ZERO], text='metadata'))
                 elif getter == 'getSupportedTokensInfo': out = json.dumps(dict(values=[[], [], []], text='tokens'))
                 elif getter in ('getSupportedTokens', 'getAllTokens'): out = '[]'
@@ -796,7 +797,7 @@ class DeployDayPrincipalTest(unittest.TestCase):
     def test_readback_row_count(self):
         code, output = self.run_checker()
         self.assertEqual(code, 0, output)
-        self.assertIn('SUMMARY 242 passed, 0 failed, 242 total', output)
+        self.assertIn('SUMMARY 251 passed, 0 failed, 251 total', output)
 
     def test_readback_version_tampered(self):
         code, output = self.run_checker(('staking', 'version()(string)', [], '"wrong"'))

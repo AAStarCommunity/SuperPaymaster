@@ -468,103 +468,7 @@
         "zeroAllowed": "DeployLive agent opt-in wiring; disabled proxy and direct template retain zero. External dependency checks separately enforce switch."
       }
     },
-    "SuperPaymasterAdmin": {
-      "REGISTRY": {
-        "allowed": [
-          "config:registry"
-        ],
-        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
-      },
-      "ETH_USD_PRICE_FEED": {
-        "allowed": [
-          "external:ethUsdFeed"
-        ],
-        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
-      },
-      "entryPoint": {
-        "allowed": [
-          "external:entryPoint"
-        ],
-        "why": "SuperPaymasterStorage constructor receives DeployLive.s.sol:223-225 immutables; SuperPaymaster.sol:103 creates Admin with identical arguments."
-      },
-      "pendingAPNTsToken": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
-        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
-      },
-      "pendingBLSAgg": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
-        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
-      },
-      "pendingOwner": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance.",
-        "zeroAllowed": "Fresh deployment has no pending change; SuperPaymasterStorage pending fields default to zero, DeployLive completes ownership acceptance."
-      },
-      "APNTS_TOKEN": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "BLS_AGGREGATOR": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "treasury": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "guardian": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "xpntsFactory": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "agentIdentityRegistry": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "agentReputationRegistry": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      },
-      "owner": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero.",
-        "zeroAllowed": "SuperPaymasterAdmin.sol:54-60 clears owner; no initializer, all non-immutable storage is inert zero."
-      }
-    },
+    "SuperPaymasterAdmin": {},
     "SuperPaymasterLens": {},
     "TimelockController": {},
     "TimelockHandoverBootstrap": {},
@@ -788,99 +692,16 @@
         ],
         "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
         "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      }
-    },
-    "xPNTsTokenV2Ext": {
-      "eip712Domain": {
-        "allowed": [
-          "config:xPNTsTokenV2Ext"
-        ],
-        "why": "ERC20Permit/EIP712.eip712Domain returns address(this); V2 base override xPNTsV2Base.sol:249-264 also returns address(this)."
-      },
-      "PROTOCOL_REGISTRY": {
-        "allowed": [
-          "config:aoaProtocolRegistry"
-        ],
-        "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
-      },
-      "FACTORY": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "SUPERPAYMASTER_ADDRESS": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "community": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "communityOwner": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "creditTierSource": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "emergencyRevokedAddress": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "pendingSP": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "pendingStandby": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "pendingTierSource": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
-      },
-      "standbySP": {
-        "allowed": [
-          "zero"
-        ],
-        "why": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero.",
-        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
       },
       "getMetadata": {
         "allowed": [
           "zero"
         ],
-        "why": "Direct extension has no initialized community metadata: xPNTsV2Base.sol:222-226.",
-        "zeroAllowed": "Direct extension has no initialized community metadata: xPNTsV2Base.sol:222-226."
+        "why": "Fallback reaches xPNTsTokenV2Ext.getMetadata; communityOwner is zero on the uninitialized core template and the release has no pnts clone.",
+        "zeroAllowed": "xPNTsV2Base.sol:222-226 sets only protocol registry and domain; production has no initialized V2 clone (DeployLive.s.sol:266). Direct template/extension storage is zero."
       }
-    }
+    },
+    "xPNTsTokenV2Ext": {}
   },
   "unreadableAllowed": {},
   "zeroAllowedConfigKeys": {
@@ -1230,5 +1051,18 @@
         "why": "contracts/script/v3/DeployLive.s.sol:165-254,487-568 and V55Bootstrap.sol:103-176 constructor arguments and final wiring assertions; V54Bootstrap.sol:94-133 for policy/facilitator."
       }
     }
+  },
+  "extensions": {
+    "SuperPaymaster": "SuperPaymasterAdmin",
+    "xPNTsTokenV2": "xPNTsTokenV2Ext"
+  },
+  "gasParams": {
+    "expectations": "docs/release/rq3-runtime-expectations.json",
+    "current": [
+      "MIN_POST_OP_GAS",
+      "SETTLE_GAS_BOUND",
+      "C_WRAP_GAS",
+      "C_POSTOP_GAS"
+    ]
   }
 }

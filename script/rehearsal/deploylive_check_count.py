@@ -10,12 +10,12 @@ def expected_check_count(cfg, policy, artifacts, versions):
         raise ValueError('invalid guardianN')
     proxy_abi = {'registry': 'Registry', 'superPaymaster': 'SuperPaymaster', 'pnts': 'xPNTsTokenV2'}
     runtime_rows = sum(name is not None or key == 'pnts' for key, name in artifacts.items())
-    version_rows = sum(proxy_abi.get(key, name) in versions for key, name in artifacts.items())
+    version_rows = sum(proxy_abi.get(key, name) in versions and name not in policy['extensions'].values() for key, name in artifacts.items())
     # Dedicated immutable rows supplement (not replace) full policy validation.
     immutable_rows = sum('codehashOf' in rule for rule in policy['immutableBindings']['xPNTsFactoryV2'].values())
     immutable_rows += sum(field in policy['immutableBindings'][name] for name, field in
                           (('GTokenAuthorization', '_cap'), ('MicroPaymentChannel', '_cachedThis')))
-    # 182 fixed assertions include schema/policy, provider and header checks,
+    # 191 fixed assertions (including nine exact gasParams words) include schema/policy, provider and header checks,
     # owner/role/Safe/security/ledger checks, and the three non-guardian stakes.
     # Each guardian contributes one membership and one additional stake row.
-    return 182 + runtime_rows + version_rows + immutable_rows + 2 * guardians
+    return 191 + runtime_rows + version_rows + immutable_rows + 2 * guardians
