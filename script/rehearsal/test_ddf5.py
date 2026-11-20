@@ -164,7 +164,10 @@ class Ddf5Test(unittest.TestCase):
                 target=actual if '--broadcast' in argv else dry
                 target.parent.mkdir(parents=True,exist_ok=True); target.write_text(json.dumps(obj))
                 return SimpleNamespace(returncode=0,stdout=output(argv) if output else '',stderr='')
-            if checker_ok: (evidence/'readback.json').write_text('{}')
+            if checker_ok:
+                # The driver hands the checker its own cache/ subdirectory (DEPLOYLIVE_EVIDENCE_DIR).
+                checker_dir=Path(kwargs['env']['DEPLOYLIVE_EVIDENCE_DIR']); checker_dir.mkdir(parents=True,exist_ok=True)
+                (checker_dir/'readback.json').write_text('{}')
             return SimpleNamespace(returncode=0 if checker_ok else 1,stdout='SUMMARY 238 passed, 0 failed, 238 total' if checker_ok else 'FAIL checker',stderr='')
         def rpc(method,*args):
             return hex(chain) if method=='eth_chainId' else '0x27'

@@ -261,15 +261,32 @@ def main():
     if stop:
         print('PREPARED stopped before H; deployment is not successful')
         return
-    env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(evidence))
-    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=env, capture_output=True, text=True)
+    # The checker only writes readback evidence strictly below <worktree>/cache (deploylive_readback
+    # evidence_path); the deploy-day evidence directory lives elsewhere. Give the checker its own fresh
+    # cache subdirectory and copy the readback into the evidence directory, byte-identical.
+    checker_dir = ROOT/'cache/deploylive-checker'/(env.get('ENV') or 'default')
+    checker_dir.mkdir(parents=True, exist_ok=True)
+    (checker_dir/'readback.json').unlink(missing_ok=True)
+    (evidence/'readback.json').unlink(missing_ok=True)
+    checker_env = dict(env, DEPLOYLIVE_EVIDENCE_DIR=str(checker_dir))
+    result = subprocess.run([sys.executable, str(ROOT/'script/rehearsal/deploylive_postdeploy_check.py'), str(path), deployer, env['GOVERNANCE_OWNER']], cwd=ROOT, env=checker_env, capture_output=True, text=True)
     safe_logs(evidence, 'checker', result, env, after_broadcast=True)
     (evidence/'checker.log').write_text((evidence/'checker.stdout.log').read_text())
     checker_pass(result)
+    copy_readback(checker_dir/'readback.json', evidence/'readback.json')
     checker_output = (evidence/'checker.stdout.log').read_text()
     print(checker_output, end='' if checker_output.endswith('\n') else '\n')
     write_success(evidence, env, path, actual_path, plan)
     print('PASS full deployment; post-deploy checker PASS')
+
+
+def copy_readback(source, destination):
+    """Copy the checker's readback into the evidence directory and prove the bytes are unchanged."""
+    import hashlib
+    require(source.is_file() and not source.is_symlink(), 'checker readback missing')
+    data = source.read_bytes()
+    destination.write_bytes(data)
+    require(hashlib.sha256(destination.read_bytes()).hexdigest() == hashlib.sha256(data).hexdigest(), 'readback copy differs')
 
 
 def cli(argv=None):
