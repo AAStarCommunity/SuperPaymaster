@@ -43,7 +43,7 @@ class Round9Test(unittest.TestCase):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
         env = {'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
                'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
-               'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'safe'}
+               'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'safe', 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
         stamp = OUTPUT/'out.build-stamp.json'
         stamp.write_text('{"forge":{}}')
         (OUTPUT/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":0}}}}')

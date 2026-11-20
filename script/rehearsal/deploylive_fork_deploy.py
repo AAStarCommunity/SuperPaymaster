@@ -140,6 +140,8 @@ def main():
     chain = int(rpc('eth_chainId'), 16)
     require(chain == 31337 if stop else chain in (10, 31337, 11155111), 'unsupported deployment chain')
     require(not production or chain in (10, 11155111), 'production chain required')
+    from deploylive_readback import expected_chain_id
+    require(expected_chain_id(os.environ) == chain, 'DEPLOYLIVE_EXPECTED_CHAIN_ID differs from the broadcast endpoint chain')
     evidence = Path(os.environ['DEPLOYLIVE_EVIDENCE_DIR']).resolve()
     require(evidence.is_dir() and evidence.is_relative_to(ROOT), 'evidence directory required inside worktree')
     env = dict(os.environ, SP_COMMIT=commit, DEPLOYER_ADDRESS=deployer, DEPLOYLIVE_REHEARSAL='0' if production else '1', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='1' if stop else '0', DEPLOYLIVE_EVM_VERSION='prague')

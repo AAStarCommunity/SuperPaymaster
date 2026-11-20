@@ -24,7 +24,7 @@ class DriverTest(unittest.TestCase):
             stamp=root/'out.build-stamp.json'; stamp.write_text('{"forge":{}}')
             plan=root/'broadcast/DeployLive.s.sol/11155111/dry-run/run-latest.json'
             env=dict(DEPLOYLIVE_RPC='rpc', DEPLOYLIVE_SOURCE_RPC='rpc', DEPLOYLIVE_SECOND_RPC='other',
-                     DEPLOYLIVE_HARDFORK='amsterdam', DEPLOYER_ACCOUNT='unused', GOVERNANCE_OWNER='safe',
+                     DEPLOYLIVE_HARDFORK='amsterdam', DEPLOYER_ACCOUNT='unused', GOVERNANCE_OWNER='safe', DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111',
                      DEPLOYLIVE_EVIDENCE_DIR=tmp, DEFAULT_ARTIFACTS_OUT=str(root/'out'))
             (root/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":0}}}}')
             (root/'guardians.hex').write_text('0x')

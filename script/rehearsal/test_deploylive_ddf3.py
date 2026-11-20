@@ -170,7 +170,7 @@ class Ddf3Test(unittest.TestCase):
         for failure in ('missing build stamp','build forge/settings differs'):
             (d.ROOT/'cache/ddf3').mkdir(parents=True, exist_ok=True)  # cache/ is gitignored: absent on a fresh checkout
             with tempfile.TemporaryDirectory(dir=d.ROOT/'cache/ddf3') as tmp:
-                env=dict(DEPLOYLIVE_RPC='unused',DEPLOYLIVE_EVIDENCE_DIR=tmp,ENV='ddf3',FOUNDRY_VERBOSITY='2')
+                env=dict(DEPLOYLIVE_RPC='unused',DEPLOYLIVE_EVIDENCE_DIR=tmp,ENV='ddf3',FOUNDRY_VERBOSITY='2',DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111')
                 with patch('deploylive_controls.verify_manifest'), patch('deploylive_controls.verify_conversion',return_value='0x'), patch.dict(f.os.environ,env,clear=True), patch.object(sys,'argv',['driver','deploy','--production','deployer']), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',return_value=lambda *a:'0xaa36a7'), patch.object(f,'build') as build, patch.object(f,'verify_build',side_effect=RuntimeError('STOP '+failure)), patch.object(f.subprocess,'run') as run:
                     with self.assertRaisesRegex(RuntimeError,failure):f.main()
                     build.assert_not_called(); run.assert_not_called()

@@ -141,7 +141,8 @@ class Ddf5Test(unittest.TestCase):
         plan=json.loads(FIX.read_text()); evidence=self.root
         self.env.update(FOUNDRY_VERBOSITY='2',FOUNDRY_OUT=str(evidence/'execution'),FOUNDRY_CACHE_PATH=str(evidence/'exec-cache'),DEPLOYLIVE_RPC='primary',DEPLOYLIVE_SOURCE_RPC='primary',DEPLOYLIVE_SECOND_RPC='secondary',
             DEPLOYLIVE_HARDFORK='amsterdam',DEPLOYLIVE_PRICE_SOURCE='chain',DEPLOYER_ACCOUNT='unused',
-            DEPLOYER_ADDRESS=plan['transactions'][0]['transaction']['from'],DEFAULT_ARTIFACTS_OUT=str(evidence/'out'))
+            DEPLOYER_ADDRESS=plan['transactions'][0]['transaction']['from'],DEFAULT_ARTIFACTS_OUT=str(evidence/'out'),
+            DEPLOYLIVE_EXPECTED_CHAIN_ID=str(chain))
         c.write_manifest(self.env,evidence)
         c.write_conversion(evidence,b'{}',(evidence/'pop-request.json').read_bytes(),b'0x00')
         stamp=evidence/'out.build-stamp.json'; stamp.write_text('{"forge":{}}')
