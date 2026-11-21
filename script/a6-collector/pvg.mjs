@@ -48,11 +48,12 @@ export async function finalizePVG(sign,beneficiary,plan=null) {
   }
   if(!order.includes(value)) throw Error('PVG_SIGNED_FIXED_POINT');
   // A deterministic signature (RFC 6979) changes with the PVG word, so its zero-byte count, and hence the
-  // rule value, can alternate (observed 27196 <-> 27208 on the attempt1 fork, pvg-cycle.test.mjs): no exact
-  // fixed point exists. Resolve the cycle at its maximum m: re-signed at m the op's own bytes cost r <= m,
-  // so EntryPoint is charged m (a surplus of m - r, a multiple of 12) and the row declares that surplus.
+  // rule value, can cycle: 2-cycles (27196 <-> 27208 on the attempt1 fork) and a 3-cycle
+  // (28428 -> 28440 -> 28416 on the OP Sepolia verify run, 2026-11-21) were observed, so no exact fixed point
+  // exists and a cycle of any length is accepted (DSR ruling). Resolve it at its maximum m: re-signed at m the
+  // op's own bytes cost r(m), the successor of m in the cycle, so r(m) <= m; EntryPoint is charged m (a surplus
+  // of m - r(m), a multiple of 12) and the row declares that surplus, bounded by PVG_MAX_SURPLUS.
   const cycle=order.slice(order.indexOf(value));
-  if(cycle.length!==2) throw Error('PVG_SIGNED_CYCLE_LENGTH');
   const top=cycle.reduce((x,y)=>x>y?x:y);
   if(plan && top>BigInt(plan.reserve)) throw Error('PVG_RESERVE');
   const {result,pvg}=await signAt(top);
