@@ -85,9 +85,9 @@ test('registry requires evidence, independent operators/backends/upstreams and c
 test('freeze includes nested and hidden files plus exact sampling artifact, hashes itself separately and refuses twice',()=>temp(d=>{
   const w=join(d,'window');mkdirSync(w);mkdirSync(join(w,'raw'));writeFileSync(join(w,'raw','x'),'raw bytes');writeFileSync(join(w,'.hidden'),'hidden');
   const sample=join(d,'sampling');writeFileSync(sample,'seed/list/command\n');const m=freeze(w,sample);
-  assert.ok(m.files.some(f=>f.path==='.hidden'));assert.ok(m.files.some(f=>f.path==='raw/x'));assert.ok(!m.files.some(f=>f.path==='manifest.json'));
+  assert.ok(m.files.some(f=>f.path==='.hidden'));assert.ok(m.files.some(f=>f.path==='raw/x'));assert.ok(!m.files.some(f=>f.path==='freeze-manifest.json'));
   for(const f of m.files) assert.equal(f.sha256,sha256(readFileSync(join(w,f.path))));
-  assert.equal(readFileSync(join(w,'manifest.sha256'),'utf8').split(' ')[0],sha256(readFileSync(join(w,'manifest.json'))));
+  assert.equal(readFileSync(join(w,'freeze-manifest.sha256'),'utf8'),sha256(readFileSync(join(w,'freeze-manifest.json')))+'  freeze-manifest.json\n');
   assert.equal(m.sampling.sha256,sha256(readFileSync(sample)));assert.throws(()=>freeze(w,sample),/already frozen/);
 }));
 test('freeze refuses symlink and preserves exclusive refusal after interrupted freeze',()=>temp(d=>{

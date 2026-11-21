@@ -444,7 +444,7 @@ try {
   const start = lines[0], end = lines[lines.length - 1];
   isFormal = start.formal === true;
   report.formal = isFormal;
-  const markerFiles = ['trailer.json','manifest.json'].map(name=>resolve(evidenceDir,name));
+  const markerFiles = ['trailer.json','freeze-manifest.json'].map(name=>resolve(evidenceDir,name));
   const markers = markerFiles.filter(existsSync).map(path=>JSON.parse(readFileSync(path,'utf8')).rehearsal === true);
   report.rehearsal = start.rehearsal === true || end.rehearsal === true || markers.some(Boolean);
   if (report.rehearsal) Object.assign(report,{protocolConformant:false,accepted:false,evidence:false});
