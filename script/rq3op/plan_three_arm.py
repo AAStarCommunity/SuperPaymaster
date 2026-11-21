@@ -360,7 +360,7 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
         ownerTarget=target_o,ownerTopUp=m.positive(target_o-p['owner']['balance']),
         endUserStake=facts['minStake'],endUserTicket=facts['ticketPrice'],accountExists=facts['accountExists'],
         accountMember=facts['member'],token=dict(zip(('name','symbol','communityName','communityENS'),m.PC_TOKEN)),
-        treasury=ctx['safe'],recipient=m.DEAD,f1Provenance='F1TestToken (T/Q) and F1Oracle comparator fixtures permitted on chains 10, 11155111, 11155420 and 31337; not protocol contracts')
+        treasury=ctx['safe'],recipient=m.DEAD,f1Provenance='F1TestToken (T/Q) and F1Oracle comparator fixtures permitted on chains 10, 11155111, 11155420 and 31337 (11155420: DSR ruling 2026-11-21); not protocol contracts')
 
 
 def require_f1_chain(chain):

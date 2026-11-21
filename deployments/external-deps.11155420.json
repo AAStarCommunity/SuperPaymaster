@@ -5,6 +5,6 @@
   "agentIdentityRegistry": "0x0000000000000000000000000000000000000000",
   "agentReputationRegistry": "0x0000000000000000000000000000000000000000",
   "agentValidationRegistry": "0x0000000000000000000000000000000000000000",
-  "source": "OP Sepolia inventory supplied by operator: EntryPoint v0.7, ETH/USD (8 decimals), SimpleAccountFactory v0.7. Agent registries unconfigured (a=0 only); a=1 requires verified ERC-8004 addresses. No RPC validation performed by this change.",
+  "source": "OP Sepolia: EntryPoint v0.7, ETH/USD (8 decimals, \"ETH / USD\"), SimpleAccountFactory v0.7 (accountImplementation 0x68641DE71cfEa5a5d0D29712449Ee254bb1400C2). Agent registries unconfigured (a=0 only); a=1 requires verified ERC-8004 addresses. Read on chain 2026-11-21: clestons (#672 review, publicnode), DSR (publicnode block 51710076 and the OP official endpoint block 51710082), SP (Tenderly public gateway block 51709936): code present at all three addresses, eth_chainId 11155420.",
   "ethSentinel": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 }

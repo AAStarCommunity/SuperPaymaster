@@ -16,7 +16,7 @@
   "10": {
     "chain": "OP",
     "allowedHardforks": ["op:karst"],
-    "hardforkValidation": "validated 2026-11-21 on an OP Sepolia (11155420) anvil --optimism fork at block 51702393 with forge 1.8.7-nightly (4e8874b) --hardfork op:karst: DeployLive ran end to end, 97/97 transactions status 1 (evidence manifest-live/tmp-evidence/op-sepolia-fork-rehearsal-2026-11-21, gas-summary.json sha256 a8c6feba48de06c1dc1faca18db065ae31b0c50ff8e1850180f3f5d98046c8d0); chain 10 relies on that OP Sepolia validation plus both chains being on Karst (eth_config fork times above); OP mainnet itself was not separately validated",
+    "hardforkValidation": "validated 2026-11-21 on an OP Sepolia (11155420) anvil --optimism fork at block 51702393 with forge 1.8.7-nightly (4e8874b) --hardfork op:karst: DeployLive ran end to end, 97/97 transactions status 1 (evidence script/rehearsal/evidence/op-sepolia-fork-2026-11-21, gas-summary.json sha256 a8c6feba48de06c1dc1faca18db065ae31b0c50ff8e1850180f3f5d98046c8d0); chain 10 relies on that OP Sepolia validation plus both chains being on Karst (eth_config fork times above); OP mainnet itself was not separately validated",
     "current": {
       "forkId": "0xc29239af",
       "activationTime": 1783526401
@@ -31,7 +31,7 @@
   "11155420": {
     "chain": "OP Sepolia",
     "allowedHardforks": ["op:karst"],
-    "hardforkValidation": "validated 2026-11-21 on an OP Sepolia (11155420) anvil --optimism fork at block 51702393 with forge 1.8.7-nightly (4e8874b) --hardfork op:karst: DeployLive ran end to end, 97/97 transactions status 1 (evidence manifest-live/tmp-evidence/op-sepolia-fork-rehearsal-2026-11-21, gas-summary.json sha256 a8c6feba48de06c1dc1faca18db065ae31b0c50ff8e1850180f3f5d98046c8d0)",
+    "hardforkValidation": "validated 2026-11-21 on an OP Sepolia (11155420) anvil --optimism fork at block 51702393 with forge 1.8.7-nightly (4e8874b) --hardfork op:karst: DeployLive ran end to end, 97/97 transactions status 1 (evidence script/rehearsal/evidence/op-sepolia-fork-2026-11-21, gas-summary.json sha256 a8c6feba48de06c1dc1faca18db065ae31b0c50ff8e1850180f3f5d98046c8d0)",
     "current": {
       "forkId": "0x91620456",
       "activationTime": 1781712001

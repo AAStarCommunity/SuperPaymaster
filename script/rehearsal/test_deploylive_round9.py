@@ -39,13 +39,15 @@ class Round9Test(unittest.TestCase):
             with self.assertRaises(ValueError):
                 runtime.artifact('Registry', json.loads((ROOT/'deployments/creation-pins.10.json').read_text())['Registry'], lambda *a: (0, json.loads((ROOT/'deployments/creation-pins.10.json').read_text())['Registry']))
 
-    def run_fork(self, chain, extra=()):
+    def run_fork(self, chain, extra=(), hardfork=None):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
         cast = OUTPUT/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
         env = {'PATH':'/usr/bin:/bin', 'CAST_1_7_1':str(cast), 'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
                'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
                'DEPLOYLIVE_HARDFORK':'op:karst' if chain in (10, 11155420) else 'prague', 'GOVERNANCE_OWNER':'0x'+'22'*20, 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
-        # Model an operator-approved fork name in test-only data; committed OP lists stay empty.
+        if hardfork is not None:
+            env['DEPLOYLIVE_HARDFORK'] = hardfork
+        # Model the operator-approved OP fork name in test-only data.
         rules = json.loads(controls.EXPECTATIONS.read_text())
         for op_chain in ('10', '11155420'):
             rules[op_chain]['allowedHardforks'] = ['op:karst']

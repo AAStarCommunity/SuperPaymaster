@@ -261,10 +261,10 @@ export FOUNDRY_CACHE_PATH=cache/deploylive-rehearsal-cache
 export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200
 export DEPLOYLIVE_GAS_TOLERANCE=0.05
 export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia only
-# OP: first validate forge on the fork, fill that chain's allowedHardforks in
-# deployments/hardfork-expectations.json, then supply one of those approved names.
-# The shipped empty OP lists deliberately STOP; cap-control records SKIP pending
-# validation of anvil --optimism Karst rejection (see cache/op/REPORT.md).
+# OP: allowedHardforks ships as ["op:karst"] for 10 and 11155420; use op:karst.
+# Evidence: script/rehearsal/evidence/op-sepolia-fork-2026-11-21/.
+# cap-control records SKIP: anvil --optimism was measured (2026-11-21)
+# not to reject a 2^24+1 gas limit on an OP Sepolia fork.
 mkdir -p deployments/live "$DEPLOYLIVE_EVIDENCE_DIR"
 python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
 ```
