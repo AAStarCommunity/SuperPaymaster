@@ -2,6 +2,8 @@ import { decomposeGas, exactClaimMatches } from './gas-decomposition.mjs';
 import { readFileSync } from 'node:fs';
 import { encodeFunctionData, parseAbi } from 'viem';
 export const pvgRule=JSON.parse(readFileSync(new URL('../rq3op/pvg-rule.json',import.meta.url),'utf8'));
+// Four zero-byte flips at 12 gas each bound the observed 12-gas signature cycle conservatively.
+export const PVG_MAX_SURPLUS=48n;
 const abi=parseAbi(['function handleOps((address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData,bytes signature)[] ops,address beneficiary)']);
 function counts(hex) {
   const bytes=Buffer.from(hex.slice(2),'hex'), zero=bytes.filter(b=>b===0).length;
@@ -41,7 +43,7 @@ export async function finalizePVG(sign,beneficiary,plan=null) {
     order.push(value);
     const {result,pvg}=await signAt(value);
     if(plan && pvg.value>BigInt(plan.reserve)) throw Error('PVG_RESERVE');
-    if(pvg.value===value) return {...result,pvg};
+    if(pvg.value===value) return {...result,pvg:{...pvg,surplus:0n,resolution:'fixed-point'}};
     value=pvg.value;
   }
   if(!order.includes(value)) throw Error('PVG_SIGNED_FIXED_POINT');
@@ -50,10 +52,12 @@ export async function finalizePVG(sign,beneficiary,plan=null) {
   // fixed point exists. Resolve the cycle at its maximum m: re-signed at m the op's own bytes cost r <= m,
   // so EntryPoint is charged m (a surplus of m - r, a multiple of 12) and the row declares that surplus.
   const cycle=order.slice(order.indexOf(value));
+  if(cycle.length!==2) throw Error('PVG_SIGNED_CYCLE_LENGTH');
   const top=cycle.reduce((x,y)=>x>y?x:y);
   if(plan && top>BigInt(plan.reserve)) throw Error('PVG_RESERVE');
   const {result,pvg}=await signAt(top);
   if(pvg.value>top) throw Error('PVG_SIGNED_FIXED_POINT');
+  if(top-pvg.value>PVG_MAX_SURPLUS) throw Error('PVG_SURPLUS_BOUND');
   return {...result,pvg:{...pvg,value:top,ruleValue:pvg.value,surplus:top-pvg.value,resolution:'cycle-max',cycle:cycle.map(String)}};
 }
 export function checkPVGLengths(op,lengths) {
@@ -69,11 +73,13 @@ export function reservePVG(lengths) {
   checkPVGLengths(op,lengths);
   return measurePVG(op,address).value;
 }
-export const nullPVGColumns=()=>Object.fromEntries(['pvgConsistency','bundlerNetGas','unusedGasPenalty',
+export const nullPVGColumns=()=>Object.fromEntries(['pvgSurplus','pvgSurplusReason','pvgConsistency','bundlerNetGas','unusedGasPenalty',
   'unusedGasPenaltyReason','bundlerNetGasExPenalty','opGasPrice','outerEffectiveGasPrice',
   'calldataFloorGas','calldataFloorBinding','outerGasUsed','l1DataFee'].map(k=>[k,null]));
 export function recordPVG(row,pvg,input=null,receipt=null,event=null) {
   Object.assign(row,nullPVGColumns());
+  row.pvgSurplus=BigInt(pvg.surplus??0n);
+  row.pvgSurplusReason=pvg.resolution??'fixed-point';
   row.gasSources={...row.gasSources,preVerification:{...row.gasSources?.preVerification,...pvg}};
   if(input===null) return;
   const bytes=counts(input);
