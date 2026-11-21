@@ -57,8 +57,9 @@ class DriverCheckerInputs(unittest.TestCase):
         # A fork rehearsal (anvil --chain-id 11155111 on 127.0.0.1) has no bound second provider;
         # the provider check applies only before a production broadcast. Same inputs, both modes.
         import deploylive_fork_deploy as f
-        env = {'CAST_1_7_1': self.env['CAST_1_7_1'], 'DEPLOYLIVE_EXPECTED_CHAIN_ID': '11155111', 'DEPLOYLIVE_RPC': 'http://127.0.0.1:8545'}
-        self.assertIsNone(f.require_checker_inputs(env, 11155111, production=False))
+        env = {'PATH':'/usr/bin:/bin', 'CAST_1_7_1': self.env['CAST_1_7_1'], 'DEPLOYLIVE_EXPECTED_CHAIN_ID': '11155111', 'DEPLOYLIVE_RPC': 'http://127.0.0.1:8545'}
+        self.assertEqual(f.require_checker_inputs(env, 11155111, production=False),
+                         [str(Path(env['CAST_1_7_1']).parent), '/usr/bin', '/bin'])
         with self.assertRaisesRegex(RuntimeError, 'STOP invalid checker provider pair'):
             f.require_checker_inputs(env, 11155111, production=True)
         with self.assertRaisesRegex(RuntimeError, 'differs from the broadcast endpoint chain'):

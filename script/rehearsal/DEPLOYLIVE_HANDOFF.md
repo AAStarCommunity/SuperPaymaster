@@ -1,6 +1,6 @@
-CAST_1_7_1 must be a file named cast. Its directory is prepended to the checker PATH; preflight verifies that this resolves to the same stable 1.7.1 executable.
-
 # Deploy-day rehearsal: copy-paste sequence (Sepolia, three guardians)
+
+Resolving `cast` on the checker PATH must give the same file as `CAST_1_7_1`, and it must report stable 1.7.1. Naming the pin `cast` is the simple way. Its directory is prepended to the checker PATH; all entries must be absolute and non-empty or preflight stops before Forge (entry indices are zero-based).
 
 Prerequisites: reviewed clean HEAD, pinned `FORGE` and matching Anvil binary,
 cast 1.7.1 (`CAST_1_7_1`), approved principals, and two distinct real-chain RPCs.
@@ -260,7 +260,11 @@ export FOUNDRY_OUT=cache/deploylive-rehearsal-out
 export FOUNDRY_CACHE_PATH=cache/deploylive-rehearsal-cache
 export FOUNDRY_VERBOSITY=2 PRICE_STALENESS_THRESHOLD=4200
 export DEPLOYLIVE_GAS_TOLERANCE=0.05
-export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia; select the verified matching OP hardfork for OP
+export DEPLOYLIVE_HARDFORK=amsterdam  # Sepolia only
+# OP: first validate forge on the fork, fill that chain's allowedHardforks in
+# deployments/hardfork-expectations.json, then supply one of those approved names.
+# The shipped empty OP lists deliberately STOP; cap-control records SKIP pending
+# validation of anvil --optimism Karst rejection (see cache/op/REPORT.md).
 mkdir -p deployments/live "$DEPLOYLIVE_EVIDENCE_DIR"
 python3 script/rehearsal/deploylive_fork_deploy.py deploy --production "$DEPLOYER_ADDRESS"
 ```
@@ -385,7 +389,7 @@ mode. The fork wrapper keeps Prague simulation output in
 `cache/deploylive-rehearsal-out` and its cache in
 `cache/deploylive-rehearsal-cache`, separate from Cancun release artifacts.
 
-Happy mode accepts an OP-mainnet Anvil fork with chain ID 10 (also 31337).
+Happy mode accepts an OP-mainnet Anvil fork with chain ID 10. A 31337 endpoint with an OP upstream source is refused.
 The wrapper explicitly runs `anvil_setCode(deployer, "0x")` before the run:
 this is the selected rehearsal approach for undelegating default-mnemonic OP
 accounts. It is an Anvil-only preparation step, never a production transaction.
@@ -962,3 +966,13 @@ nonce and compares all three addresses. Its cryptography is mocked by the
 existing orchestration fixture. The separate synthetic test executes the real
 BLS precompiles under Prague and calls DeployLiveLocalBundle for the byte-exact
 GUARDIANS control. No Anvil or RPC is required for these unit tests.
+
+### Daybreak round 1 gas gates (2026-11-21)
+
+An OP-chain fork rehearsal must use the real chain id (anvil fork keeps it); 31337 means a local chain with Amsterdam semantics only. The endpoint chain id selects semantics; the upstream source does not override it. `cap_control` requires an explicit keyword `chain`.
+
+Every Karst planned limit must be at most `floor(CAP_FRACTION * 2^24)` (15,099,494). The final pre-broadcast simulation checks every transaction against the gated gas bounds and this headroom limit, reporting the transaction on failure. Amsterdam bounds are unchanged.
+
+Known gap: OP's per-transaction cap has no executable control: anvil --optimism does not reject a gas limit above 2^24 (measured on an OP Sepolia fork, 2026-11-21); the basis is the Karst notice and eth_config; the defences are the pre-broadcast gates (H1a/H1b). Consequently we have no executable evidence that the 2^24 cap is in force on chain; H1a/H1b are designed as if it is, and if it is not they are only more conservative - they can never admit a transaction the chain would reject.
+
+The OP cap control remains SKIP. Forge broadcast is a separate process which estimates its own limits before sending; these gates cannot force it to reuse the final simulation limits. Post-broadcast comparison detects differences but cannot prevent already-sent transactions. Owner-provided rehearsal evidence: 97 successful transactions, multiplier 130, maximum planned limit 11,082,839 (spImpl CREATE), all below the headroom threshold.

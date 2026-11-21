@@ -58,7 +58,7 @@ class ReviewTest(unittest.TestCase):
         second.write_text('https://secondary.infura.io/key')
         env.update(DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
                    DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
-                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second), CAST_1_7_1=self.env['CAST_1_7_1'])
+                   DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second), PATH='/usr/bin:/bin', CAST_1_7_1=self.env['CAST_1_7_1'])
         captured=[]
         def predict(argv, **kw):
             captured.append(kw['env'])

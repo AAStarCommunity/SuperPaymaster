@@ -98,20 +98,20 @@ class DeployDayTest(unittest.TestCase):
 
     def test_gas_sequence_and_tolerance(self):
         for real in (100, 96):
-            d.gas_crosscheck(self.plan(), self.rpc(real=real), '0xc8', 0.05)
+            d.gas_crosscheck(self.plan(), self.rpc(real=real), '0xc8', 0.05, chain=11155111)
         for real in (101, 95):
             with self.subTest(real=real), self.assertRaisesRegex(RuntimeError, 'gas mismatch'):
-                d.gas_crosscheck(self.plan(), self.rpc(real=real), '0xc8', 0.05)
+                d.gas_crosscheck(self.plan(), self.rpc(real=real), '0xc8', 0.05, chain=11155111)
         with self.assertRaisesRegex(RuntimeError, 'eth_simulateV1.*required'):
-            d.gas_crosscheck(self.plan(), lambda *a: (_ for _ in ()).throw(RuntimeError('unsupported')), '0xc8', .05)
+            d.gas_crosscheck(self.plan(), lambda *a: (_ for _ in ()).throw(RuntimeError('unsupported')), '0xc8', .05, chain=11155111)
 
     def test_multiplier_130_recovers_the_estimate(self):
         # forge writes limit = estimate * 130 / 100; the gate compares ceil(limit * 100 / 130) with real.
         plan = self.plan()
         for tx in plan['transactions']: tx['transaction']['gas'] = hex(130)
-        d.gas_crosscheck(plan, self.rpc(real=100), '0xc8', .05, multiplier=130)
+        d.gas_crosscheck(plan, self.rpc(real=100), '0xc8', .05, multiplier=130, chain=11155111)
         with self.assertRaisesRegex(RuntimeError, 'gas mismatch'):
-            d.gas_crosscheck(plan, self.rpc(real=100), '0xc8', .05, multiplier=100)
+            d.gas_crosscheck(plan, self.rpc(real=100), '0xc8', .05, multiplier=100, chain=11155111)
 
     def test_limit_at_or_below_cap_needs_total_headroom(self):
         # A limit <= 2^24 has no EIP-8037 reservoir: total gas counts against the regular cap.
@@ -120,40 +120,40 @@ class DeployDayTest(unittest.TestCase):
         plan['transactions'][1]['transaction']['gas'] = hex(cap)
         tight = [100]*n; tight[1] = int(cap*0.95)
         with self.assertRaisesRegex(RuntimeError, 'leaves under 10% headroom'):
-            d.gas_crosscheck(plan, self.rpc(reals=tight), '0xc8', .05)
+            d.gas_crosscheck(plan, self.rpc(reals=tight), '0xc8', .05, chain=11155111)
         plan['transactions'][1]['transaction']['gas'] = hex(cap + 1)  # above the cap: reservoir available
         with self.assertRaisesRegex(RuntimeError, 'gas mismatch'):  # passes the cap rule, then the tolerance check applies
-            d.gas_crosscheck(plan, self.rpc(reals=tight), '0xc8', .05)
+            d.gas_crosscheck(plan, self.rpc(reals=tight), '0xc8', .05, chain=11155111)
 
     def test_limit_above_block_gas_limit(self):
         with self.assertRaisesRegex(RuntimeError, 'above block gas limit'):
-            d.gas_crosscheck(self.plan(), self.rpc(gas_limit=99), '0xc8', .05)
+            d.gas_crosscheck(self.plan(), self.rpc(gas_limit=99), '0xc8', .05, chain=11155111)
 
     def test_multiplier_range(self):
         for bad in (99, 201, 1.3):
             with self.assertRaisesRegex(RuntimeError, 'multiplier'):
-                d.gas_crosscheck(self.plan(), self.rpc(), '0xc8', .05, multiplier=bad)
+                d.gas_crosscheck(self.plan(), self.rpc(), '0xc8', .05, multiplier=bad, chain=11155111)
 
     def test_h_gas_mismatch_and_exact_five_percent(self):
         plan = self.plan()
         for tx in plan['transactions']: tx['transaction']['gas'] = '0x69'
-        d.gas_crosscheck(plan, self.rpc(), '0xc8', .05)
+        d.gas_crosscheck(plan, self.rpc(), '0xc8', .05, chain=11155111)
         plan['transactions'][-1]['transaction']['gas'] = '0x6a'
         with self.assertRaisesRegex(RuntimeError, 'gas mismatch: TimelockHandoverBootstrap'):
-            d.gas_crosscheck(plan, self.rpc(), '0xc8', .05)
+            d.gas_crosscheck(plan, self.rpc(), '0xc8', .05, chain=11155111)
 
     def test_price_rechecked_after_gas_simulation(self):
         env = {'PRICE_STALENESS_THRESHOLD':'4200', 'ETH_USD_FEED':'feed'}
         with patch.object(d, 'price_window', side_effect=[('0xc8', 12), RuntimeError('STOP wait for the next feed update')]) as price, patch.object(d, 'gas_crosscheck', return_value=([], 200_000_000)) as gas:
             with self.assertRaisesRegex(RuntimeError, 'wait for the next feed update'):
-                d.broadcast_gates(env, self.plan(), self.rpc(), self.rpc())
+                d.broadcast_gates(env, self.plan(), self.rpc(), self.rpc(), chain=11155111)
             self.assertEqual(price.call_count, 2)
             gas.assert_called_once()
 
     def test_missing_gas_target(self):
         plan=self.plan(); plan['transactions'].pop()
         with self.assertRaisesRegex(RuntimeError, 'CREATE inventory'):
-            d.gas_crosscheck(plan, self.rpc(), '0xc8', .05)
+            d.gas_crosscheck(plan, self.rpc(), '0xc8', .05, chain=11155111)
 
     def test_converter_missing_cast(self):
         fixture=ROOT/'script/rehearsal/fixtures/dvt-pop'

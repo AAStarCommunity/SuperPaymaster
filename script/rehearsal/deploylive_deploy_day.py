@@ -229,11 +229,26 @@ TX_GAS_CAP = 2**24  # EIP-7825 regular-gas cap
 CAP_FRACTION = 0.9  # a limit <= the cap leaves no state-gas reservoir: total gas must fit with headroom
 
 
-def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100):
+def gas_semantics(chain):
+    # an OP-chain fork rehearsal must use the real chain id (anvil fork keeps it);
+    # 31337 means a local chain with Amsterdam semantics only.
+    # The sole chain-to-semantics mapping, shared by gas gates and cap/hardfork controls.
+    semantics = {10: 'karst', 11155420: 'karst', 11155111: 'amsterdam', 31337: 'amsterdam'}
+    require(chain in semantics, 'unsupported gas semantics chain')
+    return semantics[chain]
+
+
+def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100, *, chain):
     require(math.isfinite(tolerance) and 0 <= tolerance <= .05, 'gas tolerance must be between 0 and 0.05')
     require(type(multiplier) is int and 100 <= multiplier <= 200, 'gas multiplier must be an integer percentage 100..200')
     emit(f'GAS single-endpoint real-chain tolerance={tolerance:g} multiplier={multiplier}')
     txs = plan['transactions']
+    karst = gas_semantics(chain) == 'karst'
+    if karst:
+        for i, tx in enumerate(txs):
+            name = tx.get('contractName') or tx.get('function') or str(i)
+            require(integer(tx['transaction']['gas']) <= int(CAP_FRACTION * TX_GAS_CAP),
+                    f'Karst transaction gas limit above headroom {int(CAP_FRACTION * TX_GAS_CAP)}: {name} index={i}')
     targets = large_creates(plan)
     try:
         head = rpc('eth_getBlockByNumber', block, False)
@@ -268,7 +283,7 @@ def gas_crosscheck(plan, rpc, block, tolerance, emit=print, multiplier=100):
         require(limit <= block_gas_limit, f'gas limit above block gas limit: {name} {limit} > {block_gas_limit}')
         # Under EIP-8037 a limit <= 2^24 has no state-gas reservoir, so the TOTAL gas counts against the
         # regular cap (e.g. the Paymaster CREATE totals 16,771,708). Such a tx must fit with headroom.
-        require(limit > TX_GAS_CAP or real <= TX_GAS_CAP * CAP_FRACTION,
+        require(karst or limit > TX_GAS_CAP or real <= TX_GAS_CAP * CAP_FRACTION,
                 f'tx gas limit <= 2^24 but total gas {real} leaves under 10% headroom: {name}')
     for i, tx in targets:
         limit = integer(tx['transaction']['gas'])
@@ -286,7 +301,7 @@ def price_sources(env, production, chain, second, fork):
     return (fork, fork) if mode == 'fork' else (chain, second)
 
 
-def broadcast_gates(env, plan, rpc, second_rpc, emit=print, price_rpcs=None):
+def broadcast_gates(env, plan, rpc, second_rpc, emit=print, price_rpcs=None, *, chain):
     # This input must equal DeployLive's fixed initializer; do not silently invent a threshold.
     threshold = integer(env['PRICE_STALENESS_THRESHOLD'])
     require(threshold == 4200, 'PRICE_STALENESS_THRESHOLD differs from DeployLive initializer')
@@ -295,18 +310,21 @@ def broadcast_gates(env, plan, rpc, second_rpc, emit=print, price_rpcs=None):
     if price_rpcs is not None:
         block = rpc('eth_getBlockByNumber', 'latest', False)['number']
     reals, block_gas_limit = gas_crosscheck(plan, rpc, block, float(env.get('DEPLOYLIVE_GAS_TOLERANCE', '0.05')), emit,
-                   multiplier=integer(env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130')))
+                   multiplier=integer(env.get('DEPLOYLIVE_GAS_MULTIPLIER', '130')), chain=chain)
     price_window(plan, primary, secondary, env['ETH_USD_FEED'], threshold, emit)
-    return gas_bounds(reals, block_gas_limit)
+    return gas_bounds(reals, block_gas_limit, chain=chain)
 
 
-def gas_bounds(reals, block_gas_limit):
+def gas_bounds(reals, block_gas_limit, *, chain):
     # DSR 2026-11-19: a broadcast gas limit is accepted inside the gated range, not only when equal.
-    # Low: the real-chain need, raised above 2^24 when the total needs the EIP-8037 reservoir.
-    # High: the block gas limit.
+    # Amsterdam preserves the EIP-8037 reservoir lower bound and block upper bound.
+    # Karst uses the real need as the lower bound and caps the upper bound at 2^24.
+    karst = gas_semantics(chain) == 'karst'
+    if karst:
+        block_gas_limit = min(block_gas_limit, TX_GAS_CAP)
     bounds = []
     for real in reals:
-        low = real if real <= TX_GAS_CAP * CAP_FRACTION else max(real, TX_GAS_CAP + 1)
+        low = real if karst or real <= TX_GAS_CAP * CAP_FRACTION else max(real, TX_GAS_CAP + 1)
         require(low <= block_gas_limit, 'gated gas need above block gas limit')
         bounds.append([low, block_gas_limit])
     return bounds

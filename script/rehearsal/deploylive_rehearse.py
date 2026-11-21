@@ -112,17 +112,20 @@ class RPC:
         require(bool(self('anvil_metadata').get('forkedNetwork')), 'Anvil fork required')
 
     def __call__(self, method, *params):
+        from deploylive_controls import method_not_found, MethodNotFound
         payload = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
         try:
             with self.opener.open(Request(self.url, payload, {'Content-Type': 'application/json'}), timeout=30) as r:
                 result = json.load(r)
+            if method == 'eth_config' and method_not_found(result):
+                raise MethodNotFound('eth_config unsupported (-32601)')
             if 'error' in result:
                 data = result['error'].get('data', '')
                 if isinstance(data, str) and re.fullmatch(r'0x[0-9a-fA-F]+', data):
                     raise RPCRevert(data)
                 raise RuntimeError('RPC failed')
             return result['result']
-        except RPCRevert:
+        except (RPCRevert, MethodNotFound):
             raise
         except Exception:
             raise RuntimeError('RPC failed (details redacted)') from None

@@ -28,7 +28,7 @@ class CheckerPreflight(unittest.TestCase):
         checker.parent.mkdir(parents=True)
         checker.write_text('# checker fixture\n')
         self.env = {key: 'value' for key in controls.input_keys() if not key.endswith('_FILE')}
-        self.env.update(CAST_1_7_1=str(self.cast), DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
+        self.env.update(PATH='/usr/bin:/bin', CAST_1_7_1=str(self.cast), DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
             DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second),
             DEPLOYLIVE_SOURCE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_PRICE_SOURCE='chain',
             DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy', DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura',

@@ -21,7 +21,7 @@ class Ddf5Test(unittest.TestCase):
         cast = self.root/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
         checker = self.root/'script/rehearsal/deploylive_postdeploy_check.py'
         checker.parent.mkdir(parents=True); checker.write_text('# checker fixture\n')
-        self.env={'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'0x'+'22'*20,'ENV':'test',
+        self.env={'PATH':'/usr/bin:/bin', 'CAST_1_7_1':str(cast),'SP_COMMIT':'a'*40,'GOVERNANCE_OWNER':'0x'+'22'*20,'ENV':'test',
                   'DEPLOYLIVE_EVIDENCE_DIR':str(self.root),'DEFAULT_CACHE_PATH':str(self.root/'build')}
         (self.root/'pop-request.json').write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
 
@@ -199,7 +199,7 @@ class Ddf5Test(unittest.TestCase):
                 return hex(chain) if method=='eth_chainId' else '0x27'
             return rpc
         rpc = make_rpc('local')
-        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver',self.env['DEPLOYLIVE_RPC'],self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',side_effect=(lambda url: (lambda method,*args: '0xa' if method == 'eth_chainId' else '0x27')) if stop else make_rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
+        with patch.dict(os.environ,self.env,clear=True), patch.object(sys,'argv',(['driver',self.env['DEPLOYLIVE_RPC'],self.env['DEPLOYER_ADDRESS'],'--stop'] if stop else ['driver','--production',self.env['DEPLOYER_ADDRESS']])), patch.object(f,'ROOT',evidence), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'ReadOnlyRPC',side_effect=(lambda url: (lambda method,*args: hex(11155111) if method == 'eth_chainId' else '0x27')) if stop else make_rpc), patch.object(f,'RPC',return_value=rpc), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=cfg), patch.object(d,'stamp_path',return_value=stamp), patch.object(c,'hardfork_check',return_value={'chainId':chain}) as rule, patch.object(f,'broadcast_gates',return_value=bounds if bounds is not None else [[int(t['transaction']['gas'],16)]*2 for t in plan['transactions']]), patch.object(f.subprocess,'run',side_effect=run):
             try: f.main()
             finally: self.calls=calls; self.rule=rule
 
@@ -298,6 +298,13 @@ class Ddf5Test(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'final simulation differs'): self.driver(mutate)
         self.assertFalse(any('--broadcast' in argv for argv in self.calls))
         self.assertFalse((self.root/'checker.PASS.json').exists())
+
+    def test_daybreak_final_gas_outside_bounds_never_broadcasts(self):
+        def mutate(plan, index):
+            if index == 2: plan['transactions'][45]['transaction']['gas'] = '0x1'
+        with self.assertRaisesRegex(RuntimeError, 'index=45.*gas'):
+            self.driver(mutate)
+        self.assertFalse(any('--broadcast' in argv for argv in self.calls))
 
     def test_driver_postbroadcast_difference_prevents_success(self):
         def mutate(plan,index):

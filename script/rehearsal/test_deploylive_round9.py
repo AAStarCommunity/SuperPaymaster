@@ -42,9 +42,15 @@ class Round9Test(unittest.TestCase):
     def run_fork(self, chain, extra=()):
         rpc = Mock(side_effect=lambda method, *a: hex(chain) if method == 'eth_chainId' else None)
         cast = OUTPUT/'cast'; cast.write_text('#!/bin/sh\necho "cast Version: 1.7.1-stable"\n'); cast.chmod(0o755)
-        env = {'CAST_1_7_1':str(cast), 'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
+        env = {'PATH':'/usr/bin:/bin', 'CAST_1_7_1':str(cast), 'FOUNDRY_VERBOSITY':'2', 'ENV':'round9', 'DEPLOYLIVE_EVIDENCE_DIR':str(OUTPUT),
                'DEPLOYLIVE_SOURCE_RPC':'source', 'DEPLOYLIVE_SECOND_RPC':'second',
-               'DEPLOYLIVE_HARDFORK':'prague', 'GOVERNANCE_OWNER':'0x'+'22'*20, 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
+               'DEPLOYLIVE_HARDFORK':'op:karst' if chain in (10, 11155420) else 'prague', 'GOVERNANCE_OWNER':'0x'+'22'*20, 'DEPLOYLIVE_EXPECTED_CHAIN_ID':str(chain)}
+        # Model an operator-approved fork name in test-only data; committed OP lists stay empty.
+        rules = json.loads(controls.EXPECTATIONS.read_text())
+        for op_chain in ('10', '11155420'):
+            rules[op_chain]['allowedHardforks'] = ['op:karst']
+        expectations = OUTPUT/'hardfork-test.json'
+        expectations.write_text(json.dumps(rules))
         second = OUTPUT/'second-rpc'
         second.write_text('https://secondary.infura.io/key')
         env.update(DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYLIVE_SECOND_RPC=second.read_text(),
@@ -71,7 +77,7 @@ class Round9Test(unittest.TestCase):
                 directory = Path(kwargs['env']['DEPLOYLIVE_EVIDENCE_DIR']); directory.mkdir(parents=True, exist_ok=True)
                 (directory/'readback.json').write_text('{}')
             return SimpleNamespace(returncode=0, stdout='forge stdout', stderr='forge stderr')
-        with patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', env['DEPLOYLIVE_RPC'], '0x'+'11'*20, *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(10 if chain == 31337 else chain)), patch.object(fork, 'broadcast_gates', return_value=[[256,256],[256,256]]), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
+        with patch.object(controls, 'EXPECTATIONS', expectations), patch.object(controls,'verify_manifest'), patch.object(controls,'verify_conversion',return_value='0x'), patch.object(controls,'deployment_rule'), patch.object(controls,'check_start_nonce'), patch.object(controls,'write_success'), patch.object(fork, 'clean_source_commit', return_value='a' * 40), patch.object(sys, 'argv', ['fork', env['DEPLOYLIVE_RPC'], '0x'+'11'*20, *extra]), patch.dict(os.environ, env), patch.object(fork, 'RPC', return_value=rpc), patch.object(fork.subprocess, 'run', side_effect=invoke) as run, patch.object(fork, 'ROOT', OUTPUT), patch.object(fork, 'build', side_effect=lambda e, p: day.build_paths(e)), patch.object(fork, 'verify_build', return_value='forge'), patch.object(fork, 'ReadOnlyRPC', return_value=lambda *a: hex(11155111 if chain == 31337 else chain)), patch.object(fork, 'broadcast_gates', return_value=[[256,256],[256,256]]), patch.object(fork, 'checker_pass'), patch.object(day, 'stamp_path', return_value=stamp):
             fork.main()
         return rpc, run
 

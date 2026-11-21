@@ -1,14 +1,46 @@
 {
   "11155111": {
-    "chain": "Sepolia", "hardfork": "amsterdam",
-    "current": {"forkId": "0x6c1d9423", "activationTime": 1791294816},
+    "chain": "Sepolia",
+    "hardfork": "amsterdam",
+    "current": {
+      "forkId": "0x6c1d9423",
+      "activationTime": 1791294816
+    },
     "allowUnsupportedA": false,
-    "headerFields": {"blockAccessListHash": true, "slotNumber": true},
+    "headerFields": {
+      "blockAccessListHash": true,
+      "slotNumber": true
+    },
     "basis": "Deploy-day rehearsal eth_config and corroborated headers, 2026-11-19"
   },
   "10": {
-    "chain": "OP", "identificationRule": "unsupported-eth_config-and-headers", "current": null, "allowUnsupportedA": true,
-    "headerFields": {"blockAccessListHash": false, "slotNumber": false},
-    "basis": "eth_config unsupported → header-field rule: neither Amsterdam field is populated; both endpoints must agree at the pinned block. A supported eth_config requires separately approved current fork values."
+    "chain": "OP",
+    "allowedHardforks": ["op:karst"],
+    "hardforkValidation": "validated 2026-11-21 on an OP Sepolia (11155420) anvil --optimism fork at block 51702393 with forge 1.8.7-nightly (4e8874b) --hardfork op:karst: DeployLive ran end to end, 97/97 transactions status 1 (evidence manifest-live/tmp-evidence/op-sepolia-fork-rehearsal-2026-11-21, gas-summary.json sha256 a8c6feba48de06c1dc1faca18db065ae31b0c50ff8e1850180f3f5d98046c8d0); chain 10 relies on that OP Sepolia validation plus both chains being on Karst (eth_config fork times above); OP mainnet itself was not separately validated",
+    "current": {
+      "forkId": "0xc29239af",
+      "activationTime": 1783526401
+    },
+    "allowUnsupportedA": true,
+    "headerFields": {
+      "blockAccessListHash": false,
+      "slotNumber": false
+    },
+    "basis": "OP Upgrade 19 (Karst); eth_config and estimateGas observations supplied by operator; over-cap transaction rejection not tested"
+  },
+  "11155420": {
+    "chain": "OP Sepolia",
+    "allowedHardforks": ["op:karst"],
+    "hardforkValidation": "validated 2026-11-21 on an OP Sepolia (11155420) anvil --optimism fork at block 51702393 with forge 1.8.7-nightly (4e8874b) --hardfork op:karst: DeployLive ran end to end, 97/97 transactions status 1 (evidence manifest-live/tmp-evidence/op-sepolia-fork-rehearsal-2026-11-21, gas-summary.json sha256 a8c6feba48de06c1dc1faca18db065ae31b0c50ff8e1850180f3f5d98046c8d0)",
+    "current": {
+      "forkId": "0x91620456",
+      "activationTime": 1781712001
+    },
+    "allowUnsupportedA": true,
+    "headerFields": {
+      "blockAccessListHash": false,
+      "slotNumber": false
+    },
+    "basis": "OP Upgrade 19 (Karst); eth_config and estimateGas observations supplied by operator; over-cap transaction rejection not tested"
   }
 }

@@ -1,1 +1,10 @@
-{}
+{
+  "10": {
+    "gasLimit": 16777216,
+    "source": "OP Upgrade 19 (Karst) notice https://docs.optimism.io/notices/archive/upgrade-19.md; eth_config fork time 1783526401; not validated by sending an over-cap transaction"
+  },
+  "11155420": {
+    "gasLimit": 16777216,
+    "source": "OP Upgrade 19 (Karst) notice https://docs.optimism.io/notices/archive/upgrade-19.md; eth_config fork time 1781712001; not validated by sending an over-cap transaction"
+  }
+}

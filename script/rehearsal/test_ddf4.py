@@ -28,7 +28,7 @@ class Ddf4Test(unittest.TestCase):
         def call(method, *args):
             if method == 'eth_chainId': return hex(11155111)
             if method == 'eth_config':
-                if unsupported: raise RuntimeError('RPC error -32601 method not found')
+                if unsupported: raise self.api().MethodNotFound('method not found')
                 return {'current': {'forkId':'0x6c1d9423', 'activationTime':1791294816}}
             if method == 'eth_blockNumber': return hex(100)
             return dict(number=args[0], hash='0x'+'ab'*32, timestamp=hex(1791295000), blockAccessListHash=field, slotNumber='0x2')
@@ -53,13 +53,13 @@ class Ddf4Test(unittest.TestCase):
         with self.assertRaises(RuntimeError): c.hardfork_check(bad,self.rpc(),self.root)
 
     def cap_rpc(self, status='0x0', gas=16777216):
-        return Mock(side_effect=lambda m,*p: {'evm_snapshot':'snap','evm_revert':True,'eth_sendTransaction':'tx',
+        return Mock(side_effect=lambda m,*p: {'eth_chainId':hex(31337),'evm_snapshot':'snap','evm_revert':True,'eth_sendTransaction':'tx',
             'eth_getTransactionReceipt':dict(status=status,gasUsed=hex(gas)),
             'eth_getBlockByNumber':dict(hash='head')}.get(m,True))
 
     def test_cap_control_receipt_and_revert(self):
         c=self.api(); rpc=self.cap_rpc()
-        c.cap_control(rpc,self.root)
+        c.cap_control(rpc,self.root,chain=31337)
         tx=next(call.args[1] for call in rpc.call_args_list if call.args[0]=='eth_sendTransaction')
         self.assertEqual(tx['data'],'0x5b600056'); self.assertEqual(int(tx['gas'],16),20000000)
         self.assertNotIn('to',tx)
@@ -70,10 +70,10 @@ class Ddf4Test(unittest.TestCase):
         c=self.api()
         for status,gas in [('0x1',16777216),('0x0',20000000)]:
             rpc=self.cap_rpc(status,gas)
-            with self.assertRaises(RuntimeError): c.cap_control(rpc,self.root)
+            with self.assertRaises(RuntimeError): c.cap_control(rpc,self.root,chain=31337)
             rpc.assert_any_call('evm_revert','snap')
         rpc=Mock()
-        with self.assertRaises(RuntimeError): c.cap_control(rpc,self.root,production=True)
+        with self.assertRaises(RuntimeError): c.cap_control(rpc,self.root,production=True,chain=31337)
         rpc.assert_not_called()
 
     def test_archive_hashes_and_refuse_existing(self):
@@ -176,12 +176,12 @@ class Ddf4Test(unittest.TestCase):
             if method=='eth_sendTransaction': raise RuntimeError('injected send failure')
             return original(method,*args)
         rpc.side_effect=fail
-        with self.assertRaisesRegex(RuntimeError,'send failure'): c.cap_control(rpc,self.root)
+        with self.assertRaisesRegex(RuntimeError,'send failure'): c.cap_control(rpc,self.root,chain=31337)
         rpc.assert_any_call('evm_revert','snap')
         self.assertFalse(json.loads((self.root/'cap-control.json').read_text())['passed'])
         rpc=self.cap_rpc(); original=rpc.side_effect
         rpc.side_effect=lambda m,*p: False if m=='evm_revert' else original(m,*p)
-        with self.assertRaisesRegex(RuntimeError,'revert failed'): c.cap_control(rpc,self.root)
+        with self.assertRaisesRegex(RuntimeError,'revert failed'): c.cap_control(rpc,self.root,chain=31337)
 
     def test_inputs_empty_required_and_source_inventory(self):
         c=self.api(); path=self.root/'approved.inputs'
@@ -200,9 +200,9 @@ class Ddf4Test(unittest.TestCase):
         c=self.api()
         def op(method,*args):
             if method=='eth_chainId': return '0xa'
-            if method=='eth_config': raise RuntimeError('-32601 method not found')
+            if method=='eth_config': raise c.MethodNotFound('method not found')
             if method=='eth_blockNumber': return '0x64'
-            return dict(number=args[0],hash='0x'+'ab'*32)
+            return dict(number=args[0],hash='0x'+'ab'*32,timestamp=hex(1783526401))
         result=c.hardfork_check(Mock(side_effect=op),Mock(side_effect=op),self.root)
         self.assertEqual(result['chainId'],10)
         b=self.rpc(); old=b.side_effect
