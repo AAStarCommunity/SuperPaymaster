@@ -1,0 +1,895 @@
+{
+  "chainId": 11155420,
+  "hardfork": "op:karst",
+  "forkBlock": 51702393,
+  "transactions": 97,
+  "allStatusOk": true,
+  "maxGasUsed": 8525261,
+  "maxGasLimit": 11082839,
+  "over90pctUsed": [],
+  "over90pctLimit": [],
+  "top5ByGasUsed": [
+    {
+      "index": 15,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 11082839,
+      "gasUsed": 8525261,
+      "status": "0x1",
+      "headroomToCap": 8251955,
+      "pctOfCap": 50.81
+    },
+    {
+      "index": 29,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 7266914,
+      "gasUsed": 5589934,
+      "status": "0x1",
+      "headroomToCap": 11187282,
+      "pctOfCap": 33.32
+    },
+    {
+      "index": 0,
+      "name": "Registry",
+      "kind": "CREATE",
+      "gasLimit": 7072049,
+      "gasUsed": 5440038,
+      "status": "0x1",
+      "headroomToCap": 11337178,
+      "pctOfCap": 32.43
+    },
+    {
+      "index": 2,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 7037906,
+      "gasUsed": 5413774,
+      "status": "0x1",
+      "headroomToCap": 11363442,
+      "pctOfCap": 32.27
+    },
+    {
+      "index": 23,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 6492532,
+      "gasUsed": 4994256,
+      "status": "0x1",
+      "headroomToCap": 11782960,
+      "pctOfCap": 29.77
+    }
+  ],
+  "top5ByGasLimit": [
+    {
+      "index": 15,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 11082839,
+      "gasUsed": 8525261,
+      "status": "0x1",
+      "headroomToCap": 5694377,
+      "pctOfCap": 66.06
+    },
+    {
+      "index": 29,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 7266914,
+      "gasUsed": 5589934,
+      "status": "0x1",
+      "headroomToCap": 9510302,
+      "pctOfCap": 43.31
+    },
+    {
+      "index": 0,
+      "name": "Registry",
+      "kind": "CREATE",
+      "gasLimit": 7072049,
+      "gasUsed": 5440038,
+      "status": "0x1",
+      "headroomToCap": 9705167,
+      "pctOfCap": 42.15
+    },
+    {
+      "index": 2,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 7037906,
+      "gasUsed": 5413774,
+      "status": "0x1",
+      "headroomToCap": 9739310,
+      "pctOfCap": 41.95
+    },
+    {
+      "index": 23,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 6492532,
+      "gasUsed": 4994256,
+      "status": "0x1",
+      "headroomToCap": 10284684,
+      "pctOfCap": 38.7
+    }
+  ],
+  "driverSemantics": "karst",
+  "driverKarstGate": "PASS: every planned gas limit <= 2^24",
+  "rows": [
+    {
+      "index": 0,
+      "name": "Registry",
+      "kind": "CREATE",
+      "gasLimit": 7072049,
+      "gasUsed": 5440038,
+      "status": "0x1"
+    },
+    {
+      "index": 1,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1785928,
+      "gasUsed": 1373791,
+      "status": "0x1"
+    },
+    {
+      "index": 2,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 7037906,
+      "gasUsed": 5413774,
+      "status": "0x1"
+    },
+    {
+      "index": 3,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1918202,
+      "gasUsed": 1475540,
+      "status": "0x1"
+    },
+    {
+      "index": 4,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 2819079,
+      "gasUsed": 2168523,
+      "status": "0x1"
+    },
+    {
+      "index": 5,
+      "name": "setTreasury(address)",
+      "kind": "CALL",
+      "gasLimit": 44941,
+      "gasUsed": 30729,
+      "status": "0x1"
+    },
+    {
+      "index": 6,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 3701423,
+      "gasUsed": 2847249,
+      "status": "0x1"
+    },
+    {
+      "index": 7,
+      "name": "setStaking(address)",
+      "kind": "CALL",
+      "gasLimit": 610498,
+      "gasUsed": 417435,
+      "status": "0x1"
+    },
+    {
+      "index": 8,
+      "name": "setMySBT(address)",
+      "kind": "CALL",
+      "gasLimit": 77391,
+      "gasUsed": 56031,
+      "status": "0x1"
+    },
+    {
+      "index": 9,
+      "name": "setMySBT(address)",
+      "kind": "CALL",
+      "gasLimit": 64329,
+      "gasUsed": 46574,
+      "status": "0x1"
+    },
+    {
+      "index": 10,
+      "name": "syncExitFees(bytes32[])",
+      "kind": "CALL",
+      "gasLimit": 133876,
+      "gasUsed": 96925,
+      "status": "0x1"
+    },
+    {
+      "index": 11,
+      "name": "mint(address,uint256)",
+      "kind": "CALL",
+      "gasLimit": 97368,
+      "gasUsed": 70494,
+      "status": "0x1"
+    },
+    {
+      "index": 12,
+      "name": "approve(address,uint256)",
+      "kind": "CALL",
+      "gasLimit": 67229,
+      "gasUsed": 45969,
+      "status": "0x1"
+    },
+    {
+      "index": 13,
+      "name": "registerRole(bytes32,address,bytes)",
+      "kind": "CALL",
+      "gasLimit": 1077492,
+      "gasUsed": 736747,
+      "status": "0x1"
+    },
+    {
+      "index": 14,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1806070,
+      "gasUsed": 1389285,
+      "status": "0x1"
+    },
+    {
+      "index": 15,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 11082839,
+      "gasUsed": 8525261,
+      "status": "0x1"
+    },
+    {
+      "index": 16,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 357351,
+      "gasUsed": 274886,
+      "status": "0x1"
+    },
+    {
+      "index": 17,
+      "name": "setTreasury(address)",
+      "kind": "CALL",
+      "gasLimit": 59978,
+      "gasUsed": 41011,
+      "status": "0x1"
+    },
+    {
+      "index": 18,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 294762,
+      "gasUsed": 226740,
+      "status": "0x1"
+    },
+    {
+      "index": 19,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 876031,
+      "gasUsed": 673870,
+      "status": "0x1"
+    },
+    {
+      "index": 20,
+      "name": "bootstrapApprove(uint8,bytes32)",
+      "kind": "CALL",
+      "gasLimit": 73372,
+      "gasUsed": 50169,
+      "status": "0x1"
+    },
+    {
+      "index": 21,
+      "name": "bootstrapApprove(uint8,bytes32)",
+      "kind": "CALL",
+      "gasLimit": 69490,
+      "gasUsed": 50310,
+      "status": "0x1"
+    },
+    {
+      "index": 22,
+      "name": "seal()",
+      "kind": "CALL",
+      "gasLimit": 67687,
+      "gasUsed": 46282,
+      "status": "0x1"
+    },
+    {
+      "index": 23,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 6492532,
+      "gasUsed": 4994256,
+      "status": "0x1"
+    },
+    {
+      "index": 24,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 5762109,
+      "gasUsed": 4432392,
+      "status": "0x1"
+    },
+    {
+      "index": 25,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 3187532,
+      "gasUsed": 2451948,
+      "status": "0x1"
+    },
+    {
+      "index": 26,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1621911,
+      "gasUsed": 1247624,
+      "status": "0x1"
+    },
+    {
+      "index": 27,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 2401908,
+      "gasUsed": 1847622,
+      "status": "0x1"
+    },
+    {
+      "index": 28,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 2849393,
+      "gasUsed": 2191841,
+      "status": "0x1"
+    },
+    {
+      "index": 29,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 7266914,
+      "gasUsed": 5589934,
+      "status": "0x1"
+    },
+    {
+      "index": 30,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1855162,
+      "gasUsed": 1427048,
+      "status": "0x1"
+    },
+    {
+      "index": 31,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1893463,
+      "gasUsed": 1456510,
+      "status": "0x1"
+    },
+    {
+      "index": 32,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 3115866,
+      "gasUsed": 2396820,
+      "status": "0x1"
+    },
+    {
+      "index": 33,
+      "name": "setSuperPaymaster(address)",
+      "kind": "CALL",
+      "gasLimit": 73908,
+      "gasUsed": 53509,
+      "status": "0x1"
+    },
+    {
+      "index": 34,
+      "name": "setReputationSource(address,bool)",
+      "kind": "CALL",
+      "gasLimit": 73034,
+      "gasUsed": 52876,
+      "status": "0x1"
+    },
+    {
+      "index": 35,
+      "name": "setReputationSource(address,bool)",
+      "kind": "CALL",
+      "gasLimit": 73034,
+      "gasUsed": 52876,
+      "status": "0x1"
+    },
+    {
+      "index": 36,
+      "name": "setReputationSource(address,bool)",
+      "kind": "CALL",
+      "gasLimit": 42768,
+      "gasUsed": 30964,
+      "status": "0x1"
+    },
+    {
+      "index": 37,
+      "name": "setBLSAggregator(address)",
+      "kind": "CALL",
+      "gasLimit": 77935,
+      "gasUsed": 53289,
+      "status": "0x1"
+    },
+    {
+      "index": 38,
+      "name": "setBLSAggregator(address)",
+      "kind": "CALL",
+      "gasLimit": 66101,
+      "gasUsed": 47856,
+      "status": "0x1"
+    },
+    {
+      "index": 39,
+      "name": "setDVTValidator(address)",
+      "kind": "CALL",
+      "gasLimit": 84197,
+      "gasUsed": 60958,
+      "status": "0x1"
+    },
+    {
+      "index": 40,
+      "name": "addImplementation(string,address)",
+      "kind": "CALL",
+      "gasLimit": 108635,
+      "gasUsed": 74281,
+      "status": "0x1"
+    },
+    {
+      "index": 41,
+      "name": "setRegistry(address)",
+      "kind": "CALL",
+      "gasLimit": 69990,
+      "gasUsed": 47857,
+      "status": "0x1"
+    },
+    {
+      "index": 42,
+      "name": "setXPNTsFactory(address)",
+      "kind": "CALL",
+      "gasLimit": 83164,
+      "gasUsed": 56865,
+      "status": "0x1"
+    },
+    {
+      "index": 43,
+      "name": "setSuperPaymasterAddress(address)",
+      "kind": "CALL",
+      "gasLimit": 70145,
+      "gasUsed": 47963,
+      "status": "0x1"
+    },
+    {
+      "index": 44,
+      "name": "initBLSAggregator(address)",
+      "kind": "CALL",
+      "gasLimit": 82875,
+      "gasUsed": 56667,
+      "status": "0x1"
+    },
+    {
+      "index": 45,
+      "name": "updatePrice()",
+      "kind": "CALL",
+      "gasLimit": 172424,
+      "gasUsed": 124832,
+      "status": "0x1"
+    },
+    {
+      "index": 46,
+      "name": "mint(address,uint256)",
+      "kind": "CALL",
+      "gasLimit": 50130,
+      "gasUsed": 36294,
+      "status": "0x1"
+    },
+    {
+      "index": 47,
+      "name": "approve(address,uint256)",
+      "kind": "CALL",
+      "gasLimit": 42659,
+      "gasUsed": 29169,
+      "status": "0x1"
+    },
+    {
+      "index": 48,
+      "name": "safeMintForRole(bytes32,address,bytes)",
+      "kind": "CALL",
+      "gasLimit": 1148638,
+      "gasUsed": 785394,
+      "status": "0x1"
+    },
+    {
+      "index": 49,
+      "name": "safeMintForRole(bytes32,address,bytes)",
+      "kind": "CALL",
+      "gasLimit": 710247,
+      "gasUsed": 514207,
+      "status": "0x1"
+    },
+    {
+      "index": 50,
+      "name": "safeMintForRole(bytes32,address,bytes)",
+      "kind": "CALL",
+      "gasLimit": 1139851,
+      "gasUsed": 779386,
+      "status": "0x1"
+    },
+    {
+      "index": 51,
+      "name": "addValidator(address)",
+      "kind": "CALL",
+      "gasLimit": 130869,
+      "gasUsed": 94748,
+      "status": "0x1"
+    },
+    {
+      "index": 52,
+      "name": "registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))",
+      "kind": "CALL",
+      "gasLimit": 526085,
+      "gasUsed": 380877,
+      "status": "0x1"
+    },
+    {
+      "index": 53,
+      "name": "safeMintForRole(bytes32,address,bytes)",
+      "kind": "CALL",
+      "gasLimit": 1052906,
+      "gasUsed": 762286,
+      "status": "0x1"
+    },
+    {
+      "index": 54,
+      "name": "addValidator(address)",
+      "kind": "CALL",
+      "gasLimit": 130869,
+      "gasUsed": 94748,
+      "status": "0x1"
+    },
+    {
+      "index": 55,
+      "name": "registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))",
+      "kind": "CALL",
+      "gasLimit": 526134,
+      "gasUsed": 380912,
+      "status": "0x1"
+    },
+    {
+      "index": 56,
+      "name": "safeMintForRole(bytes32,address,bytes)",
+      "kind": "CALL",
+      "gasLimit": 1052906,
+      "gasUsed": 762286,
+      "status": "0x1"
+    },
+    {
+      "index": 57,
+      "name": "addValidator(address)",
+      "kind": "CALL",
+      "gasLimit": 130869,
+      "gasUsed": 94748,
+      "status": "0x1"
+    },
+    {
+      "index": 58,
+      "name": "registerBLSPublicKey(address,(bytes32,bytes32,bytes32,bytes32),uint8,(bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32))",
+      "kind": "CALL",
+      "gasLimit": 526085,
+      "gasUsed": 380877,
+      "status": "0x1"
+    },
+    {
+      "index": 59,
+      "name": "setMinThreshold(uint256)",
+      "kind": "CALL",
+      "gasLimit": 48041,
+      "gasUsed": 32849,
+      "status": "0x1"
+    },
+    {
+      "index": 60,
+      "name": "setDefaultThreshold(uint256)",
+      "kind": "CALL",
+      "gasLimit": 48781,
+      "gasUsed": 33355,
+      "status": "0x1"
+    },
+    {
+      "index": 61,
+      "name": "setMinThreshold(uint256)",
+      "kind": "CALL",
+      "gasLimit": 43946,
+      "gasUsed": 30049,
+      "status": "0x1"
+    },
+    {
+      "index": 62,
+      "name": "setSlashThreshold(uint8,uint8)",
+      "kind": "CALL",
+      "gasLimit": 40215,
+      "gasUsed": 29116,
+      "status": "0x1"
+    },
+    {
+      "index": 63,
+      "name": "setSlashThreshold(uint8,uint8)",
+      "kind": "CALL",
+      "gasLimit": 44099,
+      "gasUsed": 31928,
+      "status": "0x1"
+    },
+    {
+      "index": 64,
+      "name": "setSlashThreshold(uint8,uint8)",
+      "kind": "CALL",
+      "gasLimit": 44099,
+      "gasUsed": 31928,
+      "status": "0x1"
+    },
+    {
+      "index": 65,
+      "name": "exitRole(bytes32)",
+      "kind": "CALL",
+      "gasLimit": 244333,
+      "gasUsed": 167066,
+      "status": "0x1"
+    },
+    {
+      "index": 66,
+      "name": "approve(address,uint256)",
+      "kind": "CALL",
+      "gasLimit": 35077,
+      "gasUsed": 23985,
+      "status": "0x1"
+    },
+    {
+      "index": 67,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1352098,
+      "gasUsed": 1040076,
+      "status": "0x1"
+    },
+    {
+      "index": 68,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 39353,
+      "gasUsed": 28492,
+      "status": "0x1"
+    },
+    {
+      "index": 69,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 2470906,
+      "gasUsed": 1900697,
+      "status": "0x1"
+    },
+    {
+      "index": 70,
+      "name": "setGuardian(address)",
+      "kind": "CALL",
+      "gasLimit": 78971,
+      "gasUsed": 57174,
+      "status": "0x1"
+    },
+    {
+      "index": 71,
+      "name": "setDAOMultisig(address)",
+      "kind": "CALL",
+      "gasLimit": 41889,
+      "gasUsed": 28643,
+      "status": "0x1"
+    },
+    {
+      "index": 72,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 39798,
+      "gasUsed": 28814,
+      "status": "0x1"
+    },
+    {
+      "index": 73,
+      "name": "transfer(address,uint256)",
+      "kind": "CALL",
+      "gasLimit": 40652,
+      "gasUsed": 29432,
+      "status": "0x1"
+    },
+    {
+      "index": 74,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 1766310,
+      "gasUsed": 1358700,
+      "status": "0x1"
+    },
+    {
+      "index": 75,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98195,
+      "gasUsed": 71092,
+      "status": "0x1"
+    },
+    {
+      "index": 76,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98195,
+      "gasUsed": 71092,
+      "status": "0x1"
+    },
+    {
+      "index": 77,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98543,
+      "gasUsed": 71344,
+      "status": "0x1"
+    },
+    {
+      "index": 78,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98543,
+      "gasUsed": 71344,
+      "status": "0x1"
+    },
+    {
+      "index": 79,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98543,
+      "gasUsed": 71344,
+      "status": "0x1"
+    },
+    {
+      "index": 80,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98543,
+      "gasUsed": 71344,
+      "status": "0x1"
+    },
+    {
+      "index": 81,
+      "name": "configureRole(bytes32,(uint256,uint256,uint32,uint32,uint32,uint32,uint16,bool,uint256,string,address,uint256))",
+      "kind": "CALL",
+      "gasLimit": 98543,
+      "gasUsed": 71344,
+      "status": "0x1"
+    },
+    {
+      "index": 82,
+      "name": "setSlashPolicyAdmin(address)",
+      "kind": "CALL",
+      "gasLimit": 44744,
+      "gasUsed": 30595,
+      "status": "0x1"
+    },
+    {
+      "index": 83,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 42381,
+      "gasUsed": 28979,
+      "status": "0x1"
+    },
+    {
+      "index": 84,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 42203,
+      "gasUsed": 28857,
+      "status": "0x1"
+    },
+    {
+      "index": 85,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 43621,
+      "gasUsed": 29827,
+      "status": "0x1"
+    },
+    {
+      "index": 86,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 39543,
+      "gasUsed": 28629,
+      "status": "0x1"
+    },
+    {
+      "index": 87,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 42498,
+      "gasUsed": 29059,
+      "status": "0x1"
+    },
+    {
+      "index": 88,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 39920,
+      "gasUsed": 28902,
+      "status": "0x1"
+    },
+    {
+      "index": 89,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 40804,
+      "gasUsed": 29542,
+      "status": "0x1"
+    },
+    {
+      "index": 90,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 39707,
+      "gasUsed": 28748,
+      "status": "0x1"
+    },
+    {
+      "index": 91,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 42627,
+      "gasUsed": 29147,
+      "status": "0x1"
+    },
+    {
+      "index": 92,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 39348,
+      "gasUsed": 28488,
+      "status": "0x1"
+    },
+    {
+      "index": 93,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 74032,
+      "gasUsed": 53599,
+      "status": "0x1"
+    },
+    {
+      "index": 94,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 78403,
+      "gasUsed": 53609,
+      "status": "0x1"
+    },
+    {
+      "index": 95,
+      "name": "transferOwnership(address)",
+      "kind": "CALL",
+      "gasLimit": 66627,
+      "gasUsed": 48238,
+      "status": "0x1"
+    },
+    {
+      "index": 96,
+      "name": "?",
+      "kind": "CREATE",
+      "gasLimit": 531037,
+      "gasUsed": 408490,
+      "status": "0x1"
+    }
+  ]
+}

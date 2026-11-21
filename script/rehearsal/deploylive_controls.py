@@ -146,7 +146,8 @@ def config_unavailable(body):
     return (result.get('jsonrpc') == '2.0' and type(result.get('id')) is int and result['id'] == 1 and 'result' not in result
             and isinstance(error, dict) and type(error.get('code')) is int and error['code'] == -32600
             and isinstance(error.get('message'), str)
-            and re.search(r'\b(?:not available|unavailable|unavailability)\b', error['message'], re.I) is not None)
+            and re.search(r'\beth_config\b', error['message']) is not None
+            and re.search(r'\b(?:not available|unavailable)\b', error['message'], re.I) is not None)
 
 
 def validate_hardfork(chain, hardfork):
@@ -200,7 +201,7 @@ def cap_control(rpc, evidence, production=False, sleep=time.sleep, *, chain):
     require(not production, 'cap-control refused in production')
     if gas_semantics(chain) == 'karst':
         record = dict(chainId=chain, status='SKIP', passed=False,
-                      reason='Karst rejects over-cap transactions as invalid; anvil --optimism rejection not yet validated on OP Sepolia fork')
+                      reason='Karst cap control unavailable: anvil --optimism was measured (2026-11-21) not to reject a 2^24+1 gas limit on an OP Sepolia fork')
         write_json(evidence, 'cap-control.json', record)
         print('CONTROL SKIP: ' + record['reason'])
         return record
@@ -400,6 +401,20 @@ def plan_diff(gated, actual, gas_bounds=None, *, chain=None):
             if not low <= integer(b['gas']) <= high: diff.append(f'index={i} gas outside [{low},{high}]: {name}')
         if chain is not None and gas_semantics(chain) == 'karst' and integer(b['gas']) > int(CAP_FRACTION * TX_GAS_CAP):
             diff.append(f'index={i} gas above Karst headroom limit: {name}')
+    return diff
+
+
+def postbroadcast_diff(gated, actual, gas_bounds, *, chain):
+    """After broadcast, enforce bounds and the hard cap; headroom is informational."""
+    diff = plan_diff(gated, actual, gas_bounds)
+    if gas_semantics(chain) == 'karst':
+        for i, tx in enumerate(actual['transactions']):
+            gas = integer(tx['transaction']['gas'])
+            name = tx.get('contractName') or tx.get('function') or str(i)
+            if gas > TX_GAS_CAP:
+                diff.append(f'index={i} gas above Karst hard cap: {name}')
+            elif gas > int(CAP_FRACTION * TX_GAS_CAP):
+                print(f'WARNING post-broadcast index={i} {name} gas={gas} above Karst headroom; within hard cap {TX_GAS_CAP}')
     return diff
 
 

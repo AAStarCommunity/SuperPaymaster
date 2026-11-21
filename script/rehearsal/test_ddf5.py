@@ -32,7 +32,7 @@ class Ddf5Test(unittest.TestCase):
                    DEPLOYLIVE_PRICE_SOURCE='chain', FOUNDRY_VERBOSITY='2', REHEARSAL_BLS_SCALARS='[]')
         second = self.root/'predict-second-rpc'
         second.write_text('https://secondary.infura.io/key')
-        env.update(DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
+        env.update(DEPLOYLIVE_HARDFORK='amsterdam', DEPLOYLIVE_EXPECTED_CHAIN_ID='11155111', DEPLOYLIVE_ENDPOINT_PROVIDER='Alchemy',
                    DEPLOYLIVE_SECOND_ENDPOINT_PROVIDER='Infura', DEPLOYLIVE_RPC='https://primary.alchemy.com/key',
                    DEPLOYLIVE_SECOND_RPC=second.read_text(), DEPLOYLIVE_SECOND_RPC_FILE=str(second))
         def predict(argv, **kwargs):
@@ -42,7 +42,7 @@ class Ddf5Test(unittest.TestCase):
             self.assertNotIn(env['DEPLOYLIVE_RPC'],argv)
             (self.root/f.REQUEST_PATH).write_text('{"pin":{"senders":{"deployer":{"nonce":39}}}}')
             return SimpleNamespace(returncode=0,stdout='',stderr='')
-        with patch.dict(os.environ,env,clear=True), patch.object(f,'ROOT',self.root), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=self.root/'config.json'), patch.object(f.subprocess,'run',side_effect=predict):
+        with patch.dict(os.environ,env,clear=True), patch.object(f,'ROOT',self.root), patch.object(f,'clean_source_commit',return_value='a'*40), patch.object(f,'verify_build',return_value='forge'), patch.object(f,'config_path',return_value=self.root/'config.json'), patch.object(f.subprocess,'run',side_effect=predict), patch.object(f, 'ReadOnlyRPC', return_value=lambda *args: hex(11155111)):
             f.stage('predict',['--production','--evidence',str(self.root)])
         env['GOVERNANCE_OWNER']='other'
         with patch.object(c,'load_inputs',return_value=env), patch.object(f.subprocess,'run') as run:

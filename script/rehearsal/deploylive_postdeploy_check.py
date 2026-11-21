@@ -3,7 +3,7 @@
 
 Usage: deploylive_postdeploy_check.py <rpc> deployments/live/config.<ENV>.json <deployer> <safe>
 Alternatively omit <rpc> and set ETH_RPC_URL; argv is left unchanged.
-DEPLOYLIVE_EXPECTED_CHAIN_ID is required (e.g. 10, 11155111, or 31337 for local runs); unset stops.
+DEPLOYLIVE_EXPECTED_CHAIN_ID is required (e.g. 10, 11155111, 11155420, or 31337 for local runs); unset stops.
 Local non-production runs may supply their original deployments/config.<ENV>.json path.
 Prints one PASS/FAIL line per assertion and a summary. Nothing is sent: eth_call only.
 """

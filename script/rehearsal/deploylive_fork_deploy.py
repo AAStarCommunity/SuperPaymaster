@@ -191,10 +191,11 @@ def stage(action, argv):
                DEPLOYLIVE_EVM_VERSION='prague', DEPLOYLIVE_STOP_BEFORE_BOOTSTRAP='0')
     if args.production:
         require_checker_inputs(env)
-        from deploylive_controls import validate_hardfork, gas_semantics
+        from deploylive_controls import validate_hardfork
         expected = int(env['DEPLOYLIVE_EXPECTED_CHAIN_ID'])
-        if gas_semantics(expected) == 'karst':
-            validate_hardfork(expected, env['DEPLOYLIVE_HARDFORK'])
+        chain = int(ReadOnlyRPC(env['DEPLOYLIVE_RPC'])('eth_chainId'), 16)
+        require(chain == expected, 'STOP predict chain mismatch with DEPLOYLIVE_EXPECTED_CHAIN_ID')
+        validate_hardfork(chain, env['DEPLOYLIVE_HARDFORK'])
     binary = verify_build(env, True)
     request = ROOT / REQUEST_PATH
     request.parent.mkdir(parents=True, exist_ok=True)
@@ -286,7 +287,7 @@ def main():
     env.setdefault('FOUNDRY_CACHE_PATH', 'cache/deploylive-rehearsal-cache')
     path = config_path(env)
     path.parent.mkdir(parents=True, exist_ok=True)
-    from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, write_success, gas_changes, verify_conversion, plan_digest
+    from deploylive_controls import deployment_rule, forge_endpoint, safe_logs, verify_manifest, check_start_nonce, plan_diff, postbroadcast_diff, write_success, gas_changes, verify_conversion, plan_digest
     checker_dir = prepare_checker(env, evidence, deployer)
     verify_manifest(env, evidence)
     approved_env = dict(env)
@@ -421,7 +422,7 @@ def main():
         elif result.returncode != 0:
             print('BROADCAST MINED: all transactions mined; forge exited non-zero; deployment NOT successful')
         try:
-            diff = plan_diff(broadcast_plan, actual, gas_bounds, chain=chain)
+            diff = postbroadcast_diff(broadcast_plan, actual, gas_bounds, chain=chain)
         except (OSError, ValueError, KeyError, TypeError, IndexError):
             diff = ['missing or malformed fresh broadcast record']
         (evidence/'postbroadcast.diff.json').write_text(json.dumps(dict(gatedPlanSha256=plan_digest(plan), broadcastPlanSha256=plan_digest(broadcast_plan), diff=diff))+'\n')

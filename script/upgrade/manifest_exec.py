@@ -1294,8 +1294,6 @@ TPM_CONSTRUCTOR = ('c(address,address,address,address,(uint256,uint128,uint48,ui
 SEPOLIA_F1_SCOPE_NOTE = ('F1Fixtures.sol header says "local nodes only"; DSR 2026-11-02 permits F1TestToken (separate '
                  'T and Q instances) and F1Oracle on Sepolia for this gas experiment without source changes. '
                  'The local Anvil deployment recipe (deploy-baselines.mjs) is not used.')
-F1_SCOPE_NOTE = ('DSR 2026-11-18 permits F1TestToken (T/Q) and F1Oracle on chainId 10 and '
-                 '11155111 as RQ3 comparator fixtures, not protocol contracts; local fixtures also permitted.')
 
 
 @lru_cache(maxsize=8)
