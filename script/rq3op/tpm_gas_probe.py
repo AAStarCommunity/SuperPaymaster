@@ -20,15 +20,19 @@ import time
 import urllib.request
 from pathlib import Path
 from calibrate import fork_parameters
+from calibration_safety import read_upstream, redact, choose_port, require_fork
 
 
 def rpc_factory(url):
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     def rpc(method, params):
         body = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
-        with opener.open(urllib.request.Request(url, body, {'Content-Type': 'application/json'}), timeout=300) as r:
-            v = json.load(r)
-        if 'error' in v: raise RuntimeError(f"{method}: {re.sub(r'(?i)https?://[^ ]+', '<redacted-url>', str(v['error']))}")
+        try:
+            with opener.open(urllib.request.Request(url, body, {'Content-Type': 'application/json'}), timeout=300) as r:
+                v = json.load(r)
+        except Exception:
+            raise RuntimeError('RPC transport failure; details redacted') from None
+        if 'error' in v: raise RuntimeError(f'{method}: {redact(v["error"], opaque=True)}')
         return v['result']
     return rpc
 
@@ -46,7 +50,7 @@ def case_parameters(case, chain):
     if case.get('hardfork', parameters['hardfork']) != parameters['hardfork']:
         raise SystemExit('STOP hardfork conflicts with chain mapping')
     flags = case.get('flags', [])
-    if any(flag.split('=')[0] in ('--chain-id', '--hardfork', '--optimism', '--no-optimism', '--fork-url', '--host', '--port') for flag in flags):
+    if any(flag.split('=')[0] in ('--chain-id', '--hardfork', '--optimism', '--no-optimism', '--fork-url', '--fork-block-number', '--host', '--port') for flag in flags):
         raise SystemExit('STOP fork identity flags must come from chain mapping')
     parameters['flags'] += flags
     return parameters
@@ -55,16 +59,23 @@ def case_parameters(case, chain):
 def run_case(case, plan0, log_dir, port):
     expected_chain = plan0['chainId']
     parameters = case_parameters(case, expected_chain)
-    upstream = Path(case['upstream']).read_text().strip()
+    if not isinstance(case.get('block'), int) or case['block'] < 0:
+        raise SystemExit('STOP explicit fork block required')
+    port = choose_port()
+    upstream = read_upstream(case['upstream'])
     cmd = [case['anvil'], '--fork-url', upstream, '--port', str(port), '--host', '127.0.0.1', '--no-rate-limit',
-           *(['--fork-block-number', str(case['block'])] if case.get('block') else []), *parameters['flags'], '--chain-id', str(expected_chain), '--hardfork', parameters['hardfork']]
+           '--fork-block-number', str(case['block']), *parameters['flags'], '--chain-id', str(expected_chain), '--hardfork', parameters['hardfork']]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     log = Path(log_dir)/f"anvil.{case['name']}.log"
     def pump():
         with open(log, 'ab') as sink:
-            for line in proc.stdout: sink.write(re.sub(rb'(?i)(?:https?|wss?)://\S+', b'<redacted-url>', line))
+            for line in proc.stdout: sink.write((redact(line, opaque=True) + '\n').encode())
     threading.Thread(target=pump, daemon=True).start()
-    rpc = rpc_factory(f'http://127.0.0.1:{port}')
+    raw_rpc = rpc_factory(f'http://127.0.0.1:{port}')
+    def rpc(method, params):
+        if method.startswith(('anvil_', 'evm_')) or method == 'eth_sendTransaction':
+            require_fork(proc, raw_rpc, case['block'])
+        return raw_rpc(method, params)
     try:
         for _ in range(300):
             if proc.poll() is not None: return dict(case=case['name'], error='anvil exited (see redacted log)')
@@ -72,6 +83,7 @@ def run_case(case, plan0, log_dir, port):
             except Exception: time.sleep(0.2)
         else: return dict(case=case['name'], error='anvil did not start')
         if chain != expected_chain: raise SystemExit('STOP fork chainId mismatch')
+        require_fork(proc, raw_rpc, case['block'])
         head = rpc('eth_getBlockByNumber', ['latest', False])
         step = next(s for s in plan0['steps'] if s['id'] == 'C14')
         for dep in ('C13.token', 'C13.oracle'):
@@ -113,7 +125,7 @@ def run_case(case, plan0, log_dir, port):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--plan', required=True); ap.add_argument('--cases', required=True); ap.add_argument('--out', required=True)
-    ap.add_argument('--port', type=int, default=18565)
+    ap.add_argument('--port', type=int, default=18565, help='Deprecated compatibility option; the tool selects a free port')
     args = ap.parse_args()
     bundle = json.loads(Path(args.plan).read_text())
     plan0 = next(p for p in bundle['plans'].values() if p['planIndex'] == 0)

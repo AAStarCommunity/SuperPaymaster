@@ -15,6 +15,7 @@
 // replaced by a fork-only signer. Both keep code paths and gas-relevant shapes identical
 // (same SLOAD/PUSH20 and ecrecover; same calldata lengths, checked by checkPVGLengths).
 // Never point this at a real chain: it refuses anything but chainId 11155111 or 11155420 on 127.0.0.1.
+import { redact, requireFork } from './calibration_safety.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { concat, encodeAbiParameters, encodeFunctionData, getAddress, keccak256, pad, toHex, parseAbi, decodeEventLog } from 'viem';
@@ -29,12 +30,19 @@ const req = JSON.parse(readFileSync(requestPath, 'utf8'));
 const url = req.forkUrl;
 if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(url)) throw Error('fork URL must be http://127.0.0.1:<port>');
 let id = 0;
-async function rpc(method, params = []) {
+async function rawRpc(method, params = []) {
+  let body;
+  try {
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }, (_, v) => typeof v === 'bigint' ? toHex(v) : v) });
-  const body = await res.json();
-  if (body.error) { const e = Error(`${method}: ${body.error.message}`); e.data = body.error.data; throw e; }
+  body = await res.json();
+  } catch { throw Error(`${method}: RPC transport failure; details redacted`); }
+  if (body.error) throw Error(`${method}: ${redact(body.error, true)}`);
   return body.result;
+}
+async function rpc(method, params = []) {
+  if (/^(anvil_|evm_)/.test(method) || method === 'eth_sendTransaction') await requireFork(req, rawRpc);
+  return rawRpc(method, params);
 }
 const u128 = v => pad(toHex(v), { size: 16 });
 const EP = getAddress('0x0000000071727De22E5E9d8BAf0edAc6f37da032');
@@ -64,6 +72,7 @@ const lower = v => String(v).toLowerCase();
 
 const chain = BigInt(await rpc('eth_chainId'));
 if (chain !== 11155111n && chain !== 11155420n) throw Error('fork chainId must be 11155111 or 11155420');
+await requireFork(req, rawRpc);
 const bytes = readFileSync(req.bundlePath);
 const bundleSha256 = createHash('sha256').update(bytes).digest('hex');
 if (bundleSha256 !== req.bundleSha256) throw Error('BUNDLE_DIGEST_MISMATCH');
@@ -153,7 +162,8 @@ for (let si = 0; si < senders.length; si++) {
         if (error.message !== 'PVG_SIGNED_FIXED_POINT') throw error;
         // The collector STOPs here (pvg.mjs finalizePVG). Signatures are deterministic (RFC 6979), so replay the
         // same iteration to record the cycle, then (calibration only) sign at the cycle maximum and continue:
-        // none of the five calibrated fields depends on the PVG value.
+        // Measurements are conditional on the PVG used: it affects prefund/reservation,
+        // postOp settlement cost/branches, and outer calldata gas. Verify the final frozen op.
         const sequence = []; let value = 0n;
         for (let i = 0; i < 64; i++) {
           const r = await sign(value); const pvg = measurePVG(r.packed, bundler);
@@ -191,10 +201,10 @@ for (let si = 0; si < senders.length; si++) {
             let reason = null;
             if (!ok) {
               const t = await rpc('debug_traceTransaction', [h, { tracer: 'callTracer' }]);
-              reason = { verdict: c.verdict, failingCheck: c.failingCheck ?? null, output: (t.output || '').slice(0, 400), error: t.error ?? null };
+              reason = { verdict: c.verdict, failingCheck: c.failingCheck ?? null, output: (t.output || '').slice(0, 400), error: t.error ? redact(t.error, true) : null };
             }
             return { ok, gasUsed: BigInt(rc.gasUsed), reason };
-          } catch (error) { return { ok: false, reason: String(error.message).replace(/https?:\/\/\S+/g, '<redacted-url>') }; }
+          } catch (error) { return { ok: false, reason: redact(error.message, true) }; }
           finally { if (await rpc('evm_revert', [snap]) !== true) throw Error('evm_revert failed'); }
         };
         const generousOuter = BigInt(pc.bounds[arm].outer);
@@ -230,7 +240,7 @@ for (let si = 0; si < senders.length; si++) {
         txHash = await rpc('eth_sendTransaction', [{ from: bundler, to: EP, data, gas: toHex(outerLimit),
           maxFeePerGas: toHex(frozen.fees.maxFeePerGas), maxPriorityFeePerGas: toHex(frozen.fees.maxPriorityFeePerGas) }]);
       } catch (error) {
-        row.sendError = error.message.replace(/https?:\/\/\S+/g, '<redacted-url>'); row.verdict = 'SEND_REJECTED';
+        row.sendError = redact(error.message, true); row.verdict = 'SEND_REJECTED';
         out.ops.push(row); continue;
       }
       let receipt = null;
@@ -250,7 +260,7 @@ for (let si = 0; si < senders.length; si++) {
       const pick = (pred, label) => {
         const hit = fs.filter(pred);
         if (hit.length > 1) throw Error(`ambiguous ${label} frame`);
-        return hit[0] ? { gasUsed: String(BigInt(hit[0].gasUsed)), gas: String(BigInt(hit[0].gas)), error: hit[0].error ?? null } : null;
+        return hit[0] ? { gasUsed: String(BigInt(hit[0].gasUsed)), gas: String(BigInt(hit[0].gas)), error: hit[0].error ? redact(hit[0].error, true) : null } : null;
       };
       const fromEP = f => lower(f.from) === lower(EP);
       const inner = f => f.parent && lower(f.parent.input || '').startsWith(SEL.innerHandleOp);
@@ -260,7 +270,7 @@ for (let si = 0; si < senders.length; si++) {
         call: pick(f => fromEP(f) && inner(f) && lower(f.to) === lower(S) && lower(f.input) === lower(callData), 'execute'),
         postOp: pick(f => fromEP(f) && lower(f.to) === lower(pmAddr) && lower(f.input).startsWith(SEL.postOp), 'postOp'),
       };
-      row.traceError = trace.error ?? null;
+      row.traceError = trace.error ? redact(trace.error, true) : null;
       if (receipt.status !== '0x1') {
         row.revertData = trace.output ?? null;
         try {
@@ -279,5 +289,5 @@ for (let si = 0; si < senders.length; si++) {
     }
   }
 }
-writeFileSync(req.out, JSON.stringify(out, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2) + '\n');
-console.log(JSON.stringify(out.ops.map(r => [r.arm, r.sender.slice(0, 8), r.round, r.verdict, r.failingCheck, r.measurement, r.minima])));
+writeFileSync(req.out, JSON.stringify(out, (_, v) => typeof v === 'bigint' ? v.toString() : typeof v === 'string' ? redact(v) : v, 2) + '\n');
+console.log(redact(JSON.stringify(out.ops.map(r => [r.arm, r.sender.slice(0, 8), r.round, r.verdict, r.failingCheck, r.measurement, r.minima]))));

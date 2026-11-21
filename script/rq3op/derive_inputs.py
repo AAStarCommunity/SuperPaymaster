@@ -22,6 +22,7 @@ import json
 import re
 import urllib.request
 from pathlib import Path
+from calibration_safety import read_upstream, redact
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -45,7 +46,7 @@ def validate_chain(chain, observed):
 class Provider:
     def __init__(self, name, url_file):
         self.name = name
-        self.url = Path(url_file).read_text().strip()
+        self.url = read_upstream(url_file)
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def __call__(self, method, params):
@@ -57,8 +58,7 @@ class Provider:
         except Exception:
             raise SystemExit(f'STOP rpc transport failure on {self.name} ({method}); details redacted') from None
         if 'error' in value or 'result' not in value:
-            message = str(value.get('error', {}).get('message', ''))[:160]
-            message = re.sub(r'(?i)https?://\S+', '<redacted-url>', message)
+            message = redact(value.get('error'), opaque=True)
             raise RpcError(self.name, method, message)
         return value['result']
 

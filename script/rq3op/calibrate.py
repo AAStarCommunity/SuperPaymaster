@@ -31,6 +31,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from calibration_safety import read_upstream, redact, choose_port, require_fork
 
 HERE = Path(__file__).resolve().parent
 ANVIL_171 = Path.home()/'.foundry/versions/v1.7.1/anvil'
@@ -73,18 +74,22 @@ class Fork:
 
     def __call__(self, method, params):
         body = json.dumps(dict(jsonrpc='2.0', id=1, method=method, params=params)).encode()
-        with self.opener.open(urllib.request.Request(self.url, body, {'Content-Type': 'application/json'}), timeout=120) as r:
-            value = json.load(r)
+        try:
+            with self.opener.open(urllib.request.Request(self.url, body, {'Content-Type': 'application/json'}), timeout=120) as r:
+                value = json.load(r)
+        except Exception:
+            raise RuntimeError('RPC transport failure; details redacted') from None
         if 'error' in value:
-            message = re.sub(r'(?i)https?://\S+', '<redacted-url>', str(value['error'].get('message')))
-            raise ForkError(method, message, value['error'].get('data'))
+            message = redact(value['error'], opaque=True)
+            raise ForkError(method, message, None)
         return value['result']
 
     def start(self, upstream_file, pin, log, chain):
         parameters = fork_parameters(chain)
-        upstream = Path(upstream_file).read_text().strip()
+        upstream = read_upstream(upstream_file)
         for anvil in (ANVIL_171, ANVIL_NIGHTLY):
-            port = self.url.rsplit(':', 1)[1]
+            port = str(choose_port())
+            self.url = f'http://127.0.0.1:{port}'
             log.parent.mkdir(parents=True, exist_ok=True)
             self.proc = subprocess.Popen([str(anvil), '--fork-url', upstream, '--fork-block-number', str(pin),
                 '--chain-id', str(chain), '--hardfork', parameters['hardfork'], *parameters['flags'], '--port', port, '--host', '127.0.0.1',
@@ -93,7 +98,7 @@ class Fork:
             def pump(stream, path):
                 with open(path, 'ab') as sink:
                     for line in stream:
-                        sink.write(re.sub(rb'(?i)(?:https?|wss?)://\S+', b'<redacted-url>', line)); sink.flush()
+                        sink.write((redact(line, opaque=True) + '\n').encode()); sink.flush()
             threading.Thread(target=pump, args=(self.proc.stdout, log), daemon=True).start()
             for _ in range(300):
                 if self.proc.poll() is not None: break
@@ -102,6 +107,11 @@ class Fork:
                     if observed != chain:
                         self.stop()
                         raise SystemExit('STOP fork chainId mismatch')
+                    try:
+                        require_fork(self.proc, self, pin)
+                    except SystemExit:
+                        self.stop()
+                        raise
                     self.anvil = str(anvil); return
                 except Exception: time.sleep(0.2)
             self.stop()
@@ -164,7 +174,7 @@ def cmd_checker(args):
     fork_parameters(args.chain)
     q, _, _ = load_planner(args.planner_root)
     cfg = json.loads(Path(args.config).read_text())
-    url = Path(args.rpc_a_file).read_text().strip()
+    url = read_upstream(args.rpc_a_file)
     tools = q.pinned_tools()
     with tools.active():
         result = q.run_checker(args.config, cfg, url, args.chain, block=args.pin_hash, tools=tools)
@@ -183,7 +193,10 @@ class Runner:
         self.notes = []
 
     # -- fork primitives -------------------------------------------------------------------
-    def rpc(self, method, params): return self.fork(method, params)
+    def rpc(self, method, params):
+        if method.startswith(('anvil_', 'evm_')) or method == 'eth_sendTransaction':
+            require_fork(self.fork.proc, self.fork, self.args.pin)
+        return self.fork(method, params)
 
     def send(self, tx, label, impersonate=True, check_status=True):
         who = tx['from']
@@ -215,7 +228,7 @@ class Runner:
                     bad = [c for c in f.get('calls', []) if c.get('error')]
                     return deepest(bad[-1]) if bad else f
                 d = deepest(trace)
-                detail = dict(error=d.get('error'), output=d.get('output'), to=d.get('to'), input=d.get('input', '')[:10])
+                detail = dict(error=redact(d.get('error'), opaque=True), output=d.get('output'), to=d.get('to'), input=d.get('input', '')[:10])
             except ForkError as error: detail = error.message
             row['failure'] = detail
             raise SystemExit(f'STOP fork transaction failed: {label} {h} {json.dumps(detail)} estimateError={estimate_error}')
@@ -408,15 +421,15 @@ class Runner:
                                   pre_send=q.pre_send(self.rpc, plan))
             self.refresh_price(cfg)
             plan0 = next(p for p in bundle['plans'].values() if p['planIndex'] == 0)
-            request = dict(forkUrl=self.fork.url, bundlePath=str(plan_path), bundleSha256=sha(raw), rounds=args.rounds,
+            request = dict(forkUrl=self.fork.url, forkPid=self.fork.proc.pid, forkPin=args.pin, bundlePath=str(plan_path), bundleSha256=sha(raw), rounds=args.rounds,
                            search=args.mode == 'measure', gasFactor=inputs['gasFactor'], spPostOpFloor=plan0['phaseC']['gasTuple'][0],
                            out=str(out/f'ops.{args.mode}.json'))
             # The only URL here is the local fork (127.0.0.1); it is not a credential.
             (out/f'ops-request.{args.mode}.json').write_text(json.dumps(request, indent=2) + '\n')
             ops = subprocess.run(['node', str(HERE/'calibrate_ops.mjs'), str(out/f'ops-request.{args.mode}.json')],
                                  capture_output=True, text=True, cwd=str(HERE.parents[1]))
-            (out/f'ops.{args.mode}.stdout').write_text(re.sub(r'(?i)https?://\S+', '<redacted-url>', ops.stdout + ops.stderr))
-            if ops.returncode: raise SystemExit(f'STOP calibrate_ops failed: {(ops.stdout+ops.stderr)[-2000:]}')
+            (out/f'ops.{args.mode}.stdout').write_text(redact(ops.stdout + ops.stderr, opaque=True))
+            if ops.returncode: raise SystemExit(f'STOP calibrate_ops failed: {redact(ops.stdout+ops.stderr, opaque=True)}')
             record.update(safe=safe_rows, steps=steps, extraSteps=extra, postSetupGates=gates, notes=self.notes,
                           forkTransactions=self.log, ops=json.loads((out/f'ops.{args.mode}.json').read_text()))
             print(json.dumps(dict(measurements=write_json(out/f'measurements.{args.mode}.json', record), plan=sha(raw))))
@@ -495,9 +508,9 @@ def main():
     p.set_defaults(fn=cmd_checker)
     p = sub.add_parser('run')
     for k in ('--planner-root', '--config', '--inputs', '--calibration', '--checker-record', '--upstream-file', '--out-dir', '--pin-hash'):
-        p.add_argument(k, required=True)
+        p.add_argument(k, required=True, help='KEYLESS upstream only: URL is visible in the anvil process command line' if k == '--upstream-file' else None)
     p.add_argument('--pin', type=int, required=True); p.add_argument('--mode', choices=('measure', 'verify'), required=True)
-    p.add_argument('--port', type=int, default=18555); p.add_argument('--rounds', type=int, default=2)
+    p.add_argument('--port', type=int, default=18555, help='Deprecated compatibility option; the tool selects a free port'); p.add_argument('--rounds', type=int, default=2)
     p.add_argument('--fund-wei', type=int, default=1000*10**18); p.add_argument('--extra-task-recipient')
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser('assemble'); p.add_argument('--measurements', required=True); p.add_argument('--config', required=True)
@@ -508,12 +521,12 @@ def main():
     fork_parameters(args.chain)
     try:
         args.fn(args)
-    except Exception as error:
+    except (Exception, SystemExit) as error:
         record = getattr(error, 'record', None)
         if record is not None:
-            text = re.sub(r'(?i)https?://\S+', '<redacted-url>', json.dumps(record, default=str)[:6000])
+            text = redact(json.dumps(record, default=str), opaque=True)
             print('GATE ' + text, file=sys.stderr)
-        raise
+        raise SystemExit(redact(error)) from None
 
 
 if __name__ == '__main__':

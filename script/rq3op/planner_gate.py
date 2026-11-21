@@ -11,7 +11,7 @@ import sys
 sys.dont_write_bytecode = True
 import hashlib
 import json
-import re
+from calibration_safety import redact
 from pathlib import Path
 
 
@@ -25,9 +25,9 @@ def main():
         q.main()
     except Exception as error:
         record = getattr(error, 'record', None)
-        name = record['gate'] if record else type(error).__name__
+        name = type(error).__name__
         text = json.dumps(record if record else str(error), default=str)
-        text = re.sub(r'(?i)(?:https?|wss?)://\S+', '<redacted-url>', text)
+        text = redact(text, opaque=True)
         Path(output + '.gate.json').write_text(text + '\n')
         print(f'STOP {name}')
         print(f'RECORD {text[:4000]}')

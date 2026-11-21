@@ -105,6 +105,25 @@ ID with `31337`. OP Sepolia has a 2-second block time and a base fee around 250 
 actual fee inputs come from the pin. Anvil's Optimism execution accounts for L1
 data fees; these tools do not hand-model them.
 
+`--upstream-file` must contain a **KEYLESS upstream** URL: Anvil receives its
+contents as a command-line argument, visible in the process table. This also
+applies to the probe's case `upstream` files. Diagnostic redaction does not hide
+process arguments.
+
+Run the planner/checker with the **archived planner environment file**, containing
+only the checker's variables. Keep `DEPLOYLIVE_EVIDENCE_DIR` unset and set
+`DEPLOYLIVE_LOCAL_EVIDENCE` to the archived evidence under the worktree's `cache/`.
+Never use the deploy-day loader for this: the checker requires
+"evidence must be below worktree cache root".
+Run `calibrate.py` (and the planner) with the **current directory set to the planner root**
+(`cd <deploy worktree>` before invoking the tool from its own checkout): the planner resolves the
+calibration's relative `evidenceFile` against the current directory, and anything outside the planner
+root stops with `rq3_path`.
+
+Fork ports are selected by the tool. Before writes, the child must still be alive,
+the endpoint must report Anvil, and its fork configuration must match the requested
+block pin. The probe requires an explicit case `block`.
+
 OP Sepolia measurement invocation (all paths and pin values are placeholders;
 prepare the checker, provisional calibration and derived inputs using the sequence below):
 
@@ -112,7 +131,7 @@ prepare the checker, provisional calibration and derived inputs using the sequen
 python3 -B script/rq3op/calibrate.py run --mode measure --chain 11155420 \
   --planner-root /path/to/deploy-worktree \
   --config /path/to/deploy-worktree/deployments/live/config.op-sepolia.json \
-  --upstream-file /path/to/tenderly-op-sepolia-gateway-file \
+  --upstream-file /path/to/keyless-op-sepolia-upstream-file \
   --inputs /path/to/inputs.json --calibration /path/to/provisional-calibration.json \
   --checker-record /path/to/checker.json \
   --pin <block-number> --pin-hash <block-hash> --out-dir /path/to/measurements

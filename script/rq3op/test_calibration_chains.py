@@ -88,7 +88,7 @@ class CalibrationChains(unittest.TestCase):
             (path/'upstream').write_text('unused-test-upstream')
             for chain in (11155111, 11155420):
                 fork = c.Fork(18555)
-                with patch.object(c.subprocess, 'Popen') as popen, patch.object(c.threading, 'Thread'), patch.object(c.Fork, '__call__', return_value=hex(chain)):
+                with patch.object(c.subprocess, 'Popen') as popen, patch.object(c.threading, 'Thread'), patch.object(c, 'choose_port', return_value=18555), patch.object(c.Fork, '__call__', side_effect=lambda method, params: {'eth_chainId': hex(chain), 'web3_clientVersion': 'anvil/v1', 'anvil_nodeInfo': {'forkConfig': {'forkBlockNumber': 123}}}[method]):
                     popen.return_value.poll.return_value = None
                     fork.start(path/'upstream', 123, path/'log', chain)
                     argv = popen.call_args.args[0]
@@ -213,6 +213,7 @@ class ExplicitCalibrationChain(unittest.TestCase):
              patch.object(c.Runner, 'run_steps', return_value=[]), patch.object(c.subprocess, 'run') as run, \
              patch('builtins.print'):
             fork.return_value.anvil = 'mock-anvil'
+            fork.return_value.proc.pid = 123
             fork.return_value.url = 'http://127.0.0.1:18555'
             q.m.sp_attempt_precheck.return_value = True
             q.pre_send.return_value = True
@@ -292,7 +293,7 @@ class ExplicitCalibrationChain(unittest.TestCase):
                 self.derive(chains, chain)
 
     def test_fork_rpc_chain_mismatch(self):
-        with patch.object(c.subprocess, 'Popen') as popen, patch.object(c.threading, 'Thread'), \
+        with patch.object(c.subprocess, 'Popen') as popen, patch.object(c.threading, 'Thread'), patch.object(c, 'choose_port', return_value=18555), \
              patch.object(c.Fork, '__call__', return_value=hex(11155111)), patch.object(c.Fork, 'stop') as stop:
             popen.return_value.poll.return_value = None
             with self.assertRaisesRegex(SystemExit, 'STOP fork chainId mismatch'):
