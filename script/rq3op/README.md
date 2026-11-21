@@ -90,6 +90,114 @@ checked on both endpoints. Every gas limit must be positive, including VPM postO
 `safeTransactions` supplies gas measurements for C1, GToken.transfer,
 SP.stake.schedule and SP.stake.execute. Common gas/fee factors apply to these too.
 
+## Deriving inputs and calibrating on a fork (`derive_inputs.py`, `calibrate.py`)
+
+After a new real deployment, refresh the key-only fixture with `python3 -B script/rq3op/fixtures/gen_config_keys.py /path/to/new/config.op-sepolia.json script/rq3op/fixtures/deploylive-config-keys.op-sepolia.json` and review the key diff.
+
+The calibration chain is the required integer `--chain` argument; DeployLive configs
+do not need a `chainId` key. Derivation checks both providers against this chain,
+the fork checks its RPC chain ID, and the checker binds the config to this chain.
+Supported fork rules are centralized in `calibrate.py`: Sepolia `11155111` uses
+`--chain-id 11155111 --hardfork amsterdam`; OP Sepolia `11155420` uses
+`--chain-id 11155420 --hardfork op:karst --optimism`. Unknown chains STOP.
+OP `op:karst` is accepted by nightly `4e8874b` anvil. Never replace the real chain
+ID with `31337`. OP Sepolia has a 2-second block time and a base fee around 250 wei;
+actual fee inputs come from the pin. Anvil's Optimism execution accounts for L1
+data fees; these tools do not hand-model them.
+
+`--upstream-file` must contain a **KEYLESS upstream** URL: Anvil receives its
+contents as a command-line argument, visible in the process table. This also
+applies to the probe's case `upstream` files. Diagnostic redaction does not hide
+process arguments.
+
+Run the planner/checker with the **archived planner environment file**, containing
+only the checker's variables. Keep `DEPLOYLIVE_EVIDENCE_DIR` unset and set
+`DEPLOYLIVE_LOCAL_EVIDENCE` to the archived evidence under the worktree's `cache/`.
+Never use the deploy-day loader for this: the checker requires
+"evidence must be below worktree cache root".
+Run `calibrate.py` (and the planner) with the **current directory set to the planner root**
+(`cd <deploy worktree>` before invoking the tool from its own checkout): the planner resolves the
+calibration's relative `evidenceFile` against the current directory, and anything outside the planner
+root stops with `rq3_path`.
+
+Fork ports are selected by the tool. Before writes, the child must still be alive,
+the endpoint must report Anvil, and its fork configuration must match the requested
+block pin. The probe requires an explicit case `block`.
+
+OP Sepolia measurement invocation (all paths and pin values are placeholders;
+prepare the checker, provisional calibration and derived inputs using the sequence below):
+
+```sh
+python3 -B script/rq3op/calibrate.py run --mode measure --chain 11155420 \
+  --planner-root /path/to/deploy-worktree \
+  --config /path/to/deploy-worktree/deployments/live/config.op-sepolia.json \
+  --upstream-file /path/to/keyless-op-sepolia-upstream-file \
+  --inputs /path/to/inputs.json --calibration /path/to/provisional-calibration.json \
+  --checker-record /path/to/checker.json \
+  --pin <block-number> --pin-hash <block-hash> --out-dir /path/to/measurements
+```
+
+Use that same config and `--chain 11155420` for `checker`, `provisional`, `assemble`, `derive_inputs.py`
+and `run --mode verify`. Labels identify the chain and config SHA-256 and retain
+**REHEARSAL / fork measurement; not for reuse** semantics. Assembly rejects
+measurements from a different chain or config. The standalone `tpm_gas_probe.py`
+reads the chain and config digest from plan 0; omitted case hardfork/flags use the
+same mapping, and conflicting identity flags STOP. The deployment planner remains
+bound to commit `99a38d8d` and is not modified by calibration.
+
+Two tools produce the "reviewed" values of steps 3-4. Neither sends to a real chain.
+
+`derive_inputs.py` reads both providers at one EIP-1898 pinned block hash
+(`requireCanonical`) and requires byte-identical results. It writes
+`inputs.<variant>.json` and `derived-values.json` ("value / how derived / pinned
+block (hash, both providers equal)"):
+
+| Value | Derivation | Planner check that consumes it |
+|---|---|---|
+| `accountImplementation` | `factory.accountImplementation()` | `C5_factory_implementation` |
+| `runtimeKeccak.accountFactory` | `keccak(eth_getCode(factory))` | `C5_factory_runtime` |
+| `runtimeKeccak.accountImplementation` | `keccak(eth_getCode(implementation))` | `C5_implementation_runtime` |
+| `runtimeKeccak.account` | `keccak(eth_getCode(sample))` of an existing proxy with the same ERC1967 implementation, found by `eth_getLogs` on `SimpleAccountInitialized` (EntryPoint topic) | C5 `codeHash` readback |
+| `account` | `factory.getAddress(owner, salt)` | `C5_counterfactual_pin` |
+| `runtimeKeccak.VerifyingPaymaster` / `.TokenPaymaster` | read-only creation `eth_call {from: experiment, data: artifact.bytecode ++ args}`. The arguments come from plan 0's exact C12/C14 transaction. The artifact SHA-256 must equal `baselineSha256`. TPM's constructor calls Q and the oracle, so their runtimes are supplied as state overrides. These are taken from plan 0's own C13 `code` readbacks. | C12/C14 `codeHash` readbacks |
+| SDK `xAmount` | `plan_three_arm.cost_bounds` at the pinned SP pricing, `N = sdkRuns*(4+sdkMaxOps)`, chosen `(N+PC_BETA)*Xmax` | `rq3_sdk_amount` |
+
+All addresses are written lowercase (`pc_address`). The comparator constructor
+arguments contain plan-derived addresses. That creates a cycle between the inputs and
+the plan. Stage 1 therefore writes clearly-labelled PROVISIONAL comparator keccaks,
+and stage 2 (`--plan`) replaces them. Comparator addresses depend only on sender
+nonces, not on these keccaks, so the final plan's C12/C14 bytes are unchanged.
+
+`calibrate.py` breaks the plan<->calibration cycle in this order:
+
+1. `checker`: runs the commit-bound checker against the configured chain at the pin hash.
+2. `provisional`: a deliberately generous calibration of kind `estimate`. It stays
+   within the 2^24 per-transaction cap after gasFactor.
+3. `run --mode measure`: the tool starts anvil itself on 127.0.0.1, forking Tenderly
+   at the pin. It applies fork-only changes, all recorded:
+   - funding of experiment, genesis, the Safe and the Safe owners;
+   - a permissionless `SP.updatePrice()`;
+   - for every S, the owner storage slot is replaced by a public fork key;
+   - VerifyingPaymaster's `verifyingSigner` immutable bytes are replaced by a fork key.
+
+   It then calls the planner's pure `build()` on the fork. It executes the four Safe
+   transactions through `execTransaction` with pre-validated signatures. The
+   48-hour execute is measured in a snapshot, and the stake is then reproduced by the
+   impersonated timelock. Every queued step goes through `precheck_state`, `pre_send`,
+   `phase_c_pre_send` and `check_predicate`. Last come the post-setup `funding_gate`
+   and `sp_attempt_precheck`. `calibrate_ops.mjs` builds each UserOperation from
+   `frozen-plan.mjs`'s frozen gas, fees and callData with the collector's packing and
+   signing, and finalises PVG with `pvg.mjs`. For each field it finds the smallest
+   limit that EntryPoint accepts and that still yields a successful op. Each
+   candidate is re-signed and sent inside `evm_snapshot`/`evm_revert`. Callee frame
+   gas understates EntryPoint's accounting: AA26 also counts the nonce update.
+4. `assemble`: builds the calibration (kind `measured`, blockHash = the pin's real
+   hash) and its evidence. Every number lists the fork transaction(s) that measured it.
+5. `run --mode verify`: re-plans with the measured calibration on a fresh fork. It
+   repeats the whole sequence with the frozen limits, without the search.
+
+Outputs belong under `cache/`. Rehearsal outputs must never be reused for a real run.
+
 ## Plan and review
 
 In the parent session with network access, from the repository root:
