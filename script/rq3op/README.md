@@ -92,6 +92,40 @@ SP.stake.schedule and SP.stake.execute. Common gas/fee factors apply to these to
 
 ## Deriving inputs and calibrating on a fork (`derive_inputs.py`, `calibrate.py`)
 
+After a new real deployment, refresh the key-only fixture with `python3 -B script/rq3op/fixtures/gen_config_keys.py /path/to/new/config.op-sepolia.json script/rq3op/fixtures/deploylive-config-keys.op-sepolia.json` and review the key diff.
+
+The calibration chain is the required integer `--chain` argument; DeployLive configs
+do not need a `chainId` key. Derivation checks both providers against this chain,
+the fork checks its RPC chain ID, and the checker binds the config to this chain.
+Supported fork rules are centralized in `calibrate.py`: Sepolia `11155111` uses
+`--chain-id 11155111 --hardfork amsterdam`; OP Sepolia `11155420` uses
+`--chain-id 11155420 --hardfork op:karst --optimism`. Unknown chains STOP.
+OP `op:karst` is accepted by nightly `4e8874b` anvil. Never replace the real chain
+ID with `31337`. OP Sepolia has a 2-second block time and a base fee around 250 wei;
+actual fee inputs come from the pin. Anvil's Optimism execution accounts for L1
+data fees; these tools do not hand-model them.
+
+OP Sepolia measurement invocation (all paths and pin values are placeholders;
+prepare the checker, provisional calibration and derived inputs using the sequence below):
+
+```sh
+python3 -B script/rq3op/calibrate.py run --mode measure --chain 11155420 \
+  --planner-root /path/to/deploy-worktree \
+  --config /path/to/deploy-worktree/deployments/live/config.op-sepolia.json \
+  --upstream-file /path/to/tenderly-op-sepolia-gateway-file \
+  --inputs /path/to/inputs.json --calibration /path/to/provisional-calibration.json \
+  --checker-record /path/to/checker.json \
+  --pin <block-number> --pin-hash <block-hash> --out-dir /path/to/measurements
+```
+
+Use that same config and `--chain 11155420` for `checker`, `provisional`, `assemble`, `derive_inputs.py`
+and `run --mode verify`. Labels identify the chain and config SHA-256 and retain
+**REHEARSAL / fork measurement; not for reuse** semantics. Assembly rejects
+measurements from a different chain or config. The standalone `tpm_gas_probe.py`
+reads the chain and config digest from plan 0; omitted case hardfork/flags use the
+same mapping, and conflicting identity flags STOP. The deployment planner remains
+bound to commit `99a38d8d` and is not modified by calibration.
+
 Two tools produce the "reviewed" values of steps 3-4. Neither sends to a real chain.
 
 `derive_inputs.py` reads both providers at one EIP-1898 pinned block hash
@@ -117,7 +151,7 @@ nonces, not on these keccaks, so the final plan's C12/C14 bytes are unchanged.
 
 `calibrate.py` breaks the plan<->calibration cycle in this order:
 
-1. `checker`: runs the commit-bound checker against real Sepolia at the pin hash.
+1. `checker`: runs the commit-bound checker against the configured chain at the pin hash.
 2. `provisional`: a deliberately generous calibration of kind `estimate`. It stays
    within the 2^24 per-transaction cap after gasFactor.
 3. `run --mode measure`: the tool starts anvil itself on 127.0.0.1, forking Tenderly

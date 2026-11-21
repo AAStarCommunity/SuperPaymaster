@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""REHEARSAL calibration of the RQ3 three-arm planner on a LOCAL ANVIL FORK of real Sepolia.
+"""REHEARSAL calibration of the RQ3 three-arm planner on a LOCAL ANVIL FORK of the configured chain.
 
 Never sends to a real chain: every write goes to an anvil process this tool starts itself on
 127.0.0.1 (fork upstream: provider B / Tenderly, URL passed via file and never printed), killed
-by PID at exit. Real Sepolia is only READ, by the planner's own checker (subcommand `checker`).
+by PID at exit. The upstream chain is only READ, by the planner's own checker (subcommand `checker`).
 
 Breaking the plan <-> calibration cycle (see README "Calibration on a fork"):
   1. `provisional` writes a deliberately generous, clearly labelled calibration (kind "estimate").
@@ -13,7 +13,7 @@ Breaking the plan <-> calibration cycle (see README "Calibration on a fork"):
      plan_three_arm.pre_send, manifest_exec.phase_c_pre_send, manifest_exec.check_predicate), then
      UserOperations per arm per sender (calibrate_ops.mjs, collector op construction).
   3. `assemble` turns the measurements into calibration.json + evidence (kind "measured",
-     blockHash = the fork pin's real Sepolia hash) with a fork transaction for every number.
+     blockHash = the fork pin's real chain hash) with a fork transaction for every number.
   4. `run --mode verify` re-plans with the measured calibration on a fresh fork and repeats the
      whole sequence with the frozen limits, so the limits are shown to be sufficient.
 """
@@ -35,7 +35,24 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ANVIL_171 = Path.home()/'.foundry/versions/v1.7.1/anvil'
 ANVIL_NIGHTLY = Path.home()/'Dev/aastar/tools/foundry-rams/nightly-4e8874b/anvil'
-LABEL = 'REHEARSAL ONLY (attempt1, void deployment, fork measurement); must not be reused for the real run'
+FORK_PARAMETERS = {
+    11155111: dict(hardfork='amsterdam', flags=[]),
+    11155420: dict(hardfork='op:karst', flags=['--optimism']),
+}
+
+
+def fork_parameters(chain):
+    if chain not in FORK_PARAMETERS:
+        raise SystemExit(f'STOP unsupported chainId {chain}')
+    return copy.deepcopy(FORK_PARAMETERS[chain])
+
+
+def rehearsal_label(config, chain):
+    raw = Path(config).read_bytes()
+    fork_parameters(chain)
+    name = 'OP Sepolia' if chain == 11155420 else 'Sepolia'
+    return f'REHEARSAL ONLY / fork measurement; {name} chainId={chain}; config sha256={sha(raw)}; not for reuse'
+
 NEUTRAL_KEEPER = '0x000000000000000000000000000000000000c0de'
 
 
@@ -63,13 +80,14 @@ class Fork:
             raise ForkError(method, message, value['error'].get('data'))
         return value['result']
 
-    def start(self, upstream_file, pin, log, hardfork='amsterdam'):
+    def start(self, upstream_file, pin, log, chain):
+        parameters = fork_parameters(chain)
         upstream = Path(upstream_file).read_text().strip()
         for anvil in (ANVIL_171, ANVIL_NIGHTLY):
             port = self.url.rsplit(':', 1)[1]
             log.parent.mkdir(parents=True, exist_ok=True)
             self.proc = subprocess.Popen([str(anvil), '--fork-url', upstream, '--fork-block-number', str(pin),
-                '--chain-id', '11155111', '--hardfork', hardfork, '--port', port, '--host', '127.0.0.1',
+                '--chain-id', str(chain), '--hardfork', parameters['hardfork'], *parameters['flags'], '--port', port, '--host', '127.0.0.1',
                 '--no-rate-limit'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             # anvil prints its fork endpoint (which carries the provider key): redact every line before it is written.
             def pump(stream, path):
@@ -80,7 +98,11 @@ class Fork:
             for _ in range(300):
                 if self.proc.poll() is not None: break
                 try:
-                    self('eth_chainId', []); self.anvil = str(anvil); return
+                    observed = int(self('eth_chainId', []), 16)
+                    if observed != chain:
+                        self.stop()
+                        raise SystemExit('STOP fork chainId mismatch')
+                    self.anvil = str(anvil); return
                 except Exception: time.sleep(0.2)
             self.stop()
         raise SystemExit('STOP cannot start anvil fork (see log; URL redacted there? check before sharing)')
@@ -126,7 +148,8 @@ def cmd_provisional(args):
                       postOp=0 if arm == 'VPM' else 1_500_000, outer=8_000_000) for arm in ('SP', 'VPM', 'TPM')}
     safe = {k: 2_000_000 for k in ('C1', 'GToken.transfer', 'SP.stake.schedule', 'SP.stake.execute')}
     cfg = json.loads(Path(args.config).read_text())
-    evidence = dict(label='PROVISIONAL (generous, not measured): bootstrap only; ' + LABEL, chainId=11155111,
+    fork_parameters(args.chain)
+    evidence = dict(label='PROVISIONAL (generous, not measured): bootstrap only; ' + rehearsal_label(args.config, args.chain), chainId=args.chain, fork=fork_parameters(args.chain),
                     superPaymaster=cfg['superPaymaster'], commit=cfg['commit'], blockNumber=hex(args.pin),
                     blockHash=args.pin_hash, arms=arms, setup=setup, ownerPreparation=prep, ownerMaintenance=[],
                     bundlerMaintenance=[], safeTransactions=safe)
@@ -138,18 +161,20 @@ def cmd_provisional(args):
 
 # ---------------------------------------------------------------------------------------------
 def cmd_checker(args):
+    fork_parameters(args.chain)
     q, _, _ = load_planner(args.planner_root)
     cfg = json.loads(Path(args.config).read_text())
     url = Path(args.rpc_a_file).read_text().strip()
     tools = q.pinned_tools()
     with tools.active():
-        result = q.run_checker(args.config, cfg, url, 11155111, block=args.pin_hash, tools=tools)
+        result = q.run_checker(args.config, cfg, url, args.chain, block=args.pin_hash, tools=tools)
     print(json.dumps(dict(record=write_json(args.out, result), summary=result['summary'], snapshot=result['snapshotBlockHash'])))
 
 
 # ---------------------------------------------------------------------------------------------
 class Runner:
     def __init__(self, args):
+        fork_parameters(args.chain)
         self.args = args
         self.q, self.state, self.gw = load_planner(args.planner_root)
         self.m, self.a = self.q.m, self.q.a
@@ -218,7 +243,7 @@ class Runner:
         sp = cfg['superPaymaster']
         self.rpc('anvil_setBalance', [NEUTRAL_KEEPER, hex(10**18)])
         row, _ = self.send(dict({'from': NEUTRAL_KEEPER}, to=sp, data=self.a.calldata('updatePrice()'), gas=hex(300000)),
-                           'fork-only SP.updatePrice() (permissionless keeper call; attempt1 SP price is stale at the pin)')
+                           'fork-only SP.updatePrice() (permissionless keeper call; refresh the configured SP price at the pin)')
         return row
 
     def safe_owners(self, safe):
@@ -233,7 +258,7 @@ class Runner:
         internal = dict(checker, stdout='PASS verified checker execution\n'+checker['summary'])
         head = self.a.block_data(self.rpc, 'latest')
         frozen = lambda method, params: head if method == 'eth_getBlockByNumber' and params[0] == 'latest' else self.rpc(method, params)
-        q.verify_calibration(cfg, cal, 11155111, self.rpc)
+        q.verify_calibration(cfg, cal, self.args.chain, self.rpc)
         result = q.build(cfg, inputs, frozen, internal, cal, q.load_baselines(cfg, inputs))
         result['checker'] = checker
         for plan in result['plans'].values(): plan['checker'] = checker
@@ -308,20 +333,20 @@ class Runner:
         cal = json.loads(Path(args.calibration).read_text())
         checker = json.loads(Path(args.checker_record).read_text())
         out = Path(args.out_dir).resolve(); out.mkdir(parents=True, exist_ok=True)
-        self.fork.start(args.upstream_file, args.pin, out/'anvil.log')
+        self.fork.start(args.upstream_file, args.pin, out/'anvil.log', args.chain)
         try:
             head = a.block_data(self.rpc, 'latest')
             if a.qty(head['number']) != args.pin or head['hash'] != args.pin_hash:
-                raise SystemExit('STOP fork head is not the real Sepolia pin')
+                raise SystemExit('STOP fork head is not the configured chain pin')
             self.prepare(cfg, inputs)
             raw, plan_head = self.plan(cfg, inputs, cal, checker)
             plan_path = out/f'rq3-three-arm.{args.mode}.json'
             plan_path.write_bytes(raw)
             bundle = json.loads(raw)
-            record = dict(label=LABEL, mode=args.mode, anvil=self.fork.anvil, pin=dict(number=args.pin, hash=args.pin_hash),
+            record = dict(label=rehearsal_label(args.config, args.chain), mode=args.mode, anvil=self.fork.anvil, pin=dict(number=args.pin, hash=args.pin_hash, chainId=args.chain), fork=fork_parameters(args.chain),
                           planHead=dict(number=a.qty(plan_head['number']), hash=plan_head['hash']),
                           plan=dict(path=str(plan_path), sha256=sha(raw)), inputsSha256=sha(Path(args.inputs).read_bytes()),
-                          calibrationSha256=sha(Path(args.calibration).read_bytes()), configSha256=q.digest(cfg))
+                          calibrationSha256=sha(Path(args.calibration).read_bytes()), configSha256=sha(Path(args.config).read_bytes()))
             # Safe transactions first (README: Safe prerequisites execute before the local C steps).
             safe = cfg['governanceOwner']
             safe_rows = {}
@@ -396,7 +421,7 @@ class Runner:
                           forkTransactions=self.log, ops=json.loads((out/f'ops.{args.mode}.json').read_text()))
             print(json.dumps(dict(measurements=write_json(out/f'measurements.{args.mode}.json', record), plan=sha(raw))))
         finally:
-            write_json(out/f'fork-transactions.{args.mode}.json', dict(label=LABEL, notes=self.notes, transactions=self.log))
+            write_json(out/f'fork-transactions.{args.mode}.json', dict(label=rehearsal_label(args.config, args.chain), notes=self.notes, transactions=self.log))
             self.fork.stop()
 
 
@@ -408,6 +433,9 @@ def cmd_run(args):
 def cmd_assemble(args):
     rec = json.loads(Path(args.measurements).read_text())
     cfg = json.loads(Path(args.config).read_text())
+    fork_parameters(args.chain)
+    if rec['pin'].get('chainId') != args.chain or rec['configSha256'] != sha(Path(args.config).read_bytes()):
+        raise SystemExit('STOP measurement/config identity mismatch')
     prov = {}
     def put(group, key, value, source):
         cur = prov.setdefault(group, {}).setdefault(key, dict(value=0, sources=[]))
@@ -441,10 +469,10 @@ def cmd_assemble(args):
     block_number = hex(rec['pin']['number'])
     variants = {}
     for label, sp in (('', cfg['superPaymaster']), ('.lowercase', cfg['superPaymaster'].lower())):
-        evidence = dict(label=LABEL, kind='measured', chainId=11155111, superPaymaster=sp, commit=cfg['commit'], blockNumber=block_number,
+        evidence = dict(label=rehearsal_label(args.config, args.chain), kind='measured', chainId=args.chain, superPaymaster=sp, commit=cfg['commit'], blockNumber=block_number,
                         blockHash=rec['pin']['hash'], arms=arms, setup=setup, ownerPreparation=prep, ownerMaintenance=[],
                         bundlerMaintenance=[], safeTransactions=safe, provenance=prov,
-                        method=dict(fork=dict(anvil=rec['anvil'], hardfork='amsterdam', upstream='Tenderly (rpcb)', pin=rec['pin']),
+                        method=dict(fork=dict(anvil=rec['anvil'], **fork_parameters(args.chain), upstream='Tenderly (rpcb)', pin=rec['pin']),
                                     measurementPlanSha256=rec['plan']['sha256'], notes=rec['notes'],
                                     value='setup/safe: max(receipt gasUsed, eth_estimateGas) across senders; arms: max over senders and rounds of the smallest EntryPoint-accepted limit per field (binary search on the fork); outer: smallest handleOps gas limit with the scaled limits; preVerification not calibrated (rule)'))
         ev_path = Path(args.out_dir)/f'calibration-evidence{label}.json'
@@ -474,7 +502,10 @@ def main():
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser('assemble'); p.add_argument('--measurements', required=True); p.add_argument('--config', required=True)
     p.add_argument('--out-dir', required=True); p.add_argument('--evidence-prefix', required=True); p.set_defaults(fn=cmd_assemble)
+    for command in sub.choices.values():
+        command.add_argument('--chain', type=int, required=True)
     args = ap.parse_args()
+    fork_parameters(args.chain)
     try:
         args.fn(args)
     except Exception as error:

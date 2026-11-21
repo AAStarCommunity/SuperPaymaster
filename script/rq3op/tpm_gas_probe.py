@@ -19,6 +19,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from calibrate import fork_parameters
 
 
 def rpc_factory(url):
@@ -40,11 +41,23 @@ def intrinsic(data_hex):
     return dict(bytes=len(data), zero=zero, nonZero=nonzero, standardIntrinsic=standard, eip7623Floor=floor)
 
 
+def case_parameters(case, chain):
+    parameters = fork_parameters(chain)
+    if case.get('hardfork', parameters['hardfork']) != parameters['hardfork']:
+        raise SystemExit('STOP hardfork conflicts with chain mapping')
+    flags = case.get('flags', [])
+    if any(flag.split('=')[0] in ('--chain-id', '--hardfork', '--optimism', '--no-optimism', '--fork-url', '--host', '--port') for flag in flags):
+        raise SystemExit('STOP fork identity flags must come from chain mapping')
+    parameters['flags'] += flags
+    return parameters
+
+
 def run_case(case, plan0, log_dir, port):
+    expected_chain = plan0['chainId']
+    parameters = case_parameters(case, expected_chain)
     upstream = Path(case['upstream']).read_text().strip()
     cmd = [case['anvil'], '--fork-url', upstream, '--port', str(port), '--host', '127.0.0.1', '--no-rate-limit',
-           *(['--fork-block-number', str(case['block'])] if case.get('block') else []), *case.get('flags', [])]
-    if case.get('hardfork'): cmd += ['--hardfork', case['hardfork']]
+           *(['--fork-block-number', str(case['block'])] if case.get('block') else []), *parameters['flags'], '--chain-id', str(expected_chain), '--hardfork', parameters['hardfork']]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     log = Path(log_dir)/f"anvil.{case['name']}.log"
     def pump():
@@ -58,6 +71,7 @@ def run_case(case, plan0, log_dir, port):
             try: chain = int(rpc('eth_chainId', []), 16); break
             except Exception: time.sleep(0.2)
         else: return dict(case=case['name'], error='anvil did not start')
+        if chain != expected_chain: raise SystemExit('STOP fork chainId mismatch')
         head = rpc('eth_getBlockByNumber', ['latest', False])
         step = next(s for s in plan0['steps'] if s['id'] == 'C14')
         for dep in ('C13.token', 'C13.oracle'):
@@ -81,7 +95,7 @@ def run_case(case, plan0, log_dir, port):
         runtime = rpc('eth_getCode', [created, 'latest']) if created else '0x'
         size = (len(runtime) - 2)//2
         res = dict(case=case['name'], chainId=chain, forkBlock=int(head['number'], 16), forkBlockHash=head['hash'],
-                   hardfork=case.get('hardfork'), flags=case.get('flags', []), anvil=case['anvil'],
+                   hardfork=parameters['hardfork'], flags=parameters['flags'], anvil=case['anvil'],
                    blockGasLimit=int(head['gasLimit'], 16), status=receipt['status'], gasUsed=int(receipt['gasUsed'], 16),
                    estimate=estimate, frameGasUsed=int(trace.get('gasUsed', '0x0'), 16), frameGas=int(trace.get('gas', '0x0'), 16),
                    runtimeBytes=size, legacyCodeDeposit=200*size,
@@ -105,7 +119,7 @@ def main():
     plan0 = next(p for p in bundle['plans'].values() if p['planIndex'] == 0)
     cases = json.loads(Path(args.cases).read_text())
     results = [run_case(c, plan0, Path(args.out).parent, args.port) for c in cases]
-    record = dict(label='REHEARSAL probe; not a deployment approach', plan=args.plan,
+    record = dict(label=f"REHEARSAL ONLY / fork measurement; chainId={plan0['chainId']}; config sha256={plan0['configSha256']}; not for reuse", plan=args.plan,
                   planSha256=hashlib.sha256(Path(args.plan).read_bytes()).hexdigest(), results=results)
     raw = json.dumps(record, indent=2) + '\n'
     if re.search(r'(?i)(?:https?|wss?)://', raw): raise SystemExit('STOP URL in output')

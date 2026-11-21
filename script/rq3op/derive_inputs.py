@@ -32,8 +32,14 @@ ROOT = HERE.parents[1]
 EP = '0x0000000071727de22e5e9d8baf0edac6f37da032'
 IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
 SIMPLE_ACCOUNT_INITIALIZED = 'SimpleAccountInitialized(address,address)'
-LABEL = ('REHEARSAL ONLY: derived against the void attempt1 Sepolia deployment; '
-         'must not be reused for the real run')
+from calibrate import fork_parameters, rehearsal_label
+
+
+def validate_chain(chain, observed):
+    fork_parameters(chain)
+    if observed != chain:
+        raise SystemExit('STOP requested/pin chainId mismatch')
+
 
 
 class Provider:
@@ -201,6 +207,7 @@ def comparator_runtime(pin, plan_path, baseline_sha, experiment):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--config', required=True)
+    ap.add_argument('--chain', type=int, required=True)
     ap.add_argument('--rpc-a-file', required=True); ap.add_argument('--rpc-b-file', required=True)
     ap.add_argument('--provider-a', default='Alchemy'); ap.add_argument('--provider-b', default='Tenderly')
     ap.add_argument('--block', type=int, help='pin block number (default: head-3 on provider A)')
@@ -211,10 +218,11 @@ def main():
     args = ap.parse_args()
 
     cfg = json.loads(Path(args.config).read_text())
+    fork_parameters(args.chain)
     pr = json.loads(Path(args.principals).read_text())
     pin = Pinned(Provider(args.provider_a, args.rpc_a_file), Provider(args.provider_b, args.rpc_b_file), args.block)
-    if pin.chain[0] != 11155111:
-        raise SystemExit('STOP not Sepolia')
+    for observed in pin.chain:
+        validate_chain(args.chain, observed)
     rows = {}
     factory = cfg['simpleAccountFactory'].lower()
     factory_code = pin.code(factory)
@@ -283,7 +291,7 @@ def main():
         for name in ('VerifyingPaymaster', 'TokenPaymaster'):
             acct['runtimeKeccak'][name] = rows[f'{name}.runtimeKeccak']['value']
 
-    base = dict(rehearsal=LABEL, experiment=pr['experiment'].lower(), genesis=cfg['genesisOperator'].lower(),
+    base = dict(rehearsal=rehearsal_label(args.config, args.chain), experiment=pr['experiment'].lower(), genesis=cfg['genesisOperator'].lower(),
         bundler=pr['bundler'].lower(), verifyingSigner=pr['verifyingSigner'].lower(),
         gasFactor=pr['gasFactor'], feeFactor=pr['feeFactor'], priorityRule=pr['priorityRule'],
         feeCeiling=pr['feeCeiling'], stakeWei=pr['stakeWei'], unstakeDelay=pr['unstakeDelay'],
@@ -322,9 +330,9 @@ def main():
         path = out / f'inputs.{name}{suffix}.json'
         path.write_bytes(raw)
         written[path.name] = hashlib.sha256(raw).hexdigest()
-    record = dict(label=LABEL, config=dict(path=args.config, sha256=hashlib.sha256(Path(args.config).read_bytes()).hexdigest(),
+    record = dict(label=rehearsal_label(args.config, args.chain), config=dict(path=args.config, sha256=hashlib.sha256(Path(args.config).read_bytes()).hexdigest(),
                                            commit=cfg['commit']),
-                  pin=pin.pin_record(), chainId=pin.chain[0], provisional=provisional, values=rows, outputs=written,
+                  pin=pin.pin_record(), chainId=args.chain, provisional=provisional, values=rows, outputs=written,
                   notes=['All addresses are written lowercase because plan_three_arm.check_inputs applies '
                          'manifest_exec.pc_address (lowercase-only) to every identity.',
                          'Account salts are an operator choice (template 0/1/2); not supplied by DSR.'])

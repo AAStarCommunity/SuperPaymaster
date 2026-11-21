@@ -14,7 +14,7 @@
 // set to a public fork-only key, and the VerifyingPaymaster's verifyingSigner immutable bytes are
 // replaced by a fork-only signer. Both keep code paths and gas-relevant shapes identical
 // (same SLOAD/PUSH20 and ecrecover; same calldata lengths, checked by checkPVGLengths).
-// Never point this at a real chain: it refuses anything but chainId 11155111 on 127.0.0.1.
+// Never point this at a real chain: it refuses anything but chainId 11155111 or 11155420 on 127.0.0.1.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { concat, encodeAbiParameters, encodeFunctionData, getAddress, keccak256, pad, toHex, parseAbi, decodeEventLog } from 'viem';
@@ -63,7 +63,7 @@ const SEL = { validateUserOp: '0x19822f7c', validatePaymasterUserOp: '0x52b7512c
 const lower = v => String(v).toLowerCase();
 
 const chain = BigInt(await rpc('eth_chainId'));
-if (chain !== 11155111n) throw Error('fork chainId must be 11155111');
+if (chain !== 11155111n && chain !== 11155420n) throw Error('fork chainId must be 11155111 or 11155420');
 const bytes = readFileSync(req.bundlePath);
 const bundleSha256 = createHash('sha256').update(bytes).digest('hex');
 if (bundleSha256 !== req.bundleSha256) throw Error('BUNDLE_DIGEST_MISMATCH');
