@@ -181,7 +181,12 @@ change byte costs; numeric invariance is for identical op bytes. A 65-byte all-0
 owner signature placeholder is available before signing. At sign time the collector
 uses the actual nonce, beneficiary, owner signature and VPM signature, regenerates
 both signatures for each candidate PVG, and requires an exact fixed point including
-the PVG word itself. Cycles or non-convergence STOP before sending. No nonce prediction
+the PVG word itself. A deterministic signature changes with the PVG word, and its zero-byte
+count can alternate, so the rule value can cycle (for example 27196 <-> 27208 on the attempt1
+fork; see `a6-collector/pvg-cycle.test.mjs`). A cycle is resolved at its maximum m. The op is
+re-signed at m, its own bytes must cost r <= m, and the result declares `ruleValue` r,
+`surplus` m - r (a multiple of 12 gas) and `resolution: cycle-max`. Non-convergence without a
+cycle, r > m or m above the reserve still STOP before sending. No nonce prediction
 or empirical gas constant is used. The planner records `pvgLengths` for initCode,
 callData, paymasterAndData and signature per arm. `pvgReserve` applies the same rule
 to maximal non-zero op values and beneficiary (ABI padding remains canonical).
@@ -189,7 +194,8 @@ Signing rejects changed lengths (`PVG_LENGTHS`) or PVG above reserve (`PVG_RESER
 Prefund includes this reserve and excludes outer gas; outer funds only the bundler.
 
 Each SENT row records `pvgConsistency` = rule PVG - (21000 + standard calldata
-cost of actual tx input) / opsPerTx; nonzero STOPs with `PVG_CONSISTENCY`.
+cost of actual tx input) / opsPerTx. Any value other than the declared surplus (0 for an exact
+fixed point) STOPs with `PVG_CONSISTENCY`.
 Standard intrinsic calldata prices are zero 4 / non-zero 16. This rule ASSUMES the
 EIP-7623 calldata floor does not apply. Collection records `calldataFloorGas` =
 21000 + 10 * (zero + 4*nonZero), `outerGasUsed`, and `calldataFloorBinding` on equality.
