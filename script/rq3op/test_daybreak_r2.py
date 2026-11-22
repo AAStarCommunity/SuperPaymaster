@@ -110,10 +110,12 @@ class Round2(unittest.TestCase):
             return dict(abi=abi, bytecode={'object':'0x60'+hashlib.sha256(name.encode()).hexdigest()},deployedBytecode={'object':code,'immutableReferences':refs},
                 metadata={'settings':{'evmVersion':'cancun','viaIR':True,
                     'optimizer':{'runs':200 if name in ('Registry','TimelockHandoverBootstrap') else 500}}})
+        # The planner checks the deployed rc.8 table; the checker runs on 31337, whose table is the current source.
+        checker_versions=json.loads((q.ROOT/'deployments/release-versions.next.json').read_text())
         with patch('deploylive_runtime.release_artifact',side_effect=artifact):
-            rc,out=CheckerTest().run_checker(release_versions=versions)
+            rc,out=CheckerTest().run_checker(release_versions=checker_versions)
             self.assertEqual(rc,0,out)
-            rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=versions)
+            rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=checker_versions)
         self.assertEqual(rc,1,out)
-        self.assertIn('sp="SuperPaymaster-5.5.3"',out)
+        self.assertIn(f'sp="{checker_versions["SuperPaymaster"]}"',out)
         self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  readback snapshot policy', 'FAIL  runtime spImpl'])
