@@ -1227,32 +1227,22 @@ contract SuperPaymasterV55Test is Test {
         assertTrue(sp.isSlashPending(operator));
     }
 
-    function test_RC8_A_same_bundle_rejects_second() public {
+    function test_L01_residual_direct_handleOps_can_include_two_nonce_keys_and_charges_both() public {
         vm.prank(operator);
         sp.setOperatorLimits(60);
+        V55Counter counter = new V55Counter();
+        bytes memory exec = abi.encodeWithSignature(
+            "execute(address,uint256,bytes)", address(counter), 0, abi.encodeCall(V55Counter.inc, ())
+        );
         PackedUserOperation[] memory ops = new PackedUserOperation[](2);
-        ops[0] = _op(0, MIN_POST_OP_GAS, 0, "");
-        ops[1] = _op(1 << 64, MIN_POST_OP_GAS, 0, "");
-        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 1, "AA34 signature error"));
-        entryPoint.handleOps(ops, payable(beneficiary));
-    }
+        ops[0] = _op(0, MIN_POST_OP_GAS, 0, exec);
+        ops[1] = _op(1 << 64, MIN_POST_OP_GAS, 0, exec);
 
-    function test_RC8_A_zero_interval_admits_both() public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](2);
-        ops[0] = _op(0, MIN_POST_OP_GAS, 0, "");
-        ops[1] = _op(1 << 64, MIN_POST_OP_GAS, 0, "");
+        uint256 userBefore = token.balanceOf(user);
         entryPoint.handleOps(ops, payable(beneficiary));
-        assertEq(_opTotalSponsored(), 2);
-    }
-
-    function test_RC8_A_different_senders_admitted() public {
-        vm.prank(operator);
-        sp.setOperatorLimits(60);
-        PackedUserOperation[] memory ops = new PackedUserOperation[](2);
-        ops[0] = _op(0, MIN_POST_OP_GAS, 0, "");
-        ops[1] = _opFor(user2, OWNER2_PK, 0, MIN_POST_OP_GAS, 0, "");
-        entryPoint.handleOps(ops, payable(beneficiary));
-        assertEq(_opTotalSponsored(), 2);
+        assertEq(counter.n(), 2, "a direct/malicious bundler can include both nonce keys");
+        assertLt(token.balanceOf(user), userBefore, "both admitted ops are still charged");
+        assertEq(_opTotalSponsored(), 2, "both admitted ops settle");
     }
 
     function test_RC8_C_rotated_token_rejected_by_old_sp_lens() public {
@@ -1275,7 +1265,6 @@ contract SuperPaymasterV55Test is Test {
         assertEq(reason, lens.DRYRUN_LOCK_REJECTED());
     }
 
-    /// forge-config: default.isolate = true
     function test_L01_interval_boundary_rejects_before_and_accepts_at_threshold() public {
         vm.prank(operator);
         sp.setOperatorLimits(60);
@@ -1499,16 +1488,10 @@ contract SuperPaymasterV55Test is Test {
         }
         assertNotEq(start, type(uint256).max, "SP validation frame absent from real EntryPoint trace");
 
-        uint256 transientReads;
-        uint256 transientWrites;
         uint256 bannedCount;
         uint256 callCount;
         for (uint256 i = start; i < steps.length && steps[i].depth >= validationDepth; ++i) {
             uint8 opCode = steps[i].opcode;
-            if (steps[i].contractAddr == address(sp)) {
-                if (opCode == 0x5c) ++transientReads;
-                if (opCode == 0x5d) ++transientWrites;
-            }
             if (opCode == 0xf1 || opCode == 0xf2 || opCode == 0xf4 || opCode == 0xfa) {
                 assertGe(steps[i].memoryInput.length, 4, "validation closure contains selectorless call frame");
                 bytes4 selector;
@@ -1543,9 +1526,6 @@ contract SuperPaymasterV55Test is Test {
                 : (route == TRACE_CREDIT_MANUAL ? 10 : (route == TRACE_AGENT ? 6 : 5))),
             "validation closure size changed"
         );
-        (,,,,, uint48 interval,,,) = sp.operators(operator);
-        assertEq(transientReads, interval > 0 ? 1 : 0, "SP bundle marker TLOAD");
-        assertEq(transientWrites, expectHandleOpsSuccess ? (interval > 0 ? 2 : 1) : 0, "SP admission and inflight TSTORE");
         assertEq(bannedCount, 0, "ERC-7562 OP-011/OP-012 opcode in paymaster validation closure");
         if (expectHandleOpsSuccess) assertTrue(handleOpsSuccess, "real EntryPoint v0.7 handleOps failed");
     }

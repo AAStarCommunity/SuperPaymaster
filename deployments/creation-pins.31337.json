@@ -14,7 +14,7 @@
   "PolicyRegistry": "0x93a599d6ab2724f6481e842f9daa3cec1e83b0d4a8e829ea294bd875b2dba00a",
   "Registry": "0x69d07a6f0f6a4451ce22e2b644b308abcd7da97a08c0bb85c32f87d1c81c1958",
   "ReputationSystem": "0x2028efea55161e83fe6f2397048eeb4c390e8729c6f5c35cdf651f1388f39154",
-  "SuperPaymaster": "0x570729979ac341a38f70bd0f8ffa890645280df6c3ae38eb12bc8b46c875369d",
+  "SuperPaymaster": "0x8e826a38968da217091c181e7090c68ec93170cec9855d7b6c942daf5df5b941",
   "SuperPaymasterLens": "0xa943d78191a2b7bd00a57bda69b389f330c44dad271806348cb9b68601bb501a",
   "TimelockController": "0xafdb3ef7dcdafe1802f0e033efe53b0cc95552f7eaffa0d6c79a8c8bbb3c4a9e",
   "TimelockHandoverBootstrap": "0x7aa3157700a9d9f06f50135c25cf1c3bbf3ce6f78eb8b7f5ac9027b15620bc9d",

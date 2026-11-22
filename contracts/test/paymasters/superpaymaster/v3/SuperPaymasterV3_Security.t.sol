@@ -151,16 +151,6 @@ contract SuperPaymaster_SecurityTest is Test {
         assertEq(minTx, 60);
     }
 
-    /// @dev Validation and settlement share a transaction; separate helper calls are isolated.
-    function settleRateLimitOp(PackedUserOperation calldata op, IPaymaster.PostOpMode mode) external returns (uint256 vd) {
-        vm.startPrank(address(entryPoint));
-        bytes memory ctx;
-        (ctx, vd) = paymaster.validatePaymasterUserOp(op, keccak256("op1"), 100000);
-        paymaster.postOp(mode, ctx, 100000, 100000);
-        vm.stopPrank();
-    }
-
-    /// forge-config: default.isolate = true
     function testRateLimiting_DenySameBlock() public {
         vm.prank(operator);
         paymaster.setOperatorLimits(60);
@@ -169,12 +159,17 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // Tx 1: Time T
         vm.warp(1700001000);
-        uint256 valData = this.settleRateLimitOp(userOp, IPaymaster.PostOpMode.opSucceeded);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
         assertEq(uint160(valData), 0, "First tx valid");
+
+        // Simulate PostOp to update state
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
         // Tx 2: Time T (Same Block) - Should Fail (validAfter > timestamp)
         vm.prank(address(entryPoint));
-        (, valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op2"), 100000);
+        (ctx, valData) = paymaster.validatePaymasterUserOp(userOp, keccak256("op2"), 100000);
 
         // validationData: authorizer [0..159] | validUntil [160..207] | validAfter [208..255]
         uint48 validAfter = uint48(valData >> 208);
@@ -182,7 +177,6 @@ contract SuperPaymaster_SecurityTest is Test {
         assertGt(validAfter, block.timestamp, "Second tx in same block should be deferred");
     }
 
-    /// forge-config: default.isolate = true
     function testRateLimiting_RevertTooSoon() public {
         vm.prank(operator);
         paymaster.setOperatorLimits(60);
@@ -191,8 +185,13 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // Tx 1: Time 1000
         vm.warp(1700001000);
-        uint256 vd1 = this.settleRateLimitOp(userOp, IPaymaster.PostOpMode.opSucceeded);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd1) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
         assertEq(uint160(vd1), 0, "First tx valid");
+
+        // Simulate PostOp
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
         // Tx 2: Time 1030 (Delta 30 < 60) - Should return validAfter
         vm.warp(1700001030);
@@ -203,7 +202,6 @@ contract SuperPaymaster_SecurityTest is Test {
         assertGt(validAfter, block.timestamp, "Tx too soon should have future validAfter");
     }
 
-    /// forge-config: default.isolate = true
     function testRateLimiting_AllowAfterInterval() public {
         vm.prank(operator);
         paymaster.setOperatorLimits(60);
@@ -212,8 +210,13 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // Tx 1: Time 1000
         vm.warp(1700001000);
-        uint256 vd1 = this.settleRateLimitOp(userOp, IPaymaster.PostOpMode.opSucceeded);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd1) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
         assertEq(uint160(vd1), 0, "First tx valid");
+
+        // Simulate PostOp
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, ctx, 100000, 100000);
 
         // Tx 2: Time 1061 (Delta 61 > 60) - Pass
         vm.warp(1700001061);
@@ -229,7 +232,6 @@ contract SuperPaymaster_SecurityTest is Test {
     ///         gas (T-R14-04). Pre-5.5.0 this used PostOpMode.postOpReverted, which EntryPoint
     ///         v0.7 never passes to postOp; opReverted is the mode for a reverted user execution.
     ///         SP 5.5.0 settles identically in both modes.
-    /// forge-config: default.isolate = true
     function testRateLimiting_UpdatesOnRevert() public {
         vm.prank(operator);
         paymaster.setOperatorLimits(60);
@@ -238,9 +240,14 @@ contract SuperPaymaster_SecurityTest is Test {
 
         // Tx 1: Time 1000
         vm.warp(1700001000);
-        uint256 balBefore = xtok.balanceOf(user);
-        uint256 vd1 = this.settleRateLimitOp(userOp, IPaymaster.PostOpMode.opReverted);
+        vm.prank(address(entryPoint));
+        (bytes memory ctx, uint256 vd1) = paymaster.validatePaymasterUserOp(userOp, keccak256("op1"), 100000);
         assertEq(uint160(vd1), 0, "First tx valid");
+        uint256 balBefore = xtok.balanceOf(user);
+
+        // Simulate postOp for a reverted user execution
+        vm.prank(address(entryPoint));
+        paymaster.postOp(IPaymaster.PostOpMode.opReverted, ctx, 100000, 100000);
         assertLt(xtok.balanceOf(user), balBefore, "T-R14-04: reverted execution still pays (xc burned)");
         assertEq(xtok.lockedOf(user), 0, "T-R14-04: escrow cleared");
 

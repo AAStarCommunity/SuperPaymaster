@@ -242,7 +242,6 @@ contract APNTsCappedSPIntegrationTest is Test {
         _assertBacked("op");
     }
 
-    /// forge-config: default.isolate = true
     function test_SP_withdrawProtocolRevenue_after_ops() public {
         vm.startPrank(operator);
         apnts.approve(address(sp), type(uint256).max);

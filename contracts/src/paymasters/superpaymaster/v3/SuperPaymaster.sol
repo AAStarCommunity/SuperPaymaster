@@ -314,9 +314,6 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
 
         // V3.4: Rate Limiting (Using same SLOAD data)
         if (config.minTxInterval > 0) {
-            if (_isBundleAdmitted(operator, userOp.sender)) {
-                return ("", _packValidationData(true, 0, 0));
-            }
             uint48 lastTime = userState.lastTimestamp;
             // V3.6 FIX: Use validAfter to enforce rate limit instead of reverting on block.timestamp
             if (lastTime != 0) {
@@ -358,8 +355,6 @@ contract SuperPaymaster is SuperPaymasterStorage, IVersioned {
         // 5. User side: escrow first, credit only on INSUFFICIENT (R-2)
         uint8 mode = _reserveForOp(token, userOp.sender, userOpHash, aPNTsAmount, flags & FLAG_SP_RENEW != 0);
         if (mode == MODE_NONE) return ("", _packValidationData(true, 0, 0));
-
-        if (config.minTxInterval > 0) _setBundleAdmitted(operator, userOp.sender);
 
         // 6. Operator side: a0 is IN FLIGHT, not revenue, until postOp settles (R10-M1b)
         config.aPNTsBalance -= uint128(aPNTsAmount); // Safe cast due to check above
