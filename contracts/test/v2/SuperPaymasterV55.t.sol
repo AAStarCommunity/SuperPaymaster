@@ -1265,6 +1265,14 @@ contract SuperPaymasterV55Test is Test {
         assertEq(reason, lens.DRYRUN_LOCK_REJECTED());
     }
 
+    function test_RC8_C_reverting_token_sp_probe_rejects_validation() public {
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        vm.mockCallRevert(address(token), abi.encodeWithSignature("SUPERPAYMASTER_ADDRESS()"), bytes("probe failed"));
+        (bool ok, bytes32 reason) = lens.dryRunValidation(address(sp), op, 1e15);
+        assertFalse(ok, "failed SP probe must reject validation");
+        assertEq(reason, lens.DRYRUN_LOCK_REJECTED());
+    }
+
     function test_L01_interval_boundary_rejects_before_and_accepts_at_threshold() public {
         vm.prank(operator);
         sp.setOperatorLimits(60);

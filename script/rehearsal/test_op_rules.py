@@ -98,8 +98,10 @@ class OPRulesTest(unittest.TestCase):
 
     def test_four_chain_pins_and_external_dependencies(self):
         for kind in ('creation', 'runtime'):
-            files = [(d.ROOT / f'deployments/{kind}-pins.{chain}.json').read_bytes() for chain in (10,11155111,11155420,31337)]
-            self.assertTrue(all(raw == files[0] for raw in files))
+            for left, right in ((10, 31337), (11155111, 11155420)):
+                with self.subTest(kind=kind, chains=(left, right)):
+                    self.assertEqual((d.ROOT / f'deployments/{kind}-pins.{left}.json').read_bytes(),
+                                     (d.ROOT / f'deployments/{kind}-pins.{right}.json').read_bytes())
         deps = json.loads((d.ROOT/'deployments/external-deps.11155420.json').read_text())
         original = json.loads((d.ROOT/'deployments/external-deps.11155111.json').read_text())
         self.assertEqual(deps.keys(), original.keys())

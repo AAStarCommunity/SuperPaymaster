@@ -57,7 +57,15 @@ class Round2(unittest.TestCase):
             self.assertEqual(len(paths), 1)
             text = paths[0].read_text()
             expected[name]=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)[1]
-        self.assertEqual(json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text()),expected)
+        next_versions = json.loads((q.ROOT/'deployments/release-versions.next.json').read_text())
+        rc8 = json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text())
+        self.assertEqual(next_versions, expected)
+        self.assertEqual(rc8.keys(), next_versions.keys())
+        differences = {name: rc8[name] for name in rc8 if rc8[name] != next_versions[name]}
+        self.assertEqual(differences, {
+            'SuperPaymaster': 'SuperPaymaster-5.5.3',
+            'SuperPaymasterLens': 'SuperPaymasterLens-1.2.4',
+        })
 
     def test_planner_task_collisions(self):
         for token in ('X','Q','aPNTs'):
