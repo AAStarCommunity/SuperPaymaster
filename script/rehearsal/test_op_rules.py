@@ -96,6 +96,13 @@ class OPRulesTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'HTTP 400'):
                 rpc('eth_config')
 
+    def test_release_table_follows_chain_pins(self):
+        from deploylive_check_count import release_versions_file
+        for chain in (11155111, 11155420):
+            self.assertEqual(release_versions_file(chain), 'deployments/release-versions.rc8.json')
+        for chain in (10, 31337):
+            self.assertEqual(release_versions_file(chain), 'deployments/release-versions.next.json')
+
     def test_four_chain_pins_and_external_dependencies(self):
         for kind in ('creation', 'runtime'):
             for left, right in ((10, 31337), (11155111, 11155420)):

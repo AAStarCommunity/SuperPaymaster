@@ -306,7 +306,8 @@ def assertions():
         return code
     for key, ok in runtime_rows(CFG, mapping, runtime_pins.get('artifacts', {}), read_code):
         check("runtime " + key, ok and runtime_pins_ok, ("zero address; not deployed" if int(CFG[key], 16) == 0 else "exact EIP-1167 clone of config.xPNTsTokenV2Impl") if key == "pnts" else "release runtime pin; compiler immutable references masked")
-    versions = json.loads((ROOT/'deployments/release-versions.rc8.json').read_text())
+    from deploylive_check_count import release_versions_file
+    versions = json.loads((ROOT/release_versions_file(chain)).read_text())
     for key, name in mapping.items():
         name = PROXY_ABI.get(key, name)
         if name is None: continue
@@ -720,8 +721,8 @@ try:
 except (ValueError, KeyError, TypeError):
     hash_ok = False
 check('block hash rechecked', hash_ok, 'canonical header unchanged')
-from deploylive_check_count import expected_check_count
-expected_count = expected_check_count(CFG, policy, mapping, json.loads((ROOT/'deployments/release-versions.rc8.json').read_text()))
+from deploylive_check_count import expected_check_count, release_versions_file
+expected_count = expected_check_count(CFG, policy, mapping, json.loads((ROOT/release_versions_file(chain)).read_text()))
 if all(results) and len(results) == expected_count:
     record['block']['hashRechecked'] = True
     record['secondProvider'] = second

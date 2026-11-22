@@ -130,7 +130,7 @@ class CheckerTest(unittest.TestCase):
         if mutation in role_names:
             membership[roles[mutation]].add(h)
         mapping = json.loads((CHECKER.parents[2]/"deployments/readback-artifacts.json").read_text())
-        versions = json.loads((CHECKER.parents[2]/"deployments/release-versions.rc8.json").read_text())
+        versions = json.loads((CHECKER.parents[2]/"deployments/release-versions.next.json").read_text())
         from deploylive_readback import PROXY_ABI
         runtime_codes = {}
         creation_hashes = {proxy['runtime']: proxy['codehash']} if real_proxy else {}
@@ -438,7 +438,7 @@ class CheckerTest(unittest.TestCase):
                 obj = json.loads(raw); obj.get('immutableBindings', {}).get('SuperPaymaster', {}).pop('EXTENSION', None); return json.dumps(obj)
             if path.name == 'safe-official.json' and not real_proxy:
                 obj = json.loads(raw); obj['proxyCodehashes'] = [digest('0x6000')]; return json.dumps(obj)
-            if isinstance(mutation, tuple) and mutation[0] == 'versions' and path.name == 'release-versions.rc8.json':
+            if isinstance(mutation, tuple) and mutation[0] == 'versions' and path.name == 'release-versions.next.json':
                 obj = json.loads(raw); del obj[mutation[1]]; return json.dumps(obj)
             if mutation == 'missing_dep' and path.name == 'external-deps.31337.json':
                 obj = json.loads(raw); del obj['ethUsdFeed']; return json.dumps(obj)
