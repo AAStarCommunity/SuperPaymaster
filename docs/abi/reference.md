@@ -9032,9 +9032,9 @@ Authoritative, auto-generated reference for every external/public function, even
 ## SuperPaymasterAdmin
 
 - **Source:** `contracts/src/paymasters/superpaymaster/v3/SuperPaymasterAdmin.sol`
-- **Functions:** 97 · **Events:** 49 · **Errors:** 48
+- **Functions:** 98 · **Events:** 49 · **Errors:** 48
 - **Title:** SuperPaymasterAdmin (EXTENSION)
-- Governance, administration and non-hot-path views of SuperPaymaster 5.5.3 (D5b).
+- Governance, administration and non-hot-path views of SuperPaymaster 5.5.4 (D5b).
 
 ### Function selector index
 
@@ -9103,6 +9103,7 @@ Authoritative, auto-generated reference for every external/public function, even
 | `0xb54a8fca` | `queueBLSAggregator(address)` | nonpayable | onlyOwner |  |
 | `0xb4c18746` | `queueGasParams(uint32,uint32,uint32,uint32)` | nonpayable | onlyOwner | Queue new gas parameters; effective after GP_TIMELOCK via `executeGasParams`. |
 | `0xad1c98d7` | `queueSlash(address)` | nonpayable | — | Mark an operator as having a pending slash (owner, BLS aggregator, or guardian). |
+| `0x2c0cfaad` | `reconcileSBTStatus(address)` | nonpayable | — | Clear stale sponsorship eligibility after a failed Registry exit sync. |
 | `0x06433b1b` | `REGISTRY()` | view | — |  |
 | `0x715018a6` | `renounceOwnership()` | nonpayable | — | Always reverts (GOV-2 B.4). |
 | `0xf7e8cb0d` | `sbtHolders(address)` | view | — |  |
@@ -9736,6 +9737,16 @@ Authoritative, auto-generated reference for every external/public function, even
 | param | type | description |
 |---|---|---|
 | `operator` | `address` |  |
+
+#### `reconcileSBTStatus(address user)`
+
+`0x2c0cfaad` · nonpayable · access: —
+
+> Clear stale sponsorship eligibility after a failed Registry exit sync.
+
+| param | type | description |
+|---|---|---|
+| `user` | `address` |  |
 
 #### `REGISTRY()`
 

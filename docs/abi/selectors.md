@@ -236,6 +236,7 @@ Every 4-byte function selector and custom-error selector, plus event topic hashe
 | `0x2ab09d14` | `nextProposalId()` | IDVTValidator |
 | `0x2ab09d14` | `nextProposalId()` | DVTValidator |
 | `0x2be32dbb` | `categoryCount()` | DVTValidator |
+| `0x2c0cfaad` | `reconcileSBTStatus(address)` | SuperPaymasterAdmin |
 | `0x2c333e25` | `getCreditLimit(address)` | Registry |
 | `0x2c333e25` | `getCreditLimit(address)` | IRegistry |
 | `0x2c333e25` | `getCreditLimit(address)` | IRegistryCreditLimit |

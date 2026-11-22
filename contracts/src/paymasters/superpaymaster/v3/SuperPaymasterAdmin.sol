@@ -9,7 +9,7 @@ import "../../../interfaces/IxPNTsFactory.sol";
 
 /**
  * @title SuperPaymasterAdmin (EXTENSION)
- * @notice Governance, administration and non-hot-path views of SuperPaymaster 5.5.3 (D5b).
+ * @notice Governance, administration and non-hot-path views of SuperPaymaster 5.5.4 (D5b).
  * @dev    Reached ONLY via the SuperPaymaster core's fallback (DELEGATECALL): every function here
  *         runs against the proxy's storage, `msg.sender` is the original caller and events are
  *         emitted by the proxy. Nothing here is called from validatePaymasterUserOp / postOp.
@@ -204,6 +204,13 @@ contract SuperPaymasterAdmin is SuperPaymasterStorage {
         if (msg.sender != address(REGISTRY)) revert Unauthorized();
         sbtHolders[user] = status;
         emit SBTStatusUpdated(user, status);
+    }
+
+    /// @notice Clear stale sponsorship eligibility after a failed Registry exit sync.
+    function reconcileSBTStatus(address user) external {
+        if (!sbtHolders[user] || REGISTRY.getUserRoles(user).length != 0) revert InvalidConfiguration();
+        sbtHolders[user] = false;
+        emit SBTStatusUpdated(user, false);
     }
 
     // ====================================

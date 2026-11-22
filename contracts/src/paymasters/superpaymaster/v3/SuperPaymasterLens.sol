@@ -62,9 +62,9 @@ interface ISPLensView {
  *         Kept in lock-step with validation by the D-layer consistency test.
  */
 contract SuperPaymasterLens is IVersioned {
-    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.3");
+    bytes32 public constant EXPECTED_SP_VERSION = keccak256("SuperPaymaster-5.5.4");
 
-    // --- copies of SuperPaymaster 5.5.3 internal constants ---
+    // --- copies of SuperPaymaster 5.5.4 internal constants ---
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52;
     uint256 internal constant POSTOP_GAS_OFFSET = 36;
     uint256 internal constant RATE_OFFSET = 72;
@@ -96,7 +96,7 @@ contract SuperPaymasterLens is IVersioned {
     bytes32 public constant DRYRUN_SPONSORSHIP_PAUSED = bytes32("SPONSORSHIP_PAUSED");
 
     function version() external pure override returns (string memory) {
-        return "SuperPaymasterLens-1.2.4";
+        return "SuperPaymasterLens-1.2.5";
     }
 
     /// @dev D5b: `paused()` is the public getter of SuperPaymasterStorage, answered by the core itself
@@ -180,6 +180,10 @@ contract SuperPaymasterLens is IVersioned {
         );
         if (a0 > type(uint96).max) return (false, DRYRUN_AMOUNT_EXCEEDS_UINT96);
         if (uint256(opBalance) < a0) return (false, DRYRUN_INSUFFICIENT_BALANCE);
+
+        (bool spOk, uint256 currentSP) =
+            _staticWord(xToken, abi.encodeWithSignature("SUPERPAYMASTER_ADDRESS()"), 32);
+        if (!spOk || currentSP != uint256(uint160(sp))) return (false, DRYRUN_LOCK_REJECTED);
 
         bytes32 opHash = s.entryPoint().getUserOpHash(userOp);
         uint256 lr;

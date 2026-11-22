@@ -58,6 +58,10 @@ library SuperPaymasterAdminCalls {
         _x(sp).updateBlockedStatus(operator, users, statuses);
     }
 
+    function reconcileSBTStatus(SuperPaymaster sp, address user) internal {
+        _x(sp).reconcileSBTStatus(user);
+    }
+
     function updateSBTStatus(SuperPaymaster sp, address user, bool status) internal {
         _x(sp).updateSBTStatus(user, status);
     }

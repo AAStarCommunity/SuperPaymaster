@@ -8,6 +8,14 @@ import "../../src/tokens/MySBT.sol";
 import "../../src/tokens/GToken.sol";
 import "../../src/interfaces/v3/IRegistry.sol";
 import "../../src/interfaces/v3/IMySBT.sol";
+import {SuperPaymaster} from "src/paymasters/superpaymaster/v3/SuperPaymaster.sol";
+import {SuperPaymasterStorage} from "src/paymasters/superpaymaster/v3/SuperPaymasterStorage.sol";
+import {SuperPaymasterAdminCalls} from "src/paymasters/superpaymaster/v3/SuperPaymasterAdminCalls.sol";
+import {V55PriceFeed} from "../helpers/V55TestFixtures.sol";
+import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {EntryPoint} from "@account-abstraction-v7/core/EntryPoint.sol";
+using SuperPaymasterAdminCalls for SuperPaymaster;
+
 import {UUPSDeployHelper} from "../helpers/UUPSDeployHelper.sol";
 
 // Mock MySBT to avoid complex dependencies but still verify deactivation
@@ -38,6 +46,10 @@ contract RevertingSP {
     function updateSBTStatus(address, bool status) external pure {
         if (!status) revert("SP: updateSBTStatus down");
     }
+}
+
+interface IRC8Reconcile {
+    function reconcileSBTStatus(address user) external;
 }
 
 contract RegistryV3_Changes_Test is Test {
@@ -119,6 +131,57 @@ contract RegistryV3_Changes_Test is Test {
         // exitRole completed despite the SuperPaymaster revert; role fully removed.
         assertFalse(registry.hasRole(ROLE_COMMUNITY, community), "role removed despite SP revert");
         vm.stopPrank();
+    }
+
+    function _reconciliationSP() internal returns (SuperPaymaster sp) {
+        sp = UUPSDeployHelper.deploySuperPaymasterProxy(
+            IEntryPoint(address(new EntryPoint())), IRegistry(address(registry)),
+            address(new V55PriceFeed()), admin, address(gtoken), admin, 3600
+        );
+        vm.startPrank(admin);
+        registry.setSuperPaymaster(address(sp));
+        gtoken.mint(community, 100 ether);
+        vm.stopPrank();
+        vm.startPrank(community);
+        gtoken.approve(address(staking), 100 ether);
+        registry.registerRole(ROLE_COMMUNITY, community,
+            abi.encode(TestCommunityRoleData("Reconcile", "reconcile.eth", 30 ether)));
+        vm.stopPrank();
+        assertTrue(sp.sbtHolders(community));
+    }
+
+    function test_RC8_B_reconcile_while_role_exists_reverts() public {
+        SuperPaymaster sp = _reconciliationSP();
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        IRC8Reconcile(address(sp)).reconcileSBTStatus(community);
+    }
+
+    function test_RC8_B_reconcile_already_false_reverts() public {
+        SuperPaymaster sp = _reconciliationSP();
+        assertFalse(sp.sbtHolders(user));
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        IRC8Reconcile(address(sp)).reconcileSBTStatus(user);
+    }
+
+    function test_RC8_B_reconcile_failed_exit_sync() public {
+        SuperPaymaster sp = _reconciliationSP();
+        // As in M-2, only the exit's status=false sync fails; registration succeeded.
+        vm.mockCallRevert(address(sp), abi.encodeWithSignature("updateSBTStatus(address,bool)", community, false),
+            abi.encodeWithSignature("Error(string)", "SP: updateSBTStatus down"));
+        vm.prank(community);
+        vm.expectEmit(true, true, false, false, address(registry));
+        emit IRegistry.SBTStatusSyncFailed(community, ROLE_COMMUNITY);
+        registry.exitRole(ROLE_COMMUNITY);
+        vm.clearMockedCalls();
+        assertEq(registry.getUserRoles(community).length, 0);
+        assertTrue(sp.sbtHolders(community), "failed sync leaves stale eligibility");
+        vm.prank(address(0xCA11));
+        vm.expectEmit(true, false, false, true, address(sp));
+        emit SuperPaymasterStorage.SBTStatusUpdated(community, false);
+        IRC8Reconcile(address(sp)).reconcileSBTStatus(community);
+        assertFalse(sp.sbtHolders(community), "permissionless reconciliation clears eligibility");
+        vm.expectRevert(SuperPaymasterStorage.InvalidConfiguration.selector);
+        IRC8Reconcile(address(sp)).reconcileSBTStatus(community);
     }
 
     // NOTE: This test is skipped because Registry has an Anvil chainid check (31337)

@@ -1,8 +1,8 @@
 {
   "description": "SuperPaymaster Contract ABIs Manifest",
   "source": "SuperPaymaster/contracts/src",
-  "buildTime": "2026-11-18T06:47:15Z",
-  "totalHash": "8445c44d5a01a774c6becd9978737b686e88df01783da171e35773b718e8f643",
+  "buildTime": "2026-11-21T15:54:37Z",
+  "totalHash": "ac3ba89c08bef41fe857483a107a2d5745d3ff7a27da19562129c150302351c3",
   "files": [
     { "name": "AOAProtocolRegistry.json", "hash": "e6c7b68187d2b87e26e95238086d4795675b580577068245c30272aa773575fc" },
     { "name": "APNTsCapped.json", "hash": "238d603feb63aad3a00e72184b799bdb55e2ad1e540352388dd0f1c127047ed8" },
@@ -24,16 +24,16 @@
     { "name": "ReputationSystem.json", "hash": "c06e8e28a5776b0eb5576a6e157ffa48f3beb0152dd9962031d8d0d8fca5b793" },
     { "name": "SimpleAccount.json", "hash": "8ce0cf540d5f131b88578d6d3fe550c378c13e36099b1b23586529b4187e50da" },
     { "name": "SimpleAccountFactory.json", "hash": "54de0987d947381efe89546322b02564f96cba4c9704c67822f785df39f37022" },
-    { "name": "SuperPaymaster.full.json", "hash": "0559cf307e7765e0cbbd6cf123b5d1001fee7fb5ac46138afa5c0993f245ae43" },
-    { "name": "SuperPaymaster.json", "hash": "67b2e48c2e23175e4798aaaad55f75276c1163146b6d1347e8dd2750a6e6871f" },
-    { "name": "SuperPaymasterAdmin.json", "hash": "5a6d804835444f66ef03180e967e070ea21ff106fdd2f3807ca82e3091b5b2f5" },
-    { "name": "SuperPaymasterLens.json", "hash": "835c8e25b3b1f640a7bb3beb96e71903b0c3013fe532375ee9c4cd63900fea72" },
+    { "name": "SuperPaymaster.full.json", "hash": "9cc5ba8db28cda67dcb3407d3a1bc8ca241cf9daddfae1718b4324047954f1db" },
+    { "name": "SuperPaymaster.json", "hash": "e075e396215c10c9bb916d87ea1a55f4cd634ca237017d4465b8a977da78448b" },
+    { "name": "SuperPaymasterAdmin.json", "hash": "a25080fddbb7402505b00a3ab4278cc3db342af5853753a0276364d8f72ea4ea" },
+    { "name": "SuperPaymasterLens.json", "hash": "a350c2ccfd91c36620a9aac732906168181c4c38e02b9c61ae6c849b9fff09fe" },
     { "name": "TimelockController.json", "hash": "db7d0dbcd81f3dfa4c83bd97115a9031fcce2fa482c9833c5e95a98eaa599226" },
     { "name": "X402Facilitator.json", "hash": "8f44ddb4a80d7156a9eafb43c29c4ab56d600eadcae1dd2aec63bd1c38b15d8d" },
     { "name": "xPNTsFactory.json", "hash": "d90511e08d19146af0207a386701232774c5b2c3db3cb9bff81e06f42af78a5d" },
     { "name": "xPNTsFactoryV2.json", "hash": "28a9bf027c619babd6608bc26e2d3f05fd9bf378cacdd64f3577dbba3a68e99e" },
     { "name": "xPNTsToken.json", "hash": "e0fde871cb0292ba6133504b4a487b70870ec9fb73bb42440f4ea3f827528270" },
-    { "name": "xPNTsTokenV2.full.json", "hash": "7b5ab87f1c407cc1a268b19e84dece61e3201e171a6999d0466912455d3b3491" },
+    { "name": "xPNTsTokenV2.full.json", "hash": "73eff8610e5f76ba0999eea3d4dbd34e48bf28c46ee8c0c84a6493cdb98878cc" },
     { "name": "xPNTsTokenV2.json", "hash": "c4b160977c265ed7fe494e04af529ceaf54f91d58b3ddd0d82d9098353961253" },
     { "name": "xPNTsTokenV2Ext.json", "hash": "0797d09018a63d258966622771e80490fbc2c9747cdee7fe9d3caa241fba2e32" }
   ]

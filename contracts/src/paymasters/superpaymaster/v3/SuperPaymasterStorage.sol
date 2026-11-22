@@ -403,6 +403,20 @@ abstract contract SuperPaymasterStorage is BasePaymasterUpgradeable, ReentrancyG
         delete _inflight[opHash];
     }
 
+    function _bundleAdmissionSlot(address operator, address sender) private pure returns (bytes32) {
+        return keccak256(abi.encode(keccak256("SP.v5.5.bundle.admission"), operator, sender));
+    }
+
+    function _setBundleAdmitted(address operator, address sender) internal {
+        bytes32 slot = _bundleAdmissionSlot(operator, sender);
+        assembly { tstore(slot, 1) }
+    }
+
+    function _isBundleAdmitted(address operator, address sender) internal view returns (bool admitted) {
+        bytes32 slot = _bundleAdmissionSlot(operator, sender);
+        assembly { admitted := tload(slot) }
+    }
+
     function _inflightSlot(bytes32 opHash) private pure returns (bytes32) {
         return keccak256(abi.encode(opHash, INFLIGHT_SEED));
     }

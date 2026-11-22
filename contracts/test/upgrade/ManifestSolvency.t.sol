@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import "../tokens/APNTsCappedSPIntegration.t.sol";
 
 /// Exercises the real proxy, extension, token, slash and withdrawal revert paths.
+/// forge-config: default.isolate = true
 contract ManifestSolvencyTest is APNTsCappedSPIntegrationTest {
     using SuperPaymasterAdminCalls for SuperPaymaster;
 
