@@ -115,7 +115,7 @@ class LocalForgeTest(unittest.TestCase):
                     expected = expected_check_count(cfg,
                         json.loads((ROOT/'deployments/readback-policy.json').read_text()),
                         json.loads((ROOT/'deployments/readback-artifacts.json').read_text()),
-                        json.loads((ROOT/'deployments/release-versions.rc8.json').read_text()))
+                        json.loads((ROOT/'deployments/release-versions.next.json').read_text()))
                     self.assertEqual(result['result'], 'PASS')
                     self.assertEqual(result['total'], expected)
                     self.assertEqual(result['snapshotBlockHash'], pin)

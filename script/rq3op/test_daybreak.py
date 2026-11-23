@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import plan_three_arm as q
 import test_three_arm as fixtures
+DEPLOYED_RC8 = json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text())
 
 class Daybreak(unittest.TestCase):
     def setUp(self):
@@ -88,7 +89,8 @@ class DeploymentIdentity(unittest.TestCase):
                 text=(q.ROOT/'contracts/src'/source).read_text()
                 match=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)
                 if match:
-                    value=match[1].encode();versions[cfg[key]]='0x'+(32).to_bytes(32,'big').hex()+len(value).to_bytes(32,'big').hex()+value.hex()
+                    # The tool checks the deployed rc.8, so the simulated chain answers from that table.
+                    value=(DEPLOYED_RC8[q.RELEASE_NAMES[key]] if key in q.RELEASE_NAMES else match[1]).encode();versions[cfg[key]]='0x'+(32).to_bytes(32,'big').hex()+len(value).to_bytes(32,'big').hex()+value.hex()
         def rpc(method,params):return '0x6000' if method=='eth_getCode' else versions[params[0]['to']]
         q.verify_system(cfg,rpc,'0x20')
         for key in cfg:
@@ -179,7 +181,7 @@ class Generation(unittest.TestCase):
             if source:
                 match=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',(q.ROOT/'contracts/src'/source).read_text())
                 if match:
-                    value=match[1].encode()
+                    value=(DEPLOYED_RC8[q.RELEASE_NAMES[key]] if key in q.RELEASE_NAMES else match[1]).encode()
                     f.rpc.set(f.cfg[key],'version()',value='0x'+(32).to_bytes(32,'big').hex()+len(value).to_bytes(32,'big').hex()+value.hex())
         def rpc(method,params):
             if method=='eth_getCode' and params[0] in [f.cfg[k] for k in q.SYSTEM_SOURCES if k!='entryPoint']:return '0x6000'

@@ -970,6 +970,9 @@ contract Registry is Ownable2StepNamespaced, ReentrancyGuard, Initializable, UUP
             // (no stake locked yet if it reverts), so a revert here is a clean rollback the user can
             // retry — unlike exitRole, where a fatal call would freeze already-locked stake. Making
             // this non-fatal would risk a silent half-registration (registered but not SBT-eligible).
+            // On first registration, sbtHolders becomes true before _firstTimeRegister pushes the first userRoles entry.
+            // No external call exposes that gap today. A callback there would let SuperPaymaster.reconcileSBTStatus
+            // front-run the push and clear the holder flag.
             ISuperPaymaster(SUPER_PAYMASTER).updateSBTStatus(user, true);
         }
     }

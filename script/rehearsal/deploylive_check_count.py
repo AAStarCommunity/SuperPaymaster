@@ -4,6 +4,17 @@ Address getters and most immutable bindings share the snapshot-policy row; they
 are not individual SUMMARY rows. Runtime and version rows are per config entry.
 """
 
+# Sepolia and OP Sepolia carry the deployed rc.8 and keep its frozen table; every other
+# chain is checked against the current source release.
+RC8_DEPLOYED_CHAINS = frozenset({11155111, 11155420})
+
+
+def release_versions_file(chain):
+    # Chain 10 assumes the next version is what ships on OP Mainnet. An rc.8 deployment on
+    # chain 10 is deployed and post-checked from 99a38d8d / tag v5.5.0-rc.8, never from main.
+    return 'deployments/release-versions.rc8.json' if int(chain) in RC8_DEPLOYED_CHAINS else 'deployments/release-versions.next.json'
+
+
 def expected_check_count(cfg, policy, artifacts, versions):
     guardians = int(cfg['guardianN'])
     if not 2 <= guardians <= 64:

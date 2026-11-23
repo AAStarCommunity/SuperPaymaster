@@ -2953,6 +2953,19 @@
     },
     {
       "type": "function",
+      "name": "reconcileSBTStatus",
+      "inputs": [
+        {
+          "name": "user",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
       "name": "setAPNTSPrice",
       "inputs": [
         {

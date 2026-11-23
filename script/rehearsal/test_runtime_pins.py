@@ -45,7 +45,8 @@ class RuntimePinsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'runtime pin mismatch'):
             pins.check_runtime_pins(tampered, actual, compare_types=False)
         self.assertEqual((root/'deployments/runtime-pins.10.json').read_bytes(), (root/'deployments/runtime-pins.31337.json').read_bytes())
-        self.assertEqual((root/'deployments/runtime-pins.10.json').read_bytes(), (root/'deployments/runtime-pins.11155111.json').read_bytes())
+        # Sepolia and OP Sepolia record the deployed rc.8 and stay frozen. Chains 10 and 31337 track the current source.
+        self.assertEqual((root/'deployments/runtime-pins.11155111.json').read_bytes(), (root/'deployments/runtime-pins.11155420.json').read_bytes())
         # Production entry points refuse committed fixtures as release artifacts.
         (root/'cache').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=root/'cache') as tmp:

@@ -450,7 +450,7 @@ contract SuperPaymasterV55Test is Test {
     }
 
     function test_version() public view {
-        assertEq(sp.version(), "SuperPaymaster-5.5.3");
+        assertEq(sp.version(), "SuperPaymaster-5.5.4");
     }
 
     // ------------------------------------------------------------------
@@ -1243,6 +1243,34 @@ contract SuperPaymasterV55Test is Test {
         assertEq(counter.n(), 2, "a direct/malicious bundler can include both nonce keys");
         assertLt(token.balanceOf(user), userBefore, "both admitted ops are still charged");
         assertEq(_opTotalSponsored(), 2, "both admitted ops settle");
+    }
+
+    function test_RC8_C_rotated_token_rejected_by_old_sp_lens() public {
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        (bool ok, bytes32 reason) = lens.dryRunValidation(address(sp), op, 1e15);
+        assertTrue(ok, "current SP succeeds");
+        assertEq(reason, lens.DRYRUN_OK());
+        // Isolate the token rotation from governance approval/timelock tests.
+        vm.prank(user);
+        xPNTsTokenV2Ext(address(token)).setAutoAllowance(address(sp), 1000 ether);
+        vm.mockCall(address(aoa), abi.encodeCall(AOAProtocolRegistry.isApprovedSP, (address(0x1234))), abi.encode(true));
+        vm.prank(operator);
+        xPNTsTokenV2Ext(address(token)).proposeSP(address(0x1234));
+        vm.warp(block.timestamp + 48 hours);
+        xPNTsTokenV2Ext(address(token)).activateSP();
+        vm.prank(owner);
+        sp.updatePrice();
+        (ok, reason) = lens.dryRunValidation(address(sp), op, 1e15);
+        assertFalse(ok, "rotated SP must not report success");
+        assertEq(reason, lens.DRYRUN_LOCK_REJECTED());
+    }
+
+    function test_RC8_C_reverting_token_sp_probe_rejects_validation() public {
+        PackedUserOperation memory op = _op(0, MIN_POST_OP_GAS, 0, "");
+        vm.mockCallRevert(address(token), abi.encodeWithSignature("SUPERPAYMASTER_ADDRESS()"), bytes("probe failed"));
+        (bool ok, bytes32 reason) = lens.dryRunValidation(address(sp), op, 1e15);
+        assertFalse(ok, "failed SP probe must reject validation");
+        assertEq(reason, lens.DRYRUN_LOCK_REJECTED());
     }
 
     function test_L01_interval_boundary_rejects_before_and_accepts_at_threshold() public {

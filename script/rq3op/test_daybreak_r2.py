@@ -57,7 +57,15 @@ class Round2(unittest.TestCase):
             self.assertEqual(len(paths), 1)
             text = paths[0].read_text()
             expected[name]=re.search(r'function\s+version\s*\([^)]*\)[^{]*\{\s*return\s+"([^"\n]+)"',text)[1]
-        self.assertEqual(json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text()),expected)
+        next_versions = json.loads((q.ROOT/'deployments/release-versions.next.json').read_text())
+        rc8 = json.loads((q.ROOT/'deployments/release-versions.rc8.json').read_text())
+        self.assertEqual(next_versions, expected)
+        self.assertEqual(rc8.keys(), next_versions.keys())
+        differences = {name: rc8[name] for name in rc8 if rc8[name] != next_versions[name]}
+        self.assertEqual(differences, {
+            'SuperPaymaster': 'SuperPaymaster-5.5.3',
+            'SuperPaymasterLens': 'SuperPaymasterLens-1.2.4',
+        })
 
     def test_planner_task_collisions(self):
         for token in ('X','Q','aPNTs'):
@@ -102,10 +110,12 @@ class Round2(unittest.TestCase):
             return dict(abi=abi, bytecode={'object':'0x60'+hashlib.sha256(name.encode()).hexdigest()},deployedBytecode={'object':code,'immutableReferences':refs},
                 metadata={'settings':{'evmVersion':'cancun','viaIR':True,
                     'optimizer':{'runs':200 if name in ('Registry','TimelockHandoverBootstrap') else 500}}})
+        # The planner checks the deployed rc.8 table; the checker runs on 31337, whose table is the current source.
+        checker_versions=json.loads((q.ROOT/'deployments/release-versions.next.json').read_text())
         with patch('deploylive_runtime.release_artifact',side_effect=artifact):
-            rc,out=CheckerTest().run_checker(release_versions=versions)
+            rc,out=CheckerTest().run_checker(release_versions=checker_versions)
             self.assertEqual(rc,0,out)
-            rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=versions)
+            rc,out=CheckerTest().run_checker('runtime_spImpl', release_versions=checker_versions)
         self.assertEqual(rc,1,out)
-        self.assertIn('sp="SuperPaymaster-5.5.3"',out)
+        self.assertIn(f'sp="{checker_versions["SuperPaymaster"]}"',out)
         self.assertEqual([line.split(' ::')[0] for line in out.splitlines() if line.startswith('FAIL')],['FAIL  readback snapshot policy', 'FAIL  runtime spImpl'])
