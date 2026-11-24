@@ -26,7 +26,7 @@ const redact = s => String(s?.message ?? s).replace(/https?:\/\/\S+/g, '<url>');
 const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit-dir','config','inputs','start','end','expect-head','heads-file'];
 const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads'];
 // Optional: B endpoint file for the driver's own regeneration only (planner + post-deploy checker); steps use --rpc-b.
-const OPTIONAL_VALUE_KEYS = ['regen-rpc-b'];
+const OPTIONAL_VALUE_KEYS = ['regen-rpc-b', 'record-step', 'record-tx'];
 
 // setup.mjs:159-163 compares the two providers' parsed results with plain JSON.stringify, so equal objects whose
 // keys come back in a different order disagree (OP Sepolia headers: Alchemy vs QuickNode). The session hands setup a
@@ -60,10 +60,42 @@ const refuseSigning = () => { throw Error('probe: signing refused'); };
 // Probe signer: the configured address, and every signing call throws. Used only with --probe-reads; no keystore.
 export const probeSigner = async account => ({ type: 'local', source: 'probe', address: account.address,
   signMessage: refuseSigning, signTransaction: refuseSigning, signTypedData: refuseSigning });
-export function canonicalRuntime(formalRuntime, { probe = false } = {}) {
+// Post-send receipts (setup.mjs:268 calls pubA/pubB.waitForTransactionReceipt; :35 compares status, blockHash,
+// blockNumber). On a 2 s chain one provider can briefly answer from a sibling unsafe block (run 1, step 0). Each
+// provider's receipt is handed to setup only once that provider shows RECEIPT_CONFIRMATIONS confirmations and its own
+// block at receipt.blockNumber has receipt.blockHash. Errors while polling are retried until the timeout; then the
+// original viem waitForTransactionReceipt runs, so setup's own compare decides exactly as before (and its errors surface).
+export const RECEIPT_CONFIRMATIONS = 3, RECEIPT_TIMEOUT_MS = 120_000, RECEIPT_POLL_MS = 1_000;
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+export function stableReceipts(pub, stats, { confirmations = RECEIPT_CONFIRMATIONS, timeoutMs = RECEIPT_TIMEOUT_MS, pollMs = RECEIPT_POLL_MS, sleep = sleepMs, now = Date.now } = {}) {
+  const wait = async ({ hash, ...rest }) => {
+    const deadline = now() + timeoutMs;
+    Object.assign(stats, { hash, polls: 0, block: null, confirmations: null, fallback: false, errors: 0 });
+    while (now() < deadline) {
+      stats.polls++;
+      try {
+        const receipt = await pub.getTransactionReceipt({ hash });
+        const head = await pub.getBlockNumber({ cacheTime: 0 });
+        stats.block = String(receipt.blockNumber); stats.confirmations = String(head - receipt.blockNumber + 1n);
+        if (head - receipt.blockNumber + 1n >= BigInt(confirmations)) {
+          const block = await pub.getBlock({ blockNumber: receipt.blockNumber });
+          if (String(block.hash).toLowerCase() === String(receipt.blockHash).toLowerCase()) return receipt;
+        }
+      } catch { stats.errors++; }
+      await sleep(pollMs);
+    }
+    stats.fallback = true;
+    return pub.waitForTransactionReceipt({ hash, ...rest });
+  };
+  return new Proxy(pub, { get: (target, key) => key === 'waitForTransactionReceipt' ? wait : target[key] });
+}
+export function canonicalRuntime(formalRuntime, { probe = false, receipts = {}, onReceipts = () => {} } = {}) {
   return async options => {
     const runtime = await formalRuntime(probe ? { ...options, createSigner: probeSigner } : options);
-    return { ...runtime, archives: runtime.archives.map(archive => ({ ...archive, request: async args => sortKeys(await archive.request(args)) })) };
+    const stats = { A: {}, B: {} };
+    onReceipts(stats);
+    return { ...runtime, archives: runtime.archives.map(archive => ({ ...archive, request: async args => sortKeys(await archive.request(args)) })),
+      pubA: stableReceipts(runtime.pubA, stats.A, receipts), pubB: stableReceipts(runtime.pubB, stats.B, receipts) };
   };
 }
 
@@ -72,7 +104,7 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i]?.replace(/^--/, '');
     if (FLAG_KEYS.includes(k) && !(k in named)) { named[k] = true; continue; }
-    if (![...VALUE_KEYS, ...OPTIONAL_VALUE_KEYS].includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--regen-rpc-b <v>] [--empty-history-acknowledged] [--probe-reads]');
+    if (![...VALUE_KEYS, ...OPTIONAL_VALUE_KEYS].includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--regen-rpc-b <v>] [--record-step <i> --record-tx <hash>] [--empty-history-acknowledged] [--probe-reads]');
     named[k] = argv[++i];
   }
   for (const k of VALUE_KEYS) if (!(k in named)) throw Error('missing --' + k);
@@ -82,6 +114,15 @@ export function parseArgs(argv) {
   const start = Number(named.start), end = Number(named.end);
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) throw Error('--start/--end invalid');
   if (named['probe-reads'] && (start !== 0 || end !== 0)) throw Error('--probe-reads requires --start 0 --end 0');
+  // Record path: pinned setup.mjs record mode for one already-sent step (DSR ruling, run 1 step 0).
+  if (('record-step' in named) !== ('record-tx' in named)) throw Error('--record-step and --record-tx go together');
+  if ('record-step' in named) {
+    if (!/^0x[0-9a-f]{64}$/.test(named['record-tx'])) throw Error('--record-tx must be a 0x-prefixed 32-byte lowercase hash');
+    const step = Number(named['record-step']);
+    if (!/^\d+$/.test(named['record-step']) || step !== start || step !== end) throw Error('--record-step requires --start and --end equal to it');
+    if (named['probe-reads']) throw Error('--record-step cannot be combined with --probe-reads');
+    named['record-step'] = step;
+  }
   return { ...named, start, end, 'empty-history-acknowledged': named['empty-history-acknowledged'] === true, 'probe-reads': named['probe-reads'] === true };
 }
 
@@ -184,7 +225,10 @@ export async function runSession(opts, io) {
   // Probe success is recognised by this session's own Error instance, thrown only by deps.send.
   const refused = Error('probe: send refused');
   let sendCalls = 0;
-  const deps = { regenerate: async () => Buffer.from(regenerated), runtime: canonicalRuntime(formal.formalRuntime, { probe }),
+  const recording = opts['record-tx'] !== undefined;
+  if (recording) log('SESSION_NOTE record: pinned setup.mjs record mode for step ' + opts['record-step'] + ' tx ' + opts['record-tx'] + '; nothing is signed or sent');
+  let receipts = null;
+  const deps = { regenerate: async () => Buffer.from(regenerated), runtime: canonicalRuntime(formal.formalRuntime, { probe, onReceipts: s => { receipts = s; } }),
     ...(probe ? { send: async () => { sendCalls++; throw refused; } } : {}) };
   // 4. Operator confirmation (the price is refreshed between regeneration and this line).
   const confirm = async why => { log('SESSION_WAIT ' + why + ' — type "confirm" to continue, anything else stops'); return (await io.readLine())?.trim() === 'confirm'; };
@@ -203,11 +247,17 @@ export async function runSession(opts, io) {
     try { auditBase.ensure(); io.mkdir(stepDir); } catch (error) { return finish('stopped', { reason: 'step audit directory exists or cannot be created', nextIndex: index, error: redact(error) }); }
     const audit = resolve(stepDir, 'setup.audit.ndjson');
     record.audits.push(audit);
-    const args = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], audit, opts.config, opts.inputs, '--expect-head', head];
+    const base = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], audit, opts.config, opts.inputs];
+    const args = recording ? ['record', ...base, opts['record-tx'], '--expect-head', head] : [...base, '--expect-head', head];
     const ownBefore = completionEntry(completionPath, opts.digest, bundle.steps[index].id);
+    if (recording && ownBefore) return finish('stopped', { reason: 'record refused: the step already has its own completion entry', failedIndex: index });
+    receipts = null;
+    const logReceipts = () => { if (receipts?.A.hash || receipts?.B.hash) log('SESSION_RECEIPTS ' + JSON.stringify({ index, A: receipts.A, B: receipts.B })); };
     try {
       await setup.main(args, deps);
+      logReceipts();
     } catch (error) {
+      logReceipts();
       if (probe && error === refused && sendCalls === 1) {
         const after = chainHead(completionPath, opts.digest);
         if (after !== head || completionEntry(completionPath, opts.digest, bundle.steps[index].id))
@@ -225,6 +275,7 @@ export async function runSession(opts, io) {
     // with the head unchanged (already-satisfied-recorded; setup_state.py:41-42 needs a record for already-satisfied).
     const outcome = !ownBefore && own && next !== head && next === own.recordDigest ? 'recorded'
       : ownBefore && own && next === head && own.recordDigest === ownBefore.recordDigest ? 'already-satisfied-recorded' : 'unrecorded';
+    if (recording && outcome !== 'recorded') return finish('stopped', { reason: 'record: no new own completion entry', outcome, failedIndex: index, chainHeadAfterStep: next });
     if (outcome === 'unrecorded') return finish('stopped', { reason: 'unrecorded: setup returned without this step\'s own completion entry', outcome, failedIndex: index, chainHeadAfterStep: next });
     head = next;
     record.steps.push({ index, outcome }); record.heads.push(head); record.outcomes[outcome]++;
