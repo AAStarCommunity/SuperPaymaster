@@ -3,7 +3,7 @@
 // setup.mjs is imported from the deploy worktree given by path. The tree and module checks below DETECT a change
 // between checks (start, before each step, end); they are not an immutable snapshot, and transitive modules,
 // node_modules and PATH executables are not pinned. This file never sends, signs or writes the completion log itself.
-import { readFileSync, appendFileSync, realpathSync } from 'node:fs';
+import { readFileSync, appendFileSync, realpathSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -23,7 +23,7 @@ export const PINNED_MODULES = ['script/rq3op/setup.mjs', 'script/rq3op/completio
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const gitBlob = bytes => createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${bytes.length}\0`), bytes])).digest('hex');
 const redact = s => String(s?.message ?? s).replace(/https?:\/\/\S+/g, '<url>');
-const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit','config','inputs','start','end','expect-head','heads-file'];
+const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit-dir','config','inputs','start','end','expect-head','heads-file'];
 const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads'];
 // Optional: B endpoint file for the driver's own regeneration only (planner + post-deploy checker); steps use --rpc-b.
 const OPTIONAL_VALUE_KEYS = ['regen-rpc-b'];
@@ -109,7 +109,15 @@ export async function runSession(opts, io) {
     if (!canonical.startsWith(root + '/')) throw Error('--regen-rpc-b must be inside the deploy worktree');
     opts = { ...opts, 'regen-rpc-b': canonical };
   }
-  const log = io.log, record = { steps: [], heads: [] };
+  // Per-step audit window: setup.mjs:155 hands formal.mjs outPath = --audit, and evidence.mjs:39 creates
+  // <dirname>/raw/<A|B> with a non-recursive mkdir, so one shared audit path fails at the second step (EEXIST).
+  // Each step gets <audit-dir>/<3-digit index>/setup.audit.ndjson in a directory created exclusively just before it.
+  const auditLexical = resolve(root, opts['audit-dir']);
+  if (!auditLexical.startsWith(root + '/')) throw Error('--audit-dir must be inside the deploy worktree');
+  io.mkdir(auditLexical, { recursive: true });
+  const auditBase = io.realpath(auditLexical);
+  if (!auditBase.startsWith(root + '/')) throw Error('--audit-dir must be inside the deploy worktree');
+  const log = io.log, record = { steps: [], heads: [], audits: [] };
   const headsFile = resolve(opts['heads-file']);
   if (headsFile === root || headsFile.startsWith(root + '/')) throw Error('--heads-file must be outside the deploy worktree');
   const regenB = opts['regen-rpc-b'] ?? opts['rpc-b'];
@@ -120,7 +128,7 @@ export async function runSession(opts, io) {
     // A changed tree or file never ends as a success (complete or probe-reached-send).
     const final = !equal && (status === 'complete' || status === 'probe-reached-send') ? 'stopped-hash-mismatch' : status;
     const summary = { status: final, stepsDone: record.steps.length, lastIndex: record.steps.at(-1)?.index ?? null,
-      lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, ...extra };
+      lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, audits: record.audits, ...extra };
     log('SESSION_SUMMARY ' + JSON.stringify(summary));
     return summary;
   };
@@ -178,7 +186,11 @@ export async function runSession(opts, io) {
     const problem = treeProblem(io, root, opts['expect-commit'])
       ?? Object.entries(record.before.files).map(([p, h]) => sha256(io.read(resolve(root, p))) !== h ? 'session file changed since start: ' + p : null).find(Boolean);
     if (problem) return finish('stopped', { reason: problem, nextIndex: index });
-    const args = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], opts.audit, opts.config, opts.inputs, '--expect-head', head];
+    const stepDir = resolve(auditBase, String(index).padStart(3, '0'));
+    try { io.mkdir(stepDir); } catch (error) { return finish('stopped', { reason: 'step audit directory exists or cannot be created', nextIndex: index, error: redact(error) }); }
+    const audit = resolve(stepDir, 'setup.audit.ndjson');
+    record.audits.push(audit);
+    const args = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], audit, opts.config, opts.inputs, '--expect-head', head];
     try {
       await setup.main(args, deps);
     } catch (error) {
@@ -197,7 +209,7 @@ export async function runSession(opts, io) {
     if (next !== head && next !== own?.recordDigest) return finish('stopped', { reason: 'completion log head is not this step\'s own entry', failedIndex: index, chainHeadAfterStep: next });
     head = next;
     record.steps.push({ index }); record.heads.push(head);
-    io.appendHead(headsFile, JSON.stringify({ index, id: bundle.steps[index].id, chainHead: head, atMs: io.now() }) + '\n');
+    io.appendHead(headsFile, JSON.stringify({ index, id: bundle.steps[index].id, chainHead: head, audit, atMs: io.now() }) + '\n');
   }
   return finish('complete');
 }
@@ -205,7 +217,7 @@ export async function runSession(opts, io) {
 const realIO = () => {
   const rl = createInterface({ input: process.stdin }), lines = rl[Symbol.asyncIterator]();
   return {
-    realpath: realpathSync, read: p => readFileSync(p), now: () => Date.now(), log: s => process.stdout.write(s + '\n'),
+    realpath: realpathSync, read: p => readFileSync(p), mkdir: (p, o) => mkdirSync(p, o), now: () => Date.now(), log: s => process.stdout.write(s + '\n'),
     git: (root, args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim(),
     importModule: p => import(pathToFileURL(p).href),
     planner: async (root, args) => (await promisify(execFile)('python3', args, { cwd: root, encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).stdout,

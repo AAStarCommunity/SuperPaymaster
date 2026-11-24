@@ -7,6 +7,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSyn
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 
 const ROOT = '/deploy', COMMIT = 'a'.repeat(40);
 const sha256 = b => createHash('sha256').update(b).digest('hex');
@@ -19,7 +20,7 @@ const EXPECTED_PINNED = ['script/rq3op/setup.mjs', 'script/rq3op/completion.mjs'
   'script/rehearsal/deploylive_postdeploy_check.py', 'script/rq3op/checker_runner.py', 'script/a6-collector/formal.mjs',
   'script/a6-collector/frozen-plan.mjs'];
 const opts = (o = {}) => ({ 'deploy-root': ROOT, 'expect-commit': COMMIT, bundle: 'cache/plan.json', digest: sha256(BUNDLE),
-  signers: 's.json', 'rpc-a': 'cache/a', 'rpc-b': 'cache/b', audit: 'cache/audit.ndjson', config: 'cfg.json', inputs: 'in.json',
+  signers: 's.json', 'rpc-a': 'cache/a', 'rpc-b': 'cache/b', 'audit-dir': 'cache/steps', config: 'cfg.json', inputs: 'in.json',
   start: 0, end: 2, 'expect-head': GENESIS, 'heads-file': '/outside/heads.jsonl', 'empty-history-acknowledged': true, ...o });
 
 const FORMAL = { formalRuntime: async () => ({}) };
@@ -28,10 +29,11 @@ function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, 
     [resolve(root, 'cache/b')]: Buffer.from('steps-b'), [resolve(root, 'cache/regenb')]: Buffer.from('regen-b') };
   for (const p of EXPECTED_PINNED) files[resolve(root, p)] = Buffer.from('module ' + p);
   const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(root, p)])]));
-  const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [] };
+  const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [], dirs: [] };
   const state = { head: GENESIS, own: {}, status: '', commit: COMMIT };
   let t = 0;
   const io = {
+    mkdir: (p, o = {}) => { if (ev.dirs.includes(p)) { if (o.recursive) return; throw Object.assign(Error('EEXIST: ' + p), { code: 'EEXIST' }); } ev.dirs.push(p); },
     realpath: p => p, read: p => { if (!(p in files)) throw Error('missing ' + p); return files[p]; },
     now: () => (clock.length ? clock.shift() : t += 1000), log: s => ev.logs.push(s), chdir: d => ev.chdir.push(d),
     git: (root, args) => {
@@ -80,7 +82,7 @@ test('regenerates once, confirms, runs each step with deps.regenerate + deps.run
   for (const [i, call] of ev.main.entries()) {
     assert.deepEqual(Object.keys(call.deps), ['regenerate', 'runtime']);
     assert.ok((await call.deps.regenerate()).equals(BUNDLE));
-    assert.deepEqual(call.args, ['cache/plan.json', sha256(BUNDLE), String(i), 's.json', 'cache/a', 'cache/b', 'cache/audit.ndjson', 'cfg.json', 'in.json', '--expect-head', expected]);
+    assert.deepEqual(call.args, ['cache/plan.json', sha256(BUNDLE), String(i), 's.json', 'cache/a', 'cache/b', resolve(ROOT, 'cache/steps', String(i).padStart(3, '0'), 'setup.audit.ndjson'), 'cfg.json', 'in.json', '--expect-head', expected]);
     expected = sha256(expected + String(i));
     const line = JSON.parse(ev.heads[i][1]);
     assert.equal(line.chainHead, expected); assert.equal(line.id, IDS[i]); assert.equal(ev.heads[i][0], '/outside/heads.jsonl');
@@ -198,7 +200,7 @@ test('a changed session input after the last step never ends as complete', async
 
 test('argument parsing is strict', () => {
   assert.throws(() => parseArgs(['--bundle', 'x']), /missing/);
-  const ok = ['--deploy-root','/d','--expect-commit',COMMIT,'--bundle','b','--digest','f'.repeat(64),'--signers','s','--rpc-a','a','--rpc-b','b','--audit','u','--config','c','--inputs','i','--start','0','--end','51','--expect-head',GENESIS,'--heads-file','/h'];
+  const ok = ['--deploy-root','/d','--expect-commit',COMMIT,'--bundle','b','--digest','f'.repeat(64),'--signers','s','--rpc-a','a','--rpc-b','b','--audit-dir','u','--config','c','--inputs','i','--start','0','--end','51','--expect-head',GENESIS,'--heads-file','/h'];
   assert.equal(parseArgs(ok).end, 51); assert.equal(parseArgs(ok)['empty-history-acknowledged'], false);
   assert.equal(parseArgs([...ok, '--empty-history-acknowledged'])['empty-history-acknowledged'], true);
   assert.throws(() => parseArgs([...ok, '--start', '1']), /usage/);
@@ -403,7 +405,7 @@ function realTree() {
 function realFixture(root) {
   const f = fixture({ root });
   const read = f.io.read, reads = [];
-  f.io.realpath = realpathSync;
+  f.io.realpath = realpathSync; f.io.mkdir = (p, o) => mkdirSync(p, o);
   f.io.read = p => { reads.push(p); return p in f.files ? read(p) : readFileSync(p); };
   return { f, reads };
 }
@@ -418,10 +420,10 @@ test('--regen-rpc-b: an in-tree symlink to an outside file is refused before the
 test('--regen-rpc-b: an absolute in-tree path, a normalized `..` path and an in-tree symlink all resolve to the canonical file', async () => {
   const t = realTree();
   try {
-    for (const given of [resolve(t.root, 'cache/regenb'), 'cache/sub/../regenb', 'cache/inlink']) {
+    for (const [n, given] of [resolve(t.root, 'cache/regenb'), 'cache/sub/../regenb', 'cache/inlink'].entries()) {
       const { f } = realFixture(t.root);
       f.files[resolve(t.root, 'cache/b')] = Buffer.from('steps-b');
-      const s = await runSession(opts({ 'deploy-root': t.root, 'regen-rpc-b': given }), f.io);
+      const s = await runSession(opts({ 'deploy-root': t.root, 'regen-rpc-b': given, 'audit-dir': 'cache/steps' + n }), f.io);
       assert.equal(s.status, 'complete', given);
       assert.equal(f.ev.planner[0].args[f.ev.planner[0].args.indexOf('--rpc-b-file') + 1], resolve(t.root, 'cache/regenb'), given);
       const start = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14));
@@ -445,4 +447,62 @@ test('CLI process: a refused probe invocation exits 1 with a redacted message', 
   const argv = Object.entries(opts({ 'probe-reads': true, start: 0, end: 1 })).flatMap(([k, v]) => v === true ? ['--' + k] : v === false ? [] : ['--' + k, String(v)]);
   const r = spawnSync(process.execPath, [file, ...argv], { input: '', encoding: 'utf8' });
   assert.equal(r.status, 1); assert.match(r.stderr, /setup session stopped: --probe-reads requires --start 0 --end 0/);
+});
+
+// ── per-step audit window (DSR ruling (a): evidence.mjs:39 raw/<A|B> is a non-recursive mkdir) ──────────
+const stepAudit = (root, i) => resolve(root, 'cache/steps', String(i).padStart(3, '0'), 'setup.audit.ndjson');
+test('per-step audit: each step gets its own new directory; heads entries and SESSION_SUMMARY record the audit paths', async () => {
+  const f = fixture();
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'complete');
+  assert.deepEqual(s.audits, [0, 1, 2].map(i => stepAudit(ROOT, i)));
+  assert.deepEqual(f.ev.heads.map(([, l]) => JSON.parse(l).audit), [0, 1, 2].map(i => stepAudit(ROOT, i)));
+  assert.deepEqual(f.ev.dirs, [resolve(ROOT, 'cache/steps'), ...[0, 1, 2].map(i => resolve(ROOT, 'cache/steps', String(i).padStart(3, '0')))]);
+});
+test('per-step audit: an existing step directory stops before setup.main for that step', async () => {
+  const f = fixture();
+  f.ev.dirs.push(resolve(ROOT, 'cache/steps/001'));
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 1); assert.match(s.reason, /step audit directory exists/);
+  assert.equal(f.ev.main.length, 1); assert.deepEqual(s.audits, [stepAudit(ROOT, 0)]);
+});
+test('per-step audit: --audit (the single-file form that dies at step 1) is no longer accepted', () => {
+  const argv = Object.entries(opts()).flatMap(([k, v]) => v === true ? ['--' + k] : v === false ? [] : ['--' + k, String(v)]);
+  assert.throws(() => parseArgs([...argv.filter((a, i, all) => a !== '--audit-dir' && all[i - 1] !== '--audit-dir'), '--audit', 'cache/audit.ndjson']), /usage/);
+  assert.throws(() => parseArgs(argv.filter((a, i, all) => a !== '--audit-dir' && all[i - 1] !== '--audit-dir')), /missing --audit-dir/);
+});
+test('per-step audit: --audit-dir outside the root, or an in-tree symlink to outside, is refused (real filesystem)', async () => {
+  await assert.rejects(runSession(opts({ 'audit-dir': '../elsewhere' }), fixture().io), /--audit-dir must be inside/);
+  const t = realTree();
+  try {
+    symlinkSync(resolve(t.base, 'outside'), resolve(t.root, 'cache/outdir'));
+    const { f } = realFixture(t.root);
+    await assert.rejects(runSession(opts({ 'deploy-root': t.root, 'audit-dir': 'cache/outdir' }), f.io), /--audit-dir must be inside/);
+    assert.equal(f.ev.planner.length, 0);
+  } finally { t.cleanup(); }
+});
+test('probe mode uses the per-step layout too', async () => {
+  const f = fixture({ mainImpl: async (args, deps) => { assert.equal(args[6], stepAudit(ROOT, 0)); await deps.send({}); } });
+  const s = await runSession(opts({ 'probe-reads': true, end: 0 }), f.io);
+  assert.equal(s.status, 'probe-reached-send'); assert.deepEqual(s.audits, [stepAudit(ROOT, 0)]);
+});
+test('real evidence.mjs rawArchive (pinned at 99a38d8d): per-step windows both create their archives; one shared window fails at step 2', async () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pinned = spawnSync('git', ['show', '99a38d8d:script/a6-collector/evidence.mjs'], { cwd: here });
+  assert.equal(pinned.status, 0);
+  assert.ok(readFileSync(resolve(here, '../a6-collector/evidence.mjs')).equals(pinned.stdout), 'evidence.mjs differs from 99a38d8d');
+  const { rawArchive } = await import('../a6-collector/evidence.mjs');
+  const base = realpathSync(mkdtempSync(resolve(tmpdir(), 'raw-')));
+  try {
+    for (const i of [0, 1]) {
+      const dir = resolve(base, 'steps', String(i).padStart(3, '0'));
+      mkdirSync(resolve(base, 'steps'), { recursive: true }); mkdirSync(dir);
+      // formal.mjs:300 calls rawArchive(dirname(outPath), endpoint) for A and B.
+      for (const e of ['A', 'B']) rawArchive(dirname(resolve(dir, 'setup.audit.ndjson')), e);
+    }
+    const shared = resolve(base, 'shared');
+    mkdirSync(shared);
+    for (const e of ['A', 'B']) rawArchive(shared, e);
+    assert.throws(() => rawArchive(shared, 'A'), /EEXIST/);
+  } finally { rmSync(base, { recursive: true, force: true }); }
 });
