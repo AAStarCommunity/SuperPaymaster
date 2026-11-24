@@ -298,3 +298,10 @@ test('formal.mjs changed after the start snapshot stops before any step', async 
   await assert.rejects(runSession(opts(), f.io), /pinned module differs/);
   assert.equal(f.ev.main.length, 0);
 });
+test('formal.mjs changed while it is being imported stops before any step (re-verify after import)', async () => {
+  const f = fixture();
+  const importModule = f.io.importModule;
+  f.io.importModule = async p => { const m = await importModule(p); if (p.endsWith('formal.mjs')) f.files[resolve(ROOT, p.slice(ROOT.length + 1))] = Buffer.from('edited'); return m; };
+  await assert.rejects(runSession(opts(), f.io), /pinned module differs from HEAD: script\/a6-collector\/formal.mjs/);
+  assert.equal(f.ev.main.length, 0);
+});
