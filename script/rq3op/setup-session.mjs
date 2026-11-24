@@ -3,7 +3,7 @@
 // setup.mjs is imported from the deploy worktree given by path. The tree and module checks below DETECT a change
 // between checks (start, before each step, end); they are not an immutable snapshot, and transitive modules,
 // node_modules and PATH executables are not pinned. This file never sends, signs or writes the completion log itself.
-import { readFileSync, appendFileSync, realpathSync, mkdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, realpathSync, mkdirSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -100,6 +100,23 @@ export function treeProblem(io, root, commit, paths = PINNED_MODULES) {
   return null;
 }
 
+export const stepDirName = index => String(index).padStart(3, '0');
+// --audit-dir must lie under <root>/cache (gitignored). At start only existing components are inspected (each must be a
+// real directory, never a symlink); nothing is created until ensure() runs right before the first step, after the gates
+// and the operator confirmation. ensure() creates missing components one at a time, non-recursively, re-checking each.
+// Known gap: a component swapped concurrently between a check and the next mkdir is not detected (single-operator host).
+export function auditDirPlan(io, root, given) {
+  const cache = resolve(root, 'cache'), path = resolve(root, given);
+  if (!path.startsWith(cache + '/')) throw Error('--audit-dir must be under cache/ in the deploy worktree');
+  const isDir = p => { let st; try { st = io.lstat(p); } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+    if (st.isSymbolicLink() || !st.isDirectory() || io.realpath(p) !== p) throw Error('--audit-dir component is not a real directory: ' + p); return true; };
+  if (!isDir(cache)) throw Error('--audit-dir: cache/ missing in the deploy worktree');
+  const parts = path.slice(cache.length + 1).split('/');
+  let cursor = cache; const missing = [];
+  for (const part of parts) { cursor = resolve(cursor, part); if (missing.length || !isDir(cursor)) missing.push(cursor); }
+  let done = missing.length === 0;
+  return { path, ensure() { if (done) return; for (const dir of missing) { io.mkdir(dir); isDir(dir); } done = true; } };
+}
 export async function runSession(opts, io) {
   const root = io.realpath(opts['deploy-root']);
   // --regen-rpc-b is resolved to its real path before anything reads it; the canonical path must be inside the root and
@@ -112,12 +129,8 @@ export async function runSession(opts, io) {
   // Per-step audit window: setup.mjs:155 hands formal.mjs outPath = --audit, and evidence.mjs:39 creates
   // <dirname>/raw/<A|B> with a non-recursive mkdir, so one shared audit path fails at the second step (EEXIST).
   // Each step gets <audit-dir>/<3-digit index>/setup.audit.ndjson in a directory created exclusively just before it.
-  const auditLexical = resolve(root, opts['audit-dir']);
-  if (!auditLexical.startsWith(root + '/')) throw Error('--audit-dir must be inside the deploy worktree');
-  io.mkdir(auditLexical, { recursive: true });
-  const auditBase = io.realpath(auditLexical);
-  if (!auditBase.startsWith(root + '/')) throw Error('--audit-dir must be inside the deploy worktree');
-  const log = io.log, record = { steps: [], heads: [], audits: [] };
+  const auditBase = auditDirPlan(io, root, opts['audit-dir']);
+  const log = io.log, record = { steps: [], heads: [], audits: [], outcomes: { recorded: 0, 'already-satisfied-recorded': 0 } };
   const headsFile = resolve(opts['heads-file']);
   if (headsFile === root || headsFile.startsWith(root + '/')) throw Error('--heads-file must be outside the deploy worktree');
   const regenB = opts['regen-rpc-b'] ?? opts['rpc-b'];
@@ -128,7 +141,7 @@ export async function runSession(opts, io) {
     // A changed tree or file never ends as a success (complete or probe-reached-send).
     const final = !equal && (status === 'complete' || status === 'probe-reached-send') ? 'stopped-hash-mismatch' : status;
     const summary = { status: final, stepsDone: record.steps.length, lastIndex: record.steps.at(-1)?.index ?? null,
-      lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, audits: record.audits, ...extra };
+      lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, audits: record.audits, outcomes: record.outcomes, ...extra };
     log('SESSION_SUMMARY ' + JSON.stringify(summary));
     return summary;
   };
@@ -186,11 +199,12 @@ export async function runSession(opts, io) {
     const problem = treeProblem(io, root, opts['expect-commit'])
       ?? Object.entries(record.before.files).map(([p, h]) => sha256(io.read(resolve(root, p))) !== h ? 'session file changed since start: ' + p : null).find(Boolean);
     if (problem) return finish('stopped', { reason: problem, nextIndex: index });
-    const stepDir = resolve(auditBase, String(index).padStart(3, '0'));
-    try { io.mkdir(stepDir); } catch (error) { return finish('stopped', { reason: 'step audit directory exists or cannot be created', nextIndex: index, error: redact(error) }); }
+    const stepDir = resolve(auditBase.path, stepDirName(index));
+    try { auditBase.ensure(); io.mkdir(stepDir); } catch (error) { return finish('stopped', { reason: 'step audit directory exists or cannot be created', nextIndex: index, error: redact(error) }); }
     const audit = resolve(stepDir, 'setup.audit.ndjson');
     record.audits.push(audit);
     const args = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], audit, opts.config, opts.inputs, '--expect-head', head];
+    const ownBefore = completionEntry(completionPath, opts.digest, bundle.steps[index].id);
     try {
       await setup.main(args, deps);
     } catch (error) {
@@ -207,9 +221,15 @@ export async function runSession(opts, io) {
     const next = chainHead(completionPath, opts.digest);
     const own = completionEntry(completionPath, opts.digest, bundle.steps[index].id);
     if (next !== head && next !== own?.recordDigest) return finish('stopped', { reason: 'completion log head is not this step\'s own entry', failedIndex: index, chainHeadAfterStep: next });
+    // A normal return counts only with the step's own completion entry: new in this step (recorded), or pre-existing
+    // with the head unchanged (already-satisfied-recorded; setup_state.py:41-42 needs a record for already-satisfied).
+    const outcome = !ownBefore && own && next !== head && next === own.recordDigest ? 'recorded'
+      : ownBefore && own && next === head && own.recordDigest === ownBefore.recordDigest ? 'already-satisfied-recorded' : 'unrecorded';
+    if (outcome === 'unrecorded') return finish('stopped', { reason: 'unrecorded: setup returned without this step\'s own completion entry', outcome, failedIndex: index, chainHeadAfterStep: next });
     head = next;
-    record.steps.push({ index }); record.heads.push(head);
-    io.appendHead(headsFile, JSON.stringify({ index, id: bundle.steps[index].id, chainHead: head, audit, atMs: io.now() }) + '\n');
+    record.steps.push({ index, outcome }); record.heads.push(head); record.outcomes[outcome]++;
+    try { io.appendHead(headsFile, JSON.stringify({ index, id: bundle.steps[index].id, chainHead: head, outcome, audit, atMs: io.now() }) + '\n'); }
+    catch (error) { return finish('stopped', { reason: 'heads file append failed after the step', failedIndex: index, chainHeadAfterStep: head, outcome, error: redact(error) }); }
   }
   return finish('complete');
 }
@@ -217,7 +237,7 @@ export async function runSession(opts, io) {
 const realIO = () => {
   const rl = createInterface({ input: process.stdin }), lines = rl[Symbol.asyncIterator]();
   return {
-    realpath: realpathSync, read: p => readFileSync(p), mkdir: (p, o) => mkdirSync(p, o), now: () => Date.now(), log: s => process.stdout.write(s + '\n'),
+    realpath: realpathSync, read: p => readFileSync(p), mkdir: (p, o) => mkdirSync(p, o), lstat: p => lstatSync(p), now: () => Date.now(), log: s => process.stdout.write(s + '\n'),
     git: (root, args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim(),
     importModule: p => import(pathToFileURL(p).href),
     planner: async (root, args) => (await promisify(execFile)('python3', args, { cwd: root, encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 })).stdout,

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { runSession, parseArgs, PINNED_MODULES, OPERATOR_PAUSE_MS, GENESIS, sortKeys, canonicalRuntime, probeSigner, exitCodeFor } from './setup-session.mjs';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync } from 'node:fs';
+import { runSession, parseArgs, PINNED_MODULES, OPERATOR_PAUSE_MS, GENESIS, sortKeys, canonicalRuntime, probeSigner, exitCodeFor, stepDirName } from './setup-session.mjs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, lstatSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -29,11 +29,14 @@ function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, 
     [resolve(root, 'cache/b')]: Buffer.from('steps-b'), [resolve(root, 'cache/regenb')]: Buffer.from('regen-b') };
   for (const p of EXPECTED_PINNED) files[resolve(root, p)] = Buffer.from('module ' + p);
   const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(root, p)])]));
-  const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [], dirs: [] };
+  const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [], dirs: [], links: [] };
   const state = { head: GENESIS, own: {}, status: '', commit: COMMIT };
   let t = 0;
   const io = {
     mkdir: (p, o = {}) => { if (ev.dirs.includes(p)) { if (o.recursive) return; throw Object.assign(Error('EEXIST: ' + p), { code: 'EEXIST' }); } ev.dirs.push(p); },
+    lstat: p => { if (ev.links.includes(p)) return { isSymbolicLink: () => true, isDirectory: () => false };
+      if (p === resolve(root, 'cache') || ev.dirs.includes(p)) return { isSymbolicLink: () => false, isDirectory: () => true };
+      throw Object.assign(Error('ENOENT: ' + p), { code: 'ENOENT' }); },
     realpath: p => p, read: p => { if (!(p in files)) throw Error('missing ' + p); return files[p]; },
     now: () => (clock.length ? clock.shift() : t += 1000), log: s => ev.logs.push(s), chdir: d => ev.chdir.push(d),
     git: (root, args) => {
@@ -405,7 +408,7 @@ function realTree() {
 function realFixture(root) {
   const f = fixture({ root });
   const read = f.io.read, reads = [];
-  f.io.realpath = realpathSync; f.io.mkdir = (p, o) => mkdirSync(p, o);
+  f.io.realpath = realpathSync; f.io.mkdir = (p, o) => mkdirSync(p, o); f.io.lstat = p => lstatSync(p);
   f.io.read = p => { reads.push(p); return p in f.files ? read(p) : readFileSync(p); };
   return { f, reads };
 }
@@ -473,13 +476,13 @@ test('per-step audit: --audit (the single-file form that dies at step 1) is no l
 });
 test('per-step audit: --audit-dir outside the root, or an in-tree symlink to outside, is refused (real filesystem)', async () => {
   const outside = fixture();
-  await assert.rejects(runSession(opts({ 'audit-dir': '../elsewhere' }), outside.io), /--audit-dir must be inside/);
+  await assert.rejects(runSession(opts({ 'audit-dir': '../elsewhere' }), outside.io), /--audit-dir must be under cache\//);
   assert.deepEqual(outside.ev.dirs, [], 'nothing is created outside the root before the refusal');
   const t = realTree();
   try {
     symlinkSync(resolve(t.base, 'outside'), resolve(t.root, 'cache/outdir'));
     const { f } = realFixture(t.root);
-    await assert.rejects(runSession(opts({ 'deploy-root': t.root, 'audit-dir': 'cache/outdir' }), f.io), /--audit-dir must be inside/);
+    await assert.rejects(runSession(opts({ 'deploy-root': t.root, 'audit-dir': 'cache/outdir' }), f.io), /--audit-dir component is not a real directory/);
     assert.equal(f.ev.planner.length, 0);
   } finally { t.cleanup(); }
 });
@@ -507,4 +510,79 @@ test('real evidence.mjs rawArchive (pinned at 99a38d8d): per-step windows both c
     for (const e of ['A', 'B']) rawArchive(shared, e);
     assert.throws(() => rawArchive(shared, 'A'), /EEXIST/);
   } finally { rmSync(base, { recursive: true, force: true }); }
+});
+
+// ── Daybreak increment 2: step outcome, audit-dir creation, heads append failure, index format ─────────
+test('outcome: a normal return with the head unchanged and no own entry stops as unrecorded, no head appended', async () => {
+  const f = fixture({ mainImpl: async () => {} });
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(s.outcome, 'unrecorded'); assert.equal(s.failedIndex, 0); assert.match(s.reason, /^unrecorded:/);
+  assert.equal(f.ev.heads.length, 0); assert.deepEqual(s.outcomes, { recorded: 0, 'already-satisfied-recorded': 0 });
+});
+test('outcome: a pre-existing own entry with the head unchanged is already-satisfied-recorded (counted, in the heads entry)', async () => {
+  const f = fixture({ mainImpl: async () => {} });
+  f.state.own[IDS[0]] = { recordDigest: GENESIS };
+  const s = await runSession(opts({ end: 0 }), f.io);
+  assert.equal(s.status, 'complete'); assert.deepEqual(s.outcomes, { recorded: 0, 'already-satisfied-recorded': 1 });
+  assert.equal(JSON.parse(f.ev.heads[0][1]).outcome, 'already-satisfied-recorded');
+});
+test('outcome: an entry that appears in this step but the head did not move is not accepted', async () => {
+  const f = fixture({ mainImpl: async (a, d, { state }) => { state.own[IDS[0]] = { recordDigest: 'x'.repeat(64) }; } });
+  const s = await runSession(opts({ end: 0 }), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(f.ev.heads.length, 0);
+});
+test('outcome: a normal run records every step as recorded with counts', async () => {
+  const f = fixture();
+  const s = await runSession(opts(), f.io);
+  assert.deepEqual(s.outcomes, { recorded: 3, 'already-satisfied-recorded': 0 });
+  assert.deepEqual(f.ev.heads.map(([, l]) => JSON.parse(l).outcome), ['recorded', 'recorded', 'recorded']);
+});
+test('restart after a send whose completion was never written: the gate STOP propagates as a stop, nothing appended', async () => {
+  // setup_state.py:45: no completion record + target matching + initial not matching raises setup_state_STOP.
+  const f = fixture({ mainImpl: async () => { throw Error('setup gate: {"gate":"setup_state_STOP"}'); } });
+  const prior = sha256('step 0 recorded earlier'); f.state.head = prior;
+  const s = await runSession(opts({ start: 1, 'expect-head': prior, 'empty-history-acknowledged': false }), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(s.failedIndex, 1); assert.match(s.error, /setup_state_STOP/); assert.equal(f.ev.heads.length, 0);
+});
+test('heads file append failure after a recorded step: stopped, reason names it, chain head and outcome reported', async () => {
+  const f = fixture();
+  f.io.appendHead = () => { throw Error('EACCES: heads'); };
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'stopped'); assert.match(s.reason, /heads file append failed after the step/);
+  assert.equal(s.failedIndex, 0); assert.equal(s.outcome, 'recorded'); assert.equal(s.chainHeadAfterStep, f.state.own[IDS[0]].recordDigest);
+  assert.equal(f.ev.main.length, 1);
+});
+test('step directory names: 3-digit padded, wider indices stay unique', () => {
+  assert.equal(stepDirName(0), '000'); assert.equal(stepDirName(51), '051'); assert.equal(stepDirName(999), '999'); assert.equal(stepDirName(1000), '1000');
+});
+test('--audit-dir must be under cache/', async () => {
+  await assert.rejects(runSession(opts({ 'audit-dir': 'steps' }), fixture().io), /must be under cache\//);
+  await assert.rejects(runSession(opts({ 'audit-dir': 'cache' }), fixture().io), /must be under cache\//);
+});
+test('--audit-dir: nothing is created before the operator confirmation', async () => {
+  const f = fixture({ confirms: ['no'] });
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'stopped'); assert.deepEqual(f.ev.dirs, []);
+});
+test('--audit-dir (real filesystem): a missing child under a symlinked parent is refused and nothing is created outside', async () => {
+  const t = realTree();
+  try {
+    symlinkSync(resolve(t.base, 'outside'), resolve(t.root, 'cache/outdir'));
+    const { f } = realFixture(t.root);
+    await assert.rejects(runSession(opts({ 'deploy-root': t.root, 'audit-dir': 'cache/outdir/new/steps' }), f.io), /component is not a real directory/);
+    assert.equal(existsSync(resolve(t.base, 'outside/new')), false);
+  } finally { t.cleanup(); }
+});
+test('--audit-dir (real filesystem): missing components are created one by one; an existing step directory stops before setup.main', async () => {
+  const t = realTree();
+  try {
+    const { f } = realFixture(t.root);
+    f.files[resolve(t.root, 'cache/b')] = Buffer.from('steps-b');
+    const s = await runSession(opts({ 'deploy-root': t.root, 'audit-dir': 'cache/x/y/steps', end: 0 }), f.io);
+    assert.equal(s.status, 'complete', JSON.stringify(s)); assert.ok(lstatSync(resolve(t.root, 'cache/x/y/steps/000')).isDirectory());
+    mkdirSync(resolve(t.root, 'cache/pre/000'), { recursive: true });
+    const g = realFixture(t.root).f; g.files[resolve(t.root, 'cache/b')] = Buffer.from('steps-b');
+    const s2 = await runSession(opts({ 'deploy-root': t.root, 'audit-dir': 'cache/pre', end: 0 }), g.io);
+    assert.equal(s2.status, 'stopped'); assert.match(s2.reason, /step audit directory exists/); assert.equal(g.ev.main.length, 0);
+  } finally { t.cleanup(); }
 });
