@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { runSession, parseArgs, PINNED_MODULES, OPERATOR_PAUSE_MS, GENESIS, sortKeys, canonicalRuntime, probeSigner, exitCodeFor, stepDirName, stableReceipts, RECEIPT_CONFIRMATIONS, RECEIPT_TIMEOUT_MS } from './setup-session.mjs';
+import { runSession, parseArgs, PINNED_MODULES, OPERATOR_PAUSE_MS, GENESIS, sortKeys, canonicalRuntime, probeSigner, exitCodeFor, stepDirName, stableReceipts, RECEIPT_CONFIRMATIONS, RECEIPT_DELAY_BLOCKS, RECEIPT_TIMEOUT_MS } from './setup-session.mjs';
+import { archivedRpc } from '../a6-collector/formal.mjs';
+import { createPublicClient, custom } from 'viem';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, lstatSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -596,84 +598,151 @@ test('--audit-dir: a component that is not a real directory right after its mkdi
 });
 
 // ── stable post-send receipts (run 1 step 0: one provider answered from a sibling unsafe block) ─────────
-const CANON = '0x' + 'c'.repeat(64), SIBLING = '0x' + 'b'.repeat(64), TX = '0x' + '3'.repeat(64);
-function fakePub({ receipts, heads, blocks, errors = [] }) {
-  const calls = [];
-  const take = (list, i) => list[Math.min(i, list.length - 1)];
-  let r = 0, h = 0, b = 0;
-  const pub = {
-    calls,
-    getTransactionReceipt: async args => { calls.push(['getTransactionReceipt', args]); const e = errors.shift(); if (e) throw e; const v = take(receipts, r++); if (v === null) throw Object.assign(Error('not found'), { name: 'TransactionReceiptNotFoundError' }); return v; },
-    getBlockNumber: async args => { calls.push(['getBlockNumber', args]); return take(heads, h++); },
-    getBlock: async args => { calls.push(['getBlock', args]); return { hash: take(blocks, b++) }; },
-    waitForTransactionReceipt: async args => { calls.push(['waitForTransactionReceipt', args]); return { fallback: true, ...take(receipts, receipts.length - 1) }; },
-    readContract: async args => { calls.push(['readContract', args]); return 'rc'; },
-  };
-  return pub;
-}
+const CANON = '0x' + 'c'.repeat(64), SIBLING = '0x' + 'b'.repeat(64), TX = '0x' + 'ab'.repeat(32);
 const clock = () => { let t = 0; return { now: () => t, sleep: async ms => { t += ms; } }; };
-const receipt = (hash, n = 100n, status = 'success') => ({ transactionHash: TX, blockHash: hash, blockNumber: n, status });
-test('stable receipts: a sibling-block receipt first, the canonical one later → setup gets the canonical receipt', async () => {
+const notFoundError = () => Object.assign(Error('not found'), { name: 'TransactionReceiptNotFoundError' });
+function fakePub({ receipts, heads, blocks = [CANON] }) {
+  const calls = [], take = (l, i) => l[Math.min(i, l.length - 1)];
+  let r = 0, h = 0, b = 0;
+  return { calls,
+    getTransactionReceipt: async a => { calls.push(['getTransactionReceipt', a]); const v = take(receipts, r++); if (v === null) throw notFoundError(); if (v instanceof Error) throw v; return v; },
+    getBlockNumber: async a => { calls.push(['getBlockNumber', a]); return take(heads, h++); },
+    getBlock: async a => { calls.push(['getBlock', a]); return { hash: take(blocks, b++) }; },
+    waitForTransactionReceipt: async a => { calls.push(['waitForTransactionReceipt', a]); return { fallback: true }; },
+    readContract: async a => { calls.push(['readContract', a]); return 'rc'; } };
+}
+const receipt = (hash, n = 101n, status = 'success') => ({ transactionHash: TX, blockHash: hash, blockNumber: n, status });
+assert.equal(RECEIPT_CONFIRMATIONS, 3); assert.equal(RECEIPT_DELAY_BLOCKS, 3); assert.equal(RECEIPT_TIMEOUT_MS, 120000);
+
+// A fake OP Sepolia endpoint behind the REAL pinned archivedRpc and a real viem client (no mocks between them).
+// Chain: head = 100 + floor(t / 2000); the tx is in block `inclusion`; before `siblingUntil` the provider answers the
+// receipt and that block from a sibling (SIBLING hash), afterwards from the canonical block (CANON).
+function realArchive({ c, inclusion = 101, includedAt = 2000, siblingUntil = 3000, fail = () => null }) {
+  const wire = [];
+  const headAt = t => 100 + Math.floor(t / 2000);
+  const hashAt = t => t < siblingUntil ? SIBLING : CANON;
+  const hex = n => '0x' + n.toString(16);
+  const rcpt = t => ({ transactionHash: TX, transactionIndex: '0x1', blockHash: hashAt(t), blockNumber: hex(inclusion), from: '0x08822612177e93a5b8da59b45171638eb53d495a',
+    to: '0x41d1aa70fd501e23d36a29b2b16be88afea4279e', cumulativeGasUsed: '0xb3ee', gasUsed: '0xb3ee', effectiveGasPrice: '0xf4434', contractAddress: null, logs: [],
+    logsBloom: '0x' + '0'.repeat(512), status: '0x1', type: '0x2' });
+  const block = (n, t) => ({ number: hex(n), hash: n === inclusion ? hashAt(t) : '0x' + n.toString(16).padStart(64, '0'), parentHash: '0x' + '0'.repeat(64), timestamp: hex(1795540000 + n * 2),
+    transactions: [], gasLimit: '0x1c9c380', gasUsed: '0x0', baseFeePerGas: '0xfa', miner: '0x' + '0'.repeat(40), extraData: '0x', size: '0x1', difficulty: '0x0', nonce: '0x0000000000000000',
+    logsBloom: '0x' + '0'.repeat(512), sha3Uncles: '0x' + '0'.repeat(64), stateRoot: '0x' + '0'.repeat(64), receiptsRoot: '0x' + '0'.repeat(64), transactionsRoot: '0x' + '0'.repeat(64), uncles: [] });
+  const fetchImpl = async (url, opts) => {
+    const { id, method, params } = JSON.parse(opts.body), t = c.now();
+    wire.push({ t, method, params, head: headAt(t) });
+    const f = fail(method, t); if (f instanceof Error) throw f;
+    let body;
+    if (f) body = { jsonrpc: '2.0', id, error: f };
+    else if (method === 'eth_blockNumber') body = { jsonrpc: '2.0', id, result: hex(headAt(t)) };
+    else if (method === 'eth_getTransactionReceipt') body = { jsonrpc: '2.0', id, result: t < includedAt ? null : rcpt(t) };
+    else if (method === 'eth_getBlockByNumber') body = { jsonrpc: '2.0', id, result: block(Number(BigInt(params[0])), t) };
+    else if (method === 'eth_getTransactionByHash') body = { jsonrpc: '2.0', id, result: { hash: TX, blockHash: hashAt(t), blockNumber: hex(inclusion), from: rcpt(t).from, to: rcpt(t).to,
+      input: '0x095ea7b3', value: '0x0', nonce: '0x0', gas: '0x10dd3', maxFeePerGas: '0xf4434', maxPriorityFeePerGas: '0xf4240', chainId: '0xaa37dc', type: '0x2', transactionIndex: '0x1',
+      v: '0x0', r: '0x1', s: '0x1', yParity: '0x0', accessList: [] } };
+    else throw Error('unexpected ' + method);
+    return { ok: true, status: 200, arrayBuffer: async () => Buffer.from(JSON.stringify(body)) };
+  };
+  const rpc = archivedRpc({ url: 'http://fake.invalid', endpoint: 'B', append: () => {}, fetchImpl });
+  return { rpc, wire, pub: createPublicClient({ transport: custom(rpc, { retryCount: 0 }) }) };
+}
+const causeChain = e => { const out = []; for (let x = e; x; x = x.cause) out.push(String(x.message ?? x)); return out.join(' <- '); };
+const blockReads = ['eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getBlockByNumber'];
+
+test('real archive: sibling answers in the first ~1 s only → canonical receipt; no receipt/tx/block read before head ≥ H0+3; pinned recordCompletion reads then pass', async () => {
   const c = clock(), stats = {};
-  const pub = fakePub({ receipts: [receipt(SIBLING), receipt(CANON)], heads: [102n, 102n], blocks: [CANON, CANON] });
+  const { rpc, wire, pub } = realArchive({ c });
   const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.blockHash, CANON); assert.equal(got.fallback, undefined);
-  assert.deepEqual({ polls: stats.polls, fallback: stats.fallback, block: stats.block, confirmations: stats.confirmations }, { polls: 2, fallback: false, block: '100', confirmations: '3' });
+  assert.equal(got.blockHash, CANON); assert.equal(got.status, 'success');
+  const h0 = wire[0].head;
+  assert.equal(wire[0].method, 'eth_blockNumber');
+  for (const w of wire.filter(w => blockReads.includes(w.method))) assert.ok(w.head >= h0 + 3, JSON.stringify(w));
+  assert.deepEqual({ startBlock: stats.startBlock, firstReadHead: stats.firstReadHead, block: stats.block, confirmations: stats.confirmations, fallback: stats.fallback },
+    { startBlock: '100', firstReadHead: '103', block: '101', confirmations: '3', fallback: false });
+  // The reads pinned recordCompletion makes next on the same archive (verifyReceipt: receipt, block at height, tx) see
+  // the same hash, so the anchor map does not trip.
+  const r = await rpc.request({ method: 'eth_getTransactionReceipt', params: [TX] });
+  const b = await rpc.request({ method: 'eth_getBlockByNumber', params: ['0x65', false] });
+  const t = await rpc.request({ method: 'eth_getTransactionByHash', params: [TX] });
+  assert.equal(r.blockHash, CANON); assert.equal(b.hash, CANON); assert.equal(t.blockHash, CANON);
 });
-test('stable receipts: waits for N confirmations on that provider before accepting', async () => {
+test('real archive: a sibling seen at the first receipt read rejects fast with "recorded block hash changed" in the cause chain; no fallback', async () => {
   const c = clock(), stats = {};
-  const pub = fakePub({ receipts: [receipt(CANON)], heads: [100n, 101n, 102n], blocks: [CANON] });
-  await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(stats.polls, 3); assert.equal(pub.calls.filter(([m]) => m === 'getBlock').length, 1);
-  assert.equal(RECEIPT_CONFIRMATIONS, 3); assert.equal(RECEIPT_TIMEOUT_MS, 120000);
+  // Inclusion in 102: the receipt read at t=6000 (head 103) sees the sibling; depth 3 only at t=8000, when the block is canonical.
+  const { pub } = realArchive({ c, inclusion: 102, includedAt: 4000, siblingUntil: 7000 });
+  const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.ok(err, 'must reject'); assert.match(causeChain(err), /recorded block hash changed|not canonical/);
+  assert.equal(stats.fallback, false); assert.ok(c.now() < 20000, 'fast: ' + c.now());
 });
-test('stable receipts: providers that never show the receipt block as canonical → fallback to the original wait at the timeout, setup compares as today', async () => {
+test('real archive: a transport error rejects at once with its own cause (archive goes sticky by design)', async () => {
   const c = clock(), stats = {};
-  const pub = fakePub({ receipts: [receipt(SIBLING)], heads: [200n], blocks: [CANON] });
+  const { pub } = realArchive({ c, fail: (m, t) => m === 'eth_blockNumber' && t === 2000 ? Error('ECONNRESET') : null });
+  const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.match(causeChain(err), /transport failed/); assert.equal(c.now(), 2000); assert.equal(stats.fallback, false);
+});
+test('real archive: a -32005 RPC error rejects at once with its own cause', async () => {
+  const c = clock(), stats = {};
+  const { pub } = realArchive({ c, fail: m => m === 'eth_getTransactionReceipt' ? { code: -32005, message: 'limit exceeded' } : null });
+  const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.match(causeChain(err), /-32005/); assert.equal(stats.fallback, false); assert.equal(c.now(), 6000);
+});
+test('real archive: receipt not found at first, included later (block 104) → canonical receipt at depth 3', async () => {
+  const c = clock(), stats = {};
+  const { pub, wire } = realArchive({ c, inclusion: 104, includedAt: 8000, siblingUntil: 0 });
   const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.fallback, true); assert.equal(stats.fallback, true); assert.equal(stats.polls, 120);
+  assert.equal(got.blockHash, CANON); assert.equal(stats.block, '104'); assert.equal(stats.confirmations, '3');
+  assert.equal(wire.filter(w => w.method === 'eth_getBlockByNumber').length, 1);
+});
+test('stable receipts: receipt never found within the timeout → the original viem wait runs (setup decides as before)', async () => {
+  const c = clock(), stats = {};
+  const pub = fakePub({ receipts: [null], heads: Array.from({ length: 400 }, (_, i) => BigInt(100 + i)) });
+  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
+  assert.equal(got.fallback, true); assert.equal(stats.fallback, true);
   assert.deepEqual(pub.calls.at(-1), ['waitForTransactionReceipt', { hash: TX }]);
-  // The same compare as setup.mjs:35 then fails exactly as in run 1.
-  const other = receipt(CANON);
-  assert.equal(got.blockHash !== other.blockHash, true);
 });
-test('stable receipts: a reverted receipt is returned unchanged (setup.mjs:35 still fails on status)', async () => {
+test('stable receipts: no confirmations within the timeout → rejects (never returns a shallow receipt)', async () => {
   const c = clock(), stats = {};
-  const pub = fakePub({ receipts: [receipt(CANON, 100n, 'reverted')], heads: [105n], blocks: [CANON] });
-  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.status, 'reverted'); assert.equal(got.blockHash, CANON);
+  const pub = fakePub({ receipts: [receipt(CANON, 103n)], heads: [100n, 103n, 103n] });
+  await assert.rejects(stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }), /timed out for confirmations/);
 });
-test('stable receipts: provider errors are retried within the timeout, and after it the original wait surfaces its own error', async () => {
-  const c = clock(), stats = {};
-  const pub = fakePub({ receipts: [receipt(CANON)], heads: [105n], blocks: [CANON], errors: [Error('RPC A transport failed (redacted)'), Error('again')] });
-  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.blockHash, CANON); assert.equal(stats.errors, 2); assert.equal(stats.polls, 3);
-  const c2 = clock(), stats2 = {}, boom = Error('RPC B transport failed (redacted)');
-  const failing = fakePub({ receipts: [null], heads: [1n], blocks: [CANON] });
-  failing.waitForTransactionReceipt = async () => { throw boom; };
-  await assert.rejects(stableReceipts(failing, stats2, c2).waitForTransactionReceipt({ hash: TX }), e => e === boom);
-  assert.equal(stats2.fallback, true);
+test('stable receipts: a receipt for another transaction rejects; hash case differences are accepted and the receipt keeps its own case', async () => {
+  const c = clock();
+  const other = { ...receipt(CANON), transactionHash: '0x' + 'cd'.repeat(32) };
+  await assert.rejects(stableReceipts(fakePub({ receipts: [other], heads: [100n, 103n] }), {}, c).waitForTransactionReceipt({ hash: TX }), /another transaction/);
+  const upper = '0x' + 'C'.repeat(64);
+  const got = await stableReceipts(fakePub({ receipts: [{ ...receipt(upper), transactionHash: TX.toUpperCase().replace('0X', '0x') }], heads: [100n, 103n, 103n] }), {}, clock()).waitForTransactionReceipt({ hash: TX });
+  assert.equal(got.blockHash, upper); assert.notEqual(TX.toUpperCase().replace('0X', '0x'), TX);
+});
+test('stable receipts: a reverted receipt is returned unchanged; a number-valued blockNumber is an error, not swallowed', async () => {
+  const got = await stableReceipts(fakePub({ receipts: [receipt(CANON, 101n, 'reverted')], heads: [100n, 103n, 103n] }), {}, clock()).waitForTransactionReceipt({ hash: TX });
+  assert.equal(got.status, 'reverted');
+  await assert.rejects(stableReceipts(fakePub({ receipts: [{ ...receipt(CANON), blockNumber: 101 }], heads: [100n, 103n] }), {}, clock()).waitForTransactionReceipt({ hash: TX }), TypeError);
+});
+test('stable receipts: block read at the receipt height and head reads with cacheTime 0', async () => {
+  const pub = fakePub({ receipts: [receipt(CANON, 101n)], heads: [100n, 103n, 103n] });
+  await stableReceipts(pub, {}, clock()).waitForTransactionReceipt({ hash: TX });
+  assert.deepEqual(pub.calls.filter(([m]) => m === 'getBlock'), [['getBlock', { blockNumber: 101n }]]);
+  for (const [, a] of pub.calls.filter(([m]) => m === 'getBlockNumber')) assert.deepEqual(a, { cacheTime: 0 });
 });
 test('stable receipts: every other method reaches the raw pinned client untouched, with identical arguments', async () => {
-  const pub = fakePub({ receipts: [receipt(CANON)], heads: [1n], blocks: [CANON] });
+  const pub = fakePub({ receipts: [receipt(CANON)], heads: [1n] });
   const w = stableReceipts(pub, {}, clock());
   for (const k of ['getBlock', 'getBlockNumber', 'getTransactionReceipt', 'readContract']) assert.equal(w[k], pub[k], k);
   const a = { blockNumber: 7n }, b = { cacheTime: 0 }, r = { address: '0x01', functionName: 'x' };
   await w.getBlock(a); await w.getBlockNumber(b); await w.readContract(r);
-  assert.deepEqual(pub.calls.map(([m, x]) => [m, x]), [['getBlock', a], ['getBlockNumber', b], ['readContract', r]]);
-  assert.equal(pub.calls[0][1], a); assert.equal(pub.calls[2][1], r);
+  assert.equal(pub.calls[0][1], a); assert.equal(pub.calls[1][1], b); assert.equal(pub.calls[2][1], r);
 });
-test('canonicalRuntime: pubA/pubB are the stable-receipt proxies over the raw pinned clients; stats reported per runtime', async () => {
+test('canonicalRuntime: pubA/pubB are the stable-receipt proxies; with A sibling-first over the real archive the setup.mjs:35 compare passes', async () => {
+  const c = clock();
+  const A = realArchive({ c }), B = realArchive({ c, siblingUntil: 0 });
   const raw = rawRuntime(() => null);
-  raw.runtime.pubA = fakePub({ receipts: [receipt(SIBLING), receipt(CANON)], heads: [102n, 102n], blocks: [CANON, CANON] });
-  raw.runtime.pubB = fakePub({ receipts: [receipt(CANON)], heads: [102n], blocks: [CANON] });
+  raw.runtime.pubA = A.pub; raw.runtime.pubB = B.pub;
   let seen;
-  const rt = await canonicalRuntime(raw.formalRuntime, { receipts: clock(), onReceipts: s => { seen = s; } })({});
+  const rt = await canonicalRuntime(raw.formalRuntime, { receipts: c, onReceipts: s => { seen = s; } })({});
   assert.notEqual(rt.pubA, raw.runtime.pubA); assert.equal(rt.pubA.getBlock, raw.runtime.pubA.getBlock);
-  const [A, B] = await Promise.all([rt.pubA.waitForTransactionReceipt({ hash: TX }), rt.pubB.waitForTransactionReceipt({ hash: TX })]);
-  // setup.mjs:35's compare now passes: A first answered from the sibling block, both end on the canonical hash.
-  assert.equal(A.blockHash, CANON); assert.equal(A.blockHash, B.blockHash); assert.equal(A.blockNumber, B.blockNumber);
-  assert.equal(seen.A.hash, TX); assert.equal(seen.A.polls, 2); assert.equal(seen.B.polls, 1);
+  const [ra, rb] = await Promise.all([rt.pubA.waitForTransactionReceipt({ hash: TX }), rt.pubB.waitForTransactionReceipt({ hash: TX })]);
+  assert.equal(ra.status, 'success'); assert.equal(rb.status, ra.status); assert.equal(ra.blockHash, rb.blockHash); assert.equal(ra.blockNumber, rb.blockNumber);
+  assert.equal(seen.A.hash, TX); assert.equal(seen.B.block, '101');
 });
 
 // ── record path ─────────────────────────────────────────────────────────────────────────────────────────
@@ -731,8 +800,9 @@ test('pinned verifyReceipt (completion.mjs == 99a38d8d) rejects a tx that does n
   await assert.rejects(verifyReceipt(read({ to: '0x' + '9'.repeat(40) }), step, RTX), /identity mismatch/);
 });
 
-test('SESSION_RECEIPTS: one line per step with block, confirmations, polls and fallback per provider', async () => {
-  FORMAL.next = { archives: [], pubA: fakePub({ receipts: [receipt(CANON)], heads: [102n], blocks: [CANON] }), pubB: fakePub({ receipts: [receipt(CANON)], heads: [103n], blocks: [CANON] }) };
+
+test('SESSION_RECEIPTS: one line per step with H0, head at first read, inclusion block, depth, polls and fallback per provider', async () => {
+  FORMAL.next = { archives: [], pubA: fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n] }), pubB: fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 104n] }) };
   try {
     const f = fixture({ mainImpl: async (args, deps, { state }) => {
       const rt = await deps.runtime({});
@@ -742,31 +812,21 @@ test('SESSION_RECEIPTS: one line per step with block, confirmations, polls and f
     const s = await runSession(opts({ end: 0 }), f.io);
     assert.equal(s.status, 'complete');
     const line = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_RECEIPTS ')).slice(17));
-    assert.deepEqual(line, { index: 0, A: { hash: TX, polls: 1, block: '100', confirmations: '3', fallback: false, errors: 0 }, B: { hash: TX, polls: 1, block: '100', confirmations: '4', fallback: false, errors: 0 } });
+    assert.deepEqual(line, { index: 0, A: { hash: TX, polls: 3, startBlock: '100', firstReadHead: '103', block: '101', confirmations: '3', fallback: false },
+      B: { hash: TX, polls: 3, startBlock: '100', firstReadHead: '103', block: '101', confirmations: '4', fallback: false } });
   } finally { delete FORMAL.next; }
 });
+test('record: a refused record creates no step directory', async () => {
+  const f = fixture();
+  f.state.own[IDS[0]] = { recordDigest: sha256('earlier') };
+  await runSession(opts({ 'record-step': 0, 'record-tx': RTX, end: 0 }), f.io);
+  assert.equal(f.ev.dirs.some(d => d.endsWith('/000')), false);
+});
 
-// ── Daybreak #682 Low + test gaps ───────────────────────────────────────────────────────────────────────
-test('stable receipts: a receipt for a different transaction hash is never accepted; polling continues', async () => {
-  const c = clock(), stats = {};
-  const other = { ...receipt(CANON), transactionHash: '0x' + '4'.repeat(64) };
-  const pub = fakePub({ receipts: [other, receipt(CANON)], heads: [105n, 105n], blocks: [CANON, CANON] });
-  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.transactionHash, TX); assert.equal(stats.polls, 2);
-  assert.equal(pub.calls.filter(([m]) => m === 'getBlock').length, 1);
-});
-test('stable receipts: hash case differs between receipt and block → accepted, receipt returned with its own case (setup.mjs:35 stays strict)', async () => {
-  const c = clock(), stats = {};
-  const upper = '0x' + 'C'.repeat(64);
-  const pub = fakePub({ receipts: [{ ...receipt(upper), transactionHash: TX.toUpperCase().replace('0X', '0x') }], heads: [105n], blocks: [CANON] });
-  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.blockHash, upper);
-  // The pinned compare (B.blockHash !== A.blockHash) is not relaxed by the wrapper:
-  assert.equal(got.blockHash !== receipt(CANON).blockHash, true);
-});
-test('stable receipts: a number-valued blockNumber (not a viem bigint) never satisfies the check → fallback at the timeout', async () => {
-  const c = clock(), stats = {};
-  const pub = fakePub({ receipts: [{ ...receipt(CANON), blockNumber: 100 }], heads: [105n], blocks: [CANON] });
-  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.fallback, true); assert.equal(stats.fallback, true); assert.ok(stats.errors > 0);
+test('real archive: a provider that consistently answers the sibling is not caught by the wrapper; setup.mjs:35 still sees the A/B difference', async () => {
+  const c = clock();
+  const A = realArchive({ c, siblingUntil: 0 }), B = realArchive({ c, siblingUntil: 1e9 });
+  const [ra, rb] = await Promise.all([stableReceipts(A.pub, {}, c).waitForTransactionReceipt({ hash: TX }), stableReceipts(B.pub, {}, c).waitForTransactionReceipt({ hash: TX })]);
+  assert.equal(ra.blockHash, CANON); assert.equal(rb.blockHash, SIBLING);
+  assert.equal(rb.blockHash !== ra.blockHash, true); // the pinned compare fails exactly as in run 1
 });

@@ -61,31 +61,42 @@ const refuseSigning = () => { throw Error('probe: signing refused'); };
 export const probeSigner = async account => ({ type: 'local', source: 'probe', address: account.address,
   signMessage: refuseSigning, signTransaction: refuseSigning, signTypedData: refuseSigning });
 // Post-send receipts (setup.mjs:268 calls pubA/pubB.waitForTransactionReceipt; :35 compares status, blockHash,
-// blockNumber). On a 2 s chain one provider can briefly answer from a sibling unsafe block (run 1, step 0). Each
-// provider's receipt is handed to setup only once that provider shows RECEIPT_CONFIRMATIONS confirmations and its own
-// block at receipt.blockNumber has receipt.blockHash. Errors while polling are retried until the timeout; then the
-// original viem waitForTransactionReceipt runs, so setup's own compare decides exactly as before (and its errors surface).
-export const RECEIPT_CONFIRMATIONS = 3, RECEIPT_TIMEOUT_MS = 120_000, RECEIPT_POLL_MS = 1_000;
+// blockNumber). On a 2 s chain one provider can briefly answer from a sibling unsafe block (run 1, step 0), and
+// formal.mjs archivedRpc (:154-230) remembers every block hash it sees per height: a later different hash throws
+// 'recorded block hash changed' and that archive then refuses every request. So nothing with a block hash is read
+// early: poll eth_blockNumber until RECEIPT_DELAY_BLOCKS past the start, then read the receipt (only "not found" is
+// retried), wait until it is RECEIPT_CONFIRMATIONS deep, then read that one block once. Any other error is rethrown
+// at once with its cause. Only if the receipt was never found by the timeout does the original viem wait run.
+export const RECEIPT_CONFIRMATIONS = 3, RECEIPT_DELAY_BLOCKS = 3, RECEIPT_TIMEOUT_MS = 120_000, RECEIPT_POLL_MS = 1_000;
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
-export function stableReceipts(pub, stats, { confirmations = RECEIPT_CONFIRMATIONS, timeoutMs = RECEIPT_TIMEOUT_MS, pollMs = RECEIPT_POLL_MS, sleep = sleepMs, now = Date.now } = {}) {
+const notFound = error => error?.name === 'TransactionReceiptNotFoundError';
+export function stableReceipts(pub, stats, { confirmations = RECEIPT_CONFIRMATIONS, delayBlocks = RECEIPT_DELAY_BLOCKS, timeoutMs = RECEIPT_TIMEOUT_MS,
+  pollMs = RECEIPT_POLL_MS, sleep = sleepMs, now = Date.now } = {}) {
   const wait = async ({ hash, ...rest }) => {
     const deadline = now() + timeoutMs;
-    Object.assign(stats, { hash, polls: 0, block: null, confirmations: null, fallback: false, errors: 0 });
-    while (now() < deadline) {
-      stats.polls++;
-      try {
-        const receipt = await pub.getTransactionReceipt({ hash });
-        const head = await pub.getBlockNumber({ cacheTime: 0 });
-        stats.block = String(receipt.blockNumber); stats.confirmations = String(head - receipt.blockNumber + 1n);
-        if (String(receipt.transactionHash).toLowerCase() === String(hash).toLowerCase() && head - receipt.blockNumber + 1n >= BigInt(confirmations)) {
-          const block = await pub.getBlock({ blockNumber: receipt.blockNumber });
-          if (String(block.hash).toLowerCase() === String(receipt.blockHash).toLowerCase()) return receipt;
-        }
-      } catch { stats.errors++; }
+    Object.assign(stats, { hash, polls: 0, startBlock: null, firstReadHead: null, block: null, confirmations: null, fallback: false });
+    const head = async () => { stats.polls++; return pub.getBlockNumber({ cacheTime: 0 }); };
+    const until = async (target, what) => {
+      let h = await head();
+      while (h < target) { if (now() >= deadline) throw Error('receipt wait timed out ' + what); await sleep(pollMs); h = await head(); }
+      return h;
+    };
+    const start = await head();
+    stats.startBlock = String(start);
+    stats.firstReadHead = String(await until(start + BigInt(delayBlocks), 'before the first receipt read'));
+    let receipt;
+    for (;;) {
+      try { receipt = await pub.getTransactionReceipt({ hash }); break; } catch (error) { if (!notFound(error)) throw error; }
+      if (now() >= deadline) { stats.fallback = true; return pub.waitForTransactionReceipt({ hash, ...rest }); }
       await sleep(pollMs);
     }
-    stats.fallback = true;
-    return pub.waitForTransactionReceipt({ hash, ...rest });
+    if (String(receipt.transactionHash).toLowerCase() !== String(hash).toLowerCase()) throw Error('receipt is for another transaction');
+    stats.block = String(receipt.blockNumber);
+    const h = await until(receipt.blockNumber + BigInt(confirmations) - 1n, 'for confirmations');
+    stats.confirmations = String(h - receipt.blockNumber + 1n);
+    const block = await pub.getBlock({ blockNumber: receipt.blockNumber });
+    if (String(block.hash).toLowerCase() !== String(receipt.blockHash).toLowerCase()) throw Error('receipt block is not canonical on this provider');
+    return receipt;
   };
   return new Proxy(pub, { get: (target, key) => key === 'waitForTransactionReceipt' ? wait : target[key] });
 }
@@ -243,6 +254,7 @@ export async function runSession(opts, io) {
     const problem = treeProblem(io, root, opts['expect-commit'])
       ?? Object.entries(record.before.files).map(([p, h]) => sha256(io.read(resolve(root, p))) !== h ? 'session file changed since start: ' + p : null).find(Boolean);
     if (problem) return finish('stopped', { reason: problem, nextIndex: index });
+    if (recording && completionEntry(completionPath, opts.digest, bundle.steps[index].id)) return finish('stopped', { reason: 'record refused: the step already has its own completion entry', failedIndex: index });
     const stepDir = resolve(auditBase.path, stepDirName(index));
     try { auditBase.ensure(); io.mkdir(stepDir); } catch (error) { return finish('stopped', { reason: 'step audit directory exists or cannot be created', nextIndex: index, error: redact(error) }); }
     const audit = resolve(stepDir, 'setup.audit.ndjson');
@@ -250,7 +262,6 @@ export async function runSession(opts, io) {
     const base = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], audit, opts.config, opts.inputs];
     const args = recording ? ['record', ...base, opts['record-tx'], '--expect-head', head] : [...base, '--expect-head', head];
     const ownBefore = completionEntry(completionPath, opts.digest, bundle.steps[index].id);
-    if (recording && ownBefore) return finish('stopped', { reason: 'record refused: the step already has its own completion entry', failedIndex: index });
     receipts = null;
     const logReceipts = () => { if (receipts?.A.hash || receipts?.B.hash) log('SESSION_RECEIPTS ' + JSON.stringify({ index, A: receipts.A, B: receipts.B })); };
     try {
