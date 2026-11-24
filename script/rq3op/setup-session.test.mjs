@@ -830,3 +830,7 @@ test('real archive: a provider that consistently answers the sibling is not caug
   assert.equal(ra.blockHash, CANON); assert.equal(rb.blockHash, SIBLING);
   assert.equal(rb.blockHash !== ra.blockHash, true); // the pinned compare fails exactly as in run 1
 });
+test('stable receipts: without the archive layer, a block hash differing from the receipt is still rejected', async () => {
+  const pub = fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n], blocks: [SIBLING] });
+  await assert.rejects(stableReceipts(pub, {}, clock()).waitForTransactionReceipt({ hash: TX }), /not canonical/);
+});
