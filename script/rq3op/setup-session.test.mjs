@@ -472,7 +472,9 @@ test('per-step audit: --audit (the single-file form that dies at step 1) is no l
   assert.throws(() => parseArgs(argv.filter((a, i, all) => a !== '--audit-dir' && all[i - 1] !== '--audit-dir')), /missing --audit-dir/);
 });
 test('per-step audit: --audit-dir outside the root, or an in-tree symlink to outside, is refused (real filesystem)', async () => {
-  await assert.rejects(runSession(opts({ 'audit-dir': '../elsewhere' }), fixture().io), /--audit-dir must be inside/);
+  const outside = fixture();
+  await assert.rejects(runSession(opts({ 'audit-dir': '../elsewhere' }), outside.io), /--audit-dir must be inside/);
+  assert.deepEqual(outside.ev.dirs, [], 'nothing is created outside the root before the refusal');
   const t = realTree();
   try {
     symlinkSync(resolve(t.base, 'outside'), resolve(t.root, 'cache/outdir'));
