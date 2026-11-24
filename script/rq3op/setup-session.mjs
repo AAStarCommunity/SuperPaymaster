@@ -25,17 +25,34 @@ const gitBlob = bytes => createHash('sha1').update(Buffer.concat([Buffer.from(`b
 const redact = s => String(s?.message ?? s).replace(/https?:\/\/\S+/g, '<url>');
 const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit','config','inputs','start','end','expect-head','heads-file'];
 const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads'];
-const PROBE_SEND_REFUSED = 'probe: send refused';
 
 // setup.mjs:159-163 compares the two providers' parsed results with plain JSON.stringify, so equal objects whose
 // keys come back in a different order disagree (OP Sepolia headers: Alchemy vs QuickNode). The session hands setup a
 // runtime whose archive requests return the same result with object keys sorted recursively. Arrays keep their order;
 // strings, numbers, booleans and null pass unchanged; method, params and errors pass through untouched. formal.mjs
 // archives each provider's raw response bytes before this runs (archivedRpc), so the archive is unaffected.
-export function sortKeys(value) {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.keys(value).sort().map(k => [k, sortKeys(value[k])]));
+// Only the JSON value domain is accepted (what formal.mjs's JSON.parse yields); anything else throws, so a value whose
+// meaning is not in its own enumerable data keys (Date, typed array, accessor, toJSON) cannot be collapsed.
+export function sortKeys(value, seen = new Set()) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'object') throw Error('sortKeys: not a JSON value');
+  if (seen.has(value)) throw Error('sortKeys: cycle');
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype || Reflect.ownKeys(value).length !== value.length + 1) throw Error('sortKeys: not a JSON array');
+      return Array.from(value, item => sortKeys(item, seen));
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) throw Error('sortKeys: not a plain object');
+    const keys = Reflect.ownKeys(value);
+    for (const k of keys) {
+      const d = Object.getOwnPropertyDescriptor(value, k);
+      if (typeof k !== 'string' || !d.enumerable || !('value' in d)) throw Error('sortKeys: not a JSON data property');
+    }
+    return Object.fromEntries(keys.sort().map(k => [k, sortKeys(value[k], seen)]));
+  } finally { seen.delete(value); }
 }
 const refuseSigning = () => { throw Error('probe: signing refused'); };
 // Probe signer: the configured address, and every signing call throws. Used only with --probe-reads; no keystore.
@@ -90,8 +107,8 @@ export async function runSession(opts, io) {
     let after;
     try { after = snapshot(io, root, opts); } catch (error) { after = { error: redact(error) }; }
     const equal = JSON.stringify(after) === JSON.stringify(record.before);
-    // A changed tree or file never ends as complete.
-    const final = !equal && status === 'complete' ? 'stopped-hash-mismatch' : status;
+    // A changed tree or file never ends as a success (complete or probe-reached-send).
+    const final = !equal && (status === 'complete' || status === 'probe-reached-send') ? 'stopped-hash-mismatch' : status;
     const summary = { status: final, stepsDone: record.steps.length, lastIndex: record.steps.at(-1)?.index ?? null,
       lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, ...extra };
     log('SESSION_SUMMARY ' + JSON.stringify(summary));
@@ -131,8 +148,11 @@ export async function runSession(opts, io) {
   const probe = opts['probe-reads'];
   if (probe) log('SESSION_NOTE probe-reads: signer refuses to sign and deps.send refuses; the step stops at its send');
   // deps.send is set only in probe mode; otherwise setup builds its own send from the canonical archives[0] (setup.mjs:157).
+  // Probe success is recognised by this session's own Error instance, thrown only by deps.send.
+  const refused = Error('probe: send refused');
+  let sendCalls = 0;
   const deps = { regenerate: async () => Buffer.from(regenerated), runtime: canonicalRuntime(formal.formalRuntime, { probe }),
-    ...(probe ? { send: async () => { throw Error(PROBE_SEND_REFUSED); } } : {}) };
+    ...(probe ? { send: async () => { sendCalls++; throw refused; } } : {}) };
   // 4. Operator confirmation (the price is refreshed between regeneration and this line).
   const confirm = async why => { log('SESSION_WAIT ' + why + ' — type "confirm" to continue, anything else stops'); return (await io.readLine())?.trim() === 'confirm'; };
   if (!await confirm('before first step')) return finish('stopped', { reason: 'operator did not confirm' });
@@ -150,10 +170,16 @@ export async function runSession(opts, io) {
     try {
       await setup.main(args, deps);
     } catch (error) {
-      if (probe && error?.message === PROBE_SEND_REFUSED) return finish('probe-reached-send', { index });
+      if (probe && error === refused && sendCalls === 1) {
+        const after = chainHead(completionPath, opts.digest);
+        if (after !== head || completionEntry(completionPath, opts.digest, bundle.steps[index].id))
+          return finish('stopped', { reason: 'probe: completion log changed', failedIndex: index, chainHeadAfterFailure: after });
+        return finish('probe-reached-send', { index });
+      }
       let after = 'unavailable'; try { after = chainHead(completionPath, opts.digest); } catch {}
       return finish('stopped', { reason: 'setup step failed', failedIndex: index, chainHeadAfterFailure: after, error: redact(error) });
     }
+    if (probe) return finish('stopped', { reason: 'probe: setup returned without reaching send', failedIndex: index });
     const next = chainHead(completionPath, opts.digest);
     const own = completionEntry(completionPath, opts.digest, bundle.steps[index].id);
     if (next !== head && next !== own?.recordDigest) return finish('stopped', { reason: 'completion log head is not this step\'s own entry', failedIndex: index, chainHeadAfterStep: next });

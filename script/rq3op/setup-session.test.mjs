@@ -19,7 +19,7 @@ const opts = (o = {}) => ({ 'deploy-root': ROOT, 'expect-commit': COMMIT, bundle
   start: 0, end: 2, 'expect-head': GENESIS, 'heads-file': '/outside/heads.jsonl', 'empty-history-acknowledged': true, ...o });
 
 const FORMAL = { formalRuntime: async () => ({}) };
-function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, clock = [], afterStep = () => {}, foreignAt = null, mainError = null } = {}) {
+function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, clock = [], afterStep = () => {}, foreignAt = null, mainError = null, mainImpl = null } = {}) {
   const files = { [resolve(ROOT, 'cache/plan.json')]: BUNDLE, [resolve(ROOT, 'cfg.json')]: Buffer.from('cfg'), [resolve(ROOT, 'in.json')]: Buffer.from('in') };
   for (const p of EXPECTED_PINNED) files[resolve(ROOT, p)] = Buffer.from('module ' + p);
   const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(ROOT, p)])]));
@@ -47,6 +47,7 @@ function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, 
       if (p.endsWith('setup.mjs')) return { main: async (args, deps) => {
         const index = Number(args[2]);
         ev.main.push({ args, deps });
+        if (mainImpl) return mainImpl(args, deps, { files, state });
         if (mainError) throw mainError;
         if (index === failAt) throw Error('setup gate: {"gate":"rq3_send_price_fresh"} https://secret.example/key');
         state.head = sha256(state.head + args[2]);
@@ -227,7 +228,6 @@ test('sortKeys: array order is kept, so a reordered array disagrees', () => {
 });
 test('sortKeys: strings, numbers, booleans and null are returned unchanged; values are not coerced', () => {
   for (const v of ['0x00', '', 0, 1.5, true, false, null]) assert.equal(sortKeys(v), v);
-  assert.equal(sortKeys(undefined), undefined);
   assert.deepEqual(sortKeys({ n: 1, s: '1', z: null }), { n: 1, s: '1', z: null });
   assert.equal(typeof sortKeys({ v: '0x1' }).v, 'string');
 });
@@ -279,11 +279,11 @@ test('--probe-reads requires --start 0 --end 0 and is the only mode that sets de
   assert.throws(() => parseArgs(argv({ 'probe-reads': true, start: 0, end: 1 })), /--probe-reads requires/);
   assert.equal(parseArgs(argv({ 'probe-reads': true, start: 0, end: 0 }))['probe-reads'], true);
   assert.equal(parseArgs(argv({}))['probe-reads'], false);
-  const f = fixture({ mainError: Error('probe: send refused') });
+  let sent = 0;
+  const f = fixture({ mainImpl: async (args, deps) => { sent++; await deps.send({}); } });
   const s = await runSession(opts({ 'probe-reads': true, end: 0 }), f.io);
-  assert.equal(s.status, 'probe-reached-send'); assert.equal(s.index, 0); assert.equal(f.ev.main.length, 1);
+  assert.equal(s.status, 'probe-reached-send'); assert.equal(s.index, 0); assert.equal(f.ev.main.length, 1); assert.equal(sent, 1);
   assert.deepEqual(Object.keys(f.ev.main[0].deps), ['regenerate', 'runtime', 'send']);
-  await assert.rejects(f.ev.main[0].deps.send({}), /probe: send refused/);
   assert.equal(f.ev.heads.length, 0);
 });
 test('probe mode: any other setup error is a stop, not a probe success', async () => {
@@ -304,4 +304,49 @@ test('formal.mjs changed while it is being imported stops before any step (re-ve
   f.io.importModule = async p => { const m = await importModule(p); if (p.endsWith('formal.mjs')) f.files[resolve(ROOT, p.slice(ROOT.length + 1))] = Buffer.from('edited'); return m; };
   await assert.rejects(runSession(opts(), f.io), /pinned module differs from HEAD: script\/a6-collector\/formal.mjs/);
   assert.equal(f.ev.main.length, 0);
+});
+
+// ── Daybreak #681 H1 / L1 / L2 ─────────────────────────────────────────────────────────────────────────
+const probeRun = mainImpl => { const f = fixture({ mainImpl }); return runSession(opts({ 'probe-reads': true, end: 0 }), f.io).then(s => ({ s, f })); };
+test('probe: setup.main returning normally (e.g. already-satisfied) is a stop, appends no head', async () => {
+  const { s, f } = await probeRun(async () => {});
+  assert.equal(s.status, 'stopped'); assert.match(s.reason, /returned without reaching send/); assert.equal(f.ev.heads.length, 0);
+});
+test('probe: the refusal text thrown without deps.send being called is a stop (identity, not message)', async () => {
+  const { s } = await probeRun(async () => { throw Error('probe: send refused'); });
+  assert.equal(s.status, 'stopped'); assert.equal(s.error, 'probe: send refused');
+});
+test('probe: deps.send called twice is a stop', async () => {
+  const { s } = await probeRun(async (a, deps) => { try { await deps.send({}); } catch {} await deps.send({}); });
+  assert.equal(s.status, 'stopped');
+});
+test('probe: a new completion entry or a moved chain head before the refusal is a stop', async () => {
+  for (const mutate of [st => { st.own[IDS[0]] = { recordDigest: 'x' }; }, st => { st.head = sha256('moved'); }]) {
+    const { s, f } = await probeRun(async (a, deps, { state }) => { mutate(state); await deps.send({}); });
+    assert.equal(s.status, 'stopped'); assert.match(s.reason, /completion log changed/); assert.equal(f.ev.heads.length, 0);
+  }
+});
+test('probe: a session file or HEAD changed before the refusal ends stopped-hash-mismatch, exit nonzero', async () => {
+  const fileChange = await probeRun(async (a, deps, { files }) => { files[resolve(ROOT, 'cfg.json')] = Buffer.from('changed'); await deps.send({}); });
+  assert.equal(fileChange.s.status, 'stopped-hash-mismatch'); assert.equal(fileChange.s.hashesEqual, false);
+  const headChange = await probeRun(async (a, deps, { state }) => { state.commit = 'c'.repeat(40); await deps.send({}); });
+  assert.equal(headChange.s.status, 'stopped-hash-mismatch');
+});
+test('sortKeys: values outside the JSON domain throw instead of collapsing', () => {
+  const accessor = Object.defineProperty({}, 'x', { get: () => 1, enumerable: true });
+  const hidden = Object.defineProperty({}, 'x', { value: 1, enumerable: false });
+  const cyclic = { a: 1 }; cyclic.self = cyclic;
+  const cyclicArray = []; cyclicArray.push(cyclicArray);
+  const extraArray = [1]; extraArray.tag = 'x';
+  class Box { constructor() { this.x = 1; } }
+  for (const v of [new Date(0), 1n, undefined, new Uint8Array([1]), accessor, hidden, cyclic, cyclicArray, extraArray, new Box(),
+    { toJSON: () => 'x' }, { [Symbol('s')]: 1 }, NaN, Infinity, () => 1, Symbol('s'), [undefined], { a: undefined }, new Map()])
+    assert.throws(() => sortKeys(v), /sortKeys:/, String(v));
+});
+test('sortKeys: null-prototype objects and shared (non-cyclic) references are accepted', () => {
+  const o = Object.create(null); o.b = 1; o.a = 2;
+  assert.equal(stringify(sortKeys(o)), '{"a":2,"b":1}');
+  const shared = { x: 1 };
+  assert.equal(stringify(sortKeys({ p: shared, q: [shared, shared] })), '{"p":{"x":1},"q":[{"x":1},{"x":1}]}');
+  assert.equal(stringify(sortKeys(JSON.parse('{"__proto__":{"z":1},"a":0}'))), '{"__proto__":{"z":1},"a":0}');
 });
