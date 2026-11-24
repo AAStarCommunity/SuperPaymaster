@@ -586,3 +586,11 @@ test('--audit-dir (real filesystem): missing components are created one by one; 
     assert.equal(s2.status, 'stopped'); assert.match(s2.reason, /step audit directory exists/); assert.equal(g.ev.main.length, 0);
   } finally { t.cleanup(); }
 });
+test('--audit-dir: a component that is not a real directory right after its mkdir is refused before the step', async () => {
+  const f = fixture();
+  const mkdir = f.io.mkdir;
+  // Simulates a swap between creating a component and using it: the created base turns out to be a symlink.
+  f.io.mkdir = (p, o) => { mkdir(p, o); if (p === resolve(ROOT, 'cache/steps')) f.ev.links.push(p); };
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'stopped'); assert.match(s.error, /component is not a real directory/); assert.equal(f.ev.main.length, 0);
+});
