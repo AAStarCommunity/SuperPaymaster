@@ -145,6 +145,23 @@ for (const [name, change] of [
   assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 1); assert.equal(f.ev.main.length, 1);
 });
 
+for (const p of ['cfg.json', 'in.json', 'cache/plan.json']) test('a session input changed after regeneration stops before the first step: ' + p, async () => {
+  const f = fixture();
+  const log = f.io.log;
+  f.io.log = s => { log(s); if (s.startsWith('SESSION_REGENERATED')) f.files[resolve(ROOT, p)] = Buffer.from('changed'); };
+  const s = await runSession(opts(), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 0); assert.match(s.reason, /session file changed/); assert.equal(f.ev.main.length, 0);
+});
+
+for (const p of ['script/a6-collector/frozen-plan.mjs', 'script/rq3op/completion.mjs']) test('a pinned module changed between the start snapshot and its import stops before the planner: ' + p, async () => {
+  const f = fixture();
+  const log = f.io.log;
+  f.io.log = s => { log(s); if (s.startsWith('SESSION_START')) f.files[resolve(ROOT, p)] = Buffer.from('edited'); };
+  await assert.rejects(runSession(opts(), f.io), /pinned module differs/);
+  assert.equal(f.ev.planner.length, 0); assert.equal(f.ev.main.length, 0);
+  assert.equal(f.ev.imports.some(i => i.endsWith(p)), false);
+});
+
 test('operator pause: more than 50 minutes after confirmation stops between steps until reconfirmed', async () => {
   const clock = [0, 1, 0, 1000, 1000, OPERATOR_PAUSE_MS + 2000];
   const f = fixture({ clock, confirms: ['confirm', 'no'] });

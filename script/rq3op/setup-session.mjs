@@ -114,7 +114,8 @@ export async function runSession(opts, io) {
       if (!await confirm(`operator pause before step ${index}`)) return finish('stopped', { reason: 'operator did not reconfirm', nextIndex: index });
       confirmedAt = io.now();
     }
-    const problem = treeProblem(io, root, opts['expect-commit']);
+    const problem = treeProblem(io, root, opts['expect-commit'])
+      ?? Object.entries(record.before.files).map(([p, h]) => sha256(io.read(resolve(root, p))) !== h ? 'session file changed since start: ' + p : null).find(Boolean);
     if (problem) return finish('stopped', { reason: problem, nextIndex: index });
     const args = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], opts.audit, opts.config, opts.inputs, '--expect-head', head];
     try {
