@@ -102,11 +102,17 @@ export function treeProblem(io, root, commit, paths = PINNED_MODULES) {
 
 export async function runSession(opts, io) {
   const root = io.realpath(opts['deploy-root']);
+  // --regen-rpc-b is resolved to its real path before anything reads it; the canonical path must be inside the root and
+  // is what the snapshot hashes and the planner receives (a symlink in the tree pointing outside is refused unread).
+  if (opts['regen-rpc-b'] !== undefined) {
+    const canonical = io.realpath(resolve(root, opts['regen-rpc-b']));
+    if (!canonical.startsWith(root + '/')) throw Error('--regen-rpc-b must be inside the deploy worktree');
+    opts = { ...opts, 'regen-rpc-b': canonical };
+  }
   const log = io.log, record = { steps: [], heads: [] };
   const headsFile = resolve(opts['heads-file']);
   if (headsFile === root || headsFile.startsWith(root + '/')) throw Error('--heads-file must be outside the deploy worktree');
   const regenB = opts['regen-rpc-b'] ?? opts['rpc-b'];
-  if (opts['regen-rpc-b'] !== undefined && !resolve(root, opts['regen-rpc-b']).startsWith(root + '/')) throw Error('--regen-rpc-b must be inside the deploy worktree');
   const finish = (status, extra = {}) => {
     let after;
     try { after = snapshot(io, root, opts); } catch (error) { after = { error: redact(error) }; }
@@ -207,10 +213,11 @@ const realIO = () => {
     close: () => rl.close(),
   };
 };
+export const exitCodeFor = status => status === 'complete' || status === 'probe-reached-send' ? 0 : 1;
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const io = realIO();
   Promise.resolve().then(() => runSession(parseArgs(process.argv.slice(2)), io))
-    .then(s => { process.exitCode = s.status === 'complete' || s.status === 'probe-reached-send' ? 0 : 1; })
+    .then(s => { process.exitCode = exitCodeFor(s.status); })
     .catch(e => { process.stderr.write('setup session stopped: ' + redact(e) + '\n'); process.exitCode = 1; })
     .finally(() => io.close());
 }

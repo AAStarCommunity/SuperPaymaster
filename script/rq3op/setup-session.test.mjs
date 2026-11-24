@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { runSession, parseArgs, PINNED_MODULES, OPERATOR_PAUSE_MS, GENESIS, sortKeys, canonicalRuntime, probeSigner } from './setup-session.mjs';
+import { runSession, parseArgs, PINNED_MODULES, OPERATOR_PAUSE_MS, GENESIS, sortKeys, canonicalRuntime, probeSigner, exitCodeFor } from './setup-session.mjs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = '/deploy', COMMIT = 'a'.repeat(40);
 const sha256 = b => createHash('sha256').update(b).digest('hex');
@@ -19,11 +23,11 @@ const opts = (o = {}) => ({ 'deploy-root': ROOT, 'expect-commit': COMMIT, bundle
   start: 0, end: 2, 'expect-head': GENESIS, 'heads-file': '/outside/heads.jsonl', 'empty-history-acknowledged': true, ...o });
 
 const FORMAL = { formalRuntime: async () => ({}) };
-function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, clock = [], afterStep = () => {}, foreignAt = null, mainError = null, mainImpl = null } = {}) {
-  const files = { [resolve(ROOT, 'cache/plan.json')]: BUNDLE, [resolve(ROOT, 'cfg.json')]: Buffer.from('cfg'), [resolve(ROOT, 'in.json')]: Buffer.from('in'),
-    [resolve(ROOT, 'cache/b')]: Buffer.from('steps-b'), [resolve(ROOT, 'cache/regenb')]: Buffer.from('regen-b') };
-  for (const p of EXPECTED_PINNED) files[resolve(ROOT, p)] = Buffer.from('module ' + p);
-  const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(ROOT, p)])]));
+function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, clock = [], afterStep = () => {}, foreignAt = null, mainError = null, mainImpl = null, root = ROOT } = {}) {
+  const files = { [resolve(root, 'cache/plan.json')]: BUNDLE, [resolve(root, 'cfg.json')]: Buffer.from('cfg'), [resolve(root, 'in.json')]: Buffer.from('in'),
+    [resolve(root, 'cache/b')]: Buffer.from('steps-b'), [resolve(root, 'cache/regenb')]: Buffer.from('regen-b') };
+  for (const p of EXPECTED_PINNED) files[resolve(root, p)] = Buffer.from('module ' + p);
+  const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(root, p)])]));
   const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [] };
   const state = { head: GENESIS, own: {}, status: '', commit: COMMIT };
   let t = 0;
@@ -362,21 +366,21 @@ test('--regen-rpc-b: regeneration gets the regen B file, every setup.main step s
   assert.equal(f.ev.planner.length, 1); assert.deepEqual(f.ev.planner[0].args, PLANNER_ARGV('cache/regenb'));
   for (const call of f.ev.main) { assert.equal(call.args[5], 'cache/b'); assert.equal(call.args.includes('cache/regenb'), false); }
   const providers = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_PROVIDERS ')).slice(18));
-  assert.deepEqual(providers, { regenerationB: { file: 'cache/regenb', sha256: sha256(Buffer.from('regen-b')) }, stepsB: { file: 'cache/b', sha256: sha256(Buffer.from('steps-b')) } });
-  assert.equal(JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14)).files['cache/regenb'], sha256(Buffer.from('regen-b')));
+  assert.deepEqual(providers, { regenerationB: { file: resolve(ROOT, 'cache/regenb'), sha256: sha256(Buffer.from('regen-b')) }, stepsB: { file: 'cache/b', sha256: sha256(Buffer.from('steps-b')) } });
+  assert.equal(JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14)).files[resolve(ROOT, 'cache/regenb')], sha256(Buffer.from('regen-b')));
 });
 test('--regen-rpc-b absent: planner argv is exactly as before (rpc-b) and the snapshot has no extra file', async () => {
   const f = fixture();
   await runSession(opts(), f.io);
   assert.deepEqual(f.ev.planner[0].args, PLANNER_ARGV('cache/b'));
   const start = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14));
-  assert.equal('cache/regenb' in start.files, false);
+  assert.equal(Object.keys(start.files).some(k => k.endsWith('regenb')), false);
   assert.equal(JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_PROVIDERS ')).slice(18)).regenerationB.file, 'cache/b');
 });
 test('--regen-rpc-b is in the start snapshot: changed between steps stops before the next step', async () => {
   const f = fixture({ afterStep: (i, { files }) => { if (i === 0) files[resolve(ROOT, 'cache/regenb')] = Buffer.from('swapped'); } });
   const s = await runSession(opts({ 'regen-rpc-b': 'cache/regenb' }), f.io);
-  assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 1); assert.match(s.reason, /session file changed since start: cache\/regenb/);
+  assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 1); assert.match(s.reason, /session file changed since start: \/deploy\/cache\/regenb/);
 });
 test('--regen-rpc-b outside the deploy worktree is refused; parseArgs accepts it once', async () => {
   await assert.rejects(runSession(opts({ 'regen-rpc-b': '../elsewhere/b' }), fixture().io), /--regen-rpc-b must be inside/);
@@ -384,4 +388,61 @@ test('--regen-rpc-b outside the deploy worktree is refused; parseArgs accepts it
   assert.equal(parseArgs(argv({ 'regen-rpc-b': 'cache/regenb' }))['regen-rpc-b'], 'cache/regenb');
   assert.equal('regen-rpc-b' in parseArgs(argv({})), false);
   assert.throws(() => parseArgs([...argv({ 'regen-rpc-b': 'x' }), '--regen-rpc-b', 'y']), /usage/);
+});
+
+// ── Daybreak increment: --regen-rpc-b canonical containment, probe + regen, CLI exit code ────────────
+function realTree() {
+  const base = realpathSync(mkdtempSync(resolve(tmpdir(), 'regen-')));
+  const root = resolve(base, 'deploy');
+  mkdirSync(resolve(root, 'cache/sub'), { recursive: true }); mkdirSync(resolve(base, 'outside'));
+  writeFileSync(resolve(root, 'cache/regenb'), 'regen-b'); writeFileSync(resolve(base, 'outside/b'), 'outside');
+  symlinkSync(resolve(base, 'outside/b'), resolve(root, 'cache/link'));
+  symlinkSync(resolve(root, 'cache/regenb'), resolve(root, 'cache/inlink'));
+  return { base, root, cleanup: () => rmSync(base, { recursive: true, force: true }) };
+}
+function realFixture(root) {
+  const f = fixture({ root });
+  const read = f.io.read, reads = [];
+  f.io.realpath = realpathSync;
+  f.io.read = p => { reads.push(p); return p in f.files ? read(p) : readFileSync(p); };
+  return { f, reads };
+}
+test('--regen-rpc-b: an in-tree symlink to an outside file is refused before the target is read (real filesystem)', async () => {
+  const t = realTree();
+  try {
+    const { f, reads } = realFixture(t.root);
+    await assert.rejects(runSession(opts({ 'deploy-root': t.root, 'regen-rpc-b': 'cache/link' }), f.io), /--regen-rpc-b must be inside/);
+    assert.equal(reads.length, 0); assert.equal(f.ev.planner.length, 0);
+  } finally { t.cleanup(); }
+});
+test('--regen-rpc-b: an absolute in-tree path, a normalized `..` path and an in-tree symlink all resolve to the canonical file', async () => {
+  const t = realTree();
+  try {
+    for (const given of [resolve(t.root, 'cache/regenb'), 'cache/sub/../regenb', 'cache/inlink']) {
+      const { f } = realFixture(t.root);
+      f.files[resolve(t.root, 'cache/b')] = Buffer.from('steps-b');
+      const s = await runSession(opts({ 'deploy-root': t.root, 'regen-rpc-b': given }), f.io);
+      assert.equal(s.status, 'complete', given);
+      assert.equal(f.ev.planner[0].args[f.ev.planner[0].args.indexOf('--rpc-b-file') + 1], resolve(t.root, 'cache/regenb'), given);
+      const start = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14));
+      assert.equal(start.files[resolve(t.root, 'cache/regenb')], sha256(Buffer.from('regen-b')), given);
+    }
+  } finally { t.cleanup(); }
+});
+test('--probe-reads with --regen-rpc-b: regeneration uses the regen file, the probe step gets --rpc-b, success needs the send refusal', async () => {
+  const f = fixture({ mainImpl: async (args, deps) => { assert.equal(args[5], 'cache/b'); await deps.send({}); } });
+  const s = await runSession(opts({ 'probe-reads': true, end: 0, 'regen-rpc-b': 'cache/regenb' }), f.io);
+  assert.equal(s.status, 'probe-reached-send'); assert.equal(s.hashesEqual, true);
+  assert.equal(f.ev.planner[0].args[f.ev.planner[0].args.indexOf('--rpc-b-file') + 1], resolve(ROOT, 'cache/regenb'));
+  assert.equal(f.ev.heads.length, 0);
+});
+test('CLI exit code: only complete and probe-reached-send exit 0', () => {
+  assert.equal(exitCodeFor('complete'), 0); assert.equal(exitCodeFor('probe-reached-send'), 0);
+  for (const s of ['stopped', 'stopped-hash-mismatch', undefined]) assert.equal(exitCodeFor(s), 1);
+});
+test('CLI process: a refused probe invocation exits 1 with a redacted message', () => {
+  const file = fileURLToPath(new URL('./setup-session.mjs', import.meta.url));
+  const argv = Object.entries(opts({ 'probe-reads': true, start: 0, end: 1 })).flatMap(([k, v]) => v === true ? ['--' + k] : v === false ? [] : ['--' + k, String(v)]);
+  const r = spawnSync(process.execPath, [file, ...argv], { input: '', encoding: 'utf8' });
+  assert.equal(r.status, 1); assert.match(r.stderr, /setup session stopped: --probe-reads requires --start 0 --end 0/);
 });
