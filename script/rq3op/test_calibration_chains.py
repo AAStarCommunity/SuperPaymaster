@@ -131,8 +131,15 @@ class CalibrationChains(unittest.TestCase):
 
     def test_deployment_planner_unchanged(self):
         root = Path(__file__).resolve().parents[2]
+        # The session driver is not a deploy-commit setup module: it imports the 99a38d8d setup.mjs by path
+        # and checks its blob. Only these two files are excluded, and they must not exist at 99a38d8d.
+        driver = ('script/rq3op/setup-session.mjs', 'script/rq3op/setup-session.test.mjs')
+        for path in driver:
+            absent = subprocess.run(['git', 'cat-file', '-e', f'99a38d8d:{path}'], cwd=root, capture_output=True)
+            self.assertNotEqual(absent.returncode, 0, path + ' exists at 99a38d8d')
         for path in ('script/rq3op/plan_three_arm.py', 'script/upgrade/manifest_exec.py',
-                     *(str(p.relative_to(root)) for p in sorted((root/'script/rq3op').glob('setup*.mjs')))):
+                     *(str(p.relative_to(root)) for p in sorted((root/'script/rq3op').glob('setup*.mjs'))
+                       if str(p.relative_to(root)) not in driver)):
             baseline = subprocess.check_output(['git', 'show', f'99a38d8d:{path}'], cwd=root)
             self.assertEqual((root/path).read_bytes(), baseline, path)
 
