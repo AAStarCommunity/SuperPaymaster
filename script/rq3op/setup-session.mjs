@@ -77,7 +77,7 @@ export function stableReceipts(pub, stats, { confirmations = RECEIPT_CONFIRMATIO
         const receipt = await pub.getTransactionReceipt({ hash });
         const head = await pub.getBlockNumber({ cacheTime: 0 });
         stats.block = String(receipt.blockNumber); stats.confirmations = String(head - receipt.blockNumber + 1n);
-        if (head - receipt.blockNumber + 1n >= BigInt(confirmations)) {
+        if (String(receipt.transactionHash).toLowerCase() === String(hash).toLowerCase() && head - receipt.blockNumber + 1n >= BigInt(confirmations)) {
           const block = await pub.getBlock({ blockNumber: receipt.blockNumber });
           if (String(block.hash).toLowerCase() === String(receipt.blockHash).toLowerCase()) return receipt;
         }

@@ -745,3 +745,28 @@ test('SESSION_RECEIPTS: one line per step with block, confirmations, polls and f
     assert.deepEqual(line, { index: 0, A: { hash: TX, polls: 1, block: '100', confirmations: '3', fallback: false, errors: 0 }, B: { hash: TX, polls: 1, block: '100', confirmations: '4', fallback: false, errors: 0 } });
   } finally { delete FORMAL.next; }
 });
+
+// ── Daybreak #682 Low + test gaps ───────────────────────────────────────────────────────────────────────
+test('stable receipts: a receipt for a different transaction hash is never accepted; polling continues', async () => {
+  const c = clock(), stats = {};
+  const other = { ...receipt(CANON), transactionHash: '0x' + '4'.repeat(64) };
+  const pub = fakePub({ receipts: [other, receipt(CANON)], heads: [105n, 105n], blocks: [CANON, CANON] });
+  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
+  assert.equal(got.transactionHash, TX); assert.equal(stats.polls, 2);
+  assert.equal(pub.calls.filter(([m]) => m === 'getBlock').length, 1);
+});
+test('stable receipts: hash case differs between receipt and block → accepted, receipt returned with its own case (setup.mjs:35 stays strict)', async () => {
+  const c = clock(), stats = {};
+  const upper = '0x' + 'C'.repeat(64);
+  const pub = fakePub({ receipts: [{ ...receipt(upper), transactionHash: TX.toUpperCase().replace('0X', '0x') }], heads: [105n], blocks: [CANON] });
+  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
+  assert.equal(got.blockHash, upper);
+  // The pinned compare (B.blockHash !== A.blockHash) is not relaxed by the wrapper:
+  assert.equal(got.blockHash !== receipt(CANON).blockHash, true);
+});
+test('stable receipts: a number-valued blockNumber (not a viem bigint) never satisfies the check → fallback at the timeout', async () => {
+  const c = clock(), stats = {};
+  const pub = fakePub({ receipts: [{ ...receipt(CANON), blockNumber: 100 }], heads: [105n], blocks: [CANON] });
+  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
+  assert.equal(got.fallback, true); assert.equal(stats.fallback, true); assert.ok(stats.errors > 0);
+});
