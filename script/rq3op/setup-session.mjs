@@ -25,6 +25,8 @@ const gitBlob = bytes => createHash('sha1').update(Buffer.concat([Buffer.from(`b
 const redact = s => String(s?.message ?? s).replace(/https?:\/\/\S+/g, '<url>');
 const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit','config','inputs','start','end','expect-head','heads-file'];
 const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads'];
+// Optional: B endpoint file for the driver's own regeneration only (planner + post-deploy checker); steps use --rpc-b.
+const OPTIONAL_VALUE_KEYS = ['regen-rpc-b'];
 
 // setup.mjs:159-163 compares the two providers' parsed results with plain JSON.stringify, so equal objects whose
 // keys come back in a different order disagree (OP Sepolia headers: Alchemy vs QuickNode). The session hands setup a
@@ -70,7 +72,7 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i]?.replace(/^--/, '');
     if (FLAG_KEYS.includes(k) && !(k in named)) { named[k] = true; continue; }
-    if (!VALUE_KEYS.includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--empty-history-acknowledged] [--probe-reads]');
+    if (![...VALUE_KEYS, ...OPTIONAL_VALUE_KEYS].includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--regen-rpc-b <v>] [--empty-history-acknowledged] [--probe-reads]');
     named[k] = argv[++i];
   }
   for (const k of VALUE_KEYS) if (!(k in named)) throw Error('missing --' + k);
@@ -85,7 +87,7 @@ export function parseArgs(argv) {
 
 export function snapshot(io, root, opts) {
   const files = {};
-  for (const p of [...PINNED_MODULES, opts.bundle, opts.config, opts.inputs]) files[p] = sha256(io.read(resolve(root, p)));
+  for (const p of [...PINNED_MODULES, opts.bundle, opts.config, opts.inputs, ...(opts['regen-rpc-b'] ? [opts['regen-rpc-b']] : [])]) files[p] = sha256(io.read(resolve(root, p)));
   return { head: io.git(root, ['rev-parse', 'HEAD']), tree: io.git(root, ['rev-parse', 'HEAD^{tree}']),
     status: io.git(root, ['status', '--porcelain']), files };
 }
@@ -103,6 +105,8 @@ export async function runSession(opts, io) {
   const log = io.log, record = { steps: [], heads: [] };
   const headsFile = resolve(opts['heads-file']);
   if (headsFile === root || headsFile.startsWith(root + '/')) throw Error('--heads-file must be outside the deploy worktree');
+  const regenB = opts['regen-rpc-b'] ?? opts['rpc-b'];
+  if (opts['regen-rpc-b'] !== undefined && !resolve(root, opts['regen-rpc-b']).startsWith(root + '/')) throw Error('--regen-rpc-b must be inside the deploy worktree');
   const finish = (status, extra = {}) => {
     let after;
     try { after = snapshot(io, root, opts); } catch (error) { after = { error: redact(error) }; }
@@ -120,6 +124,8 @@ export async function runSession(opts, io) {
   verify();
   record.before = snapshot(io, root, opts);
   log('SESSION_START ' + JSON.stringify({ commit: record.before.head, tree: record.before.tree, files: record.before.files }));
+  log('SESSION_PROVIDERS ' + JSON.stringify({ regenerationB: { file: regenB, sha256: sha256(io.read(resolve(root, regenB))) },
+    stepsB: { file: opts['rpc-b'], sha256: sha256(io.read(resolve(root, opts['rpc-b']))) } }));
   const raw = io.read(resolve(root, opts.bundle));
   if (sha256(raw) !== opts.digest) throw Error('reviewed bundle digest mismatch');
   const { parse } = await importPinned('script/a6-collector/frozen-plan.mjs');
@@ -137,7 +143,7 @@ export async function runSession(opts, io) {
   const block = Object.values(bundle.plans)[0].pin.block;
   const regenStart = io.now();
   const regenerated = Buffer.from(await io.planner(root, ['-B', resolve(root, 'script/rq3op/plan_three_arm.py'), resolve(root, opts.config),
-    resolve(root, opts.inputs), '-', '--rpc-a-file', resolve(root, opts['rpc-a']), '--rpc-b-file', resolve(root, opts['rpc-b']), '--block', block]));
+    resolve(root, opts.inputs), '-', '--rpc-a-file', resolve(root, opts['rpc-a']), '--rpc-b-file', resolve(root, regenB), '--block', block]));
   const regenEnd = io.now();
   if (!raw.equals(regenerated)) throw Error('regenerated bundle bytes mismatch');
   if (sha256(regenerated) !== opts.digest) throw Error('regenerated bundle digest mismatch');

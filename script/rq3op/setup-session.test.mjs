@@ -20,7 +20,8 @@ const opts = (o = {}) => ({ 'deploy-root': ROOT, 'expect-commit': COMMIT, bundle
 
 const FORMAL = { formalRuntime: async () => ({}) };
 function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, clock = [], afterStep = () => {}, foreignAt = null, mainError = null, mainImpl = null } = {}) {
-  const files = { [resolve(ROOT, 'cache/plan.json')]: BUNDLE, [resolve(ROOT, 'cfg.json')]: Buffer.from('cfg'), [resolve(ROOT, 'in.json')]: Buffer.from('in') };
+  const files = { [resolve(ROOT, 'cache/plan.json')]: BUNDLE, [resolve(ROOT, 'cfg.json')]: Buffer.from('cfg'), [resolve(ROOT, 'in.json')]: Buffer.from('in'),
+    [resolve(ROOT, 'cache/b')]: Buffer.from('steps-b'), [resolve(ROOT, 'cache/regenb')]: Buffer.from('regen-b') };
   for (const p of EXPECTED_PINNED) files[resolve(ROOT, p)] = Buffer.from('module ' + p);
   const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(ROOT, p)])]));
   const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [] };
@@ -349,4 +350,38 @@ test('sortKeys: null-prototype objects and shared (non-cyclic) references are ac
   const shared = { x: 1 };
   assert.equal(stringify(sortKeys({ p: shared, q: [shared, shared] })), '{"p":{"x":1},"q":[{"x":1},{"x":1}]}');
   assert.equal(stringify(sortKeys(JSON.parse('{"__proto__":{"z":1},"a":0}'))), '{"__proto__":{"z":1},"a":0}');
+});
+
+// ── --regen-rpc-b (DSR ruling: regeneration on Alchemy+Tenderly, steps on Alchemy+QuickNode) ──────────
+const PLANNER_ARGV = b => ['-B', resolve(ROOT, 'script/rq3op/plan_three_arm.py'), resolve(ROOT, 'cfg.json'), resolve(ROOT, 'in.json'), '-',
+  '--rpc-a-file', resolve(ROOT, 'cache/a'), '--rpc-b-file', resolve(ROOT, b), '--block', '0x315298b'];
+test('--regen-rpc-b: regeneration gets the regen B file, every setup.main step still gets --rpc-b', async () => {
+  const f = fixture();
+  const s = await runSession(opts({ 'regen-rpc-b': 'cache/regenb' }), f.io);
+  assert.equal(s.status, 'complete');
+  assert.equal(f.ev.planner.length, 1); assert.deepEqual(f.ev.planner[0].args, PLANNER_ARGV('cache/regenb'));
+  for (const call of f.ev.main) { assert.equal(call.args[5], 'cache/b'); assert.equal(call.args.includes('cache/regenb'), false); }
+  const providers = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_PROVIDERS ')).slice(18));
+  assert.deepEqual(providers, { regenerationB: { file: 'cache/regenb', sha256: sha256(Buffer.from('regen-b')) }, stepsB: { file: 'cache/b', sha256: sha256(Buffer.from('steps-b')) } });
+  assert.equal(JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14)).files['cache/regenb'], sha256(Buffer.from('regen-b')));
+});
+test('--regen-rpc-b absent: planner argv is exactly as before (rpc-b) and the snapshot has no extra file', async () => {
+  const f = fixture();
+  await runSession(opts(), f.io);
+  assert.deepEqual(f.ev.planner[0].args, PLANNER_ARGV('cache/b'));
+  const start = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_START ')).slice(14));
+  assert.equal('cache/regenb' in start.files, false);
+  assert.equal(JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_PROVIDERS ')).slice(18)).regenerationB.file, 'cache/b');
+});
+test('--regen-rpc-b is in the start snapshot: changed between steps stops before the next step', async () => {
+  const f = fixture({ afterStep: (i, { files }) => { if (i === 0) files[resolve(ROOT, 'cache/regenb')] = Buffer.from('swapped'); } });
+  const s = await runSession(opts({ 'regen-rpc-b': 'cache/regenb' }), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 1); assert.match(s.reason, /session file changed since start: cache\/regenb/);
+});
+test('--regen-rpc-b outside the deploy worktree is refused; parseArgs accepts it once', async () => {
+  await assert.rejects(runSession(opts({ 'regen-rpc-b': '../elsewhere/b' }), fixture().io), /--regen-rpc-b must be inside/);
+  const argv = o => Object.entries(opts(o)).flatMap(([k, v]) => v === true ? ['--' + k] : v === false ? [] : ['--' + k, String(v)]);
+  assert.equal(parseArgs(argv({ 'regen-rpc-b': 'cache/regenb' }))['regen-rpc-b'], 'cache/regenb');
+  assert.equal('regen-rpc-b' in parseArgs(argv({})), false);
+  assert.throws(() => parseArgs([...argv({ 'regen-rpc-b': 'x' }), '--regen-rpc-b', 'y']), /usage/);
 });
