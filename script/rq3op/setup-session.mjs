@@ -24,14 +24,36 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const gitBlob = bytes => createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${bytes.length}\0`), bytes])).digest('hex');
 const redact = s => String(s?.message ?? s).replace(/https?:\/\/\S+/g, '<url>');
 const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit','config','inputs','start','end','expect-head','heads-file'];
-const FLAG_KEYS = ['empty-history-acknowledged'];
+const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads'];
+const PROBE_SEND_REFUSED = 'probe: send refused';
+
+// setup.mjs:159-163 compares the two providers' parsed results with plain JSON.stringify, so equal objects whose
+// keys come back in a different order disagree (OP Sepolia headers: Alchemy vs QuickNode). The session hands setup a
+// runtime whose archive requests return the same result with object keys sorted recursively. Arrays keep their order;
+// strings, numbers, booleans and null pass unchanged; method, params and errors pass through untouched. formal.mjs
+// archives each provider's raw response bytes before this runs (archivedRpc), so the archive is unaffected.
+export function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map(k => [k, sortKeys(value[k])]));
+}
+const refuseSigning = () => { throw Error('probe: signing refused'); };
+// Probe signer: the configured address, and every signing call throws. Used only with --probe-reads; no keystore.
+export const probeSigner = async account => ({ type: 'local', source: 'probe', address: account.address,
+  signMessage: refuseSigning, signTransaction: refuseSigning, signTypedData: refuseSigning });
+export function canonicalRuntime(formalRuntime, { probe = false } = {}) {
+  return async options => {
+    const runtime = await formalRuntime(probe ? { ...options, createSigner: probeSigner } : options);
+    return { ...runtime, archives: runtime.archives.map(archive => ({ ...archive, request: async args => sortKeys(await archive.request(args)) })) };
+  };
+}
 
 export function parseArgs(argv) {
   const named = {};
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i]?.replace(/^--/, '');
     if (FLAG_KEYS.includes(k) && !(k in named)) { named[k] = true; continue; }
-    if (!VALUE_KEYS.includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--empty-history-acknowledged]');
+    if (!VALUE_KEYS.includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--empty-history-acknowledged] [--probe-reads]');
     named[k] = argv[++i];
   }
   for (const k of VALUE_KEYS) if (!(k in named)) throw Error('missing --' + k);
@@ -40,7 +62,8 @@ export function parseArgs(argv) {
   if (!/^[0-9a-f]{64}$/.test(named['expect-head'])) throw Error('--expect-head must be 64 hex');
   const start = Number(named.start), end = Number(named.end);
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) throw Error('--start/--end invalid');
-  return { ...named, start, end, 'empty-history-acknowledged': named['empty-history-acknowledged'] === true };
+  if (named['probe-reads'] && (start !== 0 || end !== 0)) throw Error('--probe-reads requires --start 0 --end 0');
+  return { ...named, start, end, 'empty-history-acknowledged': named['empty-history-acknowledged'] === true, 'probe-reads': named['probe-reads'] === true };
 }
 
 export function snapshot(io, root, opts) {
@@ -103,7 +126,13 @@ export async function runSession(opts, io) {
   if (sha256(regenerated) !== opts.digest) throw Error('regenerated bundle digest mismatch');
   log('SESSION_REGENERATED ' + JSON.stringify({ sha256: opts.digest, block, startMs: regenStart, endMs: regenEnd }));
   const setup = await importPinned('script/rq3op/setup.mjs');
-  verify(['script/rq3op/setup.mjs']);
+  const formal = await importPinned('script/a6-collector/formal.mjs');
+  verify(['script/rq3op/setup.mjs', 'script/a6-collector/formal.mjs']);
+  const probe = opts['probe-reads'];
+  if (probe) log('SESSION_NOTE probe-reads: signer refuses to sign and deps.send refuses; the step stops at its send');
+  // deps.send is set only in probe mode; otherwise setup builds its own send from the canonical archives[0] (setup.mjs:157).
+  const deps = { regenerate: async () => Buffer.from(regenerated), runtime: canonicalRuntime(formal.formalRuntime, { probe }),
+    ...(probe ? { send: async () => { throw Error(PROBE_SEND_REFUSED); } } : {}) };
   // 4. Operator confirmation (the price is refreshed between regeneration and this line).
   const confirm = async why => { log('SESSION_WAIT ' + why + ' — type "confirm" to continue, anything else stops'); return (await io.readLine())?.trim() === 'confirm'; };
   if (!await confirm('before first step')) return finish('stopped', { reason: 'operator did not confirm' });
@@ -119,8 +148,9 @@ export async function runSession(opts, io) {
     if (problem) return finish('stopped', { reason: problem, nextIndex: index });
     const args = [opts.bundle, opts.digest, String(index), opts.signers, opts['rpc-a'], opts['rpc-b'], opts.audit, opts.config, opts.inputs, '--expect-head', head];
     try {
-      await setup.main(args, { regenerate: async () => Buffer.from(regenerated) });
+      await setup.main(args, deps);
     } catch (error) {
+      if (probe && error?.message === PROBE_SEND_REFUSED) return finish('probe-reached-send', { index });
       let after = 'unavailable'; try { after = chainHead(completionPath, opts.digest); } catch {}
       return finish('stopped', { reason: 'setup step failed', failedIndex: index, chainHeadAfterFailure: after, error: redact(error) });
     }
@@ -148,7 +178,7 @@ const realIO = () => {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const io = realIO();
   Promise.resolve().then(() => runSession(parseArgs(process.argv.slice(2)), io))
-    .then(s => { process.exitCode = s.status === 'complete' ? 0 : 1; })
+    .then(s => { process.exitCode = s.status === 'complete' || s.status === 'probe-reached-send' ? 0 : 1; })
     .catch(e => { process.stderr.write('setup session stopped: ' + redact(e) + '\n'); process.exitCode = 1; })
     .finally(() => io.close());
 }
