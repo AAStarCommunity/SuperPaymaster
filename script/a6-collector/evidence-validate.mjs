@@ -1,7 +1,9 @@
+import { evidenceEqual } from './derived-evidence.mjs';
 import { artifactErrors } from './artifact-validate.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { EXCLUSION_REASONS, armCounts, exclusionReason, replacementReason } from './evidence.mjs';
+import { REGISTERED_WINDOW, windowProtocolMatches } from './window-schedule.mjs';
 const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const schema = JSON.parse(readFileSync(new URL('./evidence-index.schema.json', import.meta.url)));
 function conforms(v,s) {
@@ -22,14 +24,42 @@ function conforms(v,s) {
   if (s.properties && v && typeof v === 'object') return Object.entries(v).every(([k,x])=>s.properties[k] ? conforms(x,s.properties[k]) : s.additionalProperties === false ? false : typeof s.additionalProperties === 'object' ? conforms(x,s.additionalProperties) : true);
   return true;
 }
-export function windowErrors(rows, trailer, journal = null) {
+const scheduleFields = ['block_slot','pair_id','seed','schedule_sha256','warmup','spWait','slotChecks','scheduleDisposition'];
+function scheduledIndexConforms(row) {
+  const legacy = Object.fromEntries(Object.entries(row).filter(([key])=>!scheduleFields.includes(key)));
+  // Scheduled slots have no replacement edges or per-row exclusion reason.
+  return row.exclusionReason === null && conforms({...legacy,exclusionReason:
+    row.verdict === 'USEROP_SUCCESS' ? null : 'not_included'},schema);
+}
+
+function windowRecordErrors(trailer,journal,manifest,registered) {
+  const start=journal[0], end=journal.at(-1), usedSlots=end.triplets?.length;
+  const slots=manifest.schedule.payload.slots;
+  const expected={schedule_sha256:manifest.schedule.sha256,stoppingRule:registered.stoppingRule,
+    status:end.stop?.code === 0 ? 'COMPLETE' : end.stop?.reason === 'INCOMPLETE' ? 'INCOMPLETE' : 'STOPPED',
+    targetTriplets:registered.targetTriplets,slotCap:registered.slotCap,scheduledSlots:registered.slotCap,
+    usedSlots,completeTriplets:end.matchedTriplets,unusedSlots:slots.slice(usedSlots).map(s=>s.block_slot)};
+  const errors=[];
+  if (!evidenceEqual(trailer.window,end.window)) errors.push('trailer/journal window record mismatch');
+  if (!evidenceEqual(end.window,expected) || end.scheduledSlots !== registered.slotCap || end.attemptedSlots !== usedSlots
+      || end.warmupAttempts !== registered.warmupAttempts) errors.push('window record differs from registered protocol or journal summary');
+  if (trailer.windowId !== start.runId || manifest.windowId !== start.runId) errors.push('window identity differs from manifest or journal');
+  if (!evidenceEqual(trailer.endChecks,end.endChecks) || !evidenceEqual(trailer.finalBlockCheck,end.finalBlockCheck)
+      || trailer.endCheckScope !== end.endCheckScope) errors.push('trailer/journal end checks mismatch');
+  return errors;
+}
+
+export function windowErrors(rows, trailer, journal = null, manifest = null, registered = REGISTERED_WINDOW) {
   const errors = [], fail = message => errors.push(message);
   if (!trailer) return ['missing trailer: interrupted window'];
+  if (manifest && (!windowProtocolMatches(manifest,registered) || manifest.schedule?.payload?.slots?.length !== registered.slotCap)) {
+    return ['manifest differs from registered window protocol'];
+  }
   if (trailer.schemaVersion !== 'a6-evidence-trailer/1') fail('invalid trailer version');
   if (trailer.void !== false || trailer.stopReason !== 'COMPLETE') fail('void window / fail-closed stop');
   // Missing completion records (including signal interruption) cannot authorize evidence.
   const requiredEndChecks = ['endBlock','finalPassport','anchors',
-    ...(trailer.window ? [...new Set(rows.map(r=>r.sender))].map(sender=>'senderPassport:'+sender) : [])];
+    ...(manifest ? manifest.schedule.payload.accounts.map(sender=>'senderPassport:'+sender) : trailer.window ? [...new Set(rows.map(r=>r.sender))].map(sender=>'senderPassport:'+sender) : [])];
   const checks = trailer.endChecks;
   if (!Array.isArray(checks) || checks.some(c=>!c || typeof c.check !== 'string' || c.status !== 'PASS') ||
       new Set(checks.map(c=>c.check)).size !== checks.length ||
@@ -40,12 +70,12 @@ export function windowErrors(rows, trailer, journal = null) {
   if (trailer.stopAttempt !== (rows.at(-1)?.attempt ?? null)) fail('stop attempt mismatch');
   const groups = new Map();
   rows.forEach((r,i)=>{
-    if (!conforms(r,schema)) fail(`attempt ${i}: index schema violation`);
+    if (!(manifest ? scheduledIndexConforms(r) : conforms(r,schema))) fail(`attempt ${i}: index schema violation`);
     if (r.windowId !== trailer.windowId || r.attempt !== i) fail('attempt identity/order mismatch or missing attempt');
     if (r.replacedBy !== null) fail('replacedBy must be null');
     if (r.included !== false || r.passports.end !== null) fail('row contains final disposition or end Passport');
     if (r.exclusionReason !== null && !EXCLUSION_REASONS.includes(r.exclusionReason)) fail('exclusion enum violation');
-    if ((r.verdict === 'USEROP_SUCCESS') !== (r.exclusionReason === null)) fail('success requires null exclusion reason; failures require an enum reason');
+    if (!manifest && (r.verdict === 'USEROP_SUCCESS') !== (r.exclusionReason === null)) fail('success requires null exclusion reason; failures require an enum reason');
     if (r.exclusionReason === 'not_included' && (r.verdict === 'USEROP_SUCCESS' ||
       (r.uoe && r.expectedUserOpHash && r.observedUserOpHash?.toLowerCase() === r.expectedUserOpHash.toLowerCase()))) fail('mined op cannot have not_included reason');
     if (r.stopReason) { fail('fail-closed stopped attempt'); if (i !== rows.length-1) fail('replacement/attempt after fail-closed stop'); }
@@ -53,6 +83,7 @@ export function windowErrors(rows, trailer, journal = null) {
     groups.get(r.tripleIndex).push(r);
   });
   if (!Array.isArray(trailer.triples) || !Array.isArray(trailer.replacements)) return [...errors,'missing trailer triples/replacements'];
+  if (manifest && trailer.replacements.length) fail('frozen window must not contain replacement edges');
   const triples = new Map();
   for (const t of trailer.triples) {
     if (triples.has(t.tripleIndex)) fail('duplicate trailer candidate');
@@ -92,21 +123,25 @@ export function windowErrors(rows, trailer, journal = null) {
     while (forward.has(n)) { if (seen.has(n)) { fail('replacement cycle'); break; } seen.add(n); n=forward.get(n); }
   }
   for (const [candidate,rs] of groups) for (const r of rs) {
-    if (r.exclusionReason === null && triples.get(candidate)?.included === false && !forward.has(candidate)) fail('abandoned successful attempt requires replacement edge reason');
+    if (!manifest && r.exclusionReason === null && triples.get(candidate)?.included === false && !forward.has(candidate)) fail('abandoned successful attempt requires replacement edge reason');
     const expected=backward.has(candidate) ? {windowId:trailer.windowId,tripleIndex:backward.get(candidate)} : null;
     if (!equal(r.replaces,expected)) fail('replacement inverse mismatch');
   }
   const included=trailer.triples.filter(t=>t.included);
-  if (trailer.rehearsal !== true && (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150)) fail('requires exactly 50 included triples / 150 included attempts');
+  if (manifest) {
+    if (included.length !== registered.targetTriplets || included.reduce((n,t)=>n+t.attempts.length,0) !== 3*registered.targetTriplets) fail('included count differs from frozen window target');
+  } else if (trailer.rehearsal !== true && (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150)) fail('requires exactly 50 included triples / 150 included attempts');
   if (!equal(trailer.counts,armCounts(rows,trailer.triples,trailer.replacements))) fail('per-arm counts mismatch');
   if (journal) {
     if ((journal[0].rehearsal === true) !== (trailer.rehearsal === true) || (journal.at(-1).rehearsal === true) !== (trailer.rehearsal === true)) fail('rehearsal marker mismatch');
+    if (manifest) errors.push(...windowRecordErrors(trailer,journal,manifest,registered));
     const attempts=journal.filter(r=>r.kind==='attempt'), end=journal.at(-1);
     if (attempts.length !== rows.length) fail('index does not retain every journal attempt');
     // Preflight labels are bound to raw archives by artifactErrors; this pass checks structure.
     for (let i=0;i<attempts.length;i++) {
       const a=attempts[i], r=rows[i];
-      try { if ((!a.preflight || a.verdict==='USEROP_SUCCESS') && exclusionReason(a)!==r?.exclusionReason) fail('unsupported exclusion reason: index/journal mismatch'); } catch(e) { fail(e.message); }
+      if (manifest && scheduleFields.some(key=>!evidenceEqual(a[key],r?.[key]))) fail('index/journal window fields mismatch');
+      try { if (!manifest && (!a.preflight || a.verdict==='USEROP_SUCCESS') && exclusionReason(a)!==r?.exclusionReason) fail('unsupported exclusion reason: index/journal mismatch'); } catch(e) { fail(e.message); }
       if (!r || a.attemptIndex !== r.attempt || a.tripletIndex !== r.tripleIndex || a.arm !== r.arm || a.verdict !== r.verdict || (a.stoppedBy?.reason ?? null) !== r.stopReason) fail('index/journal attempt mismatch');
     }
     for (const edge of trailer.replacements) {
@@ -120,13 +155,13 @@ export function windowErrors(rows, trailer, journal = null) {
   }
   return errors;
 }
-export function validateWindow(window, journal) {
+export function validateWindow(window, journal, frozen = null, registered = REGISTERED_WINDOW) {
   let rows;
   try { rows=readFileSync(resolve(window,'index.ndjson'),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse); } catch { return ['missing or invalid index: interrupted window']; }
   let trailer;
   try { trailer=JSON.parse(readFileSync(resolve(window,'trailer.json'),'utf8')); } catch { return ['missing or invalid trailer: interrupted window']; }
-  const errors = windowErrors(rows,trailer,journal);
-  errors.push(...artifactErrors(window,rows,trailer,journal));
+  const errors = windowErrors(rows,trailer,journal,frozen?.manifest,registered);
+  errors.push(...artifactErrors(window,rows,trailer,journal,frozen));
   if (journal && trailer.endPassport?.path) {
     const path = resolve(window,trailer.endPassport.path);
     if (!path.startsWith(resolve(window) + '/')) errors.push('end Passport escapes window');

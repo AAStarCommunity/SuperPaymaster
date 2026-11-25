@@ -22,6 +22,18 @@ export function createWindow({readBundle,bundleSha256,seed,chainId,accounts,wind
   }
   return {adapters,manifest:{schema:'rq3-window-v1',pythonVersion:execFileSync('python3',['-I','-B','-c','import sys; print(sys.version)'],{encoding:'utf8'}).trim(),schedule,slice,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false}};
 }
+export const REGISTERED_WINDOW=Object.freeze({
+  targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,windowSlots:WINDOW_SLOTS,windows:WINDOWS,
+  stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false
+});
+export function windowProtocolMatches(manifest,registered) {
+  const {windowSlots,windows}=registered;
+  const {windowIndex,firstSlot,lastSlot,slots}=manifest.slice??{};
+  return Number.isInteger(windowIndex) && windowIndex>=1 && windowIndex<=windows &&
+    slots===windowSlots && firstSlot===(windowIndex-1)*windowSlots && lastSlot===firstSlot+windowSlots-1 &&
+    Object.keys(REGISTERED_WINDOW).filter(key=>key!=='windowSlots' && key!=='windows')
+      .every(key=>manifest[key]===registered[key]);
+}
 /** Traverse the slice in schedule order, using allocation indexes from the full schedule. */
 export async function runSlots({schedule,slice},attempt,complete) {
   const all=schedule.payload.slots;
@@ -66,6 +78,12 @@ export function windowRecord({schedule,slice},progress=null) {
 const abi=parseAbi(['function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)',
   'function userOpState(address,address) view returns (uint48 lastTimestamp,bool isBlocked)']);
 const encode=v=>JSON.stringify(v,(_,x)=>typeof x==='bigint'?x.toString():x);
+export function slotDecision(arm,{timestamp,start,deadline,validAfter}) {
+  if(timestamp>deadline) return {allowed:false,reason:'slot_deadline_exceeded'};
+  if(arm==='SP' && validAfter>deadline) return {allowed:false,reason:'sp_valid_after_exceeds_slot_deadline'};
+  if(timestamp>=start && (arm!=='SP'||timestamp>=validAfter)) return {allowed:true};
+  return null;
+}
 /** Fresh A/B reads at every pin, including the pin immediately before submission. */
 export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,deadline,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=180000}) {
   let first;const wallDeadline=Date.now()+timeoutMs;
@@ -83,9 +101,7 @@ export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,d
     const [minTxInterval,lastTimestamp]=values[0],validAfter=lastTimestamp+minTxInterval;
     const wait={seconds:block.timestamp-first.timestamp,blocks:block.number-first.number,minTxInterval,lastTimestamp,validAfter,
       timestamp:block.timestamp,pin:{number:block.number,hash:block.hash},start,deadline};
-    if(block.timestamp>deadline) return {allowed:false,reason:'slot_deadline_exceeded',wait};
-    if(arm==='SP' && validAfter>deadline) return {allowed:false,reason:'sp_valid_after_exceeds_slot_deadline',wait};
-    if(block.timestamp>=start && (arm!=='SP'||block.timestamp>=validAfter)) return {allowed:true,wait};
+    const decision=slotDecision(arm,wait); if(decision) return {...decision,wait};
     if(Date.now()>=wallDeadline) throw Object.assign(Error('SCHEDULE_CLOCK_STALLED'),{wait});
     await sleep(250);
   }

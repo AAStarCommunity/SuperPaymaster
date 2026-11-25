@@ -47,6 +47,7 @@ export function bindReceiptSummaries(row, {formal = false} = {}) {
   const observed=events.find(e=>e.eventName==='UserOperationEvent' && lower(e.args.sender)===lower(row.sender) && String(e.args.nonce)===String(row.nonce));
   // Legacy non-formal journals did not record this summary.
   if ((formal && observed) || 'observedUserOpEvent' in row || observed?.log.transactionHash) requireEqual('observedUserOpEvent',row.observedUserOpEvent,observed ? {...observed.args,logIndex:Number(observed.log.logIndex),txHash:observed.log.transactionHash} : null);
+  return u?.args ?? null;
 }
 
 export function bindArchivedDisposition(row,archives) {
