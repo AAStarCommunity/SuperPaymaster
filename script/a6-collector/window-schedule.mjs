@@ -19,6 +19,12 @@ export function createWindow({readBundle,bundleSha256,seed,chainId,accounts}) {
 }
 export const TARGET_TRIPLETS=50, SLOT_CAP=60;
 export const STOPPING_RULE='pre-registered: advance slots in schedule order; stop after the slot in which complete triplets reach 50 (COMPLETE); stop after slot 60 otherwise (INCOMPLETE); never extend';
+export const REGISTERED_WINDOW=Object.freeze({
+  targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false
+});
+export function windowProtocolMatches(manifest,registered) {
+  return Object.keys(REGISTERED_WINDOW).every(key=>manifest[key]===registered[key]);
+}
 /**
  * Fixed traversal in schedule order with the pre-registered stopping rule. A row verdict never
  * reorders, replaces or adds slots; the only result-dependent effect is the pre-registered stop

@@ -3,6 +3,7 @@ import { artifactErrors } from './artifact-validate.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { EXCLUSION_REASONS, armCounts, exclusionReason, replacementReason } from './evidence.mjs';
+import { REGISTERED_WINDOW, windowProtocolMatches } from './window-schedule.mjs';
 const equal = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const schema = JSON.parse(readFileSync(new URL('./evidence-index.schema.json', import.meta.url)));
 function conforms(v,s) {
@@ -31,26 +32,29 @@ function scheduledIndexConforms(row) {
     row.verdict === 'USEROP_SUCCESS' ? null : 'not_included'},schema);
 }
 
-function windowRecordErrors(trailer,journal,manifest) {
+function windowRecordErrors(trailer,journal,manifest,registered) {
   const start=journal[0], end=journal.at(-1), usedSlots=end.triplets?.length;
   const slots=manifest.schedule.payload.slots;
-  const expected={schedule_sha256:manifest.schedule.sha256,stoppingRule:manifest.stoppingRule,
+  const expected={schedule_sha256:manifest.schedule.sha256,stoppingRule:registered.stoppingRule,
     status:end.stop?.code === 0 ? 'COMPLETE' : end.stop?.reason === 'INCOMPLETE' ? 'INCOMPLETE' : 'STOPPED',
-    targetTriplets:manifest.targetTriplets,slotCap:manifest.slotCap,scheduledSlots:slots.length,
+    targetTriplets:registered.targetTriplets,slotCap:registered.slotCap,scheduledSlots:registered.slotCap,
     usedSlots,completeTriplets:end.matchedTriplets,unusedSlots:slots.slice(usedSlots).map(s=>s.block_slot)};
   const errors=[];
   if (!evidenceEqual(trailer.window,end.window)) errors.push('trailer/journal window record mismatch');
-  if (!evidenceEqual(end.window,expected) || end.scheduledSlots !== slots.length || end.attemptedSlots !== usedSlots
-      || end.warmupAttempts !== 0 || manifest.warmupAttempts !== 0 || manifest.warmup !== false) errors.push('window record differs from manifest or journal summary');
+  if (!evidenceEqual(end.window,expected) || end.scheduledSlots !== registered.slotCap || end.attemptedSlots !== usedSlots
+      || end.warmupAttempts !== registered.warmupAttempts) errors.push('window record differs from registered protocol or journal summary');
   if (trailer.windowId !== start.runId || manifest.windowId !== start.runId) errors.push('window identity differs from manifest or journal');
   if (!evidenceEqual(trailer.endChecks,end.endChecks) || !evidenceEqual(trailer.finalBlockCheck,end.finalBlockCheck)
       || trailer.endCheckScope !== end.endCheckScope) errors.push('trailer/journal end checks mismatch');
   return errors;
 }
 
-export function windowErrors(rows, trailer, journal = null, manifest = null) {
+export function windowErrors(rows, trailer, journal = null, manifest = null, registered = REGISTERED_WINDOW) {
   const errors = [], fail = message => errors.push(message);
   if (!trailer) return ['missing trailer: interrupted window'];
+  if (manifest && (!windowProtocolMatches(manifest,registered) || manifest.schedule?.payload?.slots?.length !== registered.slotCap)) {
+    return ['manifest differs from registered window protocol'];
+  }
   if (trailer.schemaVersion !== 'a6-evidence-trailer/1') fail('invalid trailer version');
   if (trailer.void !== false || trailer.stopReason !== 'COMPLETE') fail('void window / fail-closed stop');
   // Missing completion records (including signal interruption) cannot authorize evidence.
@@ -125,12 +129,12 @@ export function windowErrors(rows, trailer, journal = null, manifest = null) {
   }
   const included=trailer.triples.filter(t=>t.included);
   if (manifest) {
-    if (included.length !== manifest.targetTriplets || included.reduce((n,t)=>n+t.attempts.length,0) !== 3*manifest.targetTriplets) fail('included count differs from frozen window target');
+    if (included.length !== registered.targetTriplets || included.reduce((n,t)=>n+t.attempts.length,0) !== 3*registered.targetTriplets) fail('included count differs from frozen window target');
   } else if (trailer.rehearsal !== true && (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150)) fail('requires exactly 50 included triples / 150 included attempts');
   if (!equal(trailer.counts,armCounts(rows,trailer.triples,trailer.replacements))) fail('per-arm counts mismatch');
   if (journal) {
     if ((journal[0].rehearsal === true) !== (trailer.rehearsal === true) || (journal.at(-1).rehearsal === true) !== (trailer.rehearsal === true)) fail('rehearsal marker mismatch');
-    if (manifest) errors.push(...windowRecordErrors(trailer,journal,manifest));
+    if (manifest) errors.push(...windowRecordErrors(trailer,journal,manifest,registered));
     const attempts=journal.filter(r=>r.kind==='attempt'), end=journal.at(-1);
     if (attempts.length !== rows.length) fail('index does not retain every journal attempt');
     // Preflight labels are bound to raw archives by artifactErrors; this pass checks structure.
@@ -151,12 +155,12 @@ export function windowErrors(rows, trailer, journal = null, manifest = null) {
   }
   return errors;
 }
-export function validateWindow(window, journal, frozen = null) {
+export function validateWindow(window, journal, frozen = null, registered = REGISTERED_WINDOW) {
   let rows;
   try { rows=readFileSync(resolve(window,'index.ndjson'),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse); } catch { return ['missing or invalid index: interrupted window']; }
   let trailer;
   try { trailer=JSON.parse(readFileSync(resolve(window,'trailer.json'),'utf8')); } catch { return ['missing or invalid trailer: interrupted window']; }
-  const errors = windowErrors(rows,trailer,journal,frozen?.manifest);
+  const errors = windowErrors(rows,trailer,journal,frozen?.manifest,registered);
   errors.push(...artifactErrors(window,rows,trailer,journal,frozen));
   if (journal && trailer.endPassport?.path) {
     const path = resolve(window,trailer.endPassport.path);

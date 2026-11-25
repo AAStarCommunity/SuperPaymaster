@@ -5,12 +5,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stringify } from './evidence.mjs';
 import { sentWindowFixture } from './sent-window-fixture.mjs';
+import { validateRun } from './validate.mjs';
+import { windowErrors } from './evidence-validate.mjs';
 
 function validate(f) {
-  const r=spawnSync(process.execPath,['script/a6-collector/validate.mjs',f.runPath,'--frozen-plan',join(f.dir,'bundle.json')],{encoding:'utf8'});
-  assert.ifError(r.error);
-  assert.equal(r.signal,null,r.stderr);
-  return {status:r.status,...JSON.parse(r.stdout)};
+  const report=validateRun(f.runPath,{frozenPlan:join(f.dir,'bundle.json'),registered:f.registered});
+  return {status:report.validatorExit,...report};
 }
 
 function refuses(f,pattern) {
@@ -62,6 +62,92 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
   }
   assert.ok(f.rows.some(r=>!r.sent && r.slotChecks.length===1 && !r.packedOp));
   assert.ok(f.rows.some(r=>!r.sent && r.slotChecks.length===2 && r.packedOp));
+
+  await t.test('the CLI and evidence validator refuse the small window under the registered protocol',()=>{
+    const r=spawnSync(process.execPath,['script/a6-collector/validate.mjs',f.runPath,'--frozen-plan',join(f.dir,'bundle.json')],{encoding:'utf8'});
+    assert.ifError(r.error);
+    assert.equal(r.status,2,r.stderr || r.stdout);
+    assert.match(JSON.parse(r.stdout).missing,/manifest differs from registered window protocol/);
+    const lines=name=>readFileSync(join(f.dir,name),'utf8').trim().split('\n').map(JSON.parse);
+    const manifest=JSON.parse(readFileSync(join(f.dir,'manifest.json'),'utf8'));
+    assert.deepEqual(windowErrors(lines('index.ndjson'),f.trailer,lines('run.jsonl'),manifest),['manifest differs from registered window protocol']);
+  });
+  for(const [field,value] of [['targetTriplets',5],['slotCap',59],['stoppingRule','other'],['warmupAttempts',1],['warmup',true]]) {
+    await t.test(`rejects manifest ${field} differing from the explicit protocol`,()=>{
+      withArtifact(f,'manifest.json',manifest=>{manifest[field]=value;},()=>{
+        assert.match(validate(f).missing,/manifest differs from registered window protocol/);
+      });
+    });
+  }
+  await t.test('the fixture accumulates SP wait and keeps separate gate pins',()=>{
+    const row=f.rows.find(r=>r.sent && r.arm==='SP'), [early,submit]=row.slotChecks;
+    assert.notDeepEqual(early.wait.pin,submit.wait.pin);
+    assert.ok(BigInt(early.wait.seconds)>0n);
+    assert.deepEqual(row.spWait,{...submit.wait,
+      seconds:String(BigInt(early.wait.seconds)+BigInt(submit.wait.seconds)),
+      blocks:String(BigInt(early.wait.blocks)+BigInt(submit.wait.blocks))});
+    assert.equal(f.end.endCheckScope,'on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)');
+    assert.equal(f.trailer.endCheckScope,f.end.endCheckScope);
+  });
+  await t.test('rejects missing, denied or mistimed gates on sent rows',()=>{
+    const mutations=[
+      checks=>checks.pop(),
+      checks=>{checks[0].allowed=false;},
+      checks=>{checks[1].allowed=false;},
+      checks=>{checks[0].wait.start=checks[0].wait.deadline;},
+      checks=>{checks[1].wait.deadline=checks[1].wait.start;},
+    ];
+    const changed=[];
+    withRows(f,(rows,index)=>{
+      rows.filter(r=>r.sent).slice(0,mutations.length).forEach((row,i)=>{
+        mutations[i](row.slotChecks);
+        index[row.attemptIndex].slotChecks=row.slotChecks;
+        changed.push(row.attemptIndex);
+      });
+    },()=>{
+      const result=validate(f);
+      assert.equal(result.status,1);
+      for(const i of changed) assert.ok(result.errors.includes(`attempt ${i}: invalid slot gates`),result.errors.join('\n'));
+    });
+  });
+  await t.test('rejects unsupported slot denial evidence',()=>{
+    const changed=[];
+    withRows(f,(rows,index)=>{
+      const [packed,...early]=rows.filter(r=>!r.sent);
+      const sp=[packed,...early].find(r=>r.arm==='SP');
+      const other=early.find(r=>r!==sp);
+      // The SP arm must be past validAfter's deadline and the time denial must be strictly late.
+      for(const [row,reason,field] of [[sp,'sp_valid_after_exceeds_slot_deadline','validAfter'],
+        [other,'slot_deadline_exceeded','timestamp']]) {
+        const gate=row.slotChecks.at(-1), ix=index[row.attemptIndex];
+        row.failingCheck=row.scheduleDisposition=gate.reason=reason;
+        gate.wait[field]=gate.wait.deadline;
+        if(row.arm==='SP') row.spWait={...row.spWait,...gate.wait};
+        Object.assign(ix,{failureReason:reason,notSentReason:reason,scheduleDisposition:reason,slotChecks:row.slotChecks,spWait:row.spWait});
+        changed.push(row.attemptIndex);
+      }
+      const nonSP=rows.find(r=>!r.sent && r.arm!=='SP' && r!==other);
+      const gate=nonSP.slotChecks.at(-1), ix=index[nonSP.attemptIndex], reason='sp_valid_after_exceeds_slot_deadline';
+      nonSP.failingCheck=nonSP.scheduleDisposition=gate.reason=reason;
+      gate.wait.validAfter=gate.wait.timestamp;
+      Object.assign(ix,{failureReason:reason,notSentReason:reason,scheduleDisposition:reason,slotChecks:nonSP.slotChecks});
+      changed.push(nonSP.attemptIndex);
+    },()=>{
+      const result=validate(f);
+      assert.equal(result.status,1);
+      for(const i of changed) assert.ok(result.errors.includes(`attempt ${i}: invalid schedule disposition`),result.errors.join('\n'));
+    });
+  });
+  await t.test('rejects changed PVG columns with the original packed op and archives',()=>{
+    const mutations={pvgSurplusReason:'cycle-max',pvgConsistency:'1',outerGasUsed:'1',outerEffectiveGasPrice:'1',
+      l1DataFee:'0x1',calldataFloorGas:'1',calldataFloorBinding:null,bundlerNetGas:'1',opGasPrice:'1'};
+    const i=f.rows.find(r=>r.sent).attemptIndex;
+    withRows(f,rows=>Object.assign(rows[i],mutations),()=>{
+      const result=validate(f);
+      assert.equal(result.status,1);
+      for(const key of Object.keys(mutations)) assert.ok(result.errors.includes(`attempt ${i}: PVG measurement mismatch: ${key}`),result.errors.join('\n'));
+    });
+  });
 
   const sender=f.accounts[1], endPath='passports/end-'+sender+'.json';
   await t.test('rejects sender 3 end passport invariant drift',()=>{
@@ -138,6 +224,22 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
       index[row.attemptIndex].slotChecks=row.slotChecks;
     },()=>refuses(f,/early gate contains packing evidence/));
   });
+  await t.test('a row withheld after packing keeps only the gates it reached',()=>{
+    withRows(f,(rows,index)=>{
+      const row=rows.find(r=>!r.sent && r.slotChecks.length===2);
+      row.slotChecks=[row.slotChecks[0]];
+      index[row.attemptIndex].slotChecks=row.slotChecks;
+      Object.assign(row,{failingCheck:'deposit_floor',exclusion:'NOT_SENT:DEPOSIT_FLOOR'});
+      delete row.scheduleDisposition;
+    },()=>assert.doesNotMatch(validate(f).errors.join('\n'),/invalid slot gates/));
+  });
+  await t.test('rejects a sent row with only its pre-send gate',()=>{
+    withRows(f,(rows,index)=>{
+      const row=rows.find(r=>r.sent);
+      row.slotChecks=[row.slotChecks[0]];
+      index[row.attemptIndex].slotChecks=row.slotChecks;
+    },()=>refuses(f,/invalid slot gates/));
+  });
   await t.test('rejects trailer/journal window record mismatch',()=>{
     withArtifact(f,'trailer.json',trailer=>trailer.window.usedSlots--,()=>{
       refuses(f,/trailer\/journal window record mismatch/);
@@ -155,4 +257,8 @@ test('frozen window rejects raw-bound operator balance discontinuity across a se
 
 test('frozen window rejects a raw-bound nonce sequence gap for one sender',async t=>{
   refuses(await fixture(t,{nonceGap:true}),/nonce sequence must advance exactly one for sender\/key/);
+});
+
+test('frozen window rejects an archived outer gas limit below the sender plan',async t=>{
+  refuses(await fixture(t,{lowerOuterGas:true}),/outer transaction gas limit differs from frozen plan/);
 });

@@ -3,6 +3,8 @@ import { EXCLUSION_REASONS, exclusionReason, sha256, stringify } from './evidenc
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { validateWindow } from './evidence-validate.mjs';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { REGISTERED_WINDOW, windowProtocolMatches } from './window-schedule.mjs';
 import { dispositionErrors, feePauseErrors } from './disposition.mjs';
 import { formalConfig, armOrder, inclusionErrors } from './formal.mjs';
 import { createFrozenPlan } from './frozen-plan.mjs';
@@ -22,17 +24,7 @@ import { checkPVGLengths, measurePVG, PVG_MAX_SURPLUS } from './pvg.mjs';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { keccak256, encodeAbiParameters, toBytes, getAddress } from 'viem';
 
-const file = process.argv[2];
-// Exporters validate a captured journal while resolving its original archive separately.
-const windowArg = process.argv.indexOf('--window');
-const evidenceDir = windowArg === -1 ? dirname(resolve(file || '.')) : resolve(process.argv[windowArg + 1]);
-const jsonOut = (() => { const i = process.argv.indexOf('--json'); return i === -1 ? null : process.argv[i + 1]; })();
-const frozenArg = process.argv.indexOf('--frozen-plan');
-if (!file) { console.error('usage: validate.mjs <run.jsonl> [--json <report.json>] [--window <archive-dir>] [--frozen-plan <bundle file>]'); process.exit(2); }
-
 class Missing extends Error {}
-const errors = [];      // inconsistencies → exit 1
-const notes = [];
 function need(obj, path) {
   let v = obj;
   for (const k of path.split('.')) {
@@ -102,7 +94,7 @@ const SP_FIELDS = ['operatorBalance', 'totalSpent', 'totalTxSponsored', 'protoco
 // Attribute fixture receipt effects independently of the expected-hash verdict. Each
 // executed op must bind to a packed bundle member and pass the single-op identities;
 // their summed effects must explain the entire real readback delta.
-function conservation(row, spAddr, tokenAddr, operator, inv) {
+function conservation(row, spAddr, tokenAddr, operator, inv, isFormal) {
   const events = logsOf(row.logs, row.entryPoint, T.UOE);
   if (row.tx.status !== 'success' || !events.length ||
       (events.length === 1 && lc(events[0].topics[1]) === lc(row.expectedUserOpHash))) {
@@ -381,9 +373,7 @@ const BOOL_FIELDS = new Set(['allowSameEndpointLocal', 'invariant.entryPoint.isC
 // a6-gauge/2 adds the token's credit state (A4 Passport C2/C3). /1 runs predate it and stay readable.
 const SCHEMAS = ['a6-gauge/1', 'a6-gauge/2'];
 const CREDIT_FIELDS = ['policy', 'hasPendingPolicy', 'pendingPolicy', 'pendingPolicyEta', 'policyEpoch'].map(f => `invariant.credit.${f}`);
-let schema = null;
-let isFormal = false;
-function completePassport(p) {
+function completePassport(p, schema, isFormal, errors) {
   const fields = schema === 'a6-gauge/2' ? [...PASSPORT_FIELDS, ...CREDIT_FIELDS] : PASSPORT_FIELDS;
   const gasFields = isFormal ? ['SP','VPM','TPM'].flatMap(a => GAS_FIELDS.map(f => `invariant.gas.${a}.${f}`)) : GAS_FIELDS.map(f => `invariant.gas.${f}`);
   for (const f of [...fields.filter(f => !f.startsWith('invariant.gas.')), ...gasFields]) {
@@ -446,15 +436,15 @@ function passportContext(pStart) {
   return {pStart,inv,spAddr,armPaymasters,tokenAddr:need(inv,'xPNTs.address'),operator:need(inv,'superPaymaster.operator.address'),chainId:need(pStart,'chainId')};
 }
 
-function frozenWindow(manifest, attempts, end) {
-  const path = process.argv[frozenArg + 1];
+function frozenWindow(manifest, attempts, end, {path,evidenceDir,registered,completePassport,errors}) {
   if (manifest?.schema !== 'rq3-window-v1') throw new Missing('frozen provenance requires an rq3-window-v1 manifest.json');
   const bytes = readFileSync(path);
   const bundleSha256 = sha256(bytes);
   if (bundleSha256 !== need(manifest,'bundleSha256')) throw new Missing('frozen bundle SHA-256 mismatch with manifest.bundleSha256');
   const {accounts, slots, seed, slot_period_seconds:period, max_elapsed_seconds:elapsed} = need(manifest,'schedule.payload');
   const scheduleSha = need(manifest,'schedule.sha256');
-  const target = need(manifest,'targetTriplets'), cap = need(manifest,'slotCap');
+  if (!windowProtocolMatches(manifest,registered)) throw new Missing('manifest differs from registered window protocol');
+  const {targetTriplets:target, slotCap:cap} = registered;
   if (!Array.isArray(accounts) || accounts.length !== 3 || accounts.some(a => !/^0x[0-9a-f]{40}$/i.test(a))
       || new Set(accounts.map(lc)).size !== accounts.length) throw new Missing('invalid frozen schedule accounts');
   if (!Number.isSafeInteger(target) || target < 1 || !Array.isArray(slots) || slots.length !== cap || target > cap
@@ -495,16 +485,26 @@ function frozenWindow(manifest, attempts, end) {
     startTimestamp:big(need(manifest,'startTimestamp')),allocations:new Map()};
 }
 
-function deniedSlotGate(window, row) {
-  const checks = row.slotChecks;
-  if (!Array.isArray(checks) || (checks.length !== 1 && (checks.length !== 2 || checks[0]?.allowed !== true))) return false;
-  const gate = checks.at(-1), slot = window.slots[row.block_slot];
-  return gate?.allowed === false && gate.reason === row.failingCheck
-    && gate.wait?.start === String(window.startTimestamp + BigInt(slot.start_seconds))
-    && gate.wait?.deadline === String(window.startTimestamp + BigInt(slot.deadline_seconds));
+function slotGatesMatch(window, row, denied) {
+  const checks = row.slotChecks ?? (row.stoppedBy ? [] : null);
+  // A stopped attempt may end before, between or after its gates; any gate it did reach must match.
+  if (!Array.isArray(checks) || checks.length > 2 || (!row.stoppedBy && !checks.length) || (checks.length === 2 && checks[0]?.allowed !== true)) return false;
+  const slot = window.slots[row.block_slot];
+  const start = String(window.startTimestamp + BigInt(slot.start_seconds));
+  const deadline = window.startTimestamp + BigInt(slot.deadline_seconds);
+  if (!checks.every(gate => gate?.wait?.start === start && gate.wait.deadline === String(deadline))) return false;
+  const gate = checks.at(-1);
+  if (row.stoppedBy && !denied) return true;
+  // A sent row passed both gates. A row withheld after packing but before submission (deposit floor,
+  // preflight, fee pause) passed the pre-send gate and, if it got that far, the submit gate.
+  if (!denied) return checks.every(g => g.allowed === true) && (row.sent ? checks.length === 2 : true);
+  if (gate.allowed !== false || gate.reason !== row.failingCheck) return false;
+  const exceedsDeadline = value => typeof value === 'string' && /^\d+$/.test(value) && BigInt(value) > deadline;
+  return gate.reason === 'slot_deadline_exceeded' ? exceedsDeadline(gate.wait.timestamp)
+    : row.arm === 'SP' && exceedsDeadline(gate.wait.validAfter);
 }
 
-function frozenAttempt(window, row, i, position) {
+function frozenAttempt(window, row, i, position, errors) {
   const context = window.senders.get(lc(need(row,'sender')));
   if (!context) throw new Missing(`attempt ${i}: sender absent from frozen schedule accounts`);
   if (row.bundleSha256 !== window.bundleSha256) errors.push(`attempt ${i}: bundleSha256 mismatch`);
@@ -542,16 +542,28 @@ function frozenAttempt(window, row, i, position) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────────────────
-const report = { formal: false, file, attempts: 0, recomputed: {}, errors, notes };
-let exit = 0;
-try {
+export function validateRun(file, {evidenceDir = dirname(resolve(file)), frozenPlan, registered = REGISTERED_WINDOW} = {}) {
+  const errors = [], notes = [];
+  const report = { formal: false, file, attempts: 0, recomputed: {}, errors, notes };
+  let exit;
+  try { exit = validateJournal(file,evidenceDir,frozenPlan,registered,report); }
+  catch (e) {
+    if (e instanceof Missing) report.missing = e.message;
+    else report.crash = String(e?.stack ?? e);
+    exit = 2;
+  }
+  return {...report, validatorExit:exit};
+}
+
+function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
+  const {errors,notes} = report;
   let lines;
   try { lines = readFileSync(file, 'utf8').split('\n').filter((l) => l.trim() !== '').map((l, i) => { try { return JSON.parse(l); } catch { throw new Missing(`line ${i + 1}: not JSON`); } }); }
   catch (e) { throw e instanceof Missing ? e : new Missing(`cannot read ${file}: ${e.message}`); }
   if (lines.length < 2) throw new Missing('need at least run_start and run_end');
   const start = lines[0], end = lines[lines.length - 1];
   const attempts = lines.slice(1,-1);
-  isFormal = start.formal === true;
+  const isFormal = start.formal === true;
   report.formal = isFormal;
   const markerFiles = ['trailer.json','freeze-manifest.json'].map(name=>resolve(evidenceDir,name));
   const markers = markerFiles.filter(existsSync).map(path=>JSON.parse(readFileSync(path,'utf8')).rehearsal === true);
@@ -561,7 +573,7 @@ try {
   const manifestPath = resolve(evidenceDir,'manifest.json');
   const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath,'utf8')) : null;
   const scheduled = manifest?.schema === 'rq3-window-v1' || [start,...attempts].some(row => Object.hasOwn(row,'planDigest') || Object.hasOwn(row,'bundleSha256'));
-  if (scheduled && (frozenArg === -1 || !process.argv[frozenArg+1] || process.argv[frozenArg+1].startsWith('--'))) throw new Missing('frozen window requires --frozen-plan <bundle file>');
+  if (scheduled && (!frozenPlan || frozenPlan.startsWith('--'))) throw new Missing('frozen window requires --frozen-plan <bundle file>');
   if (isFormal && !scheduled) errors.push(...validateWindow(evidenceDir, lines));
   if (isFormal && !scheduled) {
     const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
@@ -572,18 +584,20 @@ try {
   if (isFormal && scheduled && end.kind !== 'run_end') for (const name of ['index.ndjson','trailer.json'])
     if (!existsSync(resolve(evidenceDir,name))) { errors.push(`missing or invalid ${name === 'trailer.json' ? 'trailer' : 'index'}: interrupted window`); break; }
   if (need(end, 'kind') !== 'run_end') throw new Missing('last line is not run_end (truncated run?)');
-  schema = need(start, 'schema');
+  const schema = need(start, 'schema');
   if (!SCHEMAS.includes(schema)) throw new Missing('unknown schema');
   for (const l of lines) { if (need(l, 'schema') !== schema) throw new Missing('schema differs between lines'); if (need(l, 'runId') !== start.runId) throw new Missing('runId differs between lines'); }
-  const window = scheduled ? frozenWindow(manifest,attempts,end) : null;
+  const checkPassport = p => completePassport(p,schema,isFormal,errors);
+  const window = scheduled ? frozenWindow(manifest,attempts,end,
+    {path:frozenPlan,evidenceDir,registered,completePassport:checkPassport,errors}) : null;
   if (window) {
-    if (isFormal) errors.push(...validateWindow(evidenceDir, lines, window));
+    if (isFormal) errors.push(...validateWindow(evidenceDir, lines, window, registered));
     if (!isFormal) errors.push('frozen window requires a formal run');
   }
   if (schema === 'a6-gauge/1') notes.push('schema a6-gauge/1: credit policy not recorded, so this run does not show credit OFF');
   if (start.protocolConformant !== true) notes.push('U-6 stake gate not applied: non-conformant run');
   const pStart = need(start, 'passport');
-  completePassport(pStart);
+  checkPassport(pStart);
   const startContext = passportContext(pStart);
   const {inv, chainId, armPaymasters} = startContext;
   if (window) {
@@ -594,9 +608,10 @@ try {
   }
   const arms = need(start, 'arms');
   const fixture = need(start, 'fixture');
-  const target = need(start, 'count');
-  if (!Number.isSafeInteger(target) || target < 1) throw new Missing('count must be an integer >= 1');
-  if (window && (target !== window.target || start.maxAttempts !== window.cap)) errors.push('run_start count or maxAttempts differs from frozen manifest');
+  const count = need(start, 'count');
+  const target = window?.target ?? count;
+  if (!Number.isSafeInteger(count) || count < 1) throw new Missing('count must be an integer >= 1');
+  if (window && (count !== window.target || start.maxAttempts !== window.cap)) errors.push('run_start count or maxAttempts differs from registered window protocol');
   if (!Array.isArray(arms) || !arms.length || new Set(arms).size !== arms.length || arms.some(a => !['SP', 'VPM', 'TPM'].includes(a))) throw new Missing('invalid arms');
   if (new Set(Object.values(armPaymasters).map(lc)).size !== 3) errors.push('passport arm paymasters must be distinct');
   if (need(start, 'allowSameEndpointLocal') !== pStart.allowSameEndpointLocal) errors.push('start/passport local override mismatch');
@@ -604,7 +619,7 @@ try {
   const distinctEndpoints = endpointA.host !== endpointB.host && endpointA.host !== 'loopback' && endpointB.host !== 'loopback';
   const localOverride = start.allowSameEndpointLocal === true || pStart.allowSameEndpointLocal === true;
   if (!distinctEndpoints && !(localOverride && endpointA.port !== endpointB.port)) errors.push('RPC identities require different non-loopback hosts or different ports with explicit local override');
-  const conformant = isFormal && start.rehearsal !== true && target === (window?.target ?? 50) && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
+  const conformant = isFormal && start.rehearsal !== true && count === (window?.target ?? 50) && noFixture(fixture) && arms.length === 3 && ['SP', 'VPM', 'TPM'].every(a => arms.includes(a)) && distinctEndpoints && !localOverride;
   if (need(start, 'protocolConformant') !== conformant) errors.push('protocolConformant differs from recomputed count/fixture/arms/endpoints/override');
   if (start.protocolConformant && (!distinctEndpoints || localOverride)) errors.push('conformant run requires distinct endpoints without local override');
   // /1 never recorded credit state, so relabelling a run as /1 must not yield a conformant result.
@@ -631,7 +646,7 @@ try {
 
   attempts.forEach((row, i) => {
     const slotRows = window ? byTriplet.get(row.block_slot) ?? [] : null;
-    const {pStart,inv,spAddr,armPaymasters,tokenAddr,operator,chainId,phaseC,pEnd} = window ? frozenAttempt(window,row,i,slotRows.length) : startContext;
+    const {pStart,inv,spAddr,armPaymasters,tokenAddr,operator,chainId,phaseC,pEnd} = window ? frozenAttempt(window,row,i,slotRows.length,errors) : startContext;
     const endPassport = window ? pEnd : end.passport;
     if (pEnd) {
       const within = (number,time) => big(number) >= big(pStart.block.number) && big(number) <= big(pEnd.block.number)
@@ -644,7 +659,9 @@ try {
       }
     }
     const slotFailure = window && slotFailures.includes(row.failingCheck);
-    const deniedGate = slotFailure && deniedSlotGate(window,row);
+    const gatesMatch = window && slotGatesMatch(window,row,slotFailure);
+    const deniedGate = slotFailure && gatesMatch;
+    if (window && !slotFailure && !gatesMatch) errors.push(`attempt ${i}: invalid slot gates`);
     const recordVerdict = recomputed => {
       report.recomputed[recomputed] = (report.recomputed[recomputed] ?? 0) + 1;
       if (recomputed !== row.verdict) errors.push(`attempt ${i} (${row.arm}): recorded ${row.verdict}, recomputed ${recomputed}`);
@@ -684,7 +701,7 @@ try {
     if (row.arm === 'SP' && row.sent && row.tx?.status === 'success' && row.readbacks &&
         (row.verdict === 'STOPPED' || row.stoppedBy) && logsOf(row.logs ?? [], row.entryPoint, T.UOE).length) {
       for (const rpc of ['A', 'B']) {
-        const failures = conservation({ ...row, readbacks: { before: { A: row.readbacks.before[rpc] }, after: { A: row.readbacks.after[rpc] } } }, spAddr, tokenAddr, operator, inv);
+        const failures = conservation({ ...row, readbacks: { before: { A: row.readbacks.before[rpc] }, after: { A: row.readbacks.after[rpc] } } }, spAddr, tokenAddr, operator, inv, isFormal);
         if (failures.length) errors.push(`attempt ${i}: stopped receipt ${rpc}: ${failures.join(',')}`);
       }
     }
@@ -864,7 +881,7 @@ try {
       stateByArm.set(row.arm, after);
       if (window) stateByArm.set(`${row.arm}:${lc(row.sender)}`,after);
       previousBlock = after;
-      const failed = conservation(row, spAddr, tokenAddr, operator, inv);
+      const failed = conservation(row, spAddr, tokenAddr, operator, inv, isFormal);
       const recordedOk = need(row, 'conservation.ok');
       const citations = { 'C6.locked_unchanged': 'XT:240,263', 'R2.locked_grew_by_xLocked': 'XT:240', "C5'.credit_reserved_unchanged": 'XT:305,322' };
       for (const c of need(row, 'conservation.checks')) if (c.id in citations && c.src !== citations[c.id]) errors.push(`attempt ${i}: incorrect source citation ${c.id}`);
@@ -940,7 +957,7 @@ try {
   report.exitCode = need(end, 'exitCode');
   if (report.exitCode !== need(stop, 'code')) errors.push('run_end.exitCode differs from stop.code');
   // passport drift, recomputed
-  completePassport(need(end, 'passport'));
+  checkPassport(need(end, 'passport'));
   // U-6 applies only to protocol-conformant runs, at both pinned passport blocks.
   if (start.protocolConformant === true) {
     const passports = [pStart,end.passport,...(window ? [...window.senders.values()].flatMap(c=>[c.pStart,c.pEnd].filter(Boolean)) : [])];
@@ -967,12 +984,24 @@ try {
   report.consistent = errors.length === 0;
   report.accepted = !report.rehearsal && report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (window ? conformant : target !== 50 || conformant);
   if (window) report.evidence = report.accepted;
-  exit = !report.consistent ? 1 : report.accepted ? 0 : 3;
-} catch (e) {
-  if (e instanceof Missing) { report.missing = e.message; exit = 2; }
-  else { report.crash = String(e?.stack ?? e); exit = 2; }
+  return !report.consistent ? 1 : report.accepted ? 0 : 3;
 }
-report.validatorExit = exit;
-if (jsonOut) writeFileSync(jsonOut, JSON.stringify(report, null, 2) + '\n');
-console.log(JSON.stringify(report, null, 2));
-process.exit(exit);
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const file = process.argv[2];
+  if (!file) {
+    console.error('usage: validate.mjs <run.jsonl> [--json <report.json>] [--window <archive-dir>] [--frozen-plan <bundle file>]');
+    process.exit(2);
+  }
+  const arg = flag => {
+    const index = process.argv.indexOf(flag);
+    return index === -1 ? undefined : process.argv[index + 1];
+  };
+  // Exporters may resolve the original archive separately from the captured journal.
+  const report = validateRun(file,{evidenceDir:arg('--window'),frozenPlan:arg('--frozen-plan')});
+  const json = JSON.stringify(report, null, 2);
+  const jsonOut = arg('--json');
+  if (jsonOut) writeFileSync(jsonOut, json + '\n');
+  console.log(json);
+  process.exit(report.validatorExit);
+}

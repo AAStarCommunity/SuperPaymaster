@@ -45,7 +45,8 @@ function fixture(t) {
       fixture:null,collectedAtUtc:'2026-11-25T00:00:00Z',sent:false,tx:null,verdict:'NOT_SENT',
       failingCheck:deadline,scheduleDisposition:deadline,slotChecks:[{allowed:false,reason:deadline,wait:{
         start:BigInt(m.startTimestamp)+BigInt(slot.start_seconds),
-        deadline:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds)
+        deadline:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds),
+        timestamp:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds)+1n
       }}]};
   }));
   const end={...head,kind:'run_end',passport:last,targetTriplets,matchedTriplets:0,stop:{reason:'INCOMPLETE',code:10},exitCode:10,
@@ -107,6 +108,8 @@ test('window rejects a mismatched manifest plan digest',t=>{
 test('window accepts all three start passports and scheduled NOT_SENT rows',t=>{
   const f=fixture(t), sp=f.rows.find(r=>r.arm==='SP');
   sp.failingCheck=sp.scheduleDisposition=sp.slotChecks[0].reason='sp_valid_after_exceeds_slot_deadline';
+  sp.slotChecks[0].wait.timestamp=sp.slotChecks[0].wait.deadline;
+  sp.slotChecks[0].wait.validAfter=sp.slotChecks[0].wait.deadline+1n;
   assert.equal(f.passports.get(accounts[1]).invariant.pmGas.VPM.post,0n);
   const r=f.run();
   // The fixture has no archive or trailer (PR 2b): that is the only error the window may report.

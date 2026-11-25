@@ -1,4 +1,4 @@
-import { bindArchivedDisposition, bindReceiptSummaries } from './derived-evidence.mjs';
+import { bindArchivedDisposition, bindReceiptSummaries, evidenceEqual } from './derived-evidence.mjs';
 import { verifyPassport, verifyPassportIdentity } from './passport-evidence.mjs';
 import { stateCalls, supportsCall, archivedParamsAllowed } from './state-evidence.mjs';
 import { readFileSync, realpathSync, readdirSync } from 'node:fs';
@@ -7,6 +7,7 @@ import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason, bind
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { formatTransaction, decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
+import { measurePVG, recordPVG } from './pvg.mjs';
 
 // Receipt/transaction polls of one endpoint, in archive order. Polls made before inclusion stay referenced (the index
 // is complete) and return a null receipt or a pending transaction (blockHash null). They may only precede the first
@@ -50,11 +51,30 @@ export function transactionErrors(row, config, frozenArm = null) {
       if (decoded.functionName!=='handleOps' || !eq(JSON.parse(stringify(decoded.args[0])),row.bundledOps) || !eq(row.bundledOps[row.tx.handleOpsIndex],row.packedOp)) errors.push('transaction bundle/index mismatch');
       if (lower(decoded.args[1])!==lower(config.accounts.bundler.address)) errors.push('transaction beneficiary mismatch');
       for (const k of ['maxFeePerGas','maxPriorityFeePerGas']) if (BigInt(row.tx[k])>BigInt(config.fees[k]) || BigInt(row.tx[k])<0n) errors.push('outer transaction fee cap exceeded');
-      if (BigInt(row.tx.gasLimit)>BigInt(frozenArm?.outer ?? config.bundlerGasLimit) || BigInt(row.tx.gasLimit)<=0n) errors.push('outer transaction gas limit exceeded');
+      const gasLimit=BigInt(row.tx.gasLimit);
+      if (frozenArm) {
+        if (gasLimit!==BigInt(frozenArm.outer)) errors.push('outer transaction gas limit differs from frozen plan');
+      } else if (gasLimit>BigInt(config.bundlerGasLimit) || gasLimit<=0n) errors.push('outer transaction gas limit exceeded');
     }
   } catch { errors.push('invalid transaction/config evidence'); }
   return errors;
 }
+
+function pvgMeasurementErrors(row, beneficiary, receipt, event) {
+  const op = row.packedOp, value = BigInt(op.preVerificationGas);
+  const measured = measurePVG({...op,nonce:BigInt(op.nonce),preVerificationGas:value},beneficiary);
+  const surplus = value - measured.value;
+  const pvg = {...measured,value,surplus,resolution:surplus === 0n ? 'fixed-point' : 'cycle-max'};
+  const expected = {};
+  recordPVG(expected,pvg,row.sent ? row.tx.raw.input : null,receipt && {
+    gasUsed:BigInt(receipt.gasUsed),effectiveGasPrice:BigInt(receipt.effectiveGasPrice),l1Fee:receipt.l1Fee
+  },event);
+  // The unused-gas penalty and its derivatives require a separate call trace.
+  const columns = ['pvgSurplus','pvgSurplusReason','pvgConsistency','outerGasUsed','outerEffectiveGasPrice',
+    'l1DataFee','calldataFloorGas','calldataFloorBinding','bundlerNetGas','opGasPrice'];
+  return columns.filter(key=>!evidenceEqual(row[key],expected[key])).map(key=>`PVG measurement mismatch: ${key}`);
+}
+
 export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) {
   const errors=[], cache=new Map(), archives=[{records:[]},{records:[]}];
   const fail=s=>errors.push(s);
@@ -189,7 +209,7 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     if (preflightErrors.length && (a.sent!==false || a.verdict!=='NOT_SENT' || a.failingCheck!=='preflight_revert')) throw Error('derived evidence mismatch: preflight disposition');
     if (preflightErrors.length || a.preflight || a.failingCheck==='preflight_revert') bindPreflight(a,archives);
     bindArchivedDisposition(a,archives);
-    bindReceiptSummaries(a, {formal:true});
+    const event=bindReceiptSummaries(a, {formal:true});
     const time=Date.parse(a.collectedAtUtc);
     if (!Number.isFinite(time) || time<lastTime) throw new Error('journal chronology mismatch');
     lastTime=time;
@@ -245,6 +265,7 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','callDataHash','failureReason','notSentReason','stopReason','verdict','exclusionReason','packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
     const frozenArm=context && {...context.adapter.frozen,outer:context.phaseC.bounds[a.arm].outer};
     if (!context || a.packedOp) errors.push(...transactionErrors(a,config,frozenArm).map(e=>`attempt ${i}: ${e}`));
+    let receiptA;
     for (const endpoint of ['A','B']) {
       for (const kind of ['receipt','logs','transaction','stateReads']) {
         const observations=[];
@@ -261,6 +282,7 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
           if ((kind==='receipt' || kind==='logs') && !pending) {
+            if (kind==='receipt' && endpoint==='A') receiptA??=result;
             for (const key of ['gasUsed','effectiveGasPrice']) if (a.tx[key] == null || result[key] == null || BigInt(a.tx[key]) !== BigInt(result[key])) throw new Error('raw receipt '+key+' mismatch');
             const logs=ls=>ls.map(l=>({address:lower(l.address),topics:l.topics.map(lower),data:lower(l.data),logIndex:String(BigInt(l.logIndex)),...(l.transactionHash?{transactionHash:lower(l.transactionHash)}:{})}));
             if ((result.status==='0x1'?'success':result.status==='0x0'?'reverted':null)!==a.tx.status || !eq(logs(result.logs),logs(a.logs))) throw new Error('raw complete receipt mismatch');
@@ -280,6 +302,7 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
         }
       }
     }
+    if (context && a.packedOp) errors.push(...pvgMeasurementErrors(a,config.accounts.bundler.address,receiptA,event).map(e=>`attempt ${i}: ${e}`));
     if (a.sent && a.verdict==='USEROP_SUCCESS' && r.arm==='TPM') {
       if (!a.tpmOracle || lower(a.tpmOracle)!==lower(inv.code.tokenPaymasterOracle.address)) throw new Error('TPM oracle/Passport mismatch');
       for (const [idx,endpoint] of ['A','B'].entries()) {

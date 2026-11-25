@@ -1,4 +1,4 @@
-// Offline frozen window with resolvable A/B evidence and a manifest-driven target.
+// Offline frozen window with resolvable A/B evidence and an explicit test protocol.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,7 +9,7 @@ import { localUserOpHash } from './gauge-lib.mjs';
 import { IMPL_SLOT, passportCalls } from './passport-evidence.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
 import { stateCalls } from './state-evidence.mjs';
-import { createWindow } from './window-schedule.mjs';
+import { createWindow, REGISTERED_WINDOW } from './window-schedule.mjs';
 
 const legacy=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').trim().split('\n').map(JSON.parse);
 const names={SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'}, arms=Object.values(names);
@@ -25,15 +25,16 @@ const words=(...values)=>'0x'+values.map(v=>word(v).slice(2)).join('');
 const ceil=(n,d)=>(n+d-1n)/d;
 const senderFields=['userXPNTs','lockedOf','debts','creditReservedOf'];
 const scheduleFields=['block_slot','pair_id','seed','schedule_sha256','warmup','spWait','slotChecks','scheduleDisposition'];
+const registered={...REGISTERED_WINDOW,targetTriplets:accounts.length+1,
+  stoppingRule:'advance scheduled slots until four complete triplets or slot 60'};
 
-export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, senderBalanceGap=false}={}) {
+export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, senderBalanceGap=false, lowerOuterGas=false}={}) {
   const bytes=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
   const bundleSha256=sha256(bytes), chainId=10;
   const {adapters,manifest}=createWindow({readBundle:()=>bytes,bundleSha256,seed:'public',chainId,accounts});
   const {schedule}=manifest, head={schema:'a6-gauge/2',runId:'frozen-sent'};
   const epoch=BigInt(legacy[0].passport.block.timestamp);
-  Object.assign(manifest,{targetTriplets:accounts.length+1,windowId:head.runId,startTimestamp:String(epoch),
-    stoppingRule:'advance scheduled slots until the manifest target or slot cap'});
+  Object.assign(manifest,registered,{windowId:head.runId,startTimestamp:String(epoch)});
   const [missedSlot,...remainingSlots]=schedule.payload.slots;
   const usedSlots=[missedSlot,...remainingSlots.slice(0,manifest.targetTriplets)];
   const firstSent=remainingSlots[0].block_slot;
@@ -185,12 +186,13 @@ export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, s
       const attemptRef=savePassport('attempt-'+attemptIndex,a.passport,pinBlock,{read:sent||submitGate||!expiredReads.has(sender)});
       if(pinBlock===expired) expiredReads.add(sender);
       const minTxInterval=arm==='SP'?BigInt(pc.minTxInterval):0n, lastTimestamp=arm==='SP'?lastSP.get(sender)??0n:0n;
-      const gateBlock=sent?pinBlock:expired;
-      const wait={seconds:0n,blocks:0n,minTxInterval,lastTimestamp,validAfter:lastTimestamp+minTxInterval,timestamp:time,
-        pin:{number:gateBlock.passport.number,hash:gateBlock.anchor.hash},start:startTime,deadline};
-      const gate=sent?{allowed:true,wait}:{allowed:false,reason:'slot_deadline_exceeded',wait};
-      a.slotChecks=sent?[gate,gate]:submitGate?[{allowed:true,wait:{...wait,timestamp:BigInt(pinBlock.passport.timestamp),pin:{number:pinBlock.passport.number,hash:pinBlock.anchor.hash}}},gate]:[gate];
-      if(arm==='SP') a.spWait=wait;
+      const beforeBlock=sent?block(blockNumber++,time+1n):null;
+      const waitAt=(b,elapsed=0n)=>({seconds:elapsed,blocks:elapsed,minTxInterval,lastTimestamp,validAfter:lastTimestamp+minTxInterval,
+        timestamp:BigInt(b.passport.timestamp),pin:{number:b.passport.number,hash:b.anchor.hash},start:startTime,deadline});
+      const gate=sent?{allowed:true,wait:waitAt(beforeBlock)}:{allowed:false,reason:'slot_deadline_exceeded',wait:waitAt(expired)};
+      a.slotChecks=sent||submitGate?[{allowed:true,wait:waitAt(pinBlock,sent&&arm==='SP'?1n:0n)},gate]:[gate];
+      if(arm==='SP') a.spWait=a.slotChecks.reduce((prev,{wait})=>({...wait,
+        seconds:(prev?.seconds??0n)+wait.seconds,blocks:(prev?.blocks??0n)+wait.blocks}),null);
       if(!sent) Object.assign(a,{sent:false,tx:null,verdict:'NOT_SENT',failingCheck:gate.reason,scheduleDisposition:gate.reason});
       if(sent || submitGate) {
         const paymaster=addresses[arm], {frozen}=adapter, gas={...frozen.gas[arm]}, pmGas=frozen.pmGas[arm];
@@ -213,7 +215,7 @@ export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, s
       if(sent) {
         const {nonce,packedOp:packed,gas,pmGas,paymaster,expectedUserOpHash:opHash}=a;
         const pvg=a.gasSources.preVerification;
-        const beforeBlock=block(blockNumber++,time+1n), txId=hash(10000+attemptIndex), txBlock=block(blockNumber++,time+2n,[txId]);
+        const txId=hash(10000+attemptIndex), txBlock=block(blockNumber++,time+2n,[txId]);
         const template=legacy.find(row=>row.arm===arm), gasUsed=BigInt(template.userOpEvent.actualGasUsed);
         const gasPrice=BigInt(pc.feeRule.baseFee)+gas.maxPriorityFeePerGas, gasCost=gasUsed*gasPrice;
         const event={userOpHash:opHash,sender,paymaster,nonce,success:true,actualGasUsed:gasUsed,actualGasCost:gasCost};
@@ -263,7 +265,8 @@ export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, s
         }
         const input=encodeFunctionData({abi:bundleAbi,functionName:'handleOps',args:[[packed],bundler]});
         const tx={hash:txId,input,from:bundler,status:'success',blockNumber:txBlock.passport.number,blockHash:txBlock.anchor.hash,blockTimestamp:txBlock.passport.timestamp,
-          gasLimit:BigInt(pc.bounds[arm].outer),...adapter.frozen.fees,handleOpsIndex:0,blockTxCount:1,headBefore:beforeBlock.passport.number,
+          gasLimit:BigInt(adapter.plan.phaseC.bounds[arm].outer)-(lowerOuterGas && slot.block_slot===firstSent && sender===accounts[1]?1n:0n),
+          ...adapter.frozen.fees,handleOpsIndex:0,blockTxCount:1,headBefore:beforeBlock.passport.number,
           gasUsed:template.tx.gasUsed,effectiveGasPrice:gasPrice};
         const archivedTx={...template.tx.raw,type:'0x2',chainId:hex(chainId),nonce:hex(pending),value:'0x0',transactionIndex:'0x0',v:'0x1',
           r:hash(1),s:hash(2),accessList:[],gasPrice:hex(gasPrice),to:entryPoint,from:bundler,hash:txId,input,gas:hex(tx.gasLimit),
@@ -330,7 +333,7 @@ export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, s
   const window={schedule_sha256:schedule.sha256,stoppingRule:manifest.stoppingRule,status:'COMPLETE',targetTriplets:manifest.targetTriplets,
     slotCap:manifest.slotCap,scheduledSlots:schedule.payload.slots.length,usedSlots:triplets.length,completeTriplets:manifest.targetTriplets,
     unusedSlots:schedule.payload.slots.slice(triplets.length).map(slot=>slot.block_slot)};
-  const end={...head,kind:'run_end',rehearsal:false,stop:{reason:'COMPLETE',code:0},exitCode:0,endChecks,endCheckScope:'on every in-process exit',
+  const end={...head,kind:'run_end',rehearsal:false,stop:{reason:'COMPLETE',code:0},exitCode:0,endChecks,endCheckScope:'on every in-process exit (not on SIGINT/SIGTERM/SIGKILL)',
     matchedTriplets:manifest.targetTriplets,targetTriplets:manifest.targetTriplets,scheduledSlots:manifest.slotCap,attemptedSlots:triplets.length,
     warmupAttempts:0,tally,triplets,window,passport:final,finalBlockCheck};
   const triples=triplets.map(t=>({tripleIndex:t.tripletIndex,attempts:t.attempts,included:t.matched}));
@@ -340,5 +343,5 @@ export async function sentWindowFixture(dir,{nonceGap=false, balanceGap=false, s
   writeTrailer(dir,trailer);
   const runPath=join(dir,'run.jsonl');
   writeFileSync(runPath,[start,...rows,end].map(stringify).join('\n')+'\n');
-  return {runPath,accounts,rows,end,trailer,firstSent};
+  return {runPath,accounts,rows,end,trailer,firstSent,registered};
 }
