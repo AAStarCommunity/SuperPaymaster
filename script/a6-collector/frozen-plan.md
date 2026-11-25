@@ -1,11 +1,11 @@
-# Frozen three-arm collector window
+# Frozen three-arm collector windows
 
 Use Node 24 (lossless JSON number reviver context) and Python 3. Add these
 options to the existing formal collector invocation:
 
 ```
 --frozen-plan rq3-three-arm.<chainId>.json --bundle-sha256 <approved-file-sha256> \
---seed <public-seed> --count 50 --max-attempts 60
+--seed <public-seed> --count 50 --max-attempts 20 --window-index <1|2|3>
 ```
 
 One invocation loads all three per-sender plans from the planner bundle
@@ -20,24 +20,37 @@ exist and be prepared; account creation is refused during collection.
 The collector uses the public seed, ordered accounts and frozen chain
 qualification in `chain-params.json` to generate 60 slots: ten batches of all
 six arm permutations, ordered by SHA-256 of seed, batch and permutation. Each
-slot rotates accounts across SP/VPM/TPM. The OP slot period is 30 seconds with
-a 20-second elapsed bound; Sepolia uses 130/120 seconds. `manifest.json` records
+slot rotates accounts across SP/VPM/TPM by its global slot number. The provisional
+OP slot period is 120 seconds with a 100-second elapsed bound. Sepolia uses
+130/120 seconds. `manifest.json` records
 the complete schedule payload and its SHA-256, qualification payload and hash,
-all three plan SHA-256s, approved bundle hash and window start timestamp.
+all three plan SHA-256s, approved bundle hash, the selected slice and its start
+timestamp.
 
-The collector advances the slots in schedule order under a pre-registered
-stopping rule (recorded as `stoppingRule` in `manifest.json`): after each slot,
-if the count of complete triplets has reached 50 it stops and the window is
-COMPLETE; if slot 60 finishes with fewer than 50 it stops and the window is
-INCOMPLETE. It never runs a 61st slot. The schedule still generates all 60
-slots and `manifest.json` keeps the full payload and its SHA-256; slots not
-reached are listed by `block_slot` in `unusedSlots` of the `window` record in
-`run_end` and `trailer.json` (with `status`, `usedSlots`, `completeTriplets`).
-Each sender uses at most 20 attempts on each arm, within the existing plans'
-34/33/33 per-arm budgets. Incomplete slots (including partial ones) stay in the
-count and never trigger the stop; there are no result-based retries,
-replacements, reorderings or extensions. Integrity failures can stop the window early and retain partial
-slot counts. No pilot/warmup attempts run in this mode: `warmupAttempts` is zero
+Run the three windows in order with the same seed and ordered accounts. Window 1
+covers slots 0–19, window 2 covers 20–39, and window 3 covers 40–59. Each window is
+a separate collector run with its own start and end passports. Refresh the price
+externally before each window. The price may change only between windows. Slot
+starts and deadlines are measured from the start of that window.
+
+Every slot in each slice is attempted in order with no optional stopping,
+result-based retries, replacements, reordering or extensions. After all 20 slots
+and successful end checks, the window reports `EXHAUSTED` and exits 0 even if it
+has incomplete triplets. Fail-closed stops report `STOPPED`, retain partial slots,
+and list unreached slots within that slice as `unusedSlots`. The `window` record
+in `run_end` and `trailer.json` identifies the slice and reports local slot and
+triplet counts. Each sender uses 20 scheduled allocations per arm across all
+three windows, within the existing plans' 34/33/33 per-arm budgets.
+
+`--count 50` records the collection target. The later evidence aggregate is
+`COMPLETE` with at least 50 complete triplets across all three valid windows and
+`INCOMPLETE` below 50. A missing or void slice yields `INVALID-INTERRUPTED`. A
+void or interrupted slice must never be rerun under the same registration. The
+collector refuses a window directory that already contains `raw/`, `index.ndjson`
+or `manifest.json`. It also refuses a non-empty output file. The aggregate
+refuses a duplicate slice range, even when the runs have distinct IDs.
+
+No pilot/warmup attempts run in this mode. `warmupAttempts` is zero
 and every formal attempt row has `warmup:false`. Do any pilot in a separate run;
 its rows must be marked warmup and must not be inserted into this schedule.
 
@@ -58,7 +71,9 @@ No real window may be treated as evidence before the slice-evidence PR (schedule
 
 Every attempt row and evidence index records `block_slot`, `pair_id`, `seed`,
 `schedule_sha256`, and `sender`. Attempt rows also retain exact plan-derived gas,
-fees, plan/bundle digests and allocation. The bundle SHA-256 covers exact bytes;
+fees, plan/bundle digests and allocation. `allocation.tripletIndex` is the
+cumulative zero-based index for that sender and arm over the full schedule.
+The bundle SHA-256 covers exact bytes;
 whole-plan hashes use the planner's sorted, compact, ASCII-escaped JSON encoding.
 Large integers remain lossless. Bundle/plan integrity, chain, gas parameters,
 operator interval and stake are checked before sending. No gas estimate or fee
@@ -71,10 +86,19 @@ allowance/total caps remain a separate resource constraint; see the resource
 audit in `cache/sched/REPORT.md` rather than assuming an attempt budget alone
 proves allowance sufficiency.
 
-Known gap: `validate.mjs` and `evidence-validate.mjs` do not accept this plan
-mode. The schedule evidence writer retains incomplete slots without applying
-the legacy replacement-exclusion policy; this does not add validator support.
-Legacy invocations retain the existing formal configuration and protocol.
+Store the journal at `<window-dir>/run.jsonl`. Validate each slice and aggregate the
+three directories with the registered seed and schedule SHA-256 from the
+registration:
+
+```sh
+node script/a6-collector/validate.mjs <window-dir>/run.jsonl --frozen-plan <bundle> \
+  --registered-seed <seed> --registered-schedule-sha256 <hex>
+node script/a6-collector/aggregate-windows.mjs <window-1> <window-2> <window-3> \
+  --frozen-plan <bundle> --registered-seed <seed> --registered-schedule-sha256 <hex>
+```
+
+The evidence writer retains incomplete slots without applying the legacy
+replacement-exclusion policy.
 
 Offline tests use the real planner with its fake chain, injected chain clocks,
 RPC transports and signers. No live RPC, Anvil or keystore is used.

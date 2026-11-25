@@ -60,6 +60,8 @@ export function transactionErrors(row, config, frozenArm = null) {
   return errors;
 }
 
+const unusedPenaltyColumns = ['unusedGasPenalty','unusedGasPenaltyReason','bundlerNetGasExPenalty'];
+
 function pvgMeasurementErrors(row, beneficiary, receipt, event) {
   const op = row.packedOp, value = BigInt(op.preVerificationGas);
   const measured = measurePVG({...op,nonce:BigInt(op.nonce),preVerificationGas:value},beneficiary);
@@ -69,9 +71,9 @@ function pvgMeasurementErrors(row, beneficiary, receipt, event) {
   recordPVG(expected,pvg,row.sent ? row.tx.raw.input : null,receipt && {
     gasUsed:BigInt(receipt.gasUsed),effectiveGasPrice:BigInt(receipt.effectiveGasPrice),l1Fee:receipt.l1Fee
   },event);
-  // The unused-gas penalty and its derivatives require a separate call trace.
   const columns = ['pvgSurplus','pvgSurplusReason','pvgConsistency','outerGasUsed','outerEffectiveGasPrice',
     'l1DataFee','calldataFloorGas','calldataFloorBinding','bundlerNetGas','opGasPrice'];
+  if (row.gasTrace == null) columns.push(...unusedPenaltyColumns);
   return columns.filter(key=>!evidenceEqual(row[key],expected[key])).map(key=>`PVG measurement mismatch: ${key}`);
 }
 
@@ -93,7 +95,8 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     if (!ref || !Number.isSafeInteger(ref.id)) throw new Error('invalid raw reference');
     if (!cache.has(ref.path)) {
       const records=file(ref.path).toString().trim().split('\n').filter(Boolean).map(JSON.parse);
-      cache.set(ref.path,records);
+      const byId=new Map();
+      cache.set(ref.path,byId);
       for (const r of records) {
         if (!archivedMethodAllowed(r,journal,trailer)) throw new Error(`archived RPC method forbidden or outside rehearsal control range: ${r.method}`);
         if (r.method==='debug_traceTransaction' && !['callTracer','prestateTracer'].some(tracer=>eq(r.params[1],{tracer,tracerConfig:tracer==='callTracer'?{withLog:true}:{diffMode:true}}))) throw new Error('TPM raw trace missing or inconsistent: exact tracer config required');
@@ -115,12 +118,14 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
           if (response.id!==request.id) throw new Error('raw response identity mismatch');
         }
         if (!['A','B'].includes(r.endpoint)) throw new Error('invalid raw endpoint');
+        if (byId.has(r.id)) throw new Error('raw reference does not resolve uniquely on endpoint');
+        byId.set(r.id,r);
         archives[r.endpoint==='A'?0:1].records.push({...r,path:ref.path});
       }
     }
-    const matches=cache.get(ref.path).filter(r=>r.id===ref.id);
-    if (matches.length!==1 || matches[0].endpoint!==endpoint) throw new Error('raw reference does not resolve uniquely on endpoint');
-    return matches[0];
+    const record=cache.get(ref.path).get(ref.id);
+    if (!record || record.endpoint!==endpoint) throw new Error('raw reference does not resolve uniquely on endpoint');
+    return record;
   }
   function walk(value,endpoint) {
     if (!value || typeof value!=='object') return;
@@ -248,6 +253,9 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     for (const [key,value] of [['start',context?.pStart ?? start.passport],['attempt',a.passport],['end',finalPassport]]) {
       const passportRef=key==='end'?trailer.endPassport:r.passports[key];
       const artifact=JSON.parse(file(passportRef.path));
+      if (context && artifact?.volatile?.cachedPriceUpdatedAt == null) {
+        throw new Error(`${local(passportRef.path)}:1: missing volatile.cachedPriceUpdatedAt`);
+      }
       if (!eq(artifact,value)) throw new Error('Passport/journal mismatch');
       if (context && key==='attempt' && !eq(artifact.invariant,context.pStart.invariant)) throw new Error('attempt Passport invariant drifted');
       verifyPassportIdentity(artifact,key==='end' ? start.frozenConfig : config,pinnedConfig(start.deploymentConfigSha256),pinnedConfig(start.baselineConfigSha256));
@@ -303,6 +311,9 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
       }
     }
     if (context && a.packedOp) errors.push(...pvgMeasurementErrors(a,config.accounts.bundler.address,receiptA,event).map(e=>`attempt ${i}: ${e}`));
+    if (context && !a.packedOp && a.gasTrace == null) for (const key of unusedPenaltyColumns) {
+      if (a[key] !== null) fail(`attempt ${i}: PVG measurement mismatch: ${key}`);
+    }
     if (a.sent && a.verdict==='USEROP_SUCCESS' && r.arm==='TPM') {
       if (!a.tpmOracle || lower(a.tpmOracle)!==lower(inv.code.tokenPaymasterOracle.address)) throw new Error('TPM oracle/Passport mismatch');
       for (const [idx,endpoint] of ['A','B'].entries()) {
@@ -323,11 +334,16 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
       if (observed.has(String(number)) && observed.get(String(number))!==hash) throw new Error('archived reorg');
       observed.set(String(number),hash);
     }
-    for (const [number,hash] of observed) for (const endpoint of ['A','B']) {
-      if (!check.raw[endpoint].some(ref=>{
-        const raw=reference(ref,endpoint), result=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
-        return raw.method==='eth_getBlockByNumber' && BigInt(raw.params[0])===BigInt(number) && result?.hash===hash && BigInt(result.number)===BigInt(number) && Date.parse(raw.requestedAtUtc)>=lastTime;
-      })) throw new Error('final historical anchor not verified on both endpoints');
+    for (const endpoint of ['A','B']) {
+      const verified=new Set();
+      for (const ref of check.raw[endpoint]) {
+        const raw=reference(ref,endpoint);
+        if (raw.method!=='eth_getBlockByNumber' || !(Date.parse(raw.requestedAtUtc)>=lastTime)) continue;
+        const result=JSON.parse(Buffer.from(raw.response,'base64').toString()).result;
+        const number=String(BigInt(raw.params[0]));
+        if (result && result.hash===observed.get(number) && BigInt(result.number)===BigInt(number)) verified.add(number);
+      }
+      if (verified.size!==observed.size) throw new Error('final historical anchor not verified on both endpoints');
     }
   } catch(e) { fail(e.message); }
   if (frozenWindow) for (const [sender,context] of frozenWindow.senders) try {

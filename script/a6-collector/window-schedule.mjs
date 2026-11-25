@@ -8,56 +8,72 @@ export function generateSchedule(seed,accounts,chainId) {
   if(!chain || typeof seed!=='string' || !seed || accounts.length!==3 || new Set(accounts.map(a=>a.toLowerCase())).size!==3 || accounts.some(a=>!/^0x[0-9a-f]{40}$/i.test(a))) throw Error('SCHEDULE_INPUT');
   return JSON.parse(execFileSync('python3',['-I','-B',fileURLToPath(new URL('./schedule.py',import.meta.url)),'--seed',seed,'--accounts',...accounts,'--chain',chain],{encoding:'utf8'}));
 }
-export function createWindow({readBundle,bundleSha256,seed,chainId,accounts}) {
+export const TARGET_TRIPLETS=50, SLOT_CAP=60, WINDOW_SLOTS=20, WINDOWS=3;
+export const STOPPING_RULE='pre-registered: attempt every slot of the slice in schedule order without optional stopping; EXHAUSTED after the last slot; STOPPED on a fail-closed stop; never extend';
+export function createWindow({readBundle,bundleSha256,seed,chainId,accounts,windowIndex}) {
+  if(!Number.isInteger(windowIndex) || windowIndex<1 || windowIndex>WINDOWS) throw Error('WINDOW_INDEX');
+  const firstSlot=(windowIndex-1)*WINDOW_SLOTS;
+  const slice={windowIndex,firstSlot,lastSlot:firstSlot+WINDOW_SLOTS-1,slots:WINDOW_SLOTS};
   const schedule=generateSchedule(seed,accounts,chainId);
   const adapters=new Map(accounts.map(account=>[account,createFrozenPlan({readBundle,bundleSha256,account})]));
   for(const [account,a] of adapters) {
     if(a.plan.phaseC.addresses.S.toLowerCase()!==account.toLowerCase()) throw Error('PLAN_S_MISMATCH');
-    if(a.plan.chainId!==chainId || (!Number.isInteger(a.plan.phaseC.attempts) || a.plan.phaseC.attempts<20)) throw Error('PLAN_WINDOW_BUDGET');
+    if(a.plan.chainId!==chainId || (!Number.isInteger(a.plan.phaseC.attempts) || a.plan.phaseC.attempts<SLOT_CAP/accounts.length)) throw Error('PLAN_WINDOW_BUDGET');
   }
-  return {adapters,manifest:{schema:'rq3-window-v1',pythonVersion:execFileSync('python3',['-I','-B','-c','import sys; print(sys.version)'],{encoding:'utf8'}).trim(),schedule,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false}};
+  return {adapters,manifest:{schema:'rq3-window-v1',pythonVersion:execFileSync('python3',['-I','-B','-c','import sys; print(sys.version)'],{encoding:'utf8'}).trim(),schedule,slice,plan_sha256:Object.fromEntries([...adapters].map(([s,a])=>[s,a.digest])),bundleSha256,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false}};
 }
-export const TARGET_TRIPLETS=50, SLOT_CAP=60;
-export const STOPPING_RULE='pre-registered: advance slots in schedule order; stop after the slot in which complete triplets reach 50 (COMPLETE); stop after slot 60 otherwise (INCOMPLETE); never extend';
 export const REGISTERED_WINDOW=Object.freeze({
-  targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false
+  targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,windowSlots:WINDOW_SLOTS,windows:WINDOWS,
+  stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false
 });
 export function windowProtocolMatches(manifest,registered) {
-  return Object.keys(REGISTERED_WINDOW).every(key=>manifest[key]===registered[key]);
+  const {windowSlots,windows}=registered;
+  const {windowIndex,firstSlot,lastSlot,slots}=manifest.slice??{};
+  return Number.isInteger(windowIndex) && windowIndex>=1 && windowIndex<=windows &&
+    slots===windowSlots && firstSlot===(windowIndex-1)*windowSlots && lastSlot===firstSlot+windowSlots-1 &&
+    Object.keys(REGISTERED_WINDOW).filter(key=>key!=='windowSlots' && key!=='windows')
+      .every(key=>manifest[key]===registered[key]);
 }
-/**
- * Fixed traversal in schedule order with the pre-registered stopping rule. A row verdict never
- * reorders, replaces or adds slots; the only result-dependent effect is the pre-registered stop
- * once TARGET_TRIPLETS complete triplets exist. Incomplete (including partial) slots never stop it.
- */
-export async function runSlots(schedule,attempt,complete) {
+/** Traverse the slice in schedule order, using allocation indexes from the full schedule. */
+export async function runSlots({schedule,slice},attempt,complete) {
   const all=schedule.payload.slots;
   if(all.length!==SLOT_CAP || all.some((slot,i)=>slot.block_slot!==i)) throw Error('SLOT_CAP');
-  const slots=[];let matched=0;const allocations=new Map();
-  const unused=()=>all.slice(slots.length).map(s=>s.block_slot);
-  for(const slot of all) {
-    if(matched>=TARGET_TRIPLETS) break;
-    const rows=[];
+  const scheduled=all.slice(slice.firstSlot,slice.lastSlot+1);
+  const slots=[];let matched=0;
+  const allocations=new Map();
+  for(const slot of all.slice(0,slice.firstSlot)) {
     for(const name of slot.order) {
-      const arm=names[name],sender=slot.senders[name],key=sender+':'+arm,index=allocations.get(key)??0;
-      allocations.set(key,index+1);
-      try { rows.push(await attempt(slot,arm,sender,index)); }
-      catch (error) {
-        if(error.attemptRow) rows.push(error.attemptRow);
-        slots.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:false,attempts:rows.map(r=>r.attemptIndex)});
-        error.windowProgress={slots,complete:matched,status:'STOPPED',unusedSlots:unused()};
-        throw error;
-      }
+      const key=slot.senders[name]+':'+names[name];
+      allocations.set(key,(allocations.get(key)??0)+1);
     }
-    const ok=complete(rows);if(ok) matched++;
+  }
+  for(const slot of scheduled) {
+    const rows=[];
+    let ok;
+    try {
+      for(const name of slot.order) {
+        const arm=names[name],sender=slot.senders[name],key=sender+':'+arm,index=allocations.get(key)??0;
+        allocations.set(key,index+1);
+        rows.push(await attempt(slot,arm,sender,index));
+      }
+      ok=complete(rows);
+    } catch (error) {
+      if(error.attemptRow) rows.push(error.attemptRow);
+      slots.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:false,attempts:rows.map(r=>r.attemptIndex)});
+      error.windowProgress={slots,complete:matched,status:'STOPPED',unusedSlots:scheduled.slice(slots.length).map(s=>s.block_slot)};
+      throw error;
+    }
+    if(ok) matched++;
     slots.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:ok,attempts:rows.map(r=>r.attemptIndex)});
   }
-  return {slots,complete:matched,status:matched>=TARGET_TRIPLETS?'COMPLETE':'INCOMPLETE',unusedSlots:unused()};
+  return {slots,complete:matched,status:'EXHAUSTED',unusedSlots:[]};
 }
 /** Window outcome for the run_end line and trailer; unreached slots are listed, never dropped. */
-export function windowRecord(schedule,progress) {
-  return {schedule_sha256:schedule.sha256,stoppingRule:STOPPING_RULE,status:progress.status,targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,
-    scheduledSlots:schedule.payload.slots.length,usedSlots:progress.slots.length,completeTriplets:progress.complete,unusedSlots:[...progress.unusedSlots]};
+export function windowRecord({schedule,slice},progress=null) {
+  const {windowIndex,firstSlot,lastSlot,slots:scheduledSlots}=slice;
+  return {schedule_sha256:schedule.sha256,stoppingRule:STOPPING_RULE,status:progress?.status??'STOPPED',targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,
+    windowIndex,firstSlot,lastSlot,scheduledSlots,usedSlots:progress?.slots.length??0,completeTriplets:progress?.complete??0,
+    unusedSlots:progress?.unusedSlots??schedule.payload.slots.slice(firstSlot,lastSlot+1).map(slot=>slot.block_slot)};
 }
 const abi=parseAbi(['function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)',
   'function userOpState(address,address) view returns (uint48 lastTimestamp,bool isBlocked)']);
@@ -68,6 +84,11 @@ export function slotDecision(arm,{timestamp,start,deadline,validAfter}) {
   if(timestamp>=start && (arm!=='SP'||timestamp>=validAfter)) return {allowed:true};
   return null;
 }
+
+export function accumulateSlotWait(previous,wait) {
+  return {...wait,seconds:BigInt(previous?.seconds??0n)+BigInt(wait.seconds),blocks:BigInt(previous?.blocks??0n)+BigInt(wait.blocks)};
+}
+
 /** Fresh A/B reads at every pin, including the pin immediately before submission. */
 export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,deadline,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=180000}) {
   let first;const wallDeadline=Date.now()+timeoutMs;

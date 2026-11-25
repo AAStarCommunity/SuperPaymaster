@@ -775,7 +775,22 @@ Set both before invoking rq3; `PinnedTools` forwards them to the checker. There 
 fallback to the config file's directory. Provider validation runs during input loading
 and checker startup, before chain reads.
 
-The frozen-plan collector now runs [one public-seed window](../a6-collector/frozen-plan.md) with all three per-sender plans. Under rotation, `phaseC.attempts` remains each sender's budget **per arm** (34/33/33); a window of at most 60 pre-registered slots (stopping after the slot in which complete triplets reach 50, otherwise after slot 60) uses at most 20 of those attempts per sender per arm, with the remainder as margin, and no planner change. Unreached slots are listed as `unusedSlots` in the run_end/trailer `window` record. Known gap: the collector's `validate.mjs` and `evidence-validate.mjs` do not yet accept plan mode.
+The frozen-plan collector uses one public-seed schedule of 60 slots in three
+separate runs, in order. Windows 1, 2 and 3 cover slots 0–19, 20–39 and 40–59,
+respectively, with their own start and end passports. Refresh the price externally
+before each window. The price may change only between windows. Every slot in the
+slice is attempted without optional stopping, and a run that finishes the slice
+and passes end checks reports `EXHAUSTED`. Under rotation, `phaseC.attempts`
+remains each sender's budget per arm (34/33/33), and the full schedule uses
+20 allocations per sender per arm. [Frozen collector run instructions](../a6-collector/frozen-plan.md)
+
+The later evidence aggregate is `COMPLETE` at 50 or more complete triplets across
+all three valid windows, `INCOMPLETE` below 50, and `INVALID-INTERRUPTED` if a
+slice is missing or void. A void or interrupted slice must never be rerun under
+the same registration. The collector refuses an existing window directory. A
+new directory for the same slice produces a second result for that range, which
+the aggregate must refuse as a duplicate. Slice validation and aggregation are
+pending in the evidence PR.
 
 Every planned transaction gas limit is bounded by the pinned block header gasLimit.
 Stricter caps live in tx-gas-caps.json: OP mainnet (10) and OP Sepolia (11155420)

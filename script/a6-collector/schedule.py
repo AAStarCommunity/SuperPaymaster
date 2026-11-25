@@ -25,7 +25,7 @@ def qualification(chain):
 def generate(seed, accounts, slot_period=None, max_elapsed=None, chain="op-mainnet"):
     frozen = qualification(chain)
     bound = frozen["payload"]["max_elapsed_seconds"]
-    slot_period = slot_period if slot_period is not None else (30 if chain in ("op-mainnet", "op-sepolia") else 130)
+    slot_period = slot_period if slot_period is not None else (120 if chain in ("op-mainnet", "op-sepolia") else 130)
     max_elapsed = bound if max_elapsed is None else max_elapsed
     if max_elapsed != bound:
         raise ValueError("elapsed bound must match frozen chain parameters")

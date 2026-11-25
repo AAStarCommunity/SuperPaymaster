@@ -9,8 +9,9 @@ async function finish({code=10,drift=false,abort=false,anchorFailure=false,final
  class Stop extends Error { constructor(reason,code,detail){super(reason);Object.assign(this,{reason,code,detail});} }
  const start={chainId:1,block:{number:1,hash:'0x01'},invariant:{value:1}};
  const end={chainId:1,block:{number:2,hash:'0x02'},invariant:{value:drift?2:1},volatile:{operatorBalance:'0'}};
- const context={Stop,stop:{code,reason:abort?'CRASH':code?'INCOMPLETE':'COMPLETE'},passportStart:start,
-  formal:true,window:{},windowOutcome:{status:abort?'STOPPED':code?'INCOMPLETE':'COMPLETE',usedSlots:0},
+ const context={Stop,stop:{code,reason:abort?'CRASH':code?'INCOMPLETE':'EXHAUSTED'},passportStart:start,
+  formal:true,window:{},windowOutcome:{status:abort?'STOPPED':code?'INCOMPLETE':'EXHAUSTED',
+   windowIndex:2,firstSlot:20,lastSlot:39,scheduledSlots:20,usedSlots:code?0:20},
   senderConfigs:[{sender:'S1'},{sender:'S2'}],senderPassports:new Map([['S1',start],['S2',start]]),sender:'S1',
   selectSender(s){context.sender=s;},passportAB:async()=>{
    calls.push('passport:'+context.sender);
@@ -41,7 +42,7 @@ for(const abort of [false,true]) test(`${abort?'aborted':'INCOMPLETE'} window re
  assert.deepEqual(r.end.endChecks,r.trailer.endChecks);
  assert.equal(r.end.stop.code,abort?1:10);
 });
-test('COMPLETE with failed end check is void and STOPPED in both evidence records',async()=>{
+test('EXHAUSTED with failed end check is void and STOPPED in both evidence records',async()=>{
  const r=await finish({code:0,drift:true});
  assert.equal(r.trailer.void,true);
  assert.equal(r.trailer.window.status,'STOPPED');
@@ -83,7 +84,14 @@ test('clean window waits for a later block and records all end checks passing',a
  assert.equal(r.trailer.endPassport,'end');
  assert.equal(r.end.passport.block.number,2);
  assert.equal(r.trailer.void,false);
- assert.equal(r.trailer.window.status,'COMPLETE');
+ assert.equal(r.end.stop.reason,'EXHAUSTED');
+ assert.equal(r.end.exitCode,0);
+ assert.equal(r.trailer.stopReason,'EXHAUSTED');
+ assert.equal(r.trailer.window.status,'EXHAUSTED');
+ assert.equal(r.end.scheduledSlots,20);
+ assert.equal(r.end.attemptedSlots,20);
+ assert.equal(r.end.window.windowIndex,2);
+ assert.deepEqual(r.end.window,r.trailer.window);
  assert.deepEqual(JSON.parse(JSON.stringify(r.trailer.endChecks)),
   ['endBlock','senderPassport:S1','senderPassport:S2','finalPassport','anchors'].map(check=>({check,status:'PASS'})));
  assert.deepEqual(r.end.endChecks,r.trailer.endChecks);

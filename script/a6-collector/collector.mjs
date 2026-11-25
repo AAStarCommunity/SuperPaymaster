@@ -1,4 +1,4 @@
-import { createWindow, runSlots, waitForSlot, windowRecord } from './window-schedule.mjs';
+import { accumulateSlotWait, createWindow, runSlots, waitForSlot, windowRecord, TARGET_TRIPLETS, WINDOW_SLOTS, WINDOWS } from './window-schedule.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
 import { persistSettlement } from './frozen-plan.mjs';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
@@ -39,7 +39,8 @@ import { READ_CAP, readPool, readPassport, readReadbacks, waitForHead, EP_DEPOSI
 //     [--fixture exec-revert|drop-op|wrong-hash] [--config deployments/config.anvil.json] \
 //     [--baselines <baselines.json>] [--expect-entrypoint 0x...] [--trace]
 //
-// Exit codes: 0 = N matched triplets collected; 10 = attempt budget exhausted before N;
+// Exit codes: 0 = N matched triplets collected or a frozen slice exhausted with passing end checks;
+//   10 = attempt budget exhausted before N;
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
 //   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT or RECEIPT_B_HEAD_BEHIND, 26 ENTRYPOINT_MISMATCH (an arm or the account
 //   is bound to another EntryPoint); 27 UNEXPECTED_USEROP_EVENT (extra op in single-op gauge); 28 EVIDENCE_CONTINUITY_MISMATCH; 29 END_PASSPORT_ERROR; 2 = bad arguments / refused; 1 = crash.
@@ -55,7 +56,8 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, castSigner, withPasswordSource, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
-const formal = process.argv.includes('--formal') || rehearsal || process.argv.includes('--frozen-plan');
+const scheduled = process.argv.includes('--frozen-plan');
+const formal = process.argv.includes('--formal') || rehearsal || scheduled;
 // Do not even load the development key module in formal mode.
 const { clients, send, rpc, ANVIL_KEYS } = formal ? {} : await import('../b-layer/lib.mjs');
 import { checkDepositFloor, opGasLimitSum, depositFloor } from './deposit-guard.mjs';
@@ -88,9 +90,15 @@ const count = Number(countRaw);
 const bMaxRaw = argVal('--b-max');
 if (!bMaxRaw || !/^[1-9]\d*$/.test(bMaxRaw) || Number(bMaxRaw) > 1_000_000) die('--b-max is required: an integer in [1, 1000000]');
 const bMax = BigInt(bMaxRaw);
-const maxAttemptsRaw = argVal('--max-attempts') ?? (argVal('--frozen-plan') ? '60' : String(count * 2));
-if (!/^[1-9]\d*$/.test(maxAttemptsRaw) || Number(maxAttemptsRaw) < count) die('--max-attempts must be an integer >= --count (attempt budget per arm)');
+const maxAttemptsRaw = argVal('--max-attempts') ?? (scheduled ? '' : String(count * 2));
 const maxAttempts = Number(maxAttemptsRaw);
+const windowIndexRaw = argVal('--window-index');
+const windowIndex = Number(windowIndexRaw);
+const seed = argVal('--seed');
+if (scheduled) {
+  if (!seed || seed.startsWith('--') || count !== TARGET_TRIPLETS || maxAttemptsRaw !== String(WINDOW_SLOTS)) die(`frozen window requires --seed, --count ${TARGET_TRIPLETS} and --max-attempts ${WINDOW_SLOTS}`);
+  if (String(windowIndex) !== windowIndexRaw || !Number.isInteger(windowIndex) || windowIndex < 1 || windowIndex > WINDOWS) die(`frozen window requires --window-index in 1..${WINDOWS}`);
+} else if (!/^[1-9]\d*$/.test(maxAttemptsRaw) || maxAttempts < count) die('--max-attempts must be an integer >= --count (attempt budget per arm)');
 const ARM_NAMES = ['SP', 'VPM', 'TPM'];
 const arms = (argVal('--arms') ?? ARM_NAMES.join(',')).split(',');
 if (!arms.length || arms.some((a) => !ARM_NAMES.includes(a)) || new Set(arms).size !== arms.length) die(`--arms must be a subset of ${ARM_NAMES}`);
@@ -100,22 +108,20 @@ if (!noFixture(fixture) && !FIXTURES.includes(fixture)) die(`--fixture must be o
 const outPath = argVal('--out');
 if (!outPath) die('--out <run.jsonl> is required');
 if (existsSync(outPath) && statSync(outPath).size > 0) die(`refusing to touch non-empty ${outPath}: raw JSONL is append-only, one file per run`);
+const windowPath = dirname(resolve(outPath));
 if (formal && (rpcA || rpcB || allowSameEndpointLocal || fixture || arms.join(',') !== 'SP,VPM,TPM')) die('formal mode requires URL files, all arms and no local override/fixtures');
 if (formal && (!argVal('--formal-config') || !argVal('--rpc-a-file') || !argVal('--rpc-b-file') || !argVal('--config') || !argVal('--baselines'))) die('formal mode requires --formal-config, --rpc-a-file, --rpc-b-file, --config and --baselines');
 const formalInput = formal ? JSON.parse(readFileSync(argVal('--formal-config'), 'utf8')) : null;
 if (formal && (!argVal('--rpc-registry') || !argVal('--pins'))) die('formal mode requires --rpc-registry and --pins');
 const evidencePins = formal ? loadPins(argVal('--pins')) : null;
 const registry = formal ? loadRegistry(argVal('--rpc-registry')) : null;
-const windowPath = dirname(resolve(outPath));
 if (formal && (existsSync(resolve(windowPath, 'raw')) || existsSync(resolve(windowPath, 'index.ndjson')) || existsSync(resolve(windowPath, 'manifest.json')))) die('formal window already exists');
 if (formal) formalInput.factory ??= DEFAULT_FACTORY;
-const scheduled = Boolean(argVal('--frozen-plan'));
-if (scheduled && (count !== 50 || maxAttempts !== 60 || !argVal('--seed'))) die('frozen window requires --seed, --count 50 and --max-attempts 60');
 if (scheduled && (!Array.isArray(formalInput.senders) || formalInput.senders.length !== 3)) die('formal config requires three senders: {sender,salt,owner:{name,address}}');
 const senderConfigs = scheduled ? formalInput.senders.map(s => ({...formalInput,sender:getAddress(s.sender),salt:s.salt,accounts:{...formalInput.accounts,owner:s.owner}})) : [];
 // Refuse conflicts across all rotating owners before runtime can start a signer process.
 for (const config of senderConfigs) withPasswordSource(config.accounts.owner, argVal('--keystore-password-source'));
-const window = scheduled ? createWindow({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),seed:argVal('--seed'),chainId:formalInput.chainId,accounts:senderConfigs.map(c=>c.sender)}) : null;
+const window = scheduled ? createWindow({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),seed,chainId:formalInput.chainId,accounts:senderConfigs.map(c=>c.sender),windowIndex}) : null;
 let adapter = window ? window.adapters.get(senderConfigs[0].sender) : null;
 if (window) Object.assign(formalInput,senderConfigs[0]);
 if (adapter && rehearsal) die('frozen plan requires formal transport');
@@ -378,9 +384,11 @@ async function setup() {
     const op = await readAB('operator', p => p.readContract({ address: SPA, abi: SP_ABI, functionName: 'operators', args: [ctx.account.address] }));
     spToken = getAddress(op.value[3]);
     if ([spToken, cfg.aPNTs, baselines.tokenPaymaster.token].some(a => a?.toLowerCase() === formalInput.task.token.toLowerCase())) throw new Error('task must use a separate plain ERC20 token');
+    const minimumSenderBalance = window ? 1n + BigInt(window.manifest.schedule.payload.slots.slice(window.manifest.slice.firstSlot)
+      .filter(slot => Object.values(slot.senders).includes(sender)).length) : 300n;
     for (const who of [sender, formalInput.task.recipient]) {
       const balance = await readAB('task balance', p => p.readContract({ address: formalInput.task.token, abi: TOKEN_ABI, functionName: 'balanceOf', args: [who] }));
-      if (balance.value < (who === sender ? (window ? BigInt(adapter.plan.phaseC.taskSender) : 300n) : 1n)) throw new Error('task requires warmed, funded token balances');
+      if (balance.value < (who === sender ? minimumSenderBalance : 1n)) throw new Error('task requires warmed, funded token balances');
     }
     return;
   }
@@ -720,7 +728,7 @@ try {
   console.log(`A6 gauge ${runId}: N=${count} bMax=${bMax} maxAttempts/arm=${maxAttempts} arms=${arms} fixture=${fixture ?? 'none'}`);
   console.log(`EP=${EP} (canonical v0.7 address: ${passportStart.invariant.entryPoint.isCanonicalV07Address}) sender=${sender}`);
   if (window) {
-    const result = await runSlots(window.manifest.schedule,async (slot,arm,account,allocationIndex) => {
+    const result = await runSlots(window.manifest,async (slot,arm,account,allocationIndex) => {
       activeSlot={...slot,allocationIndex};
       selectSender(account);
       passportRefs.start=senderPassportRefs.get(sender);
@@ -734,9 +742,8 @@ try {
       && new Set(rows.map(r=>r.tx.hash.toLowerCase())).size===3);
     matched=result.complete;
     triplets.push(...result.slots.map(s=>({...s,tripletIndex:s.block_slot})));
-    // Pre-registered stopping rule: COMPLETE at the 50th complete triplet, INCOMPLETE after slot 60.
-    windowOutcome=windowRecord(window.manifest.schedule,result);
-    stop={reason:result.status,code:result.status==='COMPLETE'?0:10};
+    windowOutcome=windowRecord(window.manifest,result);
+    stop={reason:result.status,code:0};
     selectSender(senderConfigs[0].sender);
   } else for (let t = 0; matched < count; t++) {
     if (arms.some((a) => tally[a].attempts >= maxAttempts)) { stop = { reason: 'MAX_ATTEMPTS', code: 10 }; break; }
@@ -774,8 +781,8 @@ try {
   if (window && e.windowProgress) {
     matched=e.windowProgress.complete;
     triplets.push(...e.windowProgress.slots.map(s=>({...s,tripletIndex:s.block_slot})));
-    windowOutcome=windowRecord(window.manifest.schedule,e.windowProgress);
   }
+  if (window && !windowOutcome) windowOutcome=windowRecord(window.manifest,e.windowProgress);
   if (e instanceof Stop) stop = { reason: e.reason, code: e.code, detail: e.detail };
   else { stop = { reason: 'CRASH', code: 1, detail: String(e?.stack ?? e) }; }
 }
@@ -846,7 +853,7 @@ await endCheck('finalPassport', async () => {
 if (formal) await endCheck('anchors', async () => { finalBlockCheck = await revalidateAnchors(runtime.archives); });
 exitCode = stop.code;
 writeLine({ kind: 'run_end', stop, exitCode, endCheckScope, endChecks, matchedTriplets: matched, targetTriplets: count, tally, triplets,
-  ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:60,attemptedSlots:windowOutcome?.usedSlots ?? Math.ceil(attemptIndex/3),window:windowOutcome,warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
+  ...(formal ? {finalBlockCheck, rehearsal} : {}), ...(window ? {scheduledSlots:windowOutcome.scheduledSlots,attemptedSlots:windowOutcome.usedSlots,window:windowOutcome,warmupAttempts:0} : {}), passport: passportEnd, endedAtUtc: new Date().toISOString() });
 closeSync(fd);
 if (formal) {
   const triples = [...new Set(evidenceRows.map(r => r.tripleIndex))].map(tripleIndex => ({tripleIndex,
@@ -869,12 +876,11 @@ function selectSender(account) {
   sender=account;runtime.accounts.owner=owners.get(account);
 }
 async function slotGate(arm,row) {
+  const firstSliceSlot=window.manifest.schedule.payload.slots[window.manifest.slice.firstSlot];
   const result=await waitForSlot({runtime,arm,operator:ctx.account.address,sender,paymaster:SPA,
-    start:windowStart+BigInt(activeSlot.start_seconds),deadline:windowStart+BigInt(activeSlot.deadline_seconds)});
+    start:windowStart+BigInt(activeSlot.start_seconds-firstSliceSlot.start_seconds),
+    deadline:windowStart+BigInt(activeSlot.deadline_seconds-firstSliceSlot.start_seconds)});
   (row.slotChecks??=[]).push(result);
-  if(arm==='SP') {
-    const previous=row.spWait;
-    row.spWait={...result.wait,seconds:(previous?.seconds??0n)+result.wait.seconds,blocks:(previous?.blocks??0n)+result.wait.blocks};
-  }
+  if(arm==='SP') row.spWait=accumulateSlotWait(row.spWait,result.wait);
   return result;
 }
