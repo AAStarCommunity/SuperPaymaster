@@ -1,4 +1,4 @@
-import { bindArchivedDisposition, bindReceiptSummaries } from './derived-evidence.mjs';
+import { bindArchivedDisposition, bindReceiptSummaries, evidenceEqual } from './derived-evidence.mjs';
 import { verifyPassport, verifyPassportIdentity } from './passport-evidence.mjs';
 import { stateCalls, supportsCall, archivedParamsAllowed } from './state-evidence.mjs';
 import { readFileSync, realpathSync, readdirSync } from 'node:fs';
@@ -7,6 +7,7 @@ import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason, bind
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { formatTransaction, decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
+import { measurePVG, recordPVG } from './pvg.mjs';
 
 // Receipt/transaction polls of one endpoint, in archive order. Polls made before inclusion stay referenced (the index
 // is complete) and return a null receipt or a pending transaction (blockHash null). They may only precede the first
@@ -40,22 +41,41 @@ function archivedMethodAllowed(raw,journal,trailer) {
 }
 const lower=x=>String(x).toLowerCase();
 export const bundleAbi=parseAbi(['function handleOps((address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData,bytes signature)[] ops,address beneficiary)']);
-export function transactionErrors(row, config) {
+export function transactionErrors(row, config, frozenArm = null) {
   const errors=[];
   try {
-    const frozen=formalConfig(config,1);
+    const frozen=frozenArm ?? formalConfig(config,1);
     if (lower(row.packedOp.callData)!==lower(frozen.callData)) errors.push('frozen task calldata mismatch');
     if (row.tx) {
       const decoded=decodeFunctionData({abi:bundleAbi,data:row.tx.input});
       if (decoded.functionName!=='handleOps' || !eq(JSON.parse(stringify(decoded.args[0])),row.bundledOps) || !eq(row.bundledOps[row.tx.handleOpsIndex],row.packedOp)) errors.push('transaction bundle/index mismatch');
       if (lower(decoded.args[1])!==lower(config.accounts.bundler.address)) errors.push('transaction beneficiary mismatch');
       for (const k of ['maxFeePerGas','maxPriorityFeePerGas']) if (BigInt(row.tx[k])>BigInt(config.fees[k]) || BigInt(row.tx[k])<0n) errors.push('outer transaction fee cap exceeded');
-      if (BigInt(row.tx.gasLimit)>BigInt(config.bundlerGasLimit) || BigInt(row.tx.gasLimit)<=0n) errors.push('outer transaction gas limit exceeded');
+      const gasLimit=BigInt(row.tx.gasLimit);
+      if (frozenArm) {
+        if (gasLimit!==BigInt(frozenArm.outer)) errors.push('outer transaction gas limit differs from frozen plan');
+      } else if (gasLimit>BigInt(config.bundlerGasLimit) || gasLimit<=0n) errors.push('outer transaction gas limit exceeded');
     }
   } catch { errors.push('invalid transaction/config evidence'); }
   return errors;
 }
-export function artifactErrors(window,rows,trailer,journal) {
+
+function pvgMeasurementErrors(row, beneficiary, receipt, event) {
+  const op = row.packedOp, value = BigInt(op.preVerificationGas);
+  const measured = measurePVG({...op,nonce:BigInt(op.nonce),preVerificationGas:value},beneficiary);
+  const surplus = value - measured.value;
+  const pvg = {...measured,value,surplus,resolution:surplus === 0n ? 'fixed-point' : 'cycle-max'};
+  const expected = {};
+  recordPVG(expected,pvg,row.sent ? row.tx.raw.input : null,receipt && {
+    gasUsed:BigInt(receipt.gasUsed),effectiveGasPrice:BigInt(receipt.effectiveGasPrice),l1Fee:receipt.l1Fee
+  },event);
+  // The unused-gas penalty and its derivatives require a separate call trace.
+  const columns = ['pvgSurplus','pvgSurplusReason','pvgConsistency','outerGasUsed','outerEffectiveGasPrice',
+    'l1DataFee','calldataFloorGas','calldataFloorBinding','bundlerNetGas','opGasPrice'];
+  return columns.filter(key=>!evidenceEqual(row[key],expected[key])).map(key=>`PVG measurement mismatch: ${key}`);
+}
+
+export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) {
   const errors=[], cache=new Map(), archives=[{records:[]},{records:[]}];
   const fail=s=>errors.push(s);
   const local=path=>{
@@ -81,10 +101,14 @@ export function artifactErrors(window,rows,trailer,journal) {
         if (r.request!==r.requestBase64 || r.response!==r.responseBase64) throw new Error('archive byte aliases disagree');
         const request=JSON.parse(Buffer.from(r.request,'base64').toString());
         if (request.method!==r.method || !eq(request.params,r.params)) throw new Error('raw request metadata mismatch');
-        if (!archivedParamsAllowed(r)) throw new Error(`archived RPC params invalid: ${r.method}`);
+        // Frozen transport records the bundler's pending nonce without a block anchor.
+        const pendingNonce=frozenWindow && r.method==='eth_getTransactionCount' && r.params?.length===2
+          && /^0x[0-9a-f]{40}$/i.test(r.params[0]) && lower(r.params[0])===lower(journal[0]?.passport?.invariant.bundler)
+          && r.params[1]==='pending' && !r.blockAnchor && !r.anchor;
+        if (!pendingNonce && !archivedParamsAllowed(r)) throw new Error(`archived RPC params invalid: ${r.method}`);
         if (r.blockAnchor && r.anchor && (BigInt(r.blockAnchor.number)!==BigInt(r.anchor.number) || r.blockAnchor.hash!==r.anchor.hash)) throw new Error('raw anchor metadata mismatch');
         const fixed={eth_call:1,eth_getCode:1,eth_getBalance:1,eth_getStorageAt:2,eth_getTransactionCount:1}[r.method];
-        if (fixed!==undefined && (!r.blockAnchor || BigInt(r.params[fixed])!==BigInt(r.blockAnchor.number))) throw new Error('raw fixed block mismatch');
+        if (!pendingNonce && fixed!==undefined && (!r.blockAnchor || BigInt(r.params[fixed])!==BigInt(r.blockAnchor.number))) throw new Error('raw fixed block mismatch');
         if (r.response) {
           const response=JSON.parse(Buffer.from(r.response,'base64').toString());
           if (r.method==='eth_getBlockByNumber' && response.result && (!r.blockAnchor || response.result.hash!==r.blockAnchor.hash || BigInt(response.result.number)!==BigInt(r.blockAnchor.number) || (/^0x/.test(r.params[0]) && BigInt(r.params[0])!==BigInt(response.result.number)))) throw new Error('raw block response mismatch');
@@ -127,6 +151,7 @@ export function artifactErrors(window,rows,trailer,journal) {
   } catch(e) { fail(`artifact verification: ${e.message}`); }
   if (!journal) { fail('formal artifact verification requires journal'); return errors; }
   const attempts=journal.filter(r=>r.kind==='attempt'), start=journal[0];
+  const senderConfigs=new Map();
   try {
     const chainId=BigInt(start.passport.chainId);
     if (!Number.isSafeInteger(start.frozenConfig?.chainId) || start.frozenConfig.chainId <= 0) throw new Error('target chainId required');
@@ -136,7 +161,24 @@ export function artifactErrors(window,rows,trailer,journal) {
     if (!configPin) throw new Error('frozen config hash is not pinned');
     const frozen=JSON.parse(isAbsolute(configPin.path)?readFileSync(configPin.path):file(configPin.path));
     frozen.factory ??= DEFAULT_FACTORY;
-    if (!eq(frozen,start.frozenConfig)) throw new Error('frozen config differs from pinned file');
+    if (frozenWindow) {
+      const {senders}=frozenWindow;
+      if (frozen.senders?.length !== senders.size || frozen.senders.some((account,i)=>lower(account.sender)!==[...senders.keys()][i])) {
+        throw new Error('pinned config senders differ from frozen schedule');
+      }
+      const pinnedJSON=hash=>{
+        const pin=start.pins.config.find(p=>p.sha256===hash);
+        return JSON.parse(isAbsolute(pin.path)?readFileSync(pin.path):file(pin.path));
+      };
+      const deployment=pinnedJSON(start.deploymentConfigSha256), baseline=pinnedJSON(start.baselineConfigSha256);
+      for (const {sender,salt,owner} of frozen.senders) {
+        const context=senders.get(lower(sender));
+        const config={...frozen,sender:context.pStart.invariant.sender,salt,accounts:{...frozen.accounts,owner}};
+        context.adapter.bind(config,deployment,baseline,start.bMax,Math.ceil(frozenWindow.cap/senders.size));
+        senderConfigs.set(lower(sender),config);
+      }
+      if (!eq(senderConfigs.values().next().value,start.frozenConfig)) throw new Error('frozen config differs from pinned first sender config');
+    } else if (!eq(frozen,start.frozenConfig)) throw new Error('frozen config differs from pinned file');
     for (const key of ['deploymentConfigSha256','baselineConfigSha256']) if (!start.pins.config.some(p=>p.sha256===start[key])) throw new Error('deployment/baseline config hash is not pinned');
   } catch(e) { fail(e.message); }
   const pinnedConfig=hash=>{const pin=start.pins.config.find(p=>p.sha256===hash);return JSON.parse(isAbsolute(pin.path)?readFileSync(pin.path):file(pin.path));};
@@ -167,7 +209,7 @@ export function artifactErrors(window,rows,trailer,journal) {
     if (preflightErrors.length && (a.sent!==false || a.verdict!=='NOT_SENT' || a.failingCheck!=='preflight_revert')) throw Error('derived evidence mismatch: preflight disposition');
     if (preflightErrors.length || a.preflight || a.failingCheck==='preflight_revert') bindPreflight(a,archives);
     bindArchivedDisposition(a,archives);
-    bindReceiptSummaries(a, {formal:true});
+    const event=bindReceiptSummaries(a, {formal:true});
     const time=Date.parse(a.collectedAtUtc);
     if (!Number.isFinite(time) || time<lastTime) throw new Error('journal chronology mismatch');
     lastTime=time;
@@ -199,11 +241,16 @@ export function artifactErrors(window,rows,trailer,journal) {
     }
     if (!eq(r.armOrder,a.armOrder)) throw new Error('index/journal armOrder mismatch');
     if (!eq(r.pins,start.pins) || !eq(r.rpcIdentity,start.rpcIdentity)) throw new Error('index/journal pins mismatch');
-    for (const [key,value] of [['start',start.passport],['attempt',a.passport],['end',journal.at(-1)?.kind==='run_end'?journal.at(-1).passport:JSON.parse(file(trailer.endPassport.path))]]) {
+    const context=frozenWindow?.senders.get(lower(a.sender));
+    if (frozenWindow && !context) throw new Error('sender absent from frozen schedule accounts');
+    const config=context ? senderConfigs.get(lower(a.sender)) : start.frozenConfig;
+    const finalPassport=journal.at(-1)?.kind==='run_end'?journal.at(-1).passport:JSON.parse(file(trailer.endPassport.path));
+    for (const [key,value] of [['start',context?.pStart ?? start.passport],['attempt',a.passport],['end',finalPassport]]) {
       const passportRef=key==='end'?trailer.endPassport:r.passports[key];
       const artifact=JSON.parse(file(passportRef.path));
       if (!eq(artifact,value)) throw new Error('Passport/journal mismatch');
-      verifyPassportIdentity(artifact,start.frozenConfig,pinnedConfig(start.deploymentConfigSha256),pinnedConfig(start.baselineConfigSha256));
+      if (context && key==='attempt' && !eq(artifact.invariant,context.pStart.invariant)) throw new Error('attempt Passport invariant drifted');
+      verifyPassportIdentity(artifact,key==='end' ? start.frozenConfig : config,pinnedConfig(start.deploymentConfigSha256),pinnedConfig(start.baselineConfigSha256));
       for (const e of ['A','B']) {
         if (!passportRef.raw[e].length) throw new Error('Passport raw references missing');
         for (const ref of passportRef.raw[e]) { const raw=reference(ref,e);
@@ -212,11 +259,13 @@ export function artifactErrors(window,rows,trailer,journal) {
         verifyPassport(artifact,passportRef.raw[e].map(ref=>reference(ref,e)));
       }
     }
-    const inv=start.passport?.invariant;
-    if (!eq(a.stateTargets,{superPaymaster:inv?.code.superPaymasterProxy.address,token:inv?.xPNTs.address,tpmToken:inv?.code.tokenPaymasterToken.address,operator:start.frozenConfig.operator})) throw new Error('state targets/config mismatch');
-    const expected=evidenceIndex(a,{windowId:r.windowId,archives:archives.map((arc,i)=>({records:arc.records.filter(x=>x.id<=a.evidenceEnd?.[i])})),pins:r.pins,rpcIdentity:r.rpcIdentity,passports:r.passports,stopReason:a.stoppedBy?.reason??null,replaces:r.replaces});
+    const inv=context?.inv ?? start.passport?.invariant;
+    if (!eq(a.stateTargets,{superPaymaster:inv?.code.superPaymasterProxy.address,token:inv?.xPNTs.address,tpmToken:inv?.code.tokenPaymasterToken.address,operator:config.operator})) throw new Error('state targets/config mismatch');
+    const expected=evidenceIndex(a,{schedule:Boolean(context),windowId:r.windowId,archives:archives.map((arc,i)=>({records:arc.records.filter(x=>x.id<=a.evidenceEnd?.[i])})),pins:r.pins,rpcIdentity:r.rpcIdentity,passports:r.passports,stopReason:a.stoppedBy?.reason??null,replaces:r.replaces});
     for (const k of ['chainId','entryPoint','sender','nonce','paymaster','bundler','callDataHash','failureReason','notSentReason','stopReason','verdict','exclusionReason','packedOp','bundle','tx','uoe','state','endpoints','gas','expectedUserOpHash','observedUserOpHash','trace']) if (!eq(r[k],expected[k])) throw new Error(`index/journal ${k} mismatch`);
-    errors.push(...transactionErrors(a,start.frozenConfig).map(e=>`attempt ${i}: ${e}`));
+    const frozenArm=context && {...context.adapter.frozen,outer:context.phaseC.bounds[a.arm].outer};
+    if (!context || a.packedOp) errors.push(...transactionErrors(a,config,frozenArm).map(e=>`attempt ${i}: ${e}`));
+    let receiptA;
     for (const endpoint of ['A','B']) {
       for (const kind of ['receipt','logs','transaction','stateReads']) {
         const observations=[];
@@ -233,6 +282,7 @@ export function artifactErrors(window,rows,trailer,journal) {
             if (rawKey==='input'?lower(result[rawKey])!==lower(r.tx[key]):BigInt(result[rawKey])!==BigInt(r.tx[key])) throw new Error('raw transaction field mismatch');
           }
           if ((kind==='receipt' || kind==='logs') && !pending) {
+            if (kind==='receipt' && endpoint==='A') receiptA??=result;
             for (const key of ['gasUsed','effectiveGasPrice']) if (a.tx[key] == null || result[key] == null || BigInt(a.tx[key]) !== BigInt(result[key])) throw new Error('raw receipt '+key+' mismatch');
             const logs=ls=>ls.map(l=>({address:lower(l.address),topics:l.topics.map(lower),data:lower(l.data),logIndex:String(BigInt(l.logIndex)),...(l.transactionHash?{transactionHash:lower(l.transactionHash)}:{})}));
             if ((result.status==='0x1'?'success':result.status==='0x0'?'reverted':null)!==a.tx.status || !eq(logs(result.logs),logs(a.logs))) throw new Error('raw complete receipt mismatch');
@@ -252,6 +302,7 @@ export function artifactErrors(window,rows,trailer,journal) {
         }
       }
     }
+    if (context && a.packedOp) errors.push(...pvgMeasurementErrors(a,config.accounts.bundler.address,receiptA,event).map(e=>`attempt ${i}: ${e}`));
     if (a.sent && a.verdict==='USEROP_SUCCESS' && r.arm==='TPM') {
       if (!a.tpmOracle || lower(a.tpmOracle)!==lower(inv.code.tokenPaymasterOracle.address)) throw new Error('TPM oracle/Passport mismatch');
       for (const [idx,endpoint] of ['A','B'].entries()) {
@@ -279,9 +330,18 @@ export function artifactErrors(window,rows,trailer,journal) {
       })) throw new Error('final historical anchor not verified on both endpoints');
     }
   } catch(e) { fail(e.message); }
+  if (frozenWindow) for (const [sender,context] of frozenWindow.senders) try {
+    // Sender end passports have no index reference. Recover their reads by exact block anchor.
+    const passport=JSON.parse(file(context.endPath));
+    if (!eq(passport,context.pEnd)) throw new Error('end passport mismatch');
+    verifyPassportIdentity(passport,senderConfigs.get(sender),pinnedConfig(start.deploymentConfigSha256),pinnedConfig(start.baselineConfigSha256));
+    for (const {records} of archives) verifyPassport(passport,records.filter(raw=>raw.method==='eth_chainId'
+      || raw.blockAnchor?.number===passport.block.number && raw.blockAnchor?.hash===passport.block.hash));
+  } catch(e) { fail(`sender ${sender}: end passport evidence: ${e.message}`); }
   for (const t of trailer.triples) {
     const actual=attempts.filter(a=>a.tripletIndex===t.tripleIndex).map(a=>a.arm);
-    if (!eq(actual,armOrder(t.tripleIndex).slice(0,actual.length))) fail('actual chronological arm order mismatch');
+    const order=frozenWindow ? attempts.find(a=>a.tripletIndex===t.tripleIndex)?.armOrder : armOrder(t.tripleIndex);
+    if (!eq(actual,order?.slice(0,actual.length))) fail('actual chronological arm order mismatch');
   }
   return errors;
 }

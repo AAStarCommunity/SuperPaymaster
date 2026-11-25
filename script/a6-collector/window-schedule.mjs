@@ -19,6 +19,12 @@ export function createWindow({readBundle,bundleSha256,seed,chainId,accounts}) {
 }
 export const TARGET_TRIPLETS=50, SLOT_CAP=60;
 export const STOPPING_RULE='pre-registered: advance slots in schedule order; stop after the slot in which complete triplets reach 50 (COMPLETE); stop after slot 60 otherwise (INCOMPLETE); never extend';
+export const REGISTERED_WINDOW=Object.freeze({
+  targetTriplets:TARGET_TRIPLETS,slotCap:SLOT_CAP,stoppingRule:STOPPING_RULE,warmupAttempts:0,warmup:false
+});
+export function windowProtocolMatches(manifest,registered) {
+  return Object.keys(REGISTERED_WINDOW).every(key=>manifest[key]===registered[key]);
+}
 /**
  * Fixed traversal in schedule order with the pre-registered stopping rule. A row verdict never
  * reorders, replaces or adds slots; the only result-dependent effect is the pre-registered stop
@@ -56,6 +62,12 @@ export function windowRecord(schedule,progress) {
 const abi=parseAbi(['function operators(address) view returns (uint128,bool,bool,address,uint32,uint48,address,uint256,uint256)',
   'function userOpState(address,address) view returns (uint48 lastTimestamp,bool isBlocked)']);
 const encode=v=>JSON.stringify(v,(_,x)=>typeof x==='bigint'?x.toString():x);
+export function slotDecision(arm,{timestamp,start,deadline,validAfter}) {
+  if(timestamp>deadline) return {allowed:false,reason:'slot_deadline_exceeded'};
+  if(arm==='SP' && validAfter>deadline) return {allowed:false,reason:'sp_valid_after_exceeds_slot_deadline'};
+  if(timestamp>=start && (arm!=='SP'||timestamp>=validAfter)) return {allowed:true};
+  return null;
+}
 /** Fresh A/B reads at every pin, including the pin immediately before submission. */
 export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,deadline,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=180000}) {
   let first;const wallDeadline=Date.now()+timeoutMs;
@@ -73,9 +85,7 @@ export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,d
     const [minTxInterval,lastTimestamp]=values[0],validAfter=lastTimestamp+minTxInterval;
     const wait={seconds:block.timestamp-first.timestamp,blocks:block.number-first.number,minTxInterval,lastTimestamp,validAfter,
       timestamp:block.timestamp,pin:{number:block.number,hash:block.hash},start,deadline};
-    if(block.timestamp>deadline) return {allowed:false,reason:'slot_deadline_exceeded',wait};
-    if(arm==='SP' && validAfter>deadline) return {allowed:false,reason:'sp_valid_after_exceeds_slot_deadline',wait};
-    if(block.timestamp>=start && (arm!=='SP'||block.timestamp>=validAfter)) return {allowed:true,wait};
+    const decision=slotDecision(arm,wait); if(decision) return {...decision,wait};
     if(Date.now()>=wallDeadline) throw Object.assign(Error('SCHEDULE_CLOCK_STALLED'),{wait});
     await sleep(250);
   }
