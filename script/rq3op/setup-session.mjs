@@ -24,9 +24,9 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const gitBlob = bytes => createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${bytes.length}\0`), bytes])).digest('hex');
 const redact = s => String(s?.message ?? s).replace(/https?:\/\/\S+/g, '<url>');
 const VALUE_KEYS = ['deploy-root','expect-commit','bundle','digest','signers','rpc-a','rpc-b','audit-dir','config','inputs','start','end','expect-head','heads-file'];
-const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads'];
+const FLAG_KEYS = ['empty-history-acknowledged', 'probe-reads', 'frozen-bundle'];
 // Optional: B endpoint file for the driver's own regeneration only (planner + post-deploy checker); steps use --rpc-b.
-const OPTIONAL_VALUE_KEYS = ['regen-rpc-b', 'record-step', 'record-tx'];
+const OPTIONAL_VALUE_KEYS = ['regen-rpc-b', 'record-step', 'record-tx', 'prior-regeneration'];
 
 // setup.mjs:159-163 compares the two providers' parsed results with plain JSON.stringify, so equal objects whose
 // keys come back in a different order disagree (OP Sepolia headers: Alchemy vs QuickNode). The session hands setup a
@@ -128,7 +128,7 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i]?.replace(/^--/, '');
     if (FLAG_KEYS.includes(k) && !(k in named)) { named[k] = true; continue; }
-    if (![...VALUE_KEYS, ...OPTIONAL_VALUE_KEYS].includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--regen-rpc-b <v>] [--record-step <i> --record-tx <hash>] [--empty-history-acknowledged] [--probe-reads]');
+    if (![...VALUE_KEYS, ...OPTIONAL_VALUE_KEYS].includes(k) || argv[i+1] === undefined || k in named) throw Error('usage: ' + VALUE_KEYS.map(k => '--' + k + ' <v>').join(' ') + ' [--regen-rpc-b <v>] [--record-step <i> --record-tx <hash>] [--frozen-bundle --prior-regeneration <file>] [--empty-history-acknowledged] [--probe-reads]');
     named[k] = argv[++i];
   }
   for (const k of VALUE_KEYS) if (!(k in named)) throw Error('missing --' + k);
@@ -147,12 +147,25 @@ export function parseArgs(argv) {
     if (named['probe-reads']) throw Error('--record-step cannot be combined with --probe-reads');
     named['record-step'] = step;
   }
-  return { ...named, start, end, 'empty-history-acknowledged': named['empty-history-acknowledged'] === true, 'probe-reads': named['probe-reads'] === true };
+  // Frozen bundle: the pinned planner cannot regenerate once setup has sent (plan_three_arm.py:436 and Pair.__call__
+  // :143-151 require each sender's pending nonce to equal its pin nonce), so a session after setup started hands
+  // setup.main the digest-checked frozen bytes instead (DSR ruling). Only for a record session, or a resume whose
+  // --expect-head is a non-empty, verified history. Step 0's record is the one case with an empty history.
+  if ((named['frozen-bundle'] === true) !== ('prior-regeneration' in named)) throw Error('--frozen-bundle and --prior-regeneration go together');
+  if (named['frozen-bundle']) {
+    const recording = 'record-step' in named;
+    if (named['regen-rpc-b'] !== undefined) throw Error('--frozen-bundle cannot be combined with --regen-rpc-b (nothing regenerates)');
+    if (!recording && named['expect-head'] === GENESIS) throw Error('--frozen-bundle is for a session after setup started: a record, or a resume from a non-empty history');
+    if (!recording && named['empty-history-acknowledged']) throw Error('--frozen-bundle with --empty-history-acknowledged only for a record session');
+  }
+  return { ...named, start, end, 'empty-history-acknowledged': named['empty-history-acknowledged'] === true, 'probe-reads': named['probe-reads'] === true,
+    'frozen-bundle': named['frozen-bundle'] === true };
 }
 
 export function snapshot(io, root, opts) {
   const files = {};
-  for (const p of [...PINNED_MODULES, opts.bundle, opts.config, opts.inputs, ...(opts['regen-rpc-b'] ? [opts['regen-rpc-b']] : [])]) files[p] = sha256(io.read(resolve(root, p)));
+  for (const p of [...PINNED_MODULES, opts.bundle, opts.config, opts.inputs, ...(opts['regen-rpc-b'] ? [opts['regen-rpc-b']] : []),
+    ...(opts['prior-regeneration'] ? [opts['prior-regeneration']] : [])]) files[p] = sha256(io.read(resolve(root, p)));
   return { head: io.git(root, ['rev-parse', 'HEAD']), tree: io.git(root, ['rev-parse', 'HEAD^{tree}']),
     status: io.git(root, ['status', '--porcelain']), files };
 }
@@ -191,6 +204,12 @@ export async function runSession(opts, io) {
     if (!canonical.startsWith(root + '/')) throw Error('--regen-rpc-b must be inside the deploy worktree');
     opts = { ...opts, 'regen-rpc-b': canonical };
   }
+  if (opts['prior-regeneration'] !== undefined) {
+    const canonical = io.realpath(resolve(root, opts['prior-regeneration']));
+    if (!canonical.startsWith(root + '/')) throw Error('--prior-regeneration must be inside the deploy worktree');
+    opts = { ...opts, 'prior-regeneration': canonical };
+  }
+  const frozen = opts['frozen-bundle'] === true;
   // Per-step audit window: setup.mjs:155 hands formal.mjs outPath = --audit, and evidence.mjs:39 creates
   // <dirname>/raw/<A|B> with a non-recursive mkdir, so one shared audit path fails at the second step (EEXIST).
   // Each step gets <audit-dir>/<3-digit index>/setup.audit.ndjson in a directory created exclusively just before it.
@@ -206,7 +225,8 @@ export async function runSession(opts, io) {
     // A changed tree or file never ends as a success (complete or probe-reached-send).
     const final = !equal && (status === 'complete' || status === 'probe-reached-send') ? 'stopped-hash-mismatch' : status;
     const summary = { status: final, stepsDone: record.steps.length, lastIndex: record.steps.at(-1)?.index ?? null,
-      lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, audits: record.audits, outcomes: record.outcomes, ...extra };
+      lastChainHead: record.heads.at(-1) ?? opts['expect-head'], hashesEqual: equal, audits: record.audits, outcomes: record.outcomes,
+      ...(frozen ? { priorRegenerationSha256: record.priorRegenerationSha256 ?? null } : {}), ...extra };
     log('SESSION_SUMMARY ' + JSON.stringify(summary));
     return summary;
   };
@@ -216,7 +236,7 @@ export async function runSession(opts, io) {
   verify();
   record.before = snapshot(io, root, opts);
   log('SESSION_START ' + JSON.stringify({ commit: record.before.head, tree: record.before.tree, files: record.before.files }));
-  log('SESSION_PROVIDERS ' + JSON.stringify({ regenerationB: { file: regenB, sha256: sha256(io.read(resolve(root, regenB))) },
+  log('SESSION_PROVIDERS ' + JSON.stringify({ regenerationB: frozen ? null : { file: regenB, sha256: sha256(io.read(resolve(root, regenB))) },
     stepsB: { file: opts['rpc-b'], sha256: sha256(io.read(resolve(root, opts['rpc-b']))) } }));
   const raw = io.read(resolve(root, opts.bundle));
   if (sha256(raw) !== opts.digest) throw Error('reviewed bundle digest mismatch');
@@ -232,14 +252,28 @@ export async function runSession(opts, io) {
     log('SESSION_NOTE empty history acknowledged: anchored on the genesis head; no global first-run scan is performed');
   }
   // 3. Regenerate once, exactly as setup.mjs:133-145 (cwd = root, same argv), and require the frozen bytes.
+  //    With --frozen-bundle the planner is not run: the bytes are the bundle file itself (sha256 == --digest checked above).
   const block = Object.values(bundle.plans)[0].pin.block;
-  const regenStart = io.now();
-  const regenerated = Buffer.from(await io.planner(root, ['-B', resolve(root, 'script/rq3op/plan_three_arm.py'), resolve(root, opts.config),
-    resolve(root, opts.inputs), '-', '--rpc-a-file', resolve(root, opts['rpc-a']), '--rpc-b-file', resolve(root, regenB), '--block', block]));
-  const regenEnd = io.now();
-  if (!raw.equals(regenerated)) throw Error('regenerated bundle bytes mismatch');
-  if (sha256(regenerated) !== opts.digest) throw Error('regenerated bundle digest mismatch');
-  log('SESSION_REGENERATED ' + JSON.stringify({ sha256: opts.digest, block, startMs: regenStart, endMs: regenEnd }));
+  let regenerated;
+  if (frozen) {
+    // Provenance evidence of the session that last regenerated successfully; not a security check.
+    const priorBytes = io.read(opts['prior-regeneration']);
+    let prior; try { prior = JSON.parse(String(priorBytes)); } catch { throw Error('--prior-regeneration is not JSON'); }
+    if (prior?.digest !== opts.digest) throw Error('--prior-regeneration digest differs from --digest');
+    if (prior?.deployCommit !== opts['expect-commit']) throw Error('--prior-regeneration deploy commit differs from --expect-commit');
+    record.priorRegenerationSha256 = sha256(priorBytes);
+    log('SESSION_NOTE regeneration skipped: the pinned planner requires each sender\'s pending nonce to equal its pin nonce (plan_three_arm.py:436, Pair.__call__ :143-151), false once setup has sent; setup.main gets the digest-checked frozen bytes');
+    log('SESSION_FROZEN_BUNDLE ' + JSON.stringify({ sha256: opts.digest, block, priorRegenerationSha256: record.priorRegenerationSha256 }));
+    regenerated = Buffer.from(raw);
+  } else {
+    const regenStart = io.now();
+    regenerated = Buffer.from(await io.planner(root, ['-B', resolve(root, 'script/rq3op/plan_three_arm.py'), resolve(root, opts.config),
+      resolve(root, opts.inputs), '-', '--rpc-a-file', resolve(root, opts['rpc-a']), '--rpc-b-file', resolve(root, regenB), '--block', block]));
+    const regenEnd = io.now();
+    if (!raw.equals(regenerated)) throw Error('regenerated bundle bytes mismatch');
+    if (sha256(regenerated) !== opts.digest) throw Error('regenerated bundle digest mismatch');
+    log('SESSION_REGENERATED ' + JSON.stringify({ sha256: opts.digest, block, startMs: regenStart, endMs: regenEnd }));
+  }
   const setup = await importPinned('script/rq3op/setup.mjs');
   const formal = await importPinned('script/a6-collector/formal.mjs');
   verify(['script/rq3op/setup.mjs', 'script/a6-collector/formal.mjs']);

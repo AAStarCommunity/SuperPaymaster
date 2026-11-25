@@ -28,7 +28,8 @@ const opts = (o = {}) => ({ 'deploy-root': ROOT, 'expect-commit': COMMIT, bundle
 const FORMAL = { formalRuntime: async () => FORMAL.next ?? ({}) };
 function fixture({ regenerated = BUNDLE, confirms = ['confirm'], failAt = null, clock = [], afterStep = () => {}, foreignAt = null, mainError = null, mainImpl = null, root = ROOT } = {}) {
   const files = { [resolve(root, 'cache/plan.json')]: BUNDLE, [resolve(root, 'cfg.json')]: Buffer.from('cfg'), [resolve(root, 'in.json')]: Buffer.from('in'),
-    [resolve(root, 'cache/b')]: Buffer.from('steps-b'), [resolve(root, 'cache/regenb')]: Buffer.from('regen-b') };
+    [resolve(root, 'cache/b')]: Buffer.from('steps-b'), [resolve(root, 'cache/regenb')]: Buffer.from('regen-b'),
+    [resolve(root, 'cache/prior.json')]: Buffer.from(JSON.stringify({ digest: sha256(BUNDLE), deployCommit: COMMIT, pinBlock: '0x315298b' })) };
   for (const p of EXPECTED_PINNED) files[resolve(root, p)] = Buffer.from('module ' + p);
   const committed = Object.fromEntries(EXPECTED_PINNED.map(p => [p, gitBlob(files[resolve(root, p)])]));
   const ev = { main: [], planner: [], heads: [], logs: [], prompts: 0, chdir: [], imports: [], dirs: [], links: [] };
@@ -896,4 +897,69 @@ test('shared cancellation: a waiter whose peer has already failed makes no provi
   const pub = fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n] });
   await assert.rejects(stableReceipts(pub, {}, { ...clock(), cancel: { reason: 'peer failed' } }).waitForTransactionReceipt({ hash: TX }), /other provider failed \(peer failed\)/);
   assert.equal(pub.calls.length, 0);
+});
+
+// ── --frozen-bundle (DSR ruling: the pinned planner cannot regenerate after the first setup send) ──────
+const PRIOR = 'cache/prior.json';
+const FROZEN_RECORD = { 'frozen-bundle': true, 'prior-regeneration': PRIOR, 'record-step': 0, 'record-tx': RTX, end: 0 };
+const argvFor = o => Object.entries(opts(o)).flatMap(([k, v]) => v === true ? ['--' + k] : v === false || v === undefined ? [] : ['--' + k, String(v)]);
+test('--frozen-bundle: refused on a first run from genesis (not a record)', () => {
+  assert.throws(() => parseArgs(argvFor({ 'frozen-bundle': true, 'prior-regeneration': PRIOR })), /session after setup started/);
+});
+test('--frozen-bundle and --prior-regeneration only together; never with --regen-rpc-b', () => {
+  assert.throws(() => parseArgs(argvFor({ 'frozen-bundle': true, 'record-step': 0, 'record-tx': RTX, end: 0 })), /go together/);
+  assert.throws(() => parseArgs(argvFor({ 'prior-regeneration': PRIOR })), /go together/);
+  assert.throws(() => parseArgs(argvFor({ ...FROZEN_RECORD, 'regen-rpc-b': 'cache/regenb' })), /cannot be combined with --regen-rpc-b/);
+});
+test('--frozen-bundle with --empty-history-acknowledged only for a record session', () => {
+  const head = sha256('h');
+  assert.throws(() => parseArgs(argvFor({ 'frozen-bundle': true, 'prior-regeneration': PRIOR, 'expect-head': head, start: 1 })), /only for a record session/);
+  assert.equal(parseArgs(argvFor({ 'frozen-bundle': true, 'prior-regeneration': PRIOR, 'expect-head': head, start: 1, 'empty-history-acknowledged': false }))['frozen-bundle'], true);
+  assert.equal(parseArgs(argvFor(FROZEN_RECORD))['frozen-bundle'], true);
+});
+test('--frozen-bundle record with empty history: planner not invoked; setup.main gets the frozen bytes and record argv', async () => {
+  const f = fixture();
+  const s = await runSession(opts(FROZEN_RECORD), f.io);
+  assert.equal(s.status, 'complete'); assert.equal(f.ev.planner.length, 0); assert.equal(f.ev.main.length, 1);
+  assert.equal(f.ev.main[0].args[0], 'record'); assert.ok((await f.ev.main[0].deps.regenerate()).equals(BUNDLE));
+  assert.ok(f.ev.logs.some(l => l.startsWith('SESSION_NOTE regeneration skipped') && l.includes('plan_three_arm.py:436')));
+  assert.equal(f.ev.logs.some(l => l.startsWith('SESSION_REGENERATED')), false);
+  assert.equal(s.priorRegenerationSha256, sha256(f.files[resolve(ROOT, PRIOR)]));
+  assert.equal(JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_PROVIDERS ')).slice(18)).regenerationB, null);
+});
+test('--frozen-bundle resume from a non-empty history: planner not invoked, steps run from --start', async () => {
+  const f = fixture();
+  const prior = sha256('step 0 recorded'); f.state.head = prior; f.state.own[IDS[0]] = { recordDigest: prior };
+  const s = await runSession(opts({ 'frozen-bundle': true, 'prior-regeneration': PRIOR, 'expect-head': prior, start: 1, end: 2, 'empty-history-acknowledged': false }), f.io);
+  assert.equal(s.status, 'complete'); assert.equal(f.ev.planner.length, 0);
+  assert.deepEqual(f.ev.main.map(m => m.args[2]), ['1', '2']); assert.deepEqual(s.outcomes, { recorded: 2, 'already-satisfied-recorded': 0 });
+});
+test('--frozen-bundle: bundle bytes with a wrong --digest are refused before setup.main', async () => {
+  const f = fixture();
+  await assert.rejects(runSession(opts({ ...FROZEN_RECORD, digest: 'f'.repeat(64) }), f.io), /reviewed bundle digest mismatch/);
+  assert.equal(f.ev.main.length, 0); assert.equal(f.ev.planner.length, 0);
+});
+test('--frozen-bundle: a prior-regeneration record for another digest or deploy commit is refused before setup.main', async () => {
+  for (const bad of [{ digest: 'e'.repeat(64), deployCommit: COMMIT }, { digest: sha256(BUNDLE), deployCommit: 'd'.repeat(40) }, 'not json']) {
+    const f = fixture();
+    f.files[resolve(ROOT, PRIOR)] = Buffer.from(typeof bad === 'string' ? bad : JSON.stringify(bad));
+    await assert.rejects(runSession(opts(FROZEN_RECORD), f.io), /--prior-regeneration/);
+    assert.equal(f.ev.main.length, 0);
+  }
+});
+test('--frozen-bundle: the prior-regeneration file is in the start snapshot (changed between steps → stop)', async () => {
+  const prior = sha256('p');
+  const f = fixture({ afterStep: (i, { files }) => { if (i === 1) files[resolve(ROOT, PRIOR)] = Buffer.from('{}'); } });
+  f.state.head = prior; f.state.own[IDS[0]] = { recordDigest: prior };
+  const s = await runSession(opts({ 'frozen-bundle': true, 'prior-regeneration': PRIOR, 'expect-head': prior, start: 1, end: 2, 'empty-history-acknowledged': false }), f.io);
+  assert.equal(s.status, 'stopped'); assert.equal(s.nextIndex, 2); assert.match(s.reason, /session file changed since start: .*prior\.json/);
+});
+test('--prior-regeneration outside the deploy worktree is refused', async () => {
+  await assert.rejects(runSession(opts({ ...FROZEN_RECORD, 'prior-regeneration': '../elsewhere/prior.json' }), fixture().io), /--prior-regeneration must be inside/);
+});
+test('without --frozen-bundle the planner runs exactly as before', async () => {
+  const f = fixture();
+  await runSession(opts({ end: 0 }), f.io);
+  assert.equal(f.ev.planner.length, 1); assert.deepEqual(f.ev.planner[0].args, PLANNER_ARGV('cache/b'));
+  assert.ok(f.ev.logs.some(l => l.startsWith('SESSION_REGENERATED'))); assert.equal(f.ev.logs.some(l => l.includes('regeneration skipped')), false);
 });
