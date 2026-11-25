@@ -15,7 +15,7 @@ const bytes=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.
 // (collector.mjs, writeArtifact of {...window.manifest, windowId, startTimestamp}), then
 // run.jsonl, index.ndjson, raw archives and the one-shot trailer.
 function scheduledWindow(d) {
-  const window=createWindow({readBundle:()=>bytes,bundleSha256:sha256(bytes),seed:'public',chainId:10,accounts});
+  const window=createWindow({readBundle:()=>bytes,bundleSha256:sha256(bytes),seed:'public',chainId:10,accounts,windowIndex:1});
   const w=join(d,'window');mkdirSync(w);
   writeArtifact(w,'manifest.json',{...window.manifest,windowId:'run-test',startTimestamp:1795413100});
   mkdirSync(join(w,'raw'));writeFileSync(join(w,'raw','A.ndjson'),'{"id":1}\n');
@@ -74,7 +74,7 @@ test('a frozen rehearsal window carrying the collector manifest.json has no rehe
   const d=realpathSync(mkdtempSync(join(tmpdir(),'a6-freeze-marker-')));
   try {
     rehearsalRun(d);
-    const window=createWindow({readBundle:()=>bytes,bundleSha256:sha256(bytes),seed:'public',chainId:10,accounts});
+    const window=createWindow({readBundle:()=>bytes,bundleSha256:sha256(bytes),seed:'public',chainId:10,accounts,windowIndex:1});
     writeArtifact(d,'manifest.json',{...window.manifest,windowId:'run-test',startTimestamp:1});
     assert.equal(freeze(d,join(d,'sample.json')).rehearsal,true);
     const report=validate(d);

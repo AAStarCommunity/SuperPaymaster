@@ -38,7 +38,7 @@ if (!Array.isArray(formalInput.senders) || formalInput.senders.length !== 3) die
 const senderConfigs = formalInput.senders.map(s => ({ ...formalInput, sender: getAddress(s.sender), salt: s.salt, accounts: { ...formalInput.accounts, owner: s.owner } }));
 const cfg = JSON.parse(readFileSync(argVal('--config'), 'utf8')), baselines = JSON.parse(readFileSync(argVal('--baselines'), 'utf8'));
 const window = createWindow({ readBundle: () => readFileSync(argVal('--frozen-plan')), bundleSha256: argVal('--bundle-sha256'), seed: argVal('--seed'),
-  chainId: formalInput.chainId, accounts: senderConfigs.map(c => c.sender) });
+  chainId: formalInput.chainId, accounts: senderConfigs.map(c => c.sender), windowIndex: 1 });
 for (const c of senderConfigs) window.adapters.get(c.sender).bind(c, cfg, baselines, 1n, 20);
 const EP = getAddress(cfg.entryPoint), SPA = getAddress(cfg.superPaymaster);
 const pmAddrOf = arm => getAddress(arm === 'SP' ? SPA : arm === 'VPM' ? baselines.verifyingPaymaster.address : baselines.tokenPaymaster.address);

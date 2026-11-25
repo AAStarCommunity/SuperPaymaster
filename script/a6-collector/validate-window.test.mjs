@@ -12,7 +12,7 @@ import { finalizePVG, recordPVG } from './pvg.mjs';
 const accounts=[200,201,202].map(n=>getAddress('0x'+n.toString(16).padStart(40,'0')));
 const bytes=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
 const bundleSha256=sha256(bytes);
-const {adapters,manifest}=createWindow({readBundle:()=>bytes,bundleSha256,seed:'public',chainId:10,accounts});
+const {adapters,manifest}=createWindow({readBundle:()=>bytes,bundleSha256,seed:'public',chainId:10,accounts,windowIndex:1});
 const [legacyStart]=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').split('\n',1).map(JSON.parse);
 const names={SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'};
 const deadline='slot_deadline_exceeded';
