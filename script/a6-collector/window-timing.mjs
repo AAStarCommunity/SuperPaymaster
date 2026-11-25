@@ -12,7 +12,7 @@
 //   --rpc-a-file <file> --rpc-b-file <file> --out-dir <new dir> [--cap-a N] [--cap-b N]
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import { getAddress, keccak256, concat, pad, toHex } from 'viem';
+import { getAddress, keccak256, concat, pad, toHex, encodeAbiParameters } from 'viem';
 import { formalRuntime, DEFAULT_FACTORY, EP_ABI } from './formal.mjs';
 import { createWindow, waitForSlot } from './window-schedule.mjs';
 import { diffPaths, jsonable } from './gauge-lib.mjs';
@@ -87,9 +87,16 @@ for (const armName of slot.order) {
   const packed = { sender, nonce, initCode: '0x', callData: frozen.callData, accountGasLimits: concat([u128(gas.verificationGasLimit), u128(gas.callGasLimit)]),
     preVerificationGas: gas.preVerificationGas, gasFees: concat([u128(gas.maxPriorityFeePerGas), u128(gas.maxFeePerGas)]),
     paymasterAndData: concat([pmAddrOf(arm), u128(pmGas.ver), u128(pmGas.post)]), signature: '0x' };
-  // One PVG iteration's reads (VPM getHash on A, getUserOpHash on A and B); signing is excluded.
+  // One PVG iteration's reads (VPM getHash on A, getUserOpHash on A and B) on an op with paymaster
+  // data of the collector's shape; the VPM signature is a 65-byte placeholder. Signing is excluded.
   await phase('pvgIterationReads', async () => {
-    if (arm === 'VPM') await pubA.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'getHash', args: [packed, 0n, 0n] });
+    let pmData = '0x';
+    if (arm === 'SP') pmData = concat([operator, pad(toHex((1n << 256n) - 1n), { size: 32 }), spToken, '0x00']);
+    if (arm === 'VPM') {
+      await pubA.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'getHash', args: [packed, 0n, 0n] });
+      pmData = concat([encodeAbiParameters([{ type: 'uint48' }, { type: 'uint48' }], [0n, 0n]), '0x' + '11'.repeat(65)]);
+    }
+    packed.paymasterAndData = concat([packed.paymasterAndData, pmData]);
     await readAB('getUserOpHash', p => p.readContract({ address: EP, abi: EP_ABI, functionName: 'getUserOpHash', args: [packed] }));
   });
   await phase('preSendChecks', async () => {
@@ -101,6 +108,7 @@ for (const armName of slot.order) {
     await adapter.beforeSend(runtime); await runtime.refreshPin();
   });
   await phase('submitGate', async () => {
+    await adapter.beforeSend(runtime); // adapter.send runs it once more before the wallet call
     await gate(arm, sender); await runtime.refreshPin();
     await Promise.all(runtime.archives.map(a => a.request({ method: 'eth_getTransactionCount', params: [bundlerAddress, 'pending'] })));
   });
@@ -110,14 +118,24 @@ for (const armName of slot.order) {
     for (const n of [bn - 1n, bn]) await readAB('readbacks', p => readReadbacks(p, arm, n, ZERO_HASH, sender, e, pools.get(p)));
   });
   await phase('postInclusionPassport', () => readAB('passport@bn', p => readPassport(p, bn, e, pools.get(p))));
-  arms.push({ arm, sender, phases, totalSeconds: +Object.values(phases).reduce((s, x) => s + x.seconds, 0).toFixed(3) });
+  // A formal TPM attempt traces its transaction twice per endpoint (trace-policy.mjs traceTPM). The
+  // probe traces the first transaction of the sample block, which also tests tracer support.
+  if (arm === 'TPM') await phase('tpmTraces', async () => {
+    const hash = (await pubA.getBlock({ blockNumber: bn })).transactions[0];
+    phases.tpmTraceErrors = [];
+    for (const client of [pubA, pubB]) for (const tracer of [{ tracer: 'callTracer', tracerConfig: { withLog: true } }, { tracer: 'prestateTracer', tracerConfig: { diffMode: true } }])
+      await client.request({ method: 'debug_traceTransaction', params: [hash, tracer] }).catch(error => phases.tpmTraceErrors.push(`${client === pubA ? 'A' : 'B'} ${tracer.tracer}: ${String(error.shortMessage ?? error.message).slice(0, 120)}`));
+  });
+  arms.push({ arm, sender, phases, totalSeconds: +Object.values(phases).reduce((s, x) => s + (x.seconds ?? 0), 0).toFixed(3) });
 }
 const result = { schema: 'a6-window-timing/1', caps, slot: { block_slot: slot.block_slot, order: slot.order.map(a => ARM[a]) },
   slotPeriodSeconds: window.manifest.schedule.payload.slot_period_seconds, maxElapsedSeconds: window.manifest.schedule.payload.max_elapsed_seconds,
-  arms, slotSeconds: +((performance.now() - t0) / 1000).toFixed(3),
+  // slotSeconds sums the measured phases; wallSeconds also includes the probe's own sample-block pins.
+  arms, slotSeconds: +arms.reduce((s, a) => s + a.totalSeconds, 0).toFixed(3), wallSeconds: +((performance.now() - t0) / 1000).toFixed(3),
   maxInFlight: { A: pools.get(pubA).maxInFlight, B: pools.get(pubB).maxInFlight },
   excluded: ['signing (owner and VPM signer) per PVG iteration', 'PVG iterations after the first (reads per iteration are pvgIterationReads)',
+    'gate polls after the first while waiting for the slot start or SP validAfter (each repeats slotGate reads)',
     'transaction broadcast', 'receipt polling and inclusion', 'transaction read', 'wait for both heads past inclusion before the next attempt'],
-  note: 'preflight simulation is timed on an unsigned op (it reverts); the real op is signed' };
+  note: 'preflight simulation is timed on an unsigned op (it reverts early); the real op is signed and simulates fully' };
 writeFileSync(resolve(outDir, 'timing.json'), JSON.stringify(result, null, 1) + '\n');
 console.log(JSON.stringify(result, null, 1));

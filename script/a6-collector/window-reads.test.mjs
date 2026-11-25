@@ -154,25 +154,27 @@ function fakeClient({ clone = true, fail = null, seed = 1 } = {}) {
   });
 }
 const keys = c => c.calls.map(x => x.key).sort();
+// Fixed clock at noon UTC: tests other than the midnight one must not depend on the wall clock.
+const noonPool = cap => readPool(cap, { clock: () => Date.UTC(2026, 10, 26, 12) });
 
 for (const [label, over, clone] of [['formal clone', {}, true], ['formal no clone', {}, false], ['local', { formal: false, allowSameEndpointLocal: true }, true]]) {
   test(`passport equals the sequential reference (${label}) with the same calls`, async () => {
     const s = fakeClient({ clone }), c = fakeClient({ clone, seed: 7 });
-    assert.deepStrictEqual(await readPassport(c, 42n, env(over), readPool(8)), await sequentialPassport(s, 42n, env(over)));
+    assert.deepStrictEqual(await readPassport(c, 42n, env(over), noonPool(8)), await sequentialPassport(s, 42n, env(over)));
     assert.deepStrictEqual(keys(c), keys(s));
   });
 }
 for (const arm of ['SP', 'VPM', 'TPM']) for (const formal of [true, false]) {
   test(`readbacks equal the sequential reference (${arm}, formal ${formal}) with the same calls`, async () => {
     const s = fakeClient(), c = fakeClient({ seed: 9 }), h = '0x' + '22'.repeat(32);
-    assert.deepStrictEqual(await readReadbacks(c, arm, 42n, h, SENDER, env({ formal }), readPool(8)), await sequentialReadbacks(s, arm, 42n, h, SENDER, env({ formal })));
+    assert.deepStrictEqual(await readReadbacks(c, arm, 42n, h, SENDER, env({ formal }), noonPool(8)), await sequentialReadbacks(s, arm, 42n, h, SENDER, env({ formal })));
     assert.deepStrictEqual(keys(c), keys(s));
   });
 }
 test('cap bounds reads in flight per endpoint and is reached', async () => {
   for (const cap of [1, 3, 8]) {
     const c = fakeClient({ seed: cap });
-    await readPassport(c, 42n, env(), readPool(cap));
+    await readPassport(c, 42n, env(), noonPool(cap));
     assert.equal(c.maxInFlight, cap);
   }
   assert.deepStrictEqual(READ_CAP, { A: 8, B: 8 });
@@ -180,7 +182,7 @@ test('cap bounds reads in flight per endpoint and is reached', async () => {
 });
 test('dependent code reads run only in the second round, after every first-round read', async () => {
   const c = fakeClient();
-  await readPassport(c, 42n, env(), readPool(8));
+  await readPassport(c, 42n, env(), noonPool(8));
   const split = c.calls.findIndex(x => ROUND2.has(x.key)), first = c.calls.slice(0, split), second = c.calls.slice(split);
   assert.ok(!first.some(x => ROUND2.has(x.key)));
   assert.ok(second.every(x => x.start > Math.max(...first.map(y => y.end))));
@@ -190,21 +192,21 @@ test('dependent code reads run only in the second round, after every first-round
 test('a failing read stops the round: no read starts after it, and its cause surfaces', async () => {
   const fail = 'readContract:paused@' + SPA + ':';
   const c = fakeClient({ fail });
-  await assert.rejects(readPassport(c, 42n, env(), readPool(4)), /boom readContract:paused/);
+  await assert.rejects(readPassport(c, 42n, env(), noonPool(4)), /boom readContract:paused/);
   const failed = c.calls.find(x => x.key === fail);
   assert.ok(c.calls.every(x => x.start < failed.end));
   assert.ok(!c.calls.some(x => ROUND2.has(x.key)));
   assert.ok(c.calls.length < 49);
   const r = fakeClient({ fail: 'getBlock:42' });
-  await assert.rejects(readReadbacks(r, 'SP', 42n, '0x' + '22'.repeat(32), SENDER, env(), readPool(2)), /boom getBlock:42/);
+  await assert.rejects(readReadbacks(r, 'SP', 42n, '0x' + '22'.repeat(32), SENDER, env(), noonPool(2)), /boom getBlock:42/);
   assert.ok(r.calls.every(x => x.start < r.calls[0].end || x.key === 'getBlock:42'));
 });
 test('readRound keeps keys and refuses later reads once one has failed', async () => {
-  const pool = readPool(1), started = [];
+  const pool = noonPool(1), started = [];
   const out = readRound(pool, { a: async () => { started.push('a'); throw new Error('first'); }, b: async () => { started.push('b'); return 1; } });
   await assert.rejects(out, /first/);
   assert.deepStrictEqual(started, ['a']);
-  assert.deepStrictEqual(await readRound(readPool(2), { x: async () => 1, y: async () => 2 }), { x: 1, y: 2 });
+  assert.deepStrictEqual(await readRound(noonPool(2), { x: async () => 1, y: async () => 2 }), { x: 1, y: 2 });
 });
 for (const alias of [false, true]) test(`concurrent Passport through the archived transport${alias ? ' (TPM token aliases the xPNTs token)' : ''}: archive in completion order, every read bracketed, verifyPassport accepts`, async () => {
   const bl = alias ? { ...baselines, tokenPaymaster: { ...baselines.tokenPaymaster, token: TOKEN } } : baselines;
@@ -237,7 +239,8 @@ for (const alias of [false, true]) test(`concurrent Passport through the archive
       return { ok: true, status: 200, arrayBuffer: async () => bytes };
     };
     const client = createPublicClient({ transport: custom(archivedRpc({ url: 'https://fake.invalid/QzSecretPathQz', endpoint: 'A', append: arc.append, fetchImpl }), { retryCount: 0 }) });
-    const p = await readPassport(client, 102n, env({ baselines: bl }), readPool(alias ? 64 : 8)); // 64: every round-1 read in flight at once
+    // 64: every round-1 read in flight at once; a clock at noon UTC keeps the midnight guard off.
+    const p = await readPassport(client, 102n, env({ baselines: bl }), readPool(alias ? 64 : 8, { clock: () => Date.UTC(2026, 10, 26, 12) }));
     verifyPassport(p, arc.records);
     const lines = readFileSync(join(d, arc.records[0].path), 'utf8').trim().split('\n').map(JSON.parse);
     assert.deepStrictEqual(lines.reduce((m, r) => (m[r.method] = (m[r.method] ?? 0) + 1, m), {}),
@@ -255,7 +258,7 @@ for (const alias of [false, true]) test(`concurrent Passport through the archive
 
 test('a permit is handed to the waiter: submissions from completions never exceed the cap', async () => {
   for (const cap of [1, 2, 5]) {
-    const pool = readPool(cap); let inFlight = 0, max = 0, spawned = 0;
+    const pool = noonPool(cap); let inFlight = 0, max = 0, spawned = 0;
     const task = () => pool.run(async () => {
       inFlight++; max = Math.max(max, inFlight);
       await new Promise(r => setTimeout(r, spawned % 3));
@@ -270,12 +273,12 @@ test('a permit is handed to the waiter: submissions from completions never excee
 });
 test('a synchronous throw in a read fails the round and stops later reads', async () => {
   const started = [];
-  await assert.rejects(readRound(readPool(1), { a: () => { started.push('a'); throw new Error('sync'); }, b: async () => { started.push('b'); return 1; } }), /sync/);
+  await assert.rejects(readRound(noonPool(1), { a: () => { started.push('a'); throw new Error('sync'); }, b: async () => { started.push('b'); return 1; } }), /sync/);
   assert.deepStrictEqual(started, ['a']);
 });
 test('identical requests in one round run after it, not alongside it', async () => {
   const order = [], fn = (k, req) => Object.assign(async () => { order.push('start ' + k); await new Promise(r => setTimeout(r, 3)); order.push('end ' + k); return k; }, { request: req });
-  const r = await readRound(readPool(8), { x: fn('x', 'code:0xa'), y: fn('y', 'code:0xa'), z: fn('z', 'code:0xb') });
+  const r = await readRound(noonPool(8), { x: fn('x', 'code:0xa'), y: fn('y', 'code:0xa'), z: fn('z', 'code:0xb') });
   assert.deepStrictEqual(r, { x: 'x', y: 'y', z: 'z' });
   assert.ok(order.indexOf('start y') > Math.max(order.indexOf('end x'), order.indexOf('end z')));
 });
