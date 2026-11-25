@@ -59,6 +59,18 @@ export async function readRound(pool, thunks) {
   return Object.keys(later).length ? { ...out, ...await readRound(pool, later) } : out;
 }
 
+/** Wait until `client`'s head is at or past `blockNumber` (one getBlockNumber per poll); after
+ *  `timeoutMs` throw an error carrying the last head seen. */
+export async function waitForHead(client, blockNumber, { timeoutMs = 60_000, pollMs = 250, sleep = ms => new Promise(r => setTimeout(r, ms)), now = Date.now } = {}) {
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    const head = await client.getBlockNumber({ cacheTime: 0 });
+    if (head >= blockNumber) return head;
+    if (now() >= deadline) throw Object.assign(new Error('head did not reach the receipt block'), { head, blockNumber });
+    await sleep(pollMs);
+  }
+}
+
 export const EIP1967_IMPL = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 
 export const EP_DEPOSIT_ABI = [{ type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },

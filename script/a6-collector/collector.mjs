@@ -8,7 +8,7 @@ import { revalidateAnchors, requireDecodedPreflight, waitAfterInclusion } from '
 import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact, appendIndex, writeTrailer, armCounts, exclusionReason } from './evidence.mjs';
 import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
-import { READ_CAP, readPool, readPassport, readReadbacks, EP_DEPOSIT_ABI, SP_ABI, TOKEN_ABI } from './window-reads.mjs';
+import { READ_CAP, readPool, readPassport, readReadbacks, waitForHead, EP_DEPOSIT_ABI, SP_ABI, TOKEN_ABI } from './window-reads.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
 //
 // Drives matched triplets of real UserOperations — one through each arm, SP (SuperPaymaster),
@@ -41,7 +41,7 @@ import { READ_CAP, readPool, readPassport, readReadbacks, EP_DEPOSIT_ABI, SP_ABI
 //
 // Exit codes: 0 = N matched triplets collected; 10 = attempt budget exhausted before N;
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
-//   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT, 26 ENTRYPOINT_MISMATCH (an arm or the account
+//   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT or RECEIPT_B_HEAD_BEHIND, 26 ENTRYPOINT_MISMATCH (an arm or the account
 //   is bound to another EntryPoint); 27 UNEXPECTED_USEROP_EVENT (extra op in single-op gauge); 28 EVIDENCE_CONTINUITY_MISMATCH; 29 END_PASSPORT_ERROR; 2 = bad arguments / refused; 1 = crash.
 import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -153,7 +153,7 @@ if (adapter) {
         const result = await slotGate(frozenArm,activeRow);
         if (!result.allowed) throw Object.assign(Error('SLOT_DEADLINE'),{slotResult:result});
       }});
-    }},frozenArm,args);
+    }},frozenArm,args,poolOf);
   };
 }
 const ctx = formal ? { account: { address: getAddress(formalInput.operator) }, pub: runtime.pubA } : clients(rpcA, ANVIL_KEYS[0]);
@@ -523,7 +523,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     return finish({ sent: false, tx: null, logs: [], verdict: VERDICTS.NOT_SENT, failingCheck: 'deposit_floor', exclusion: 'NOT_SENT:DEPOSIT_FLOOR' });
   }
   if (formal) {
-    if (adapter) await adapter.beforeSend(runtime);
+    if (adapter) await adapter.beforeSend(runtime, poolOf);
     const pause = feePause(await runtime.refreshPin(), GAS.maxFeePerGas);
     if (pause) return finish(pause);
   }
@@ -535,7 +535,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
 
   const headBefore = await pubA.getBlockNumber({ cacheTime: 0 });
   if (formal) {
-    if (adapter) await adapter.beforeSend(runtime);
+    if (adapter) await adapter.beforeSend(runtime, poolOf);
     const pause = feePause(await runtime.refreshPin(), GAS.maxFeePerGas);
     if (pause) return finish(pause);
   }
@@ -549,7 +549,12 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     throw e;
   }
   if (formal) { row.sent = true; row.tx = { hash: txHash }; }
-  const rcA = await pubA.waitForTransactionReceipt({ hash: txHash });
+  // 1 s polling: with no chain set viem polls every 4 s, about two OP blocks per poll.
+  const rcA = await pubA.waitForTransactionReceipt({ hash: txHash, pollingInterval: 1_000 });
+  // B's receipt is read once. A can see it about a second after inclusion, so first wait until B's
+  // head reaches A's receipt block (60 s, then stop); a null receipt at that head still fails closed.
+  try { await waitForHead(pubB, rcA.blockNumber); }
+  catch (e) { if (e.head === undefined) throw e; throw new Stop('RECEIPT_B_HEAD_BEHIND', 25, { txHash, receiptBlock: rcA.blockNumber, headB: e.head }); }
   const rcB = await pubB.getTransactionReceipt({ hash: txHash });
   const rcView = (rc) => ({ status: rc.status, blockNumber: rc.blockNumber, blockHash: rc.blockHash, gasUsed: rc.gasUsed,
     effectiveGasPrice: rc.effectiveGasPrice, l1Fee: rc.l1Fee??null, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex, ...(formal ? {transactionHash:l.transactionHash} : {}) })) });
@@ -688,7 +693,7 @@ try {
       owners.set(config.sender,owner);
       selectSender(config.sender);
       await setup();
-      await adapter.beforeSend(runtime);
+      await adapter.beforeSend(runtime, poolOf);
       const start = await passportAB('start');
       senderPassports.set(sender,start);
       senderPassportRefs.set(sender,savePassport('start-'+sender,start));

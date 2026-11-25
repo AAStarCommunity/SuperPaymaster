@@ -109,7 +109,7 @@ the old-vs-new comparison, is archived in `docs/design/aoa-balance-mode/data/a6-
   `protocolConformant` requires 50 plus the recorded arm/fixture/endpoint gates, which cannot
   prove operator/backend independence) and `--b-max` (required) are validated. Stops:
   `RPC_DISAGREEMENT` 20, `PASSPORT_DRIFT` 21, `CONSERVATION_MISMATCH` 22, `EVIDENCE_CONTINUITY_MISMATCH` 28, `END_PASSPORT_ERROR` 29, `HASH_SELF_CHECK` 23,
-  `BLOCK_NOT_ISOLATED` 24, `RECEIPT_DISAGREEMENT` 25, `ENTRYPOINT_MISMATCH` 26 (every arm and the account must be bound to the same EntryPoint; `--expect-entrypoint` pins its address); attempt budget exhausted 10.
+  `BLOCK_NOT_ISOLATED` 24, `RECEIPT_DISAGREEMENT` 25 (also `RECEIPT_B_HEAD_BEHIND`: B's head stays below A's receipt block for 60 s), `ENTRYPOINT_MISMATCH` 26 (every arm and the account must be bound to the same EntryPoint; `--expect-entrypoint` pins its address); attempt budget exhausted 10.
 - **`validate.mjs`** re-reads the JSONL and recomputes every verdict, hash, A/B equality,
   conservation identity, matched-triplet count and Passport drift with its own decoder (it does
   not import `gauge-lib.mjs`); missing fields fail closed (exit 2). These are offline

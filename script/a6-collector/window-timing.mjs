@@ -104,14 +104,14 @@ for (const armName of slot.order) {
   });
   await phase('preSendChecks', async () => {
     await readAB('epDeposit', p => p.readContract({ address: EP, abi: EP_DEPOSIT_ABI, functionName: 'balanceOf', args: [pmAddrOf(arm)] }));
-    await adapter.beforeSend(runtime); await runtime.refreshPin();
+    await adapter.beforeSend(runtime, p => pools.get(p)); await runtime.refreshPin();
     // Preflight sample: the unsigned op reverts; this times one handleOps simulation call on A.
     await pubA.simulateContract({ address: EP, abi: HANDLE_OPS_ABI, functionName: 'handleOps', args: [[packed], bundlerAddress], account: bundlerAddress }).catch(() => null);
     await pubA.getBlockNumber({ cacheTime: 0 });
-    await adapter.beforeSend(runtime); await runtime.refreshPin();
+    await adapter.beforeSend(runtime, p => pools.get(p)); await runtime.refreshPin();
   });
   await phase('submitGate', async () => {
-    await adapter.beforeSend(runtime); // adapter.send runs it once more before the wallet call
+    await adapter.beforeSend(runtime, p => pools.get(p)); // adapter.send runs it once more before the wallet call
     await gate(arm, sender); await runtime.refreshPin();
     await Promise.all(runtime.archives.map(a => a.request({ method: 'eth_getTransactionCount', params: [bundlerAddress, 'pending'] })));
   });

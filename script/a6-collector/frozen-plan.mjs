@@ -61,24 +61,36 @@ export function createFrozenPlan({readBundle,bundleSha256,account}) {
       config.fees=fees; config.feeRule=pc.feeRule; config.bundlerGasLimit=pc.bounds.SP.outer;
       return frozen;
     },
-    async send(runtime,arm,args) {
+    async send(runtime,arm,args,poolOf) {
       need(args.functionName==='handleOps' && Object.hasOwn(gas,arm),'PLAN_SETUP_REQUIRED');
-      await this.beforeSend(runtime);
+      await this.beforeSend(runtime,poolOf);
       return runtime.writeContract({...args,gas:BigInt(pc.bounds[arm].outer)});
     },
-    async beforeSend(runtime) {
+    // Reads on A and B are issued together, under the endpoint's read pool when `poolOf` gives one.
+    // The checks then run in the former sequential order (A, then B; chain, block, fee, gas,
+    // interval, stake), so the first failure thrown is the one the sequential reads would throw.
+    async beforeSend(runtime,poolOf=()=>null) {
       verify();
       const block=await runtime.refreshPin();
-      for(const client of [runtime.pubA,runtime.pubB]) {
-        need(await client.getChainId()===plan.chainId,'PLAN_CHAIN_CHANGED');
-        const pinned=await client.getBlock({blockNumber:block.number});
+      const reads=client=>{
+        const pool=poolOf(client), run=fn=>pool ? pool.run(fn) : Promise.resolve().then(fn);
+        return Promise.allSettled([
+          ()=>client.getChainId(),
+          ()=>client.getBlock({blockNumber:block.number}),
+          ()=>client.readContract({address:pc.addresses.SP,abi,functionName:'gasParams',blockNumber:block.number}),
+          ()=>client.readContract({address:pc.addresses.SP,abi,functionName:'operators',args:[plan.deploymentContext.operator],blockNumber:block.number}),
+          ()=>client.readContract({address:plan.addresses.entryPoint,abi,functionName:'getDepositInfo',args:[pc.addresses.SP],blockNumber:block.number}),
+        ].map(run));
+      };
+      for(const r of await Promise.all([runtime.pubA,runtime.pubB].map(reads))) {
+        const value=i=>{ if(r[i].status==='rejected') throw r[i].reason; return r[i].value; };
+        need(value(0)===plan.chainId,'PLAN_CHAIN_CHANGED');
+        const pinned=value(1);
         need(pinned.hash===block.hash && pinned.baseFeePerGas===block.baseFeePerGas,'PLAN_BLOCK_CHANGED');
         need(feesWithinRule(fees,pc.feeRule,block.baseFeePerGas),'PLAN_FEE_CHANGED');
-        const g=await client.readContract({address:pc.addresses.SP,abi,functionName:'gasParams',blockNumber:block.number});
-        need(canonical(g)===canonical(pc.gasTuple),'PLAN_GAS_CHANGED');
-        const operator=await client.readContract({address:pc.addresses.SP,abi,functionName:'operators',args:[plan.deploymentContext.operator],blockNumber:block.number});
-        need(BigInt(operator[5])===BigInt(pc.minTxInterval),'PLAN_INTERVAL_CHANGED');
-        const s=await client.readContract({address:plan.addresses.entryPoint,abi,functionName:'getDepositInfo',args:[pc.addresses.SP],blockNumber:block.number});
+        need(canonical(value(2))===canonical(pc.gasTuple),'PLAN_GAS_CHANGED');
+        need(BigInt(value(3)[5])===BigInt(pc.minTxInterval),'PLAN_INTERVAL_CHANGED');
+        const s=value(4);
         const values=Array.isArray(s)?s:[s.deposit,s.staked,s.stake,s.unstakeDelaySec,s.withdrawTime];
         need(values[1]===true && BigInt(values[2])===BigInt(plan.pin.stake)+BigInt(plan.deploymentContext.stakeWei) && BigInt(values[3])===BigInt(plan.deploymentContext.stakeDelay) && BigInt(values[4])===0n,'PLAN_STAKE_CHANGED');
       }
