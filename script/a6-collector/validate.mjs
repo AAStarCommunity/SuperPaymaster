@@ -700,8 +700,6 @@ function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
   const allEarlierHashes = new Set([lc(pStart.block.hash)]);
   const balanceReadbacks = new Map();
   let previousOperatorBalance = big(pStart.volatile.operatorBalance);
-  // Passports bracket all attempt blocks. Requiring the start quote to remain fresh
-  // through the end block proves freshness without inventing per-tx timestamps.
   const sponsorshipReady = p => !p.invariant.superPaymaster.paused && p.invariant.superPaymaster.senderEligible
     && p.invariant.superPaymaster.operator.isConfigured && !p.invariant.superPaymaster.operator.isPaused
     && !p.invariant.xPNTs.emergencyDisabled;
@@ -891,13 +889,17 @@ function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
       if (!interrupted && nonceSequences.has(key) && sequence !== nonceSequences.get(key) + 1n) errors.push(`attempt ${i}: nonce sequence must advance exactly one for sender/key`);
       if (!firstNonceSequences.has(key)) firstNonceSequences.set(key, sequence);
       nonceSequences.set(key, sequence);
-      if (row.arm === 'SP' && (endPassport || !window)) {
-        if (!sponsorshipReady(pStart) || !sponsorshipReady(endPassport ?? need(end, 'passport'))) errors.push(`attempt ${i}: passport not sponsor-able`);
-        const endUntil48 = (big(need(endPassport, 'volatile.cachedPriceUpdatedAt')) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
+      if (row.arm === 'SP') {
+        if ((endPassport || !window) && (!sponsorshipReady(pStart) || !sponsorshipReady(endPassport ?? need(end, 'passport')))) errors.push(`attempt ${i}: passport not sponsor-able`);
         const validUntil48 = (big(pStart.volatile.cachedPriceUpdatedAt) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
         const quoteValidUntil = validUntil48 === 0n ? (1n << 48n) - 1n : validUntil48;
-        if ((endUntil48 === 0n ? (1n << 48n) - 1n : endUntil48) < big(endPassport.block.timestamp)) errors.push(`attempt ${i}: end cached price expires before passport block`);
-        if (quoteValidUntil < big(pStart.block.timestamp) || quoteValidUntil < big(need(endPassport, 'block.timestamp'))) errors.push(`attempt ${i}: cached price expires within passport block bracket`);
+        if (window) {
+          if (recomputed === 'USEROP_SUCCESS' && quoteValidUntil < big(need(row, 'tx.blockTimestamp'))) errors.push(`attempt ${i}: cached price expires before SP inclusion`);
+        } else {
+          const endUntil48 = (big(need(endPassport, 'volatile.cachedPriceUpdatedAt')) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
+          if ((endUntil48 === 0n ? (1n << 48n) - 1n : endUntil48) < big(endPassport.block.timestamp)) errors.push(`attempt ${i}: end cached price expires before passport block`);
+          if (quoteValidUntil < big(pStart.block.timestamp) || quoteValidUntil < big(need(endPassport, 'block.timestamp'))) errors.push(`attempt ${i}: cached price expires within passport block bracket`);
+        }
       }
     }
     if (row.sent && !row.stoppedBy) {

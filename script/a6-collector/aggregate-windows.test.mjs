@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { aggregateWindows } from './aggregate-windows.mjs';
 import { sentWindowFixture } from './sent-window-fixture.mjs';
+import { validateRun } from './validate.mjs';
 import { REGISTERED_WINDOW } from './window-schedule.mjs';
 
 async function fixture(t,options) {
@@ -13,9 +14,17 @@ async function fixture(t,options) {
   return {dir,...await sentWindowFixture(dir,options)};
 }
 
+function aggregateCli(dirs,frozenPlan,{seed,scheduleSha256},...extra) {
+  const cli=spawnSync(process.execPath,['script/a6-collector/aggregate-windows.mjs',...dirs,
+    '--frozen-plan',frozenPlan,'--registered-seed',seed,'--registered-schedule-sha256',scheduleSha256,...extra],{encoding:'utf8'});
+  assert.ifError(cli.error);
+  return {status:cli.status,...JSON.parse(cli.stdout)};
+}
+
 test('aggregate validates three independently archived slices and checks their boundaries',async t=>{
   const first=await fixture(t,{windowIndex:1});
-  const second=await fixture(t,{windowIndex:2,priceDelta:1n});
+  const priorSPTimestamps=new Map(first.rows.filter(row=>row.sent && row.arm==='SP').map(row=>[row.sender,BigInt(row.tx.blockTimestamp)]));
+  const second=await fixture(t,{windowIndex:2,priceDelta:1n,priorSPTimestamps});
   const third=await fixture(t,{windowIndex:3,priceDelta:2n});
   const frozenPlan=join(first.dir,'bundle.json'), registered=first.registered;
   const options={frozenPlan,registered};
@@ -25,15 +34,41 @@ test('aggregate validates three independently archived slices and checks their b
     assert.match(result.errors.join('\n'),pattern);
   };
 
-  assert.deepEqual(aggregate(third,first,second),{
+  const complete=aggregate(third,first,second);
+  assert.deepEqual(complete,{
     outcome:'COMPLETE',completeTriplets:57,targetTriplets:50,errors:[]
   });
   const dirs=[first.dir,second.dir,third.dir];
-  const cli=spawnSync(process.execPath,['script/a6-collector/aggregate-windows.mjs',...dirs,'--frozen-plan',frozenPlan,
-    '--registered-seed',registered.seed,'--registered-schedule-sha256',registered.scheduleSha256],{encoding:'utf8'});
-  assert.ifError(cli.error);
-  assert.equal(cli.status,0,cli.stderr || cli.stdout);
-  assert.equal(JSON.parse(cli.stdout).outcome,'COMPLETE');
+  assert.deepEqual(aggregateCli(dirs,frozenPlan,registered),{status:0,...complete});
+
+  await t.test('accepts the first sent SP gates in window 2 with window 1 timestamps',()=>{
+    for(const [sender,lastTimestamp] of priorSPTimestamps) {
+      const row=second.rows.find(row=>row.sent && row.arm==='SP' && row.sender===sender);
+      const minTxInterval=BigInt(row.passport.invariant.superPaymaster.operator.minTxInterval);
+      assert.ok(lastTimestamp>0n && minTxInterval>0n);
+      assert.equal(row.slotChecks.length,2);
+      for(const {allowed,wait} of row.slotChecks) {
+        assert.equal(wait.lastTimestamp,String(lastTimestamp));
+        assert.equal(wait.minTxInterval,String(minTxInterval));
+        assert.equal(wait.validAfter,String(lastTimestamp+minTxInterval));
+        assert.ok(BigInt(wait.timestamp)>=BigInt(wait.validAfter));
+        assert.equal(allowed,true);
+      }
+    }
+  });
+
+  await t.test('CLI exits 1 for an invalid collection',()=>{
+    const cli=aggregateCli(dirs.slice(0,2),frozenPlan,registered);
+    assert.equal(cli.status,1);
+    refused(cli,/requires 3 window directories/);
+  });
+  for(const [label,flag] of [['duplicate','--frozen-plan'],['unknown','--unexpected']]) {
+    await t.test(`CLI refuses ${label} flags`,()=>{
+      const cli=aggregateCli(dirs,frozenPlan,registered,flag,frozenPlan);
+      assert.equal(cli.status,1);
+      refused(cli,/usage: aggregate-windows\.mjs/);
+    });
+  }
 
   await t.test('refuses a missing slice or missing archive',()=>{
     refused(aggregate(first,third),/requires 3 window directories/);
@@ -97,6 +132,38 @@ test('aggregate validates three independently archived slices and checks their b
       writeFileSync(file,lines.map(line=>JSON.stringify(line)).join('\n')+'\n');
       refused(aggregate(first,second,third),/frozen allocation mismatch/);
     } finally { writeFileSync(file,original); }
+  });
+});
+
+test('aggregate checks a nonce key that returns after a slice without it',async t=>{
+  const keyedNonce=(key,sequence)=>(key<<64n)+sequence;
+  const first=await fixture(t,{windowIndex:1,firstSenderKeyedNonce:keyedNonce(1n,10n)});
+  const [sender]=first.accounts;
+  const key=sender.toLowerCase()+':1', defaultKey=sender.toLowerCase()+':0';
+  const options={frozenPlan:join(first.dir,'bundle.json'),registered:first.registered};
+  const ranges=f=>{
+    const report=validateRun(f.runPath,options);
+    assert.equal(report.accepted,true,JSON.stringify(report));
+    return report.window.nonceRanges;
+  };
+  const firstRanges=ranges(first);
+  assert.equal(firstRanges[key].last,'10');
+  const second=await fixture(t,{windowIndex:2,initialNonces:new Map([[sender,BigInt(firstRanges[defaultKey].last)+1n]])});
+  const secondRanges=ranges(second);
+  assert.equal(Object.hasOwn(secondRanges,key),false);
+  const initialNonces=new Map([[sender,BigInt(secondRanges[defaultKey].last)+1n]]);
+  const aggregate=third=>aggregateWindows([first.dir,second.dir,third.dir],options);
+  const consecutive=await fixture(t,{windowIndex:3,initialNonces,firstSenderKeyedNonce:keyedNonce(1n,11n)});
+  assert.equal(aggregate(consecutive).outcome,'COMPLETE');
+  const gap=await fixture(t,{windowIndex:3,initialNonces,firstSenderKeyedNonce:keyedNonce(1n,12n)});
+  assert.deepEqual(aggregate(gap),{outcome:'INVALID-INTERRUPTED',errors:[`windows 1 and 3: nonce discontinuity for ${key}`]});
+});
+
+test('aggregate CLI exits 3 for an incomplete collection of accepted slices',async t=>{
+  const windows=await Promise.all([1,2,3].map(windowIndex=>fixture(t,{windowIndex,finalVpmSlots:3,finalVpmVerdict:'USEROP_REVERTED'})));
+  const [first]=windows;
+  assert.deepEqual(aggregateCli(windows.map(w=>w.dir),join(first.dir,'bundle.json'),first.registered),{
+    status:3,outcome:'INCOMPLETE',completeTriplets:48,targetTriplets:50,errors:[]
   });
 });
 

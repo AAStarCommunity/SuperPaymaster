@@ -29,8 +29,10 @@ let fixtureBundle;
 export async function sentWindowFixture(dir,{
   windowIndex=1, runId=`frozen-sent-${windowIndex}`, blockStart=100+(windowIndex-1)*1000,
   priceDelta=0n, version, priceDecimals, protocol=REGISTERED_WINDOW, nonceOffset=0,
+  initialNonces=new Map(), firstSenderKeyedNonce, priorSPTimestamps=new Map(),
   nonceGap=false, balanceGap=false, senderBalanceGap=false, outerGasDelta=0n,
-  priceStalenessThreshold=3000, finalVpmVerdict='USEROP_SUCCESS'
+  priceStalenessThreshold=3000, endPassportDelay=0n, lastSPInclusionDelay=0n,
+  finalVpmVerdict='USEROP_SUCCESS', finalVpmSlots=1
 }={}) {
   const bytes=fixtureBundle??=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
   const bundleSha256=sha256(bytes), chainId=10, seed='public';
@@ -164,7 +166,8 @@ export async function sentWindowFixture(dir,{
     frozenConfig:json(frozenConfig),configSha256:configPin.sha256,deploymentConfigSha256:deploymentPin.sha256,baselineConfigSha256:baselinePin.sha256,pins,rpcIdentity};
   savePassport('start',start.passport,null,{read:false});
 
-  const nonces=new Map(accounts.map((sender,i)=>[sender,BigInt(13+i*7+(windowIndex-1)*(slice.slots-1)+nonceOffset)])), allocations=new Map(), lastSP=new Map();
+  const nonces=new Map(accounts.map((sender,i)=>[sender,initialNonces.get(sender)??BigInt(13+i*7+(windowIndex-1)*(slice.slots-1)+nonceOffset)]));
+  const allocations=new Map(), lastSP=new Map(priorSPTimestamps);
   const spData=legacy[1].readbacks.before.A;
   const spShared=Object.fromEntries(Object.entries(spData).filter(([key])=>!senderFields.includes(key)));
   const spUsers=new Map(accounts.map((sender,i)=>[sender,{...Object.fromEntries(senderFields.map(k=>[k,spData[k]])),
@@ -182,7 +185,7 @@ export async function sentWindowFixture(dir,{
   let brokenBalance=false;
   for(const slot of usedSlots) {
     const sent=slot.block_slot>=firstSent, armOrder=slot.order.map(name=>names[name]), attempts=[];
-    const vpmVerdict=slot.block_slot===slice.lastSlot?finalVpmVerdict:'USEROP_SUCCESS';
+    const vpmVerdict=slot.block_slot>slice.lastSlot-finalVpmSlots?finalVpmVerdict:'USEROP_SUCCESS';
     const startTime=epoch+BigInt(slot.start_seconds-missedSlot.start_seconds), deadline=epoch+BigInt(slot.deadline_seconds-missedSlot.start_seconds);
     for(const [position,name] of slot.order.entries()) {
       const sender=slot.senders[name], arm=names[name], adapter=adapters.get(sender), attemptIndex=rows.length, key=sender+':'+arm;
@@ -212,9 +215,10 @@ export async function sentWindowFixture(dir,{
       if(!sent) Object.assign(a,{sent:false,tx:null,verdict:'NOT_SENT',failingCheck:gate.reason,scheduleDisposition:gate.reason});
       if(sent || submitGate) {
         const paymaster=addresses[arm], {frozen}=adapter, gas={...frozen.gas[arm]}, pmGas=frozen.pmGas[arm];
-        let nonce=nonces.get(sender);
+        const keyedNonce=sender===first.sender && slot.block_slot===firstSent ? firstSenderKeyedNonce : undefined;
+        let nonce=keyedNonce??nonces.get(sender);
         if(nonceGap && sender===accounts[1] && slot.block_slot===firstSent+1) nonce++;
-        if(sent) nonces.set(sender,nonce+1n);
+        if(sent && keyedNonce===undefined) nonces.set(sender,nonce+1n);
         const lengths=adapter.plan.phaseC.pvgLengths[arm], u128=v=>toHex(v,{size:16}).slice(2);
         const paymasterTail=arm==='SP'?operator.slice(2)+'ff'.repeat(32)+token.slice(2)+'00':'00'.repeat(lengths.paymasterAndData-52);
         const {packed,pvg}=await finalizePVG(async preVerificationGas=>({packed:{
@@ -231,7 +235,8 @@ export async function sentWindowFixture(dir,{
       if(sent) {
         const {nonce,packedOp:packed,gas,pmGas,paymaster,expectedUserOpHash:opHash}=a;
         const pvg=a.gasSources.preVerification;
-        const txId=hash(10000+blockStart+attemptIndex), txBlock=block(blockNumber++,time+2n,[txId]);
+        const inclusionTime=time+2n+(arm==='SP' && slot.block_slot===slice.lastSlot ? lastSPInclusionDelay : 0n);
+        const txId=hash(10000+blockStart+attemptIndex), txBlock=block(blockNumber++,inclusionTime,[txId]);
         const template=legacy.find(row=>row.arm===arm), gasUsed=BigInt(template.userOpEvent.actualGasUsed);
         const gasPrice=BigInt(pc.feeRule.baseFee)+gas.maxPriorityFeePerGas, gasCost=gasUsed*gasPrice;
         const verdict=arm==='VPM'?vpmVerdict:'USEROP_SUCCESS';
@@ -268,7 +273,7 @@ export async function sentWindowFixture(dir,{
           }
           const user=spUsers.get(sender);
           user.userXPNTs=String(BigInt(user.userXPNTs)-charge);
-          lastSP.set(sender,time+2n);
+          lastSP.set(sender,inclusionTime);
         } else if(arm==='TPM') {
           for(const log of logs.slice(0,-1)) {
             if(log.address===template.paymaster) log.address=paymaster;
@@ -325,7 +330,7 @@ export async function sentWindowFixture(dir,{
             archiveCalls(i,b.anchor,Object.entries(fields).flatMap(([key,v])=>stateCalls(a,key,v)));
           }
         }
-        lastTx={sender,time:time+2n};pending++;
+        lastTx={sender,time:inclusionTime};pending++;
       }
       a.collectedAtUtc=now();
       a.evidenceEnd=archives.map(arc=>arc.records.length);
@@ -338,7 +343,7 @@ export async function sentWindowFixture(dir,{
     triplets.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:sent&&vpmVerdict==='USEROP_SUCCESS',attempts,tripletIndex:slot.block_slot});
   }
   const endChecks=['endBlock',...accounts.map(sender=>'senderPassport:'+sender),'finalPassport','anchors'].map(check=>({check,status:'PASS'}));
-  let endTime=lastTx.time;
+  let endTime=lastTx.time+endPassportDelay;
   for(const sender of accounts) {
     const b=block(blockNumber++,++endTime);
     savePassport('end-'+sender,passport(sender,b),b);

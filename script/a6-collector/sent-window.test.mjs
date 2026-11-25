@@ -503,6 +503,33 @@ test('cached price must survive through the last gate deadline, including the de
   refuses(await fixture(t,{windowIndex:2,priceStalenessThreshold:deadline-1}),/cached price expires before the last slice gate deadline/);
 });
 
+test('a slice accepts a fresh SP quote even when all end passports are after expiry',async t=>{
+  const f=await fixture(t,{endPassportDelay:1000n});
+  const spRows=f.rows.filter(row=>row.arm==='SP' && row.verdict==='USEROP_SUCCESS');
+  const {invariant,volatile}=spRows[0].passport;
+  const expires=BigInt(volatile.cachedPriceUpdatedAt)+BigInt(invariant.superPaymaster.priceStalenessThreshold);
+  assert.ok(f.rows.every(row=>row.slotChecks.every(({wait})=>BigInt(wait.deadline)<=expires)));
+  assert.ok(spRows.every(row=>BigInt(row.tx.blockTimestamp)<=expires));
+  for(const name of ['end',...f.accounts.map(sender=>'end-'+sender)]) {
+    const p=JSON.parse(readFileSync(join(f.dir,'passports',name+'.json'),'utf8'));
+    assert.ok(BigInt(p.block.timestamp)>expires);
+  }
+  const result=validate(f);
+  assert.equal(result.accepted,true,JSON.stringify(result));
+});
+
+test('a slice refuses a successful SP inclusion after quote expiry with fresh gates',async t=>{
+  const f=await fixture(t,{windowIndex:3,lastSPInclusionDelay:1000n});
+  const row=f.rows.at(-1);
+  assert.equal(row.arm,'SP');
+  assert.equal(row.verdict,'USEROP_SUCCESS');
+  const {invariant,volatile}=row.passport;
+  const expires=BigInt(volatile.cachedPriceUpdatedAt)+BigInt(invariant.superPaymaster.priceStalenessThreshold);
+  assert.ok(BigInt(row.tx.blockTimestamp)>expires);
+  assert.ok(f.rows.every(row=>row.slotChecks.every(({wait})=>BigInt(wait.deadline)<=expires)));
+  refuses(f,new RegExp(`attempt ${row.attemptIndex}: cached price expires before SP inclusion`));
+});
+
 for(const [label,outerGasDelta] of [['below',-1n],['above',1n]]) {
   test(`frozen window rejects an archived outer gas limit ${label} the sender plan`,async t=>{
     refuses(await fixture(t,{outerGasDelta}),/outer transaction gas limit differs from frozen plan/);

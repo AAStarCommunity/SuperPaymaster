@@ -71,6 +71,7 @@ export function aggregateWindows(dirs, {frozenPlan, registered:registration} = {
   const allocations = windows.flatMap(w=>w.allocationKeys);
   if (new Set(allocations).size !== allocations.length) errors.push('repeated sender, arm and allocation index across windows');
   if (errors.length) return invalid();
+  const lastNonceRanges = new Map(Object.entries(first.nonceRanges).map(([key,{last}])=>[key,{last,windowIndex:first.windowIndex}]));
   for (let i=1; i<windows.length; i++) {
     const prior = windows[i-1], next = windows[i];
     if (bracket(prior).last >= bracket(next).first) errors.push(`windows ${i} and ${i+1}: overlapping or reversed passport brackets`);
@@ -80,11 +81,12 @@ export function aggregateWindows(dirs, {frozenPlan, registered:registration} = {
         errors.push(`windows ${i} and ${i+1}: boundary passport drift for ${sender}`);
       }
     }
-    for (const [key,{first}] of Object.entries(next.nonceRanges)) {
-      const previous = prior.nonceRanges[key];
+    for (const [key,{first,last}] of Object.entries(next.nonceRanges)) {
+      const previous = lastNonceRanges.get(key);
       if (previous && BigInt(first) !== BigInt(previous.last)+1n) {
-        errors.push(`windows ${i} and ${i+1}: nonce discontinuity for ${key}`);
+        errors.push(`windows ${previous.windowIndex} and ${next.windowIndex}: nonce discontinuity for ${key}`);
       }
+      lastNonceRanges.set(key,{last,windowIndex:next.windowIndex});
     }
   }
   if (errors.length) return invalid();
