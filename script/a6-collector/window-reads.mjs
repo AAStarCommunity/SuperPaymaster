@@ -5,34 +5,58 @@ import { CANONICAL_EP_V07 } from './gauge-lib.mjs';
 // brackets each fixed-block read with its own header before and after); only independent reads
 // overlap. The returned objects are the same as the former sequential reads in collector.mjs.
 
-/** Maximum fixed-block reads in flight per endpoint (A, B). One read = header, state, header. */
+/** Maximum fixed-block reads in flight per endpoint (A, B). One read = header, state, header.
+ *  The timing probe (window-timing.mjs) measures a slot at these caps on the real pair. */
 export const READ_CAP = { A: 8, B: 8 };
 
-/** Counting semaphore for one endpoint. `maxInFlight` is the high-water mark. */
-export function readPool(cap) {
+// The raw archive files a record under the UTC date its request started and numbers it when it
+// completes (evidence.mjs); the artifact validator requires ids to increase across date files. A
+// request started before 00:00 UTC must therefore complete before any later one starts: around
+// midnight the pool runs one read at a time. 240 s covers a read's three 60 s requests on each side.
+export const MIDNIGHT_GUARD_MS = 240_000;
+const DAY_MS = 86_400_000;
+export const nearUtcMidnight = t => { const m = ((t % DAY_MS) + DAY_MS) % DAY_MS; return m < MIDNIGHT_GUARD_MS || m > DAY_MS - MIDNIGHT_GUARD_MS; };
+
+/** Semaphore for one endpoint. Permits are taken synchronously in `pump`, so a new caller cannot
+ *  take a permit a waiter was promised. `maxInFlight` is the high-water mark. */
+export function readPool(cap, { clock = Date.now } = {}) {
   if (!Number.isSafeInteger(cap) || cap < 1) throw new Error('read cap must be a positive integer');
   let inFlight = 0;
   const waiting = [];
   const pool = { cap, maxInFlight: 0, started: 0,
-    async run(fn) {
-      if (inFlight >= cap) await new Promise(resolve => waiting.push(resolve));
-      inFlight++; pool.started++; pool.maxInFlight = Math.max(pool.maxInFlight, inFlight);
-      try { return await fn(); } finally { inFlight--; waiting.shift()?.(); }
+    run(fn) {
+      return new Promise((resolve, reject) => {
+        waiting.push(() => Promise.resolve().then(fn).then(resolve, reject).finally(() => { inFlight--; pump(); }));
+        pump();
+      });
     } };
+  function pump() {
+    while (waiting.length && inFlight < (nearUtcMidnight(clock()) ? 1 : cap)) {
+      inFlight++; pool.started++; pool.maxInFlight = Math.max(pool.maxInFlight, inFlight);
+      waiting.shift()();
+    }
+  }
   return pool;
 }
 
 /** Run independent reads `{key: () => promise}` under `pool`. After the first failure no further
- *  read starts; reads already in flight settle, then the first failure is thrown. */
+ *  read starts; reads already in flight settle, then the first failure is thrown. A thunk with a
+ *  `request` tag equal to an earlier one in the round runs after the round: viem merges identical
+ *  requests in flight, and the archive must keep every request the sequential reads made. */
 export async function readRound(pool, thunks) {
   let failure = null;
-  const entries = Object.entries(thunks);
-  const settled = await Promise.allSettled(entries.map(([, fn]) => pool.run(() => {
+  const seen = new Set(), now = [], later = {};
+  for (const [key, fn] of Object.entries(thunks)) {
+    if (fn.request !== undefined && seen.has(fn.request)) later[key] = fn;
+    else { if (fn.request !== undefined) seen.add(fn.request); now.push([key, fn]); }
+  }
+  const settled = await Promise.allSettled(now.map(([, fn]) => pool.run(() => {
     if (failure) return Promise.reject(failure.error);
-    return fn().catch(error => { failure ??= { error }; throw error; });
+    return Promise.resolve().then(fn).catch(error => { failure ??= { error }; throw error; });
   })));
   if (failure) throw failure.error;
-  return Object.fromEntries(entries.map(([key], i) => [key, settled[i].value]));
+  const out = Object.fromEntries(now.map(([key], i) => [key, settled[i].value]));
+  return Object.keys(later).length ? { ...out, ...await readRound(pool, later) } : out;
 }
 
 export const EIP1967_IMPL = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
@@ -92,6 +116,8 @@ export const TOKEN_ABI = [
   { type: 'function', name: 'setAutoAllowance', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'cap', type: 'uint256' }], outputs: [] },
   { type: 'function', name: 'setUserTotalCap', stateMutability: 'nonpayable', inputs: [{ name: 'cap', type: 'uint256' }], outputs: [] },
 ];
+/** Tag a read with the request it makes (method, lower-cased target, function, arguments). */
+const tag = (fn, method, address, functionName = '', args = []) => Object.assign(fn, { request: [method, address.toLowerCase(), functionName, ...args.map(String)].join(':').toLowerCase() });
 const codeInfo = (a, c) => ({ address: getAddress(a), codehash: c ? keccak256(c) : null, size: c ? (c.length - 2) / 2 : 0 });
 const implAddress = s => getAddress('0x' + s.slice(26));
 
@@ -102,12 +128,12 @@ const implAddress = s => getAddress('0x' + s.slice(26));
  *  must keep both requests as the sequential reads made them. `e`: addresses and constants of the run. */
 export async function readPassport(p, blockNumber, e, pool) {
   const at = { blockNumber };
-  const code = a => () => p.getCode({ address: a, ...at });
-  const implSlot = a => () => p.getStorageAt({ address: a, slot: EIP1967_IMPL, ...at });
-  const spR = (functionName, args = []) => () => p.readContract({ address: e.SPA, abi: SP_ABI, functionName, args, ...at });
-  const tR = functionName => () => p.readContract({ address: e.spToken, abi: TOKEN_ABI, functionName, ...at });
-  const depInfo = a => () => p.readContract({ address: e.EP, abi: EP_DEPOSIT_ABI, functionName: 'getDepositInfo', args: [a], ...at });
-  const call = (address, abi, functionName) => () => p.readContract({ address, abi, functionName, ...at });
+  const code = a => tag(() => p.getCode({ address: a, ...at }), 'code', a);
+  const implSlot = a => tag(() => p.getStorageAt({ address: a, slot: EIP1967_IMPL, ...at }), 'slot', a);
+  const spR = (functionName, args = []) => tag(() => p.readContract({ address: e.SPA, abi: SP_ABI, functionName, args, ...at }), 'call', e.SPA, functionName, args);
+  const tR = functionName => tag(() => p.readContract({ address: e.spToken, abi: TOKEN_ABI, functionName, ...at }), 'call', e.spToken, functionName);
+  const depInfo = a => tag(() => p.readContract({ address: e.EP, abi: EP_DEPOSIT_ABI, functionName: 'getDepositInfo', args: [a], ...at }), 'call', e.EP, 'getDepositInfo', [a]);
+  const call = (address, abi, functionName) => tag(() => p.readContract({ address, abi, functionName, ...at }), 'call', address, functionName);
   const vpm = e.baselines.verifyingPaymaster, tpm = e.baselines.tokenPaymaster;
   const ACCOUNT_EP_ABI = [{ type: 'function', name: 'entryPoint', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }];
   const r = await readRound(pool, {
@@ -191,7 +217,7 @@ export async function readPassport(p, blockNumber, e, pool) {
 export async function readReadbacks(p, arm, blockNumber, expectedHash, sender, e, pool) {
   const at = { blockNumber };
   const pm = e.pmAddrOf(arm), tpm = e.baselines.tokenPaymaster;
-  const c = (address, abi, functionName, args = []) => () => p.readContract({ address, abi, functionName, args, ...at });
+  const c = (address, abi, functionName, args = []) => tag(() => p.readContract({ address, abi, functionName, args, ...at }), 'call', address, functionName, args);
   const t = (functionName, args = []) => c(e.spToken, TOKEN_ABI, functionName, args);
   const r = await readRound(pool, {
     block: () => p.getBlock({ blockNumber }), epDeposit: c(e.EP, EP_DEPOSIT_ABI, 'balanceOf', [pm]), op: c(e.SPA, SP_ABI, 'operators', [e.operator]),

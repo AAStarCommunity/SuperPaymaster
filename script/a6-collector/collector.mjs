@@ -164,7 +164,7 @@ const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.
 
 function collectorHead() {
   const python = window ? {pythonVersion:window.manifest.pythonVersion} : {};
-  const files = ['collector.mjs', ...(adapter ? ['window-schedule.mjs','schedule.py','chain-params.json','frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
+  const files = ['collector.mjs', 'window-reads.mjs', ...(adapter ? ['window-schedule.mjs','schedule.py','chain-params.json','frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();

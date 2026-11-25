@@ -4,7 +4,7 @@ import { mkdtempSync, realpathSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getAddress, keccak256, createPublicClient, custom, decodeFunctionData, encodeFunctionResult } from 'viem';
 import { CANONICAL_EP_V07 } from './gauge-lib.mjs';
-import { READ_CAP, readPool, readRound, readPassport, readReadbacks, EIP1967_IMPL, EP_DEPOSIT_ABI, SP_ABI, TOKEN_ABI } from './window-reads.mjs';
+import { READ_CAP, readPool, readRound, readPassport, readReadbacks, nearUtcMidnight, MIDNIGHT_GUARD_MS, EIP1967_IMPL, EP_DEPOSIT_ABI, SP_ABI, TOKEN_ABI } from './window-reads.mjs';
 import { archivedRpc } from './formal.mjs';
 import { rawArchive } from './evidence.mjs';
 import { verifyPassport } from './passport-evidence.mjs';
@@ -206,10 +206,11 @@ test('readRound keeps keys and refuses later reads once one has failed', async (
   assert.deepStrictEqual(started, ['a']);
   assert.deepStrictEqual(await readRound(readPool(2), { x: async () => 1, y: async () => 2 }), { x: 1, y: 2 });
 });
-test('concurrent Passport through the archived transport: archive in completion order, every read bracketed, verifyPassport accepts', async () => {
+for (const alias of [false, true]) test(`concurrent Passport through the archived transport${alias ? ' (TPM token aliases the xPNTs token)' : ''}: archive in completion order, every read bracketed, verifyPassport accepts`, async () => {
+  const bl = alias ? { ...baselines, tokenPaymaster: { ...baselines.tokenPaymaster, token: TOKEN } } : baselines;
   const d = realpathSync(mkdtempSync('/tmp/a6-reads-'));
   try {
-    const arc = rawArchive(d, 'A'), abis = [SP_ABI, TOKEN_ABI, EP_DEPOSIT_ABI, baselines.verifyingPaymaster.abi, baselines.tokenPaymaster.abi];
+    const arc = rawArchive(d, 'A'), abis = [SP_ABI, TOKEN_ABI, EP_DEPOSIT_ABI, bl.verifyingPaymaster.abi, bl.tokenPaymaster.abi];
     const gen = o => o.type === 'tuple' ? Object.fromEntries(o.components.map(c => [c.name, gen(c)])) : o.type === 'address' ? A(0x99) : o.type === 'bool' ? false : o.type === 'string' ? 'v1' : 7n;
     const special = { EXTENSION: EXT, ETH_USD_PRICE_FEED: FEED, entryPoint: EP };
     const result = (to, data) => {
@@ -236,7 +237,7 @@ test('concurrent Passport through the archived transport: archive in completion 
       return { ok: true, status: 200, arrayBuffer: async () => bytes };
     };
     const client = createPublicClient({ transport: custom(archivedRpc({ url: 'https://fake.invalid/QzSecretPathQz', endpoint: 'A', append: arc.append, fetchImpl }), { retryCount: 0 }) });
-    const p = await readPassport(client, 102n, env(), readPool(8));
+    const p = await readPassport(client, 102n, env({ baselines: bl }), readPool(alias ? 64 : 8)); // 64: every round-1 read in flight at once
     verifyPassport(p, arc.records);
     const lines = readFileSync(join(d, arc.records[0].path), 'utf8').trim().split('\n').map(JSON.parse);
     assert.deepStrictEqual(lines.reduce((m, r) => (m[r.method] = (m[r.method] ?? 0) + 1, m), {}),
@@ -250,4 +251,45 @@ test('concurrent Passport through the archived transport: archive in completion 
       assert.equal(BigInt(r.anchor.number), BigInt(r.blockAnchor.number)); assert.equal(r.anchor.hash, r.blockAnchor.hash);
     }
   } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+test('a permit is handed to the waiter: submissions from completions never exceed the cap', async () => {
+  for (const cap of [1, 2, 5]) {
+    const pool = readPool(cap); let inFlight = 0, max = 0, spawned = 0;
+    const task = () => pool.run(async () => {
+      inFlight++; max = Math.max(max, inFlight);
+      await new Promise(r => setTimeout(r, spawned % 3));
+      inFlight--;
+      if (spawned < 60) { spawned++; task(); task(); }
+    });
+    await Promise.all([task(), task()]);
+    while (pool.started < 122) await new Promise(r => setTimeout(r, 5));
+    await new Promise(r => setTimeout(r, 20));
+    assert.ok(max <= cap && pool.maxInFlight <= cap, `cap ${cap}: ${max}/${pool.maxInFlight}`);
+  }
+});
+test('a synchronous throw in a read fails the round and stops later reads', async () => {
+  const started = [];
+  await assert.rejects(readRound(readPool(1), { a: () => { started.push('a'); throw new Error('sync'); }, b: async () => { started.push('b'); return 1; } }), /sync/);
+  assert.deepStrictEqual(started, ['a']);
+});
+test('identical requests in one round run after it, not alongside it', async () => {
+  const order = [], fn = (k, req) => Object.assign(async () => { order.push('start ' + k); await new Promise(r => setTimeout(r, 3)); order.push('end ' + k); return k; }, { request: req });
+  const r = await readRound(readPool(8), { x: fn('x', 'code:0xa'), y: fn('y', 'code:0xa'), z: fn('z', 'code:0xb') });
+  assert.deepStrictEqual(r, { x: 'x', y: 'y', z: 'z' });
+  assert.ok(order.indexOf('start y') > Math.max(order.indexOf('end x'), order.indexOf('end z')));
+});
+test('around 00:00 UTC the pool runs one read at a time', async () => {
+  const midnight = Date.UTC(2026, 10, 26);
+  for (const [t, near] of [[midnight - MIDNIGHT_GUARD_MS - 1, false], [midnight - MIDNIGHT_GUARD_MS + 1, true], [midnight, true], [midnight + MIDNIGHT_GUARD_MS - 1, true], [midnight + MIDNIGHT_GUARD_MS, false], [midnight + 43_200_000, false]])
+    assert.equal(nearUtcMidnight(t), near, String(t - midnight));
+  assert.ok(MIDNIGHT_GUARD_MS >= 3 * 60_000);
+  for (const [t, expected] of [[midnight - 1000, 1], [midnight + 43_200_000, 8]]) {
+    const c = fakeClient({ seed: 5 });
+    await readPassport(c, 42n, env(), readPool(8, { clock: () => t }));
+    assert.equal(c.maxInFlight, expected);
+  }
+});
+test('the run manifest hashes the module that performs the reads', () => {
+  assert.match(readFileSync(new URL('./collector.mjs', import.meta.url), 'utf8'), /const files = \['collector\.mjs', 'window-reads\.mjs',/);
 });
