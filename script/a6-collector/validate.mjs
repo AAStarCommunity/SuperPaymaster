@@ -4,7 +4,7 @@ import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { validateWindow } from './evidence-validate.mjs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { REGISTERED_WINDOW, windowProtocolMatches } from './window-schedule.mjs';
+import { REGISTERED_WINDOW, slotDecision, windowProtocolMatches } from './window-schedule.mjs';
 import { dispositionErrors, feePauseErrors } from './disposition.mjs';
 import { formalConfig, armOrder, inclusionErrors } from './formal.mjs';
 import { createFrozenPlan } from './frozen-plan.mjs';
@@ -490,18 +490,20 @@ function slotGatesMatch(window, row, denied) {
   // A stopped attempt may end before, between or after its gates; any gate it did reach must match.
   if (!Array.isArray(checks) || checks.length > 2 || (!row.stoppedBy && !checks.length) || (checks.length === 2 && checks[0]?.allowed !== true)) return false;
   const slot = window.slots[row.block_slot];
-  const start = String(window.startTimestamp + BigInt(slot.start_seconds));
+  const start = window.startTimestamp + BigInt(slot.start_seconds);
   const deadline = window.startTimestamp + BigInt(slot.deadline_seconds);
-  if (!checks.every(gate => gate?.wait?.start === start && gate.wait.deadline === String(deadline))) return false;
+  if (!checks.every(gate => {
+    if (gate?.wait?.start !== String(start) || gate.wait.deadline !== String(deadline)) return false;
+    const timestamp = big(gate.wait.timestamp), validAfter = big(gate.wait.validAfter);
+    const decision = slotDecision(row.arm,{timestamp,start,deadline,validAfter});
+    return decision !== null && gate.allowed === decision.allowed && gate.reason === decision.reason;
+  })) return false;
   const gate = checks.at(-1);
   if (row.stoppedBy && !denied) return true;
   // A sent row passed both gates. A row withheld after packing but before submission (deposit floor,
   // preflight, fee pause) passed the pre-send gate and, if it got that far, the submit gate.
   if (!denied) return checks.every(g => g.allowed === true) && (row.sent ? checks.length === 2 : true);
-  if (gate.allowed !== false || gate.reason !== row.failingCheck) return false;
-  const exceedsDeadline = value => typeof value === 'string' && /^\d+$/.test(value) && BigInt(value) > deadline;
-  return gate.reason === 'slot_deadline_exceeded' ? exceedsDeadline(gate.wait.timestamp)
-    : row.arm === 'SP' && exceedsDeadline(gate.wait.validAfter);
+  return gate.allowed === false && gate.reason === row.failingCheck;
 }
 
 function frozenAttempt(window, row, i, position, errors) {
@@ -778,10 +780,15 @@ function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
     if (GAS_FIELDS.some(f => big(need(row.gas, f)) !== big(row.derivedGas[f]))) errors.push(`attempt ${i}: packed gas mismatch`);
     if (noFixture(fixture) && (lc(row.derivedCallDataHash) !== lc(inv.callDataHash) || GAS_FIELDS.some(f => (!window || f !== 'preVerificationGas') && big(row.derivedGas[f]) !== big((isFormal ? inv.gas[row.arm] : inv.gas)[f])))) errors.push(`attempt ${i}: operation callData/gas passport mismatch`);
     if (window) {
-      checkPVGLengths(row.packedOp,phaseC.pvgLengths[row.arm]);
-      const pvg = big(row.derivedGas.preVerificationGas);
-      const surplus = pvg - measurePVG({...row.packedOp,nonce:big(row.nonce),preVerificationGas:pvg},inv.beneficiary).value;
-      if (pvg > big(phaseC.pvgReserve[row.arm]) || surplus < 0n || surplus > PVG_MAX_SURPLUS || surplus !== big(row.pvgSurplus)) errors.push(`attempt ${i}: frozen preVerificationGas mismatch`);
+      try {
+        checkPVGLengths(row.packedOp,phaseC.pvgLengths[row.arm]);
+        const pvg = big(row.derivedGas.preVerificationGas);
+        const surplus = pvg - measurePVG({...row.packedOp,nonce:big(row.nonce),preVerificationGas:pvg},inv.beneficiary).value;
+        if (pvg > big(phaseC.pvgReserve[row.arm]) || surplus < 0n || surplus > PVG_MAX_SURPLUS || surplus !== big(row.pvgSurplus)) errors.push(`attempt ${i}: frozen preVerificationGas mismatch`);
+      } catch (e) {
+        if (e.message !== 'PVG_LENGTHS') throw e;
+        errors.push(`attempt ${i}: ${e.message}`);
+      }
     }
     const bundledHashes = row.bundledOps.map((op) => hashOp(op, row.entryPoint, chainId));
     if (!deepEq(bundledHashes, row.bundledUserOpHashes)) errors.push(`attempt ${i}: bundled hashes do not recompute`);

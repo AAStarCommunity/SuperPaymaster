@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stringify } from './evidence.mjs';
+import { localUserOpHash } from './gauge-lib.mjs';
 import { sentWindowFixture } from './sent-window-fixture.mjs';
 import { validateRun } from './validate.mjs';
 import { windowErrors } from './evidence-validate.mjs';
@@ -110,6 +111,45 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
       for(const i of changed) assert.ok(result.errors.includes(`attempt ${i}: invalid slot gates`),result.errors.join('\n'));
     });
   });
+  for(const [name,timestamp] of [
+    ['rejects allowed sent gates after the slot deadline',wait=>BigInt(wait.deadline)+1000n],
+    ['rejects allowed sent gates before the slot start',wait=>BigInt(wait.start)-1000n],
+  ]) await t.test(name,()=>{
+    const sent=f.rows.filter(row=>row.sent);
+    withRows(f,(rows,index)=>{
+      for(const {attemptIndex:i} of sent) {
+        const row=rows[i];
+        for(const gate of row.slotChecks) gate.wait.timestamp=String(timestamp(gate.wait));
+        index[i].slotChecks=row.slotChecks;
+        if(row.arm==='SP') {
+          row.spWait.timestamp=row.slotChecks.at(-1).wait.timestamp;
+          index[i].spWait=row.spWait;
+        }
+      }
+    },()=>{
+      const r=validate(f);
+      assert.equal(r.status,1,JSON.stringify(r));
+      for(const {attemptIndex:i} of sent) assert.ok(r.errors.includes(`attempt ${i}: invalid slot gates`),r.errors.join('\n'));
+    });
+  });
+  await t.test('rejects an allowed SP gate before its recorded validAfter',()=>{
+    const i=f.rows.find(r=>r.sent && r.arm==='SP').attemptIndex;
+    withRows(f,(rows,index)=>{
+      const gate=rows[i].slotChecks[0];
+      gate.wait.lastTimestamp=String(BigInt(gate.wait.timestamp)+1n-BigInt(gate.wait.minTxInterval));
+      gate.wait.validAfter=String(BigInt(gate.wait.timestamp)+1n);
+      index[i].slotChecks=rows[i].slotChecks;
+    },()=>refuses(f,new RegExp(`attempt ${i}: invalid slot gates`)));
+  });
+  await t.test('rejects a second gate after a valid first-gate denial',()=>{
+    const i=f.rows.find(r=>!r.sent && r.slotChecks.length===2).attemptIndex;
+    withRows(f,(rows,index)=>{
+      const row=rows[i], [first,second]=row.slotChecks;
+      Object.assign(first,{allowed:false,reason:second.reason});
+      first.wait.timestamp=second.wait.timestamp;
+      index[i].slotChecks=row.slotChecks;
+    },()=>refuses(f,new RegExp(`attempt ${i}: invalid schedule disposition`)));
+  });
   await t.test('rejects unsupported slot denial evidence',()=>{
     const changed=[];
     withRows(f,(rows,index)=>{
@@ -138,6 +178,17 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
       for(const i of changed) assert.ok(result.errors.includes(`attempt ${i}: invalid schedule disposition`),result.errors.join('\n'));
     });
   });
+  await t.test('rejects an SP denial that ignores the expired slot deadline',()=>{
+    const i=f.rows.find(r=>!r.sent && r.arm==='SP').attemptIndex;
+    withRows(f,(rows,index)=>{
+      const row=rows[i], gate=row.slotChecks.at(-1), reason='sp_valid_after_exceeds_slot_deadline';
+      row.failingCheck=row.scheduleDisposition=gate.reason=reason;
+      gate.wait.lastTimestamp=gate.wait.deadline;
+      gate.wait.validAfter=String(BigInt(gate.wait.lastTimestamp)+BigInt(gate.wait.minTxInterval));
+      row.spWait={...gate.wait,seconds:row.spWait.seconds,blocks:row.spWait.blocks};
+      Object.assign(index[i],{failureReason:reason,notSentReason:reason,scheduleDisposition:reason,slotChecks:row.slotChecks,spWait:row.spWait});
+    },()=>refuses(f,new RegExp(`attempt ${i}: invalid schedule disposition`)));
+  });
   await t.test('rejects changed PVG columns with the original packed op and archives',()=>{
     const mutations={pvgSurplusReason:'cycle-max',pvgConsistency:'1',outerGasUsed:'1',outerEffectiveGasPrice:'1',
       l1DataFee:'0x1',calldataFloorGas:'1',calldataFloorBinding:null,bundlerNetGas:'1',opGasPrice:'1'};
@@ -154,6 +205,9 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
     withArtifact(f,'passports/end-'+f.accounts[2]+'.json',p=>p.invariant.xPNTs.maxSingleTxLimit='1',()=>{
       refuses(f,/end passport invariant drifted/);
     });
+  });
+  await t.test('rejects a different chainId in a sender end passport',()=>{
+    withArtifact(f,endPath,p=>{p.chainId=11155111;},()=>refuses(f,/end passport metadata or block mismatch/));
   });
   await t.test('rejects missing sender end passport',()=>{
     withArtifact(f,endPath,null,()=>refuses(f,/missing or invalid end passport/));
@@ -223,6 +277,28 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
       row.slotChecks.shift();
       index[row.attemptIndex].slotChecks=row.slotChecks;
     },()=>refuses(f,/early gate contains packing evidence/));
+  });
+  const packedNotSent=f.rows.find(r=>!r.sent && r.packedOp).attemptIndex;
+  await t.test('reports a packed PVG length mismatch as an attempt error',()=>{
+    withRows(f,(rows,index)=>{
+      const row=rows[packedNotSent];
+      row.packedOp.signature+='00';
+      row.bundledOps[0].signature=row.packedOp.signature;
+      Object.assign(index[packedNotSent],{packedOp:row.packedOp,bundle:row.bundledOps});
+    },()=>refuses(f,new RegExp(`attempt ${packedNotSent}: PVG_LENGTHS`)));
+  });
+  await t.test('rejects tampered frozen preVerificationGas and pvgSurplus',()=>{
+    withRows(f,(rows,index)=>{
+      const row=rows[packedNotSent], pvg=BigInt(row.packedOp.preVerificationGas)+1000n;
+      row.packedOp.preVerificationGas=row.bundledOps[0].preVerificationGas=row.gas.preVerificationGas=String(pvg);
+      row.pvgSurplus=String(BigInt(row.pvgSurplus)+1000n);
+      const hash=localUserOpHash({...row.packedOp,nonce:BigInt(row.nonce),preVerificationGas:pvg},row.entryPoint,row.chainId);
+      row.expectedUserOpHash=row.epUserOpHash=row.localUserOpHash=hash;
+      row.bundledUserOpHashes=[hash];
+      const ix=index[packedNotSent];
+      Object.assign(ix,{expectedUserOpHash:hash,packedOp:row.packedOp,bundle:row.bundledOps});
+      ix.gas.preVerificationGas=String(pvg);
+    },()=>refuses(f,new RegExp(`attempt ${packedNotSent}: frozen preVerificationGas mismatch`)));
   });
   await t.test('a row withheld after packing keeps only the gates it reached',()=>{
     withRows(f,(rows,index)=>{

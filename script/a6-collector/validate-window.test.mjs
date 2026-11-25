@@ -24,7 +24,7 @@ function fixture(t) {
   const passports=new Map(accounts.map(sender=>{
     const p=structuredClone(legacyStart.passport), {frozen}=adapters.get(sender);
     Object.assign(p,{chainId:10,allowSameEndpointLocal:false});
-    Object.assign(p.invariant,{sender,gas:frozen.gas,pmGas:frozen.pmGas,callDataHash:keccak256(frozen.callData),
+    Object.assign(p.invariant,{sender,gas:structuredClone(frozen.gas),pmGas:structuredClone(frozen.pmGas),callDataHash:keccak256(frozen.callData),
       credit:{policy:0,hasPendingPolicy:false,pendingPolicy:0,pendingPolicyEta:0,policyEpoch:0}});
     p.invariant.code.account.address=sender;
     for(const stake of Object.values(p.invariant.stakes)) Object.assign(stake,{staked:true,stake:'1000000000000000000',unstakeDelaySec:86400});
@@ -46,7 +46,7 @@ function fixture(t) {
       failingCheck:deadline,scheduleDisposition:deadline,slotChecks:[{allowed:false,reason:deadline,wait:{
         start:BigInt(m.startTimestamp)+BigInt(slot.start_seconds),
         deadline:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds),
-        timestamp:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds)+1n
+        timestamp:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds)+1n,validAfter:0n
       }}]};
   }));
   const end={...head,kind:'run_end',passport:last,targetTriplets,matchedTriplets:0,stop:{reason:'INCOMPLETE',code:10},exitCode:10,
@@ -134,7 +134,8 @@ test('a packed NOT_SENT operation uses the passport of its sender',async t=>{
   gas.preVerificationGas=pvg.value;
   Object.assign(row,{chainId:10,entryPoint,paymaster,nonce:packed.nonce,bundler:inv.bundler,callDataHash:inv.callDataHash,gas,pmGas,
     expectedUserOpHash:hash,epUserOpHash:hash,localUserOpHash:hash,bundledUserOpHashes:[hash],packedOp:packed,bundledOps:[packed],guard:{allowed:true}});
-  row.slotChecks.unshift({allowed:true,wait:{...row.slotChecks[0].wait}});
+  const wait=row.slotChecks[0].wait;
+  row.slotChecks.unshift({allowed:true,wait:{...wait,timestamp:wait.start}});
   recordPVG(row,pvg);
   const r=f.run();
   assert.deepEqual(r.errors,[NO_TRAILER],JSON.stringify(r));
@@ -164,6 +165,29 @@ test('window binds the index start passport to its row sender',t=>{
   const f=fixture(t);
   f.index[0].passports.start.path=f.index[1].passports.start.path;
   refused(f.run(),/index start passport mismatch/);
+});
+test('window rejects complete slots traversed out of schedule order',t=>{
+  const f=fixture(t), first=f.rows.slice(0,3), second=f.rows.slice(3,6);
+  f.rows.splice(0,6,...second,...first);
+  f.rows.slice(0,6).forEach((row,i)=>{
+    row.attemptIndex=i;
+    f.index[i].passports.start.path=`passports/start-${row.sender}.json`;
+  });
+  f.end.triplets[0].attempts=[3,4,5];
+  f.end.triplets[1].attempts=[0,1,2];
+  [f.end.triplets[0],f.end.triplets[1]]=[f.end.triplets[1],f.end.triplets[0]];
+  const r=f.run();
+  assert.deepEqual(r.errors,[NO_TRAILER,...Array.from({length:6},(_,i)=>`attempt ${i}: window slots must be traversed in schedule order`)]);
+});
+test('window rejects a different operator in another sender start passport',t=>{
+  const f=fixture(t), sender=accounts[1];
+  f.passports.get(sender).invariant.superPaymaster.operator.address=accounts[2];
+  assert.deepEqual(f.run().errors,[NO_TRAILER,`sender ${sender.toLowerCase()}: different window operator`]);
+});
+test('window refuses a sender absent from the frozen schedule accounts',t=>{
+  const f=fixture(t);
+  f.rows[0].sender=getAddress('0x'+'ab'.repeat(20));
+  refused(f.run(),/attempt 0: sender absent from frozen schedule accounts/);
 });
 test('a truncated window (no run_end, no trailer) reports the interrupted archive and refuses',t=>{
   const r=fixture(t).run({truncated:true});

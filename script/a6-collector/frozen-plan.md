@@ -52,6 +52,10 @@ checks. This proves readiness at the observed pin, not a guarantee about future
 inclusion or concurrent external activity. The sampler's 60-second spacing
 qualification does not replace the chain-read rate limit.
 
+A sent row's inclusion block timestamp is not required to be at or before the slot deadline. The registered gate is on submission: the collector refuses to submit when the pinned block at the submit gate is past the deadline; inclusion follows by block production and can fall after it. The row records the inclusion block and its timestamp, and they are reported as collected.
+
+No real window may be treated as evidence before the slice-evidence PR (schedule regeneration from the registered seed and hash, exact slice traversal, three-window aggregate) lands.
+
 Every attempt row and evidence index records `block_slot`, `pair_id`, `seed`,
 `schedule_sha256`, and `sender`. Attempt rows also retain exact plan-derived gas,
 fees, plan/bundle digests and allocation. The bundle SHA-256 covers exact bytes;
