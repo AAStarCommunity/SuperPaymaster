@@ -4,6 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { encodeAbiParameters, keccak256, toHex } from 'viem';
 import { createFrozenPlan, persistSettlement } from './frozen-plan.mjs';
+import { readPool } from './window-reads.mjs';
+import { readFileSync } from 'node:fs';
 const bytes=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
 const sha=createHash('sha256').update(bytes).digest('hex');
 const account='0x'+(200).toString(16).padStart(40,'0');
@@ -128,4 +130,47 @@ test('construction rejects rehashed bundle with an invalid frozen fee cap',()=>{
  const changed=Buffer.from(String(bytes).replace(/"feeCap":\d+/g,'"feeCap":1'));
  assert.notDeepEqual(changed,bytes);
  assert.throws(()=>createFrozenPlan({readBundle:()=>changed,bundleSha256:createHash('sha256').update(changed).digest('hex'),account}),{message:'PLAN_FEE_CHANGED'});
+});
+
+// beforeSend issues A's and B's reads together; checks keep the sequential order (A then B).
+function timedRuntime(a, { failA = null, failB = null, changeA = {}, changeB = {} } = {}) {
+  const base = runtime(a), stats = { inFlight: 0, max: 0, perClient: new Map() };
+  const wrap = (client, name, fail, change) => {
+    const per = { inFlight: 0, max: 0 }; stats.perClient.set(name, per);
+    const slow = (key, fn) => async args => {
+      stats.inFlight++; per.inFlight++; stats.max = Math.max(stats.max, stats.inFlight); per.max = Math.max(per.max, per.inFlight);
+      try { await new Promise(r => setTimeout(r, 5)); if (fail === key) throw new Error(`transport ${name} ${key}`); return fn(args); }
+      finally { stats.inFlight--; per.inFlight--; }
+    };
+    return { getChainId: slow('chainId', async () => change.chainId ?? client.getChainId()), getBlock: slow('block', a2 => client.getBlock(a2)),
+      readContract: slow('call', a2 => a2.functionName === 'gasParams' && change.gas ? change.gas : client.readContract(a2)) };
+  };
+  return { rt: { refreshPin: base.refreshPin, pubA: wrap(base.pubA, 'A', failA, changeA), pubB: wrap(base.pubB, 'B', failB, changeB) }, stats };
+}
+test('beforeSend reads both endpoints together and keeps each under its pool cap', async () => {
+  const a = adapter(), { rt, stats } = timedRuntime(a);
+  const pools = new Map([[rt.pubA, readPool(2)], [rt.pubB, readPool(2)]]);
+  await a.beforeSend(rt, c => pools.get(c));
+  assert.equal(stats.max, 4);
+  for (const per of stats.perClient.values()) assert.equal(per.max, 2);
+  const free = timedRuntime(a);
+  await a.beforeSend(free.rt);
+  assert.equal(free.stats.max, 10);
+});
+test('beforeSend throws the failure the sequential order meets first', async () => {
+  const a = adapter();
+  // A's chain check fails first even though B's read also failed.
+  await assert.rejects(a.beforeSend(timedRuntime(a, { changeA: { chainId: 1 }, failB: 'call' }).rt), { message: 'PLAN_CHAIN_CHANGED' });
+  // A's read failure comes before B's failing check.
+  await assert.rejects(a.beforeSend(timedRuntime(a, { failA: 'call', changeB: { chainId: 1 } }).rt), /transport A call/);
+  // A passes; B's own failures come in check order (chain before gas).
+  await assert.rejects(a.beforeSend(timedRuntime(a, { changeB: { chainId: 1, gas: [1n] } }).rt), { message: 'PLAN_CHAIN_CHANGED' });
+  await assert.rejects(a.beforeSend(timedRuntime(a, { changeB: { gas: [1n] } }).rt), { message: 'PLAN_GAS_CHANGED' });
+});
+test('the collector polls for the A receipt every second and passes its pools to beforeSend', () => {
+  const src = readFileSync(new URL('./collector.mjs', import.meta.url), 'utf8');
+  assert.match(src, /pubA\.waitForTransactionReceipt\(\{ hash: txHash, pollingInterval: 1_000 \}\)/);
+  assert.match(src, /const rcB = await pubB\.getTransactionReceipt\(\{ hash: txHash \}\);/);
+  assert.equal(src.match(/adapter\.beforeSend\(runtime, poolOf\)/g).length, 3);
+  assert.match(src, /\}\},frozenArm,args,poolOf\);/);
 });

@@ -153,7 +153,7 @@ if (adapter) {
         const result = await slotGate(frozenArm,activeRow);
         if (!result.allowed) throw Object.assign(Error('SLOT_DEADLINE'),{slotResult:result});
       }});
-    }},frozenArm,args);
+    }},frozenArm,args,poolOf);
   };
 }
 const ctx = formal ? { account: { address: getAddress(formalInput.operator) }, pub: runtime.pubA } : clients(rpcA, ANVIL_KEYS[0]);
@@ -523,7 +523,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     return finish({ sent: false, tx: null, logs: [], verdict: VERDICTS.NOT_SENT, failingCheck: 'deposit_floor', exclusion: 'NOT_SENT:DEPOSIT_FLOOR' });
   }
   if (formal) {
-    if (adapter) await adapter.beforeSend(runtime);
+    if (adapter) await adapter.beforeSend(runtime, poolOf);
     const pause = feePause(await runtime.refreshPin(), GAS.maxFeePerGas);
     if (pause) return finish(pause);
   }
@@ -535,7 +535,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
 
   const headBefore = await pubA.getBlockNumber({ cacheTime: 0 });
   if (formal) {
-    if (adapter) await adapter.beforeSend(runtime);
+    if (adapter) await adapter.beforeSend(runtime, poolOf);
     const pause = feePause(await runtime.refreshPin(), GAS.maxFeePerGas);
     if (pause) return finish(pause);
   }
@@ -549,7 +549,8 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
     throw e;
   }
   if (formal) { row.sent = true; row.tx = { hash: txHash }; }
-  const rcA = await pubA.waitForTransactionReceipt({ hash: txHash });
+  // 1 s polling: with no chain set viem polls every 4 s, about two OP blocks per poll.
+  const rcA = await pubA.waitForTransactionReceipt({ hash: txHash, pollingInterval: 1_000 });
   const rcB = await pubB.getTransactionReceipt({ hash: txHash });
   const rcView = (rc) => ({ status: rc.status, blockNumber: rc.blockNumber, blockHash: rc.blockHash, gasUsed: rc.gasUsed,
     effectiveGasPrice: rc.effectiveGasPrice, l1Fee: rc.l1Fee??null, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex, ...(formal ? {transactionHash:l.transactionHash} : {}) })) });
@@ -688,7 +689,7 @@ try {
       owners.set(config.sender,owner);
       selectSender(config.sender);
       await setup();
-      await adapter.beforeSend(runtime);
+      await adapter.beforeSend(runtime, poolOf);
       const start = await passportAB('start');
       senderPassports.set(sender,start);
       senderPassportRefs.set(sender,savePassport('start-'+sender,start));

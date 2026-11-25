@@ -33,6 +33,7 @@ async function windowOwners(cliSource, ownSources = [undefined, undefined, undef
     selectSender: sender => { context.sender = sender; },
     setup: async () => context.owners.get(context.sender).sign(),
     passportAB: async () => ({}), savePassport: () => 'offline',
+    poolOf: () => null,
     writeArtifact() {}, windowPath: '/offline', runId: 'offline',
   };
   context.adapter.beforeSend = async () => {};
