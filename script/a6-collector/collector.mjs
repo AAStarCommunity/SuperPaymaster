@@ -8,6 +8,7 @@ import { revalidateAnchors, requireDecodedPreflight, waitAfterInclusion } from '
 import { loadPins, loadRegistry, sha256, evidenceIndex, writeArtifact, appendIndex, writeTrailer, armCounts, exclusionReason } from './evidence.mjs';
 import { decomposeGas } from './gas-decomposition.mjs';
 import { noFixture, operatorBalanceContinuity } from './gauge-lib.mjs';
+import { READ_CAP, readPool, readPassport, readReadbacks, EP_DEPOSIT_ABI, SP_ABI, TOKEN_ABI } from './window-reads.mjs';
 // A6 per-UserOperation gauge (CC-125 a71741ed; RDR-6 ①; plan §8.4 SP-owned implementation half).
 //
 // Drives matched triplets of real UserOperations — one through each arm, SP (SuperPaymaster),
@@ -163,7 +164,7 @@ const runId = argVal('--run-id') ?? `run-${new Date().toISOString().replace(/[:.
 
 function collectorHead() {
   const python = window ? {pythonVersion:window.manifest.pythonVersion} : {};
-  const files = ['collector.mjs', ...(adapter ? ['window-schedule.mjs','schedule.py','chain-params.json','frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
+  const files = ['collector.mjs', 'window-reads.mjs', ...(adapter ? ['window-schedule.mjs','schedule.py','chain-params.json','frozen-plan.mjs','pvg.mjs','../rq3op/pvg-rule.json','../rq3op/branch.mjs'] : []), 'formal.mjs', 'gas-decomposition.mjs', 'gauge-lib.mjs', 'deposit-guard.mjs', 'validate.mjs', 'rpc-proxy.mjs', ...(formal ? [] : ['../b-layer/lib.mjs'])];
   const codeSha256 = Object.fromEntries(files.map((f) => [f, createHash('sha256').update(readFileSync(resolve(ROOT, 'script/a6-collector', f))).digest('hex')]));
   try {
     const head = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim();
@@ -224,61 +225,6 @@ async function rawCall(method, params) {
 }
 
 // ── ABIs ──────────────────────────────────────────────────────────────────────────────────
-const EP_DEPOSIT_ABI = [{ type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'getDepositInfo', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ type: 'tuple', components: [{ name: 'deposit', type: 'uint256' }, { name: 'staked', type: 'bool' },
-      { name: 'stake', type: 'uint112' }, { name: 'unstakeDelaySec', type: 'uint32' }, { name: 'withdrawTime', type: 'uint48' }] }] }];
-const SP_ABI = [
-  { type: 'function', name: 'gasParams', stateMutability: 'view', inputs: [], outputs: [
-    { name: 'current', type: 'tuple', components: ['minPostOpGas', 'settleGasBound', 'cWrap', 'cPostop'].map(name => ({ name, type: 'uint32' })) },
-    { name: 'pending', type: 'tuple', components: [...['minPostOpGas', 'settleGasBound', 'cWrap', 'cPostop'].map(name => ({ name, type: 'uint32' })), { name: 'eta', type: 'uint64' }] },
-  ] },
-  { type: 'function', name: 'updateSBTStatus', stateMutability: 'nonpayable', inputs: [{ name: 'user', type: 'address' }, { name: 'status', type: 'bool' }], outputs: [] },
-  { type: 'function', name: 'operators', stateMutability: 'view', inputs: [{ name: '', type: 'address' }],
-    outputs: [{ name: 'aPNTsBalance', type: 'uint128' }, { name: 'isConfigured', type: 'bool' }, { name: 'isPaused', type: 'bool' },
-      { name: 'xPNTsToken', type: 'address' }, { name: 'reputation', type: 'uint32' }, { name: 'minTxInterval', type: 'uint48' },
-      { name: 'treasury', type: 'address' }, { name: 'totalSpent', type: 'uint256' }, { name: 'totalTxSponsored', type: 'uint256' }] },
-  { type: 'function', name: 'deposit', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] },
-  { type: 'function', name: 'updatePrice', stateMutability: 'nonpayable', inputs: [], outputs: [] },
-  { type: 'function', name: 'protocolRevenue', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'inflightOf', stateMutability: 'view', inputs: [{ name: 'opHash', type: 'bytes32' }], outputs: [{ name: 'operator', type: 'address' }, { name: 'a0', type: 'uint256' }] },
-  { type: 'function', name: 'version', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
-  { type: 'function', name: 'entryPoint', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'REGISTRY', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'APNTS_TOKEN', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'protocolFeeBPS', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'aPNTsPriceUSD', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'priceStalenessThreshold', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'paused', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'cachedPrice', stateMutability: 'view', inputs: [], outputs: [{ name: 'price', type: 'int256' }, { name: 'updatedAt', type: 'uint256' }, { name: 'roundId', type: 'uint80' }, { name: 'decimals', type: 'uint8' }] },
-  { type: 'function', name: 'ETH_USD_PRICE_FEED', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'isEligibleForSponsorship', stateMutability: 'view', inputs: [{ name: 'u', type: 'address' }], outputs: [{ type: 'bool' }] },
-];
-const TOKEN_ABI = [
-  { type: 'function', name: 'mint', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
-  { type: 'function', name: 'approve', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'transfer', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'totalSupply', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'lockedOf', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'debts', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'creditReservedOf', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'lockOf', stateMutability: 'view', inputs: [{ name: 'h', type: 'bytes32' }, { name: 'u', type: 'address' }],
-    outputs: [{ type: 'tuple', components: [{ name: 'xLocked', type: 'uint128' }, { name: 'aReserved', type: 'uint128' }, { name: 'locker', type: 'address' }] }] },
-  { type: 'function', name: 'version', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
-  { type: 'function', name: 'exchangeRate', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'SUPERPAYMASTER_ADDRESS', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'maxSingleTxLimit', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'emergencyDisabled', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'EXTENSION', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'creditPolicy', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
-  { type: 'function', name: 'hasPendingPolicy', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'pendingPolicy', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
-  { type: 'function', name: 'pendingPolicyEta', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint64' }] },
-  { type: 'function', name: 'policyEpoch', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint32' }] },
-  { type: 'function', name: 'setAutoAllowance', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'cap', type: 'uint256' }], outputs: [] },
-  { type: 'function', name: 'setUserTotalCap', stateMutability: 'nonpayable', inputs: [{ name: 'cap', type: 'uint256' }], outputs: [] },
-];
 const ACCOUNT_ABI = [{ type: 'function', name: 'execute', stateMutability: 'nonpayable',
   inputs: [{ name: 'dest', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'func', type: 'bytes' }], outputs: [] }];
 const FACTORY_ABI = [
@@ -393,111 +339,19 @@ async function simulateRevert(ops) {
 
 // ── read-backs (pinned to one block, on A and B) ──────────────────────────────────────────
 async function readbacks(arm, blockNumber, expectedHash, sender) {
-  const pm = pmAddrOf(arm);
-  const r = await readAB(`readbacks@${blockNumber}`, async (p) => {
-    const at = { blockNumber };
-    const block = await p.getBlock({ blockNumber });
-    const out = { blockNumber, blockHash: block.hash,
-      epDeposit: await p.readContract({ address: EP, abi: EP_DEPOSIT_ABI, functionName: 'balanceOf', args: [pm], ...at }) };
-    const op = await p.readContract({ address: SPA, abi: SP_ABI, functionName: 'operators', args: [ctx.account.address], ...at });
-    out.operatorBalance = op[0]; // Passport anchor at this exact block, including baseline arms.
-    if (arm === 'SP') {
-      const inf = await p.readContract({ address: SPA, abi: SP_ABI, functionName: 'inflightOf', args: [expectedHash], ...at });
-      const t = (functionName, args = []) => p.readContract({ address: spToken, abi: TOKEN_ABI, functionName, args, ...at });
-      Object.assign(out, {
-        operatorBalance: op[0], totalSpent: op[7], totalTxSponsored: op[8],
-        protocolRevenue: await p.readContract({ address: SPA, abi: SP_ABI, functionName: 'protocolRevenue', ...at }),
-        inflightOperator: inf[0], inflightA0: inf[1],
-        userXPNTs: await t('balanceOf', [sender]), totalSupply: await t('totalSupply'),
-        lockedOf: await t('lockedOf', [sender]), debts: await t('debts', [sender]),
-        creditReservedOf: await t('creditReservedOf', [sender]),
-        lockXLocked: (await t('lockOf', [expectedHash, sender])).xLocked,
-      });
-    }
-    if (formal && arm === 'TPM') {
-      const tpm = baselines.tokenPaymaster;
-      out.tpmTokenBalances = {
-        sender:await p.readContract({address:tpm.token, abi:TOKEN_ABI, functionName:'balanceOf', args:[sender], ...at}),
-        paymaster:await p.readContract({address:tpm.token, abi:TOKEN_ABI, functionName:'balanceOf', args:[tpm.address], ...at}),
-      };
-      out.tpmCachedPriceTimestamp = await p.readContract({address:tpm.address, abi:[{type:'function',name:'cachedPriceTimestamp',stateMutability:'view',inputs:[],outputs:[{type:'uint48'}]}],functionName:'cachedPriceTimestamp',...at});
-    }
-    return out;
-  });
+  const r = await readAB(`readbacks@${blockNumber}`, (p) => readReadbacks(p, arm, blockNumber, expectedHash, sender, readEnv(), poolOf(p)));
   return { A: r.A, B: r.B };
 }
 
 // ── Passport ──────────────────────────────────────────────────────────────────────────────
-const EIP1967_IMPL = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
-async function passport(p, blockNumber) {
-  const at = { blockNumber };
-  const codehash = async (a) => { const c = await p.getCode({ address: a, ...at }); return { address: getAddress(a), codehash: c ? keccak256(c) : null, size: c ? (c.length - 2) / 2 : 0 }; };
-  const implOf = async (a) => { const s = await p.getStorageAt({ address: a, slot: EIP1967_IMPL, ...at }); return getAddress('0x' + s.slice(26)); };
-  const tokenCode = await p.getCode({ address: spToken, ...at });
-  const tokenImpl = /^0x363d3d373d3d3d363d73[0-9a-f]{40}5af43d82803e903d91602b57fd5bf3$/i.test(tokenCode) ? getAddress('0x' + tokenCode.slice(22, 62)) : null;
-  const block = await p.getBlock({ blockNumber });
-  const spR = (functionName, args = []) => p.readContract({ address: SPA, abi: SP_ABI, functionName, args, ...at });
-  const tR = (functionName, args = []) => p.readContract({ address: spToken, abi: TOKEN_ABI, functionName, args, ...at });
-  const op = await spR('operators', [ctx.account.address]);
-  const price = await spR('cachedPrice');
-  const depInfo = async (a) => p.readContract({ address: EP, abi: EP_DEPOSIT_ABI, functionName: 'getDepositInfo', args: [a], ...at });
-  const depositInfo = { SP: await depInfo(SPA), VPM: await depInfo(baselines.verifyingPaymaster.address), TPM: await depInfo(baselines.tokenPaymaster.address) };
-  const stakeOf = (arm) => { const d = depositInfo[arm]; return { staked: d.staked, stake: d.stake, unstakeDelaySec: d.unstakeDelaySec, withdrawTime: d.withdrawTime }; };
-  return {
-    allowSameEndpointLocal,
-    chainId: await p.getChainId(),
-    block: { number: blockNumber, hash: block.hash, timestamp: block.timestamp },
-    // Everything under `invariant` must be identical at the start and the end of the run.
-    invariant: {
-      entryPoint: { address: EP, isCanonicalV07Address: EP.toLowerCase() === CANONICAL_EP_V07.toLowerCase() },
-      code: {
-        entryPoint: await codehash(EP),
-        superPaymasterProxy: await codehash(SPA), superPaymasterImpl: await codehash(await implOf(SPA)),
-        xPNTsClone: await codehash(spToken), xPNTsImpl: tokenImpl ? await codehash(tokenImpl) : null,
-        // Hash what the token and SP actually bind to, not what the deployment config says.
-        xPNTsExt: await codehash(await tR('EXTENSION')),
-        account: await codehash(sender), accountImpl: await codehash(await implOf(sender)),
-        verifyingPaymaster: await codehash(baselines.verifyingPaymaster.address),
-        tokenPaymaster: await codehash(baselines.tokenPaymaster.address),
-        tokenPaymasterToken: await codehash(baselines.tokenPaymaster.token),
-        ...(formal ? {tokenPaymasterOracle:await codehash(baselines.tokenPaymaster.oracle)} : {}),
-        priceFeed: await codehash(await spR('ETH_USD_PRICE_FEED')),
-      },
-      superPaymaster: {
-        version: await spR('version'), entryPoint: await spR('entryPoint'), registry: await spR('REGISTRY'),
-        aPNTs: await spR('APNTS_TOKEN'), protocolFeeBPS: await spR('protocolFeeBPS'), aPNTsPriceUSD: await spR('aPNTsPriceUSD'),
-        priceStalenessThreshold: await spR('priceStalenessThreshold'), paused: await spR('paused'),
-        cachedPrice: { price: price[0], decimals: price[3] },
-        operator: { address: ctx.account.address, isConfigured: op[1], isPaused: op[2], xPNTsToken: op[3], minTxInterval: op[5] },
-        senderEligible: await spR('isEligibleForSponsorship', [sender]),
-        minPostOpGas: (await spR('gasParams'))[0].minPostOpGas,
-      },
-      xPNTs: { address: spToken, version: await tR('version'), exchangeRate: await tR('exchangeRate'),
-        superPaymaster: await tR('SUPERPAYMASTER_ADDRESS'), maxSingleTxLimit: await tR('maxSingleTxLimit'), emergencyDisabled: await tR('emergencyDisabled') },
-      // Credit OFF for the operator's token (A4 Passport C2/C3). Any change between run_start and
-      // run_end is drift; the validator also requires policy OFF and nothing queued.
-      credit: { policy: await tR('creditPolicy'), hasPendingPolicy: await tR('hasPendingPolicy'),
-        pendingPolicy: await tR('pendingPolicy'), pendingPolicyEta: await tR('pendingPolicyEta'), policyEpoch: await tR('policyEpoch') },
-      stakes: { SP: stakeOf('SP'), VPM: stakeOf('VPM'), TPM: stakeOf('TPM') },
-      verifyingSigner: await p.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'verifyingSigner', ...at }),
-      // Identical-EntryPoint condition across arms: every paymaster must be bound to EP.
-      armEntryPoints: {
-        SP: await spR('entryPoint'),
-        VPM: await p.readContract({ address: baselines.verifyingPaymaster.address, abi: baselines.verifyingPaymaster.abi, functionName: 'entryPoint', ...at }),
-        TPM: await p.readContract({ address: baselines.tokenPaymaster.address, abi: baselines.tokenPaymaster.abi, functionName: 'entryPoint', ...at }),
-        account: await p.readContract({ address: sender, abi: [{ type: 'function', name: 'entryPoint', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }], functionName: 'entryPoint', ...at }),
-      },
-      sender, bundler: bundler.account.address, beneficiary: bundler.account.address,
-      gas: formal ? frozen.gas : LOCAL_GAS, pmGas: PM_GAS, callDataHash: keccak256(defaultCallData()),
-    },
-    // Recorded, not drift-checked (moves with every op / with time).
-    volatile: { cachedPriceUpdatedAt: price[1], operatorBalance: op[0],
-      depositInfo: Object.fromEntries(Object.entries(depositInfo).map(([arm, d]) => [arm, {
-        deposit: String(d.deposit), staked: d.staked, stake: String(d.stake),
-        unstakeDelaySec: String(d.unstakeDelaySec), withdrawTime: String(d.withdrawTime),
-      }])) },
-  };
+// Pools are per endpoint and shared by every fixed-block read round on that endpoint.
+const readPools = new Map([[pubA, readPool(READ_CAP.A)], [pubB, readPool(READ_CAP.B)]]);
+function poolOf(p) { const pool = readPools.get(p); if (!pool) throw new Error('read pool: unknown client'); return pool; }
+function readEnv() {
+  return { EP, SPA, spToken, sender, operator: ctx.account.address, baselines, formal, allowSameEndpointLocal, pmAddrOf,
+    bundler: bundler.account.address, gas: formal ? frozen.gas : LOCAL_GAS, pmGas: PM_GAS, callDataHash: keccak256(defaultCallData()) };
 }
+const passport = (p, blockNumber) => readPassport(p, blockNumber, readEnv(), poolOf(p));
 async function passportAB(label) {
   const bn = await pubA.getBlockNumber({ cacheTime: 0 });
   const r = await readAB(`passport:${label}`, (p) => passport(p, bn));
