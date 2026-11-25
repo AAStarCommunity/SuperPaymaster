@@ -31,6 +31,7 @@ function fixture(t) {
     return [sender,p];
   }));
   const m=structuredClone(manifest), {schedule,targetTriplets,slotCap}=m;
+  m.startTimestamp=legacyStart.passport.block.timestamp;
   const head={schema:'a6-gauge/2',runId:'frozen-test'}, arms=Object.values(names);
   const start={...head,kind:'run_start',formal:true,protocolConformant:true,fixture:null,rpcA:'https://a.invalid',rpcB:'https://b.invalid',
     allowSameEndpointLocal:false,count:targetTriplets,maxAttempts:slotCap,arms,passport:structuredClone(passports.get(accounts[0]))};
@@ -42,18 +43,21 @@ function fixture(t) {
       attemptIndex:slot.block_slot*arms.length+j,tripletIndex:slot.block_slot,arm,sender,armOrder:slot.order.map(a=>names[a]),
       block_slot:slot.block_slot,pair_id:slot.pair_id,seed:schedule.payload.seed,schedule_sha256:schedule.sha256,
       fixture:null,collectedAtUtc:'2026-11-25T00:00:00Z',sent:false,tx:null,verdict:'NOT_SENT',
-      failingCheck:deadline,scheduleDisposition:deadline,slotChecks:[{allowed:false,reason:deadline}]};
+      failingCheck:deadline,scheduleDisposition:deadline,slotChecks:[{allowed:false,reason:deadline,wait:{
+        start:BigInt(m.startTimestamp)+BigInt(slot.start_seconds),
+        deadline:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds)
+      }}]};
   }));
   const end={...head,kind:'run_end',passport:last,targetTriplets,matchedTriplets:0,stop:{reason:'INCOMPLETE',code:10},exitCode:10,
     tally:Object.fromEntries(arms.map(a=>[a,{attempts:slotCap,verdicts:{NOT_SENT:slotCap}}])),
     triplets:schedule.payload.slots.map(({block_slot,pair_id})=>({block_slot,pair_id,matched:false,
       attempts:arms.map((_,j)=>block_slot*arms.length+j),tripletIndex:block_slot}))};
   const index=rows.map(r=>({attempt:r.attemptIndex,passports:{start:{path:`passports/start-${r.sender}.json`}}}));
-  return {m,start,rows,end,index,passports,run({withPlan=true,withManifest=true,bundle=bytes}={}) {
+  return {m,start,rows,end,index,passports,run({withPlan=true,withManifest=true,bundle=bytes,truncated=false}={}) {
     if(withManifest) writeArtifact(dir,'manifest.json',m);
     for(const [sender,p] of passports) writeArtifact(dir,`passports/start-${sender}.json`,p);
     writeFileSync(join(dir,'bundle.json'),bundle);
-    writeFileSync(join(dir,'run.jsonl'),[start,...rows,end].map(stringify).join('\n')+'\n');
+    writeFileSync(join(dir,'run.jsonl'),[start,...rows,...(truncated?[]:[end])].map(stringify).join('\n')+'\n');
     writeFileSync(join(dir,'index.ndjson'),index.map(stringify).join('\n')+'\n');
     const r=spawnSync(process.execPath,['script/a6-collector/validate.mjs',join(dir,'run.jsonl'),
       ...(withPlan?['--frozen-plan',join(dir,'bundle.json')]:[])],{encoding:'utf8'});
@@ -126,7 +130,8 @@ test('a packed NOT_SENT operation uses the passport of its sender',async t=>{
   const entryPoint=inv.entryPoint.address, hash=localUserOpHash(packed,entryPoint,10);
   gas.preVerificationGas=pvg.value;
   Object.assign(row,{chainId:10,entryPoint,paymaster,nonce:packed.nonce,bundler:inv.bundler,callDataHash:inv.callDataHash,gas,pmGas,
-    expectedUserOpHash:hash,epUserOpHash:hash,localUserOpHash:hash,bundledUserOpHashes:[hash],packedOp:packed,bundledOps:[packed],guard:{}});
+    expectedUserOpHash:hash,epUserOpHash:hash,localUserOpHash:hash,bundledUserOpHashes:[hash],packedOp:packed,bundledOps:[packed],guard:{allowed:true}});
+  row.slotChecks.unshift({allowed:true,wait:{...row.slotChecks[0].wait}});
   recordPVG(row,pvg);
   const r=f.run();
   assert.deepEqual(r.errors,[NO_TRAILER],JSON.stringify(r));
@@ -156,4 +161,10 @@ test('window binds the index start passport to its row sender',t=>{
   const f=fixture(t);
   f.index[0].passports.start.path=f.index[1].passports.start.path;
   refused(f.run(),/index start passport mismatch/);
+});
+test('a truncated window (no run_end, no trailer) reports the interrupted archive and refuses',t=>{
+  const r=fixture(t).run({truncated:true});
+  assert.equal(r.status,2,JSON.stringify(r));
+  assert.deepEqual(r.errors,[NO_TRAILER]);
+  assert.match(r.missing,/last line is not run_end/);
 });

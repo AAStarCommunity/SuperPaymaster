@@ -1,4 +1,4 @@
-import { bindReceiptSummaries } from './derived-evidence.mjs';
+import { bindReceiptSummaries, evidenceEqual } from './derived-evidence.mjs';
 import { EXCLUSION_REASONS, exclusionReason, sha256, stringify } from './evidence.mjs';
 import { tpmAttemptRefreshed } from './trace-policy.mjs';
 import { validateWindow } from './evidence-validate.mjs';
@@ -437,6 +437,7 @@ function opGas(op) {
 }
 
 const scheduleArms = {SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'};
+const senderStateFields = ['userXPNTs','lockedOf','debts','creditReservedOf'];
 const slotFailures = ['slot_deadline_exceeded','sp_valid_after_exceeds_slot_deadline'];
 function passportContext(pStart) {
   const inv = need(pStart, 'invariant');
@@ -445,7 +446,7 @@ function passportContext(pStart) {
   return {pStart,inv,spAddr,armPaymasters,tokenAddr:need(inv,'xPNTs.address'),operator:need(inv,'superPaymaster.operator.address'),chainId:need(pStart,'chainId')};
 }
 
-function frozenWindow(manifest, attempts) {
+function frozenWindow(manifest, attempts, end) {
   const path = process.argv[frozenArg + 1];
   if (manifest?.schema !== 'rq3-window-v1') throw new Missing('frozen provenance requires an rq3-window-v1 manifest.json');
   const bytes = readFileSync(path);
@@ -460,7 +461,8 @@ function frozenWindow(manifest, attempts) {
       || !Number.isSafeInteger(period) || !Number.isSafeInteger(elapsed) || elapsed < 0 || elapsed >= period
       || typeof seed !== 'string' || !seed || !/^[0-9a-f]{64}$/.test(scheduleSha)) throw new Missing('invalid frozen schedule limits or identity');
   const senders = new Map(accounts.map(account => {
-    const {digest,frozen,plan} = createFrozenPlan({readBundle:()=>bytes,bundleSha256,account});
+    const adapter = createFrozenPlan({readBundle:()=>bytes,bundleSha256,account});
+    const {digest,frozen,plan} = adapter;
     if (digest !== need(manifest,`plan_sha256.${account}`)) errors.push(`sender ${account}: manifest planDigest mismatch`);
     const path = `passports/start-${account}.json`;
     const passport = JSON.parse(readFileSync(resolve(evidenceDir,path),'utf8'));
@@ -471,11 +473,35 @@ function frozenWindow(manifest, attempts) {
     if (lc(keccak256(frozen.callData)) !== lc(context.inv.callDataHash)) errors.push(`sender ${account}: frozen callData/passport mismatch`);
     if (plan.chainId !== context.chainId) errors.push(`sender ${account}: frozen chainId/passport mismatch`);
     if (new Set(Object.values(context.armPaymasters).map(lc)).size !== 3) errors.push(`sender ${account}: passport arm paymasters must be distinct`);
-    return [lc(account),{...context,path,digest,phaseC:plan.phaseC}];
+    const endPath = `passports/end-${account}.json`;
+    let pEnd;
+    if (end.window || end.stop?.reason === 'COMPLETE') {
+      try { pEnd = JSON.parse(readFileSync(resolve(evidenceDir,endPath),'utf8')); }
+      catch { errors.push(`sender ${account}: missing or invalid end passport`); }
+      if (pEnd) {
+        completePassport(pEnd);
+        if (!deepEq(context.inv,pEnd.invariant)) errors.push(`sender ${account}: end passport invariant drifted`);
+        if (pEnd.chainId !== passport.chainId || pEnd.allowSameEndpointLocal !== passport.allowSameEndpointLocal
+            || big(pEnd.block.number) < big(passport.block.number) || big(pEnd.block.timestamp) < big(passport.block.timestamp)) {
+          errors.push(`sender ${account}: end passport metadata or block mismatch`);
+        }
+      }
+    }
+    return [lc(account),{...context,path,digest,phaseC:plan.phaseC,adapter,pEnd,endPath}];
   }));
   const index = attempts.length ? readFileSync(resolve(evidenceDir,'index.ndjson'),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
   if (index.length !== attempts.length) errors.push('frozen index does not retain every journal attempt');
-  return {target,cap,slots,scheduleSha,seed,bundleSha256,senders,index,period,elapsed};
+  return {manifest,target,cap,slots,scheduleSha,seed,bundleSha256,senders,index,period,elapsed,
+    startTimestamp:big(need(manifest,'startTimestamp')),allocations:new Map()};
+}
+
+function deniedSlotGate(window, row) {
+  const checks = row.slotChecks;
+  if (!Array.isArray(checks) || (checks.length !== 1 && (checks.length !== 2 || checks[0]?.allowed !== true))) return false;
+  const gate = checks.at(-1), slot = window.slots[row.block_slot];
+  return gate?.allowed === false && gate.reason === row.failingCheck
+    && gate.wait?.start === String(window.startTimestamp + BigInt(slot.start_seconds))
+    && gate.wait?.deadline === String(window.startTimestamp + BigInt(slot.deadline_seconds));
 }
 
 function frozenAttempt(window, row, i, position) {
@@ -492,10 +518,26 @@ function frozenAttempt(window, row, i, position) {
     throw new Missing(`attempt ${i}: invalid frozen schedule slot`);
   }
   const order = slot.order.map(a => scheduleArms[a]);
+  if (n !== Math.floor(i / order.length)) errors.push(`attempt ${i}: window slots must be traversed in schedule order`);
   if (!deepEq(row.armOrder,order) || row.arm !== order[position]) errors.push(`attempt ${i}: schedule armOrder mismatch`);
   if (lc(row.sender) !== lc(slot.senders?.[slot.order.find(a => scheduleArms[a] === row.arm)])) errors.push(`attempt ${i}: schedule sender mismatch`);
   if (row.tripletIndex !== n || typeof slot.pair_id !== 'string' || row.pair_id !== slot.pair_id) errors.push(`attempt ${i}: schedule pair_id or slot mismatch`);
   if (row.schedule_sha256 !== window.scheduleSha || row.seed !== window.seed) errors.push(`attempt ${i}: schedule hash or seed mismatch`);
+  const key = `${lc(row.sender)}:${row.arm}`;
+  if (Object.values(scheduleArms).includes(row.arm)) {
+    const allocationIndex = window.allocations.get(key) ?? 0;
+    const planned = JSON.parse(stringify(context.adapter.row(row.arm,allocationIndex)));
+    for (const field of ['allocation','spPostOpRule','feeRule']) {
+      if (!deepEq(row[field],planned[field])) errors.push(`attempt ${i}: frozen ${field} mismatch`);
+    }
+    const gasSources = structuredClone(row.gasSources);
+    if (row.packedOp && gasSources?.preVerification) {
+      for (const field of ['bytes','overhead','value']) gasSources.preVerification[field] = null;
+      for (const field of ['calldataGas','surplus','resolution','ruleValue','cycle']) delete gasSources.preVerification[field];
+    }
+    if (!evidenceEqual(gasSources,planned.gasSources)) errors.push(`attempt ${i}: frozen gasSources mismatch`);
+    window.allocations.set(key,allocationIndex+1);
+  }
   return context;
 }
 
@@ -520,20 +562,22 @@ try {
   const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath,'utf8')) : null;
   const scheduled = manifest?.schema === 'rq3-window-v1' || [start,...attempts].some(row => Object.hasOwn(row,'planDigest') || Object.hasOwn(row,'bundleSha256'));
   if (scheduled && (frozenArg === -1 || !process.argv[frozenArg+1] || process.argv[frozenArg+1].startsWith('--'))) throw new Missing('frozen window requires --frozen-plan <bundle file>');
-  if (isFormal) errors.push(...validateWindow(evidenceDir, lines));
+  if (isFormal && !scheduled) errors.push(...validateWindow(evidenceDir, lines));
   if (isFormal && !scheduled) {
     const frozen = formalConfig(need(start,'frozenConfig'),need(start,'bMax'));
     for (const key of ['gas','pmGas']) if (!deepEq(JSON.parse(JSON.stringify(frozen[key],(_,v) => typeof v === 'bigint' ? String(v):v)),start.passport?.invariant[key])) errors.push(`formal frozen ${key}/passport mismatch`);
   }
   if (need(start, 'kind') !== 'run_start') throw new Missing('first line is not run_start');
+  // A truncated window still reports what its archive lacks before the line check refuses it.
+  if (isFormal && scheduled && end.kind !== 'run_end') for (const name of ['index.ndjson','trailer.json'])
+    if (!existsSync(resolve(evidenceDir,name))) { errors.push(`missing or invalid ${name === 'trailer.json' ? 'trailer' : 'index'}: interrupted window`); break; }
   if (need(end, 'kind') !== 'run_end') throw new Missing('last line is not run_end (truncated run?)');
   schema = need(start, 'schema');
   if (!SCHEMAS.includes(schema)) throw new Missing('unknown schema');
   for (const l of lines) { if (need(l, 'schema') !== schema) throw new Missing('schema differs between lines'); if (need(l, 'runId') !== start.runId) throw new Missing('runId differs between lines'); }
-  const window = scheduled ? frozenWindow(manifest,attempts) : null;
+  const window = scheduled ? frozenWindow(manifest,attempts,end) : null;
   if (window) {
-    Object.assign(report,{accepted:false,evidence:false});
-    notes.push('frozen window: archive evidence acceptance pending');
+    if (isFormal) errors.push(...validateWindow(evidenceDir, lines, window));
     if (!isFormal) errors.push('frozen window requires a formal run');
   }
   if (schema === 'a6-gauge/1') notes.push('schema a6-gauge/1: credit policy not recorded, so this run does not show credit OFF');
@@ -542,7 +586,12 @@ try {
   completePassport(pStart);
   const startContext = passportContext(pStart);
   const {inv, chainId, armPaymasters} = startContext;
-  if (window && !deepEq(pStart,window.senders.get(lc(inv.sender))?.pStart)) errors.push('run_start passport differs from sender start passport');
+  if (window) {
+    if (!deepEq(pStart,window.senders.values().next().value.pStart)) errors.push('run_start passport differs from first sender start passport');
+    for (const [sender,context] of window.senders) {
+      if (lc(context.operator) !== lc(startContext.operator)) errors.push(`sender ${sender}: different window operator`);
+    }
+  }
   const arms = need(start, 'arms');
   const fixture = need(start, 'fixture');
   const target = need(start, 'count');
@@ -582,8 +631,20 @@ try {
 
   attempts.forEach((row, i) => {
     const slotRows = window ? byTriplet.get(row.block_slot) ?? [] : null;
-    const {pStart,inv,spAddr,armPaymasters,tokenAddr,operator,chainId,phaseC} = window ? frozenAttempt(window,row,i,slotRows.length) : startContext;
+    const {pStart,inv,spAddr,armPaymasters,tokenAddr,operator,chainId,phaseC,pEnd} = window ? frozenAttempt(window,row,i,slotRows.length) : startContext;
+    const endPassport = window ? pEnd : end.passport;
+    if (pEnd) {
+      const within = (number,time) => big(number) >= big(pStart.block.number) && big(number) <= big(pEnd.block.number)
+        && big(time) >= big(pStart.block.timestamp) && big(time) <= big(pEnd.block.timestamp);
+      const pin = need(row,'passport.block');
+      if (!within(pin.number,pin.timestamp) || big(pin.number) >= big(pEnd.block.number)
+          || (row.sent && (!within(row.tx.blockNumber,row.tx.blockTimestamp)
+          || big(row.tx.blockNumber) >= big(pEnd.block.number) || big(row.tx.blockNumber) <= big(pin.number)))) {
+        errors.push(`attempt ${i}: attempt outside sender passport bracket`);
+      }
+    }
     const slotFailure = window && slotFailures.includes(row.failingCheck);
+    const deniedGate = slotFailure && deniedSlotGate(window,row);
     const recordVerdict = recomputed => {
       report.recomputed[recomputed] = (report.recomputed[recomputed] ?? 0) + 1;
       if (recomputed !== row.verdict) errors.push(`attempt ${i} (${row.arm}): recorded ${row.verdict}, recomputed ${recomputed}`);
@@ -597,7 +658,7 @@ try {
     }
     if (isFormal && !window && !deepEq(row.armOrder,armOrder(row.tripletIndex))) errors.push(`attempt ${i}: formal armOrder mismatch`);
     if (slotFailure && (row.sent !== false || row.verdict !== 'NOT_SENT' || row.scheduleDisposition !== row.failingCheck
-        || !Array.isArray(row.slotChecks) || !row.slotChecks.some(check => check?.reason === row.failingCheck))) errors.push(`attempt ${i}: invalid schedule disposition`);
+        || !deniedGate)) errors.push(`attempt ${i}: invalid schedule disposition`);
     if (row.sent === false && (need(row, 'tx') !== null || (!(slotFailure && !('logs' in row)) && (!Array.isArray(need(row, 'logs')) || row.logs.length !== 0))
         || 'readbacks' in row || !(slotFailure || ['deposit_floor', 'preflight_revert', 'basefee_above_cap'].includes(row.failingCheck)))) {
       errors.push(`attempt ${i}: NOT_SENT contradicts row evidence or failingCheck`);
@@ -646,7 +707,20 @@ try {
         return;
       }
     }
-    if (slotFailure && row.sent === false && !('packedOp' in row)) { recordVerdict('NOT_SENT'); return; }
+    if (slotFailure && row.sent === false) {
+      if (!deniedGate || row.slotChecks.length === 1) {
+        if (deniedGate && ['nonce','packedOp','guard'].some(field => Object.hasOwn(row,field))) {
+          errors.push(`attempt ${i}: early gate contains packing evidence`);
+        }
+        recordVerdict('NOT_SENT');
+        return;
+      }
+      if (!row.packedOp || row.nonce == null || row.guard?.allowed !== true) {
+        errors.push(`attempt ${i}: submit gate missing packing evidence`);
+        recordVerdict('NOT_SENT');
+        return;
+      }
+    }
     for (const k of ['chainId', 'entryPoint', 'sender', 'nonce', 'paymaster', 'bundler', 'callDataHash', 'gas', 'pmGas',
       'expectedUserOpHash', 'epUserOpHash', 'localUserOpHash', 'bundledUserOpHashes', 'packedOp', 'bundledOps', 'guard', 'sent']) need(row, k);
     const logs = slotFailure && row.sent === false && !('logs' in row) ? [] : need(row,'logs');
@@ -709,14 +783,14 @@ try {
     if (recomputed === 'USEROP_SUCCESS' && lc(row.expectedUserOpHash) !== lc(h)) errors.push(`attempt ${i}: success hash is not packedOp hash`);
     if (row.sent && row.tx.status === 'success' && logsOf(row.logs, row.entryPoint, T.UOE).some(l => lc(l.topics[1]) === lc(h))) {
       const timestamp = big(need(row, 'tx.blockTimestamp'));
-      if (timestamp < big(pStart.block.timestamp) || timestamp > big(need(end, 'passport.block.timestamp'))) errors.push(`attempt ${i}: tx timestamp outside passport bracket`);
+      if (timestamp < big(pStart.block.timestamp) || timestamp > big(need(endPassport ?? end.passport, 'block.timestamp'))) errors.push(`attempt ${i}: tx timestamp outside passport bracket`);
       if (row.arm === 'VPM') {
         if (pmData.length < 234) throw new Missing('truncated VPM validity data');
         const until = BigInt('0x' + pmData.slice(106, 170)), after = BigInt('0x' + pmData.slice(170, 234));
         if (until >= 1n << 48n || after >= 1n << 48n || timestamp < after || (until !== 0n && timestamp > until)) errors.push(`attempt ${i}: VPM validity outside block time`);
       }
       if (row.arm === 'SP') {
-        const sender = lc(inv.sender), lastSPTimestamp = lastSPTimestamps.get(sender);
+        const sender = window ? `${lc(operator)}:${lc(inv.sender)}` : lc(inv.sender), lastSPTimestamp = lastSPTimestamps.get(sender);
         if (lastSPTimestamp !== undefined && timestamp < lastSPTimestamp + big(inv.superPaymaster.operator.minTxInterval)) errors.push(`attempt ${i}: SP minTxInterval violated`);
         if (!logsOf(row.logs, row.entryPoint, T.POSTOP).some(l => lc(l.topics[1]) === lc(h))) lastSPTimestamps.set(sender,timestamp);
       }
@@ -731,14 +805,13 @@ try {
         && big(need(row, 'readbacks.before.A.blockNumber')) > big(previousBlock.blockNumber);
       if (!interrupted && nonceSequences.has(key) && sequence !== nonceSequences.get(key) + 1n) errors.push(`attempt ${i}: nonce sequence must advance exactly one for sender/key`);
       nonceSequences.set(key, sequence);
-      if (row.arm === 'SP') {
-        if (!sponsorshipReady(pStart) || !sponsorshipReady(need(end, 'passport'))) errors.push(`attempt ${i}: passport not sponsor-able`);
-        const endPassport = end.passport;
+      if (row.arm === 'SP' && (endPassport || !window)) {
+        if (!sponsorshipReady(pStart) || !sponsorshipReady(endPassport ?? need(end, 'passport'))) errors.push(`attempt ${i}: passport not sponsor-able`);
         const endUntil48 = (big(need(endPassport, 'volatile.cachedPriceUpdatedAt')) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
         const validUntil48 = (big(pStart.volatile.cachedPriceUpdatedAt) + big(inv.superPaymaster.priceStalenessThreshold)) % (1n << 48n);
         const quoteValidUntil = validUntil48 === 0n ? (1n << 48n) - 1n : validUntil48;
         if ((endUntil48 === 0n ? (1n << 48n) - 1n : endUntil48) < big(endPassport.block.timestamp)) errors.push(`attempt ${i}: end cached price expires before passport block`);
-        if (quoteValidUntil < big(pStart.block.timestamp) || quoteValidUntil < big(need(end, 'passport.block.timestamp'))) errors.push(`attempt ${i}: cached price expires within passport block bracket`);
+        if (quoteValidUntil < big(pStart.block.timestamp) || quoteValidUntil < big(need(endPassport, 'block.timestamp'))) errors.push(`attempt ${i}: cached price expires within passport block bracket`);
       }
     }
     if (row.sent && !row.stoppedBy) {
@@ -755,6 +828,7 @@ try {
       }
       if (isFormal ? big(need(before, 'blockNumber')) < big(previousBlock.blockNumber) : big(need(before, 'blockNumber')) !== big(previousBlock.blockNumber) || lc(need(before, 'blockHash')) !== lc(previousBlock.blockHash)) errors.push(`attempt ${i}: consecutive block continuity failed`);
       const previous = stateByArm.get(row.arm);
+      const senderPrior = window && stateByArm.get(`${row.arm}:${lc(row.sender)}`);
       if (report.rehearsal && row.arm === 'TPM' && row.rehearsalControl?.kind === 'tpmCacheAged' && (row.rehearsalControl.cachedPriceTimestamp?.to == null || big(need(before, 'tpmCachedPriceTimestamp')) !== big(row.rehearsalControl.cachedPriceTimestamp.to))) errors.push(`attempt ${i}: rehearsal cache timestamp mismatch`);
       // Other arms use separate deposits/tokens and cannot change these fields. lockXLocked
       // and inflight state are keyed by opHash: a new op starts empty, rather than inheriting the prior reservation.
@@ -762,11 +836,17 @@ try {
         if (f === 'tpmCachedPriceTimestamp' && report.rehearsal && row.rehearsalControl?.kind === 'tpmCacheAged') {
           continue;
         }
-        if (!deepEq(need(before, f), need(previous, f))) errors.push(`attempt ${i}: balance continuity failed: ${f}`);
+        if (window && f === 'operatorBalance') continue;
+        const value = need(before,f);
+        let prior = need(previous,f);
+        if (window && senderStateFields.includes(f)) prior = senderPrior ? need(senderPrior,f) : value;
+        if (window && f === 'tpmTokenBalances') prior = {...prior,sender:senderPrior ? need(senderPrior,'tpmTokenBalances.sender') : need(value,'sender')};
+        if (!deepEq(value,prior)) errors.push(`attempt ${i}: balance continuity failed: ${f}`);
       }
       // Shared SP balance follows chronological attempts, not the previous baseline arm.
       // Older baseline rows may omit it; SP state continuity and exact-hash passport
       // anchors remain mandatory. Every recorded baseline readback is checked.
+      if (window) { need(before,'operatorBalance'); need(after,'operatorBalance'); }
       if ('operatorBalance' in before && big(before.operatorBalance) !== previousOperatorBalance) errors.push(`attempt ${i}: balance continuity failed: operatorBalance`);
       if (row.arm !== 'SP') for (const rb of [before, after]) {
         if ('operatorBalance' in rb && big(rb.operatorBalance) !== previousOperatorBalance) errors.push(`attempt ${i}: baseline changed operatorBalance`);
@@ -782,6 +862,7 @@ try {
         }
       }
       stateByArm.set(row.arm, after);
+      if (window) stateByArm.set(`${row.arm}:${lc(row.sender)}`,after);
       previousBlock = after;
       const failed = conservation(row, spAddr, tokenAddr, operator, inv);
       const recordedOk = need(row, 'conservation.ok');
@@ -862,8 +943,9 @@ try {
   completePassport(need(end, 'passport'));
   // U-6 applies only to protocol-conformant runs, at both pinned passport blocks.
   if (start.protocolConformant === true) {
+    const passports = [pStart,end.passport,...(window ? [...window.senders.values()].flatMap(c=>[c.pStart,c.pEnd].filter(Boolean)) : [])];
     for (const arm of ['SP', 'VPM', 'TPM']) {
-      const stakes = [pStart, end.passport].map(p => p.invariant.stakes[arm]);
+      const stakes = passports.map(p => p.invariant.stakes[arm]);
       if (stakes.some(s => s.staked !== true)) errors.push(`arm ${arm}: paymaster not staked`);
       if (stakes.some(s => big(s.stake) < 1000000000000000000n)) errors.push(`arm ${arm}: paymaster stake below 1000000000000000000 wei`);
       if (stakes.some(s => big(s.unstakeDelaySec) < 86400n)) errors.push(`arm ${arm}: paymaster unstakeDelaySec below 86400`);
@@ -883,7 +965,8 @@ try {
   }
   report.protocolConformant = conformant && errors.length === 0;
   report.consistent = errors.length === 0;
-  report.accepted = !window && !report.rehearsal && report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (target !== 50 || conformant);
+  report.accepted = !report.rehearsal && report.consistent && stop.reason === 'COMPLETE' && stop.code === 0 && matched === target && stoppedRows === 0 && (window ? conformant : target !== 50 || conformant);
+  if (window) report.evidence = report.accepted;
   exit = !report.consistent ? 1 : report.accepted ? 0 : 3;
 } catch (e) {
   if (e instanceof Missing) { report.missing = e.message; exit = 2; }
