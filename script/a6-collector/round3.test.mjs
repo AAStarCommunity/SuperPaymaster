@@ -12,6 +12,21 @@ test('formal requires bundle and digest before reading any config or keystore',(
   assert.equal(r.status,2);assert.match(r.stderr,/requires --frozen-plan and --bundle-sha256/);
  }
 });
+test('frozen collection requires slice arguments and accepts the 20-attempt budget with count 50',()=>{
+ const run=flags=>spawnSync(process.execPath,['script/a6-collector/collector.mjs','--frozen-plan','unused.json',
+  '--bundle-sha256','a'.repeat(64),'--count','50','--b-max','1',...flags],{encoding:'utf8'});
+ for(const flags of [[],['--seed','s'],['--seed','s','--max-attempts','60'],['--seed','--max-attempts','20']]) {
+  const r=run(flags);
+  assert.equal(r.status,2);assert.match(r.stderr,/requires --seed, --count 50 and --max-attempts 20/);
+ }
+ for(const index of [[],['0'],['4'],['2.5'],['02']]) {
+  const r=run(['--seed','s','--max-attempts','20','--window-index',...index]);
+  assert.equal(r.status,2);assert.match(r.stderr,/requires --window-index in 1\.\.3/);
+ }
+ const flags=['--seed','s','--max-attempts','20','--window-index','2'];
+ const accepted=run(flags);
+ assert.equal(accepted.status,2);assert.match(accepted.stderr,/--out <run\.jsonl> is required/);
+});
 test('shared fee predicate rejects invalid and repository-exceeding ceilings',()=>{
  for(const ceiling of [undefined,0,-1,'nope','20000000001']) {
   assert.equal(feesWithinRule({maxFeePerGas:0n,maxPriorityFeePerGas:0n},{...rule,baseFee:0,ceiling}),false);

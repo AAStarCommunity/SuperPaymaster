@@ -7,27 +7,38 @@ const accounts=[200,201,202].map(n=>'0x'+n.toString(16).padStart(40,'0'));
 const bytes=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
 const mutable=()=>JSON.parse(bytes,(_k,v,c)=>typeof v==='number'&&!Number.isSafeInteger(v)?JSON.rawJSON(c.source):v);
 const sha=b=>createHash('sha256').update(b).digest('hex');
+const opts={readBundle:()=>bytes,bundleSha256:sha(bytes),seed:'public',chainId:10,accounts};
+const manifestFor=windowIndex=>w.createWindow({...opts,windowIndex}).manifest;
 test('schedule port preserves sampler payload, digest, permutations and 20 allocations',()=>{
  const s=w.generateSchedule('public 🐈',accounts,10);
  const samplerAccounts=[2,3,4].map(n=>'0x'+n.toString(16).padStart(40,'0'));
- assert.equal(w.generateSchedule('synthetic-public-seed',samplerAccounts,10).sha256,'bf661687e2a487db7163393e5369a75fae592e0c26d3820eebf78dd966f2a4fd');
+ assert.equal(w.generateSchedule('synthetic-public-seed',samplerAccounts,10).sha256,'9f3396cd00c9b34972c1f008ee9fe833ba938b4a43c50d9345bfa060d98c0053');
  const canonical=value=>JSON.stringify(value,(_,v)=>v && !Array.isArray(v) && typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  assert.equal(s.sha256,sha(canonical(s.payload)));
  assert.deepEqual(s,w.generateSchedule('public 🐈',accounts,10));
  assert.notEqual(s.sha256,w.generateSchedule('other',accounts,10).sha256);
  for(let i=0;i<60;i+=6) assert.equal(new Set(s.payload.slots.slice(i,i+6).map(x=>x.order.join(','))).size,6);
- assert.equal(s.payload.slot_period_seconds,30);
- assert.equal(s.payload.max_elapsed_seconds,20);
+ assert.equal(s.payload.slot_period_seconds,120);
+ assert.equal(s.payload.max_elapsed_seconds,100);
  for(const account of accounts) for(const arm of ['SP','VerifyingPaymaster','TokenPaymaster']) assert.equal(s.payload.slots.filter(x=>x.senders[arm]===account).length,20);
  assert.throws(()=>w.generateSchedule('',accounts,10));
  assert.throws(()=>w.generateSchedule('s',[accounts[0],accounts[0],accounts[2]],10));
  assert.throws(()=>w.generateSchedule('s',accounts,1));
 });
-test('OP Sepolia (11155420) uses the OP timing: 30 s slots, 20 s elapsed bound, OP mainnet qualification values',()=>{
+test('OP uses 120 s slots and a 100 s elapsed bound on both chains',()=>{
  const op=w.generateSchedule('public 🐈',accounts,10), ops=w.generateSchedule('public 🐈',accounts,11155420), sep=w.generateSchedule('public 🐈',accounts,11155111);
- assert.equal(ops.payload.slot_period_seconds,30);
- assert.equal(ops.payload.max_elapsed_seconds,20);
+ assert.equal(ops.payload.slot_period_seconds,120);
+ assert.equal(ops.payload.max_elapsed_seconds,100);
  assert.equal(sep.payload.slot_period_seconds,130);
+ assert.equal(sep.payload.max_elapsed_seconds,120);
+ for(const {payload:p} of [op,ops,sep]) {
+  assert.ok(p.max_elapsed_seconds<p.slot_period_seconds);
+  assert.ok(3*p.slot_period_seconds-p.max_elapsed_seconds>=60);
+  for(const [i,slot] of p.slots.entries()) {
+   assert.equal(slot.start_seconds,i*p.slot_period_seconds);
+   assert.equal(slot.deadline_seconds,slot.start_seconds+p.max_elapsed_seconds);
+  }
+ }
  const q=chain=>JSON.parse(execFileSync('python3.11',['-I','-B','-c',`import json,sys;sys.path.insert(0,'script/a6-collector');import schedule;print(json.dumps(schedule.qualification('${chain}')))`]));
  const {chain:_a,...opq}=q('op-mainnet').payload, {chain:_b,...opsq}=q('op-sepolia').payload;
  assert.deepEqual(opsq,opq);
@@ -37,26 +48,32 @@ test('OP Sepolia (11155420) uses the OP timing: 30 s slots, 20 s elapsed bound, 
  assert.notEqual(ops.sha256,op.sha256);
  assert.throws(()=>w.generateSchedule('public 🐈',accounts,11155421));
 });
-test('fixed window all-success stops at 50 slots; all-failure runs 60 slots',async()=>{
- const s=w.generateSchedule('public',accounts,10), traces=[];
- for(const success of [true,false]) {
- const visited=[]; const result=await w.runSlots(s,async(slot,arm,sender,index)=>{visited.push([slot.block_slot,arm,sender,index]);return {ok:success};},rows=>rows.every(r=>r.ok));
- // Pre-registered stop: all-success reaches 50 complete at slot 49; all-failure runs the 60-slot cap.
- assert.equal(result.slots.length,success?50:60);assert.equal(result.complete,success?50:0); traces.push(visited);
+test('window index is required and must be an integer in 1..3',()=>{
+ for(const windowIndex of [undefined,null,0,4,1.5,'2',NaN]) {
+  assert.throws(()=>w.createWindow({...opts,windowIndex,readBundle:()=>assert.fail('read bundle')}),/WINDOW_INDEX/);
  }
- assert.deepEqual(traces[0],traces[1].slice(0,150));assert.equal(traces[0].length,150);assert.equal(traces[1].length,180);
- assert.ok(traces[0].every(x=>x[3]>=0&&x[3]<20));
+});
+test('slice matching derives its size and index range from the registered protocol',()=>{
+ const registered=w.REGISTERED_WINDOW;
+ assert.deepEqual(registered,{targetTriplets:50,slotCap:60,windowSlots:20,windows:3,
+  stoppingRule:w.STOPPING_RULE,warmupAttempts:0,warmup:false});
+ const manifest=manifestFor(2);
+ assert.ok(w.windowProtocolMatches(manifest,registered));
+ for(const patch of [{windowIndex:'2'},{windowIndex:0},{windowIndex:4},{firstSlot:19},{lastSlot:40},{slots:19}]) {
+  assert.equal(w.windowProtocolMatches({...manifest,slice:{...manifest.slice,...patch}},registered),false);
+ }
+ assert.ok(w.windowProtocolMatches({...manifest,slice:{windowIndex:2,firstSlot:30,lastSlot:59,slots:30}},
+  {...registered,windows:2,windowSlots:30}));
 });
 test('window loads three exact plans, records digests, rejects plan.S mismatch',()=>{
- const opts={readBundle:()=>bytes,bundleSha256:sha(bytes),seed:'public',chainId:10,accounts};
- const window=w.createWindow(opts);
+ const window=w.createWindow({...opts,windowIndex:1});
  assert.equal(Object.keys(window.manifest.plan_sha256).length,3);
  assert.deepEqual([...window.adapters.values()].map(a=>a.plan.phaseC.attempts),[34,33,33]);
  assert.deepEqual(window.manifest.schedule,w.generateSchedule('public',accounts,10));
  for(const sender of accounts) assert.equal(window.manifest.plan_sha256[sender],window.adapters.get(sender).digest);
  const b=mutable();b.plans[accounts[1]].phaseC.addresses.S=accounts[0];const changed=Buffer.from(JSON.stringify(b));
- assert.throws(()=>w.createWindow({...opts,readBundle:()=>changed,bundleSha256:sha(changed)}),/PLAN_S_MISMATCH/);
- assert.throws(()=>w.createWindow({...opts,bundleSha256:'0'.repeat(64)}),/BUNDLE_DIGEST_MISMATCH/);
+ assert.throws(()=>w.createWindow({...opts,windowIndex:1,readBundle:()=>changed,bundleSha256:sha(changed)}),/PLAN_S_MISMATCH/);
+ assert.throws(()=>w.createWindow({...opts,windowIndex:1,bundleSha256:'0'.repeat(64)}),/BUNDLE_DIGEST_MISMATCH/);
 });
 function fake({interval=17n,last=100n,times=[110n,115n,117n],disagree=false}={}) {
  let i=0;const reads=[];
@@ -85,7 +102,7 @@ test('slot start and deadline apply to baseline arms too; endpoint disagreement 
 test('window refuses insufficient per-arm budget without requiring a rewritten planner',()=>{
  const b=mutable();b.plans[accounts[1]].phaseC.attempts=19;
  const changed=Buffer.from(JSON.stringify(b));
- assert.throws(()=>w.createWindow({readBundle:()=>changed,bundleSha256:sha(changed),seed:'public',chainId:10,accounts}),/PLAN_WINDOW_BUDGET/);
+ assert.throws(()=>w.createWindow({...opts,windowIndex:3,readBundle:()=>changed,bundleSha256:sha(changed)}),/PLAN_WINDOW_BUDGET/);
 });
 test('SP rechecks a later lastTimestamp and records a stalled chain without submission',async()=>{
  const f=fake({times:[110n,117n,122n]});
@@ -108,72 +125,71 @@ test('scheduled incomplete slots persist evidence without legacy replacement exc
  }
 });
 test('fatal stop preserves completed and partial slot counts without retrying the failed arm',async()=>{
- const schedule=w.generateSchedule('public',accounts,10),seen=[];
- await assert.rejects(w.runSlots(schedule,async(slot,arm)=>{
+ const manifest=manifestFor(2),seen=[];
+ await assert.rejects(w.runSlots(manifest,async(slot,arm)=>{
   const row={attemptIndex:seen.length,ok:true};seen.push([slot.block_slot,arm]);
   if(seen.length===5) throw Object.assign(Error('PIN_CHANGED'),{attemptRow:row});
   return row;
  },rows=>rows.every(r=>r.ok)),error=>{
   assert.equal(error.message,'PIN_CHANGED');
   assert.equal(error.windowProgress.complete,1);
-  assert.deepEqual(error.windowProgress.slots.map(s=>[s.block_slot,s.matched,s.attempts]),[[0,true,[0,1,2]],[1,false,[3,4]]]);
+  assert.equal(error.windowProgress.status,'STOPPED');
+  assert.deepEqual(error.windowProgress.slots.map(s=>[s.block_slot,s.matched,s.attempts]),[[20,true,[0,1,2]],[21,false,[3,4]]]);
+  const unusedSlots=Array.from({length:18},(_,i)=>22+i);
+  assert.deepEqual(error.windowProgress.unusedSlots,unusedSlots);
+  const rec=w.windowRecord(manifest,error.windowProgress);
+  assert.deepEqual(rec.unusedSlots,unusedSlots);
+  assert.equal(rec.usedSlots,2);
+  assert.equal(rec.completeTriplets,1);
   return true;
  });
  assert.equal(seen.length,5);
 });
-// Pre-registered stopping rule: stop once 50 complete triplets exist; never extend past slot 60.
-function stopHarness(isComplete) {
- const effects={signed:0,sent:0,rows:[]},visited=[];
- const attempt=async(slot,arm,sender,index)=>{
-  visited.push(slot.block_slot);effects.signed++;effects.sent++;
-  const row={attemptIndex:effects.rows.length,block_slot:slot.block_slot,ok:isComplete(slot.block_slot)};effects.rows.push(row);return row;
- };
- return {effects,visited,attempt,complete:rows=>rows.length===3&&rows.every(r=>r.ok)};
-}
-test('stop rule: 50th complete triplet in slot k<60 leaves slot k+1 unsent and records unused slots',async()=>{
- const s=w.generateSchedule('public',accounts,10);
- // Slots 0..4 incomplete, so the 50th complete triplet lands in slot 54.
- const h=stopHarness(b=>b>=5);
- const result=await w.runSlots(s,h.attempt,h.complete);
- assert.equal(result.complete,50);assert.equal(result.status,'COMPLETE');
- assert.equal(result.slots.length,55);assert.equal(result.slots.at(-1).block_slot,54);
- assert.ok(!h.visited.includes(55));assert.equal(Math.max(...h.visited),54);
- assert.equal(h.effects.signed,165);assert.equal(h.effects.sent,165);assert.equal(h.effects.rows.length,165);
- assert.ok(h.effects.rows.every(r=>r.block_slot<=54));
- assert.deepEqual(result.unusedSlots,[55,56,57,58,59]);
- const rec=w.windowRecord(s,result);
- assert.equal(rec.status,'COMPLETE');assert.deepEqual(rec.unusedSlots,[55,56,57,58,59]);
- assert.equal(rec.schedule_sha256,s.sha256);assert.equal(rec.scheduledSlots,60);assert.equal(rec.usedSlots,55);
- assert.equal(rec.completeTriplets,50);assert.equal(rec.targetTriplets,50);assert.equal(rec.slotCap,60);
- assert.equal(s.payload.slots.length,60,'the schedule still generates every slot');
- // Per-sender per-arm usage is at most 20.
- const used=new Map();for(const slot of s.payload.slots.slice(0,55)) for(const [arm,sender] of Object.entries(slot.senders)) used.set(sender+':'+arm,(used.get(sender+':'+arm)??0)+1);
- assert.equal(used.size,9);assert.ok([...used.values()].every(n=>n<=20));assert.ok([...used.values()].some(n=>n<20));
+test('all three slices exhaust in order even after 50 cumulative complete triplets',async()=>{
+ const full=w.generateSchedule('public',accounts,10);
+ const names={SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'};
+ const counts=new Map();
+ let aggregate=0;
+ for(const windowIndex of [1,2,3]) {
+  const {manifest,adapters}=w.createWindow({...opts,windowIndex});
+  const firstSlot=(windowIndex-1)*20,lastSlot=firstSlot+19;
+  assert.deepEqual(manifest.slice,{windowIndex,firstSlot,lastSlot,slots:20});
+  assert.deepEqual(manifest.schedule,full);
+  const expected=full.payload.slots.slice(firstSlot,lastSlot+1).flatMap(slot=>slot.order.map(name=>[slot.block_slot,names[name],slot.senders[name]]));
+  const visited=[];
+  const result=await w.runSlots(manifest,async(slot,arm,sender,index)=>{
+   visited.push([slot.block_slot,arm,sender]);
+   const key=sender+':'+arm, prior=counts.get(key)??0;
+   assert.equal(index,prior);
+   const {allocation}=adapters.get(sender).row(arm,index);
+   assert.equal(allocation.tripletIndex,prior);
+   assert.ok(index<allocation.attempts);
+   counts.set(key,prior+1);
+   return {attemptIndex:visited.length-1};
+  },rows=>{assert.equal(rows.length,3);aggregate++;return true;});
+  assert.deepEqual(visited,expected);
+  assert.equal(result.complete,20);
+  assert.equal(result.status,'EXHAUSTED');
+  assert.deepEqual(result.unusedSlots,[]);
+  assert.deepEqual(result.slots.map(s=>s.block_slot),Array.from({length:20},(_,i)=>firstSlot+i));
+  const rec=w.windowRecord(manifest,result);
+  assert.deepEqual(rec,{schedule_sha256:full.sha256,stoppingRule:w.STOPPING_RULE,status:'EXHAUSTED',
+   targetTriplets:50,slotCap:60,windowIndex,firstSlot,lastSlot,scheduledSlots:20,usedSlots:20,completeTriplets:20,unusedSlots:[]});
+ }
+ assert.equal(aggregate,60);
+ assert.equal(counts.size,9);
+ assert.ok([...counts.values()].every(n=>n===20));
 });
-test('stop rule: 60 slots with fewer than 50 complete is INCOMPLETE and there is no 61st slot',async()=>{
- const s=w.generateSchedule('public',accounts,10);
- const h=stopHarness(b=>b>=11); // 49 complete
- const result=await w.runSlots(s,h.attempt,h.complete);
- assert.equal(result.complete,49);assert.equal(result.status,'INCOMPLETE');
- assert.equal(result.slots.length,60);assert.equal(h.effects.sent,180);assert.equal(Math.max(...h.visited),59);
+test('incomplete slots still exhaust the slice, and an extended schedule is refused',async()=>{
+ const manifest=manifestFor(3);
+ let attempted=0;
+ const result=await w.runSlots(manifest,async()=>({attemptIndex:attempted++}),()=>false);
+ assert.equal(result.status,'EXHAUSTED');
+ assert.equal(result.complete,0);
+ assert.equal(attempted,60);
+ assert.equal(result.slots.at(-1).block_slot,59);
  assert.deepEqual(result.unusedSlots,[]);
- const rec=w.windowRecord(s,result);assert.equal(rec.status,'INCOMPLETE');assert.deepEqual(rec.unusedSlots,[]);assert.equal(rec.usedSlots,60);
- // A schedule carrying a 61st slot is refused before anything is sent: never extend beyond 60.
- const extended={...s,payload:{...s.payload,slots:[...s.payload.slots,{...s.payload.slots[0],block_slot:60,pair_id:'block-60'}]}};
- const h2=stopHarness(()=>false);
- await assert.rejects(w.runSlots(extended,h2.attempt,h2.complete),/SLOT_CAP/);
- assert.equal(h2.effects.sent,0);
-});
-test('stop rule: incomplete slots (including partial ones) never trigger the stop',async()=>{
- const s=w.generateSchedule('public',accounts,10);
- // 49 complete, then nine incomplete slots (one of them partial: only two rows), then the 50th in slot 58.
- const effects={sent:0},visited=[];
- const result=await w.runSlots(s,async(slot,arm)=>{
-  visited.push(slot.block_slot);effects.sent++;
-  return {attemptIndex:effects.sent-1,ok:slot.block_slot<49||slot.block_slot===58,partial:slot.block_slot===52&&arm==='TPM'};
- },rows=>rows.length===3&&rows.every(r=>r.ok&&!r.partial));
- assert.equal(result.complete,50);assert.equal(result.status,'COMPLETE');
- assert.deepEqual(result.slots.slice(49,58).map(x=>x.matched),Array(9).fill(false));
- for(let b=49;b<=58;b++) assert.equal(visited.filter(x=>x===b).length,3);
- assert.deepEqual(result.unusedSlots,[59]);assert.ok(!visited.includes(59));
+ const {schedule}=manifest;
+ const extended={...schedule,payload:{...schedule.payload,slots:[...schedule.payload.slots,{block_slot:60}]}};
+ await assert.rejects(w.runSlots({...manifest,schedule:extended},()=>assert.fail('attempt'),()=>false),/SLOT_CAP/);
 });

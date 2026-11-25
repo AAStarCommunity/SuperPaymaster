@@ -25,24 +25,13 @@ function conforms(v,s) {
   return true;
 }
 const scheduleFields = ['block_slot','pair_id','seed','schedule_sha256','warmup','spWait','slotChecks','scheduleDisposition'];
-function scheduledIndexConforms(row) {
-  const legacy = Object.fromEntries(Object.entries(row).filter(([key])=>!scheduleFields.includes(key)));
-  // Scheduled slots have no replacement edges or per-row exclusion reason.
-  return row.exclusionReason === null && conforms({...legacy,exclusionReason:
-    row.verdict === 'USEROP_SUCCESS' ? null : 'not_included'},schema);
-}
-
 function windowRecordErrors(trailer,journal,manifest,registered) {
-  const start=journal[0], end=journal.at(-1), usedSlots=end.triplets?.length;
-  const slots=manifest.schedule.payload.slots;
-  const expected={schedule_sha256:manifest.schedule.sha256,stoppingRule:registered.stoppingRule,
-    status:end.stop?.code === 0 ? 'COMPLETE' : end.stop?.reason === 'INCOMPLETE' ? 'INCOMPLETE' : 'STOPPED',
-    targetTriplets:registered.targetTriplets,slotCap:registered.slotCap,scheduledSlots:registered.slotCap,
-    usedSlots,completeTriplets:end.matchedTriplets,unusedSlots:slots.slice(usedSlots).map(s=>s.block_slot)};
+  const start=journal[0], end=journal.at(-1);
   const errors=[];
   if (!evidenceEqual(trailer.window,end.window)) errors.push('trailer/journal window record mismatch');
-  if (!evidenceEqual(end.window,expected) || end.scheduledSlots !== registered.slotCap || end.attemptedSlots !== usedSlots
-      || end.warmupAttempts !== registered.warmupAttempts) errors.push('window record differs from registered protocol or journal summary');
+  if (end.scheduledSlots !== registered.windowSlots || end.warmupAttempts !== registered.warmupAttempts) {
+    errors.push('journal slot or warmup count differs from registered slice');
+  }
   if (trailer.windowId !== start.runId || manifest.windowId !== start.runId) errors.push('window identity differs from manifest or journal');
   if (!evidenceEqual(trailer.endChecks,end.endChecks) || !evidenceEqual(trailer.finalBlockCheck,end.finalBlockCheck)
       || trailer.endCheckScope !== end.endCheckScope) errors.push('trailer/journal end checks mismatch');
@@ -56,7 +45,8 @@ export function windowErrors(rows, trailer, journal = null, manifest = null, reg
     return ['manifest differs from registered window protocol'];
   }
   if (trailer.schemaVersion !== 'a6-evidence-trailer/1') fail('invalid trailer version');
-  if (trailer.void !== false || trailer.stopReason !== 'COMPLETE') fail('void window / fail-closed stop');
+  if (manifest ? trailer.window?.status !== 'EXHAUSTED' : trailer.window != null) fail('invalid slice trailer window status');
+  if (trailer.void !== false || trailer.stopReason !== (manifest ? 'EXHAUSTED' : 'COMPLETE')) fail('void window / fail-closed stop');
   // Missing completion records (including signal interruption) cannot authorize evidence.
   const requiredEndChecks = ['endBlock','finalPassport','anchors',
     ...(manifest ? manifest.schedule.payload.accounts.map(sender=>'senderPassport:'+sender) : trailer.window ? [...new Set(rows.map(r=>r.sender))].map(sender=>'senderPassport:'+sender) : [])];
@@ -70,7 +60,7 @@ export function windowErrors(rows, trailer, journal = null, manifest = null, reg
   if (trailer.stopAttempt !== (rows.at(-1)?.attempt ?? null)) fail('stop attempt mismatch');
   const groups = new Map();
   rows.forEach((r,i)=>{
-    if (!(manifest ? scheduledIndexConforms(r) : conforms(r,schema))) fail(`attempt ${i}: index schema violation`);
+    if (!conforms(r,schema) || (!manifest && scheduleFields.some(key=>Object.hasOwn(r,key)))) fail(`attempt ${i}: index schema violation`);
     if (r.windowId !== trailer.windowId || r.attempt !== i) fail('attempt identity/order mismatch or missing attempt');
     if (r.replacedBy !== null) fail('replacedBy must be null');
     if (r.included !== false || r.passports.end !== null) fail('row contains final disposition or end Passport');
@@ -129,7 +119,11 @@ export function windowErrors(rows, trailer, journal = null, manifest = null, reg
   }
   const included=trailer.triples.filter(t=>t.included);
   if (manifest) {
-    if (included.length !== registered.targetTriplets || included.reduce((n,t)=>n+t.attempts.length,0) !== 3*registered.targetTriplets) fail('included count differs from frozen window target');
+    const {firstSlot} = manifest.slice;
+    if (rows.length !== registered.windowSlots*3 ||
+        rows.some((r,i)=>r.block_slot !== firstSlot+Math.floor(i/3) || r.tripleIndex !== r.block_slot)) {
+      fail('index must retain three attempts for every slot in the slice');
+    }
   } else if (trailer.rehearsal !== true && (included.length !== 50 || included.reduce((n,t)=>n+t.attempts.length,0) !== 150)) fail('requires exactly 50 included triples / 150 included attempts');
   if (!equal(trailer.counts,armCounts(rows,trailer.triples,trailer.replacements))) fail('per-arm counts mismatch');
   if (journal) {

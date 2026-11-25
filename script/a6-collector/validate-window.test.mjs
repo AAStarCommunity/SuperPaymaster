@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getAddress, keccak256 } from 'viem';
-import { createWindow } from './window-schedule.mjs';
+import { createWindow, windowRecord } from './window-schedule.mjs';
 import { sha256, stringify, writeArtifact } from './evidence.mjs';
 import { localUserOpHash } from './gauge-lib.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
@@ -12,7 +12,7 @@ import { finalizePVG, recordPVG } from './pvg.mjs';
 const accounts=[200,201,202].map(n=>getAddress('0x'+n.toString(16).padStart(40,'0')));
 const bytes=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
 const bundleSha256=sha256(bytes);
-const {adapters,manifest}=createWindow({readBundle:()=>bytes,bundleSha256,seed:'public',chainId:10,accounts});
+const {adapters,manifest}=createWindow({readBundle:()=>bytes,bundleSha256,seed:'public',chainId:10,accounts,windowIndex:1});
 const [legacyStart]=readFileSync(new URL('../../docs/design/aoa-balance-mode/data/a6-gauge-local/positive.jsonl',import.meta.url),'utf8').split('\n',1).map(JSON.parse);
 const names={SP:'SP',VerifyingPaymaster:'VPM',TokenPaymaster:'TPM'};
 const deadline='slot_deadline_exceeded';
@@ -26,42 +26,54 @@ function fixture(t) {
     Object.assign(p,{chainId:10,allowSameEndpointLocal:false});
     Object.assign(p.invariant,{sender,gas:structuredClone(frozen.gas),pmGas:structuredClone(frozen.pmGas),callDataHash:keccak256(frozen.callData),
       credit:{policy:0,hasPendingPolicy:false,pendingPolicy:0,pendingPolicyEta:0,policyEpoch:0}});
+    p.invariant.superPaymaster.priceStalenessThreshold=3000;
+    p.volatile.cachedPriceUpdatedAt=p.block.timestamp;
     p.invariant.code.account.address=sender;
     for(const stake of Object.values(p.invariant.stakes)) Object.assign(stake,{staked:true,stake:'1000000000000000000',unstakeDelaySec:86400});
     return [sender,p];
   }));
-  const m=structuredClone(manifest), {schedule,targetTriplets,slotCap}=m;
+  const m=structuredClone(manifest), {schedule,targetTriplets,slice}=m;
+  const slots=schedule.payload.slots.slice(slice.firstSlot,slice.lastSlot+1);
+  const offset=slots[0].start_seconds;
   m.startTimestamp=legacyStart.passport.block.timestamp;
   const head={schema:'a6-gauge/2',runId:'frozen-test'}, arms=Object.values(names);
   const start={...head,kind:'run_start',formal:true,protocolConformant:true,fixture:null,rpcA:'https://a.invalid',rpcB:'https://b.invalid',
-    allowSameEndpointLocal:false,count:targetTriplets,maxAttempts:slotCap,arms,passport:structuredClone(passports.get(accounts[0]))};
+    allowSameEndpointLocal:false,count:targetTriplets,maxAttempts:slice.slots,arms,passport:structuredClone(passports.get(accounts[0]))};
   const last=structuredClone(start.passport);
   last.block={...last.block,number:String(BigInt(last.block.number)+1n),hash:'0x'+'ad'.repeat(32)};
-  const rows=schedule.payload.slots.flatMap(slot=>slot.order.map((name,j)=>{
+  const rows=slots.flatMap(slot=>slot.order.map((name,j)=>{
     const arm=names[name],sender=slot.senders[name];
+    const passport=structuredClone(passports.get(sender));
+    const wait={start:BigInt(m.startTimestamp)+BigInt(slot.start_seconds-offset),
+      deadline:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds-offset),
+      seconds:0n,blocks:0n,lastTimestamp:0n,minTxInterval:0n,validAfter:0n,
+      pin:{number:passport.block.number,hash:passport.block.hash}};
+    wait.timestamp=wait.deadline+1n;
     return {...adapters.get(sender).row(arm,Math.floor(slot.block_slot/accounts.length)),...head,kind:'attempt',
-      attemptIndex:slot.block_slot*arms.length+j,tripletIndex:slot.block_slot,arm,sender,armOrder:slot.order.map(a=>names[a]),
+      attemptIndex:slot.block_slot*arms.length+j,tripletIndex:slot.block_slot,arm,sender,armOrder:slot.order.map(a=>names[a]),passport,
       block_slot:slot.block_slot,pair_id:slot.pair_id,seed:schedule.payload.seed,schedule_sha256:schedule.sha256,
-      fixture:null,collectedAtUtc:'2026-11-25T00:00:00Z',sent:false,tx:null,verdict:'NOT_SENT',
-      failingCheck:deadline,scheduleDisposition:deadline,slotChecks:[{allowed:false,reason:deadline,wait:{
-        start:BigInt(m.startTimestamp)+BigInt(slot.start_seconds),
-        deadline:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds),
-        timestamp:BigInt(m.startTimestamp)+BigInt(slot.deadline_seconds)+1n,validAfter:0n
-      }}]};
+      warmup:false,fixture:null,collectedAtUtc:'2026-11-25T00:00:00Z',sent:false,tx:null,verdict:'NOT_SENT',
+      failingCheck:deadline,scheduleDisposition:deadline,slotChecks:[{allowed:false,reason:deadline,wait}],
+      ...(arm==='SP'?{spWait:wait}:{})};
   }));
-  const end={...head,kind:'run_end',passport:last,targetTriplets,matchedTriplets:0,stop:{reason:'INCOMPLETE',code:10},exitCode:10,
-    tally:Object.fromEntries(arms.map(a=>[a,{attempts:slotCap,verdicts:{NOT_SENT:slotCap}}])),
-    triplets:schedule.payload.slots.map(({block_slot,pair_id})=>({block_slot,pair_id,matched:false,
+  const end={...head,kind:'run_end',passport:last,targetTriplets,matchedTriplets:0,stop:{reason:'EXHAUSTED',code:0},exitCode:0,scheduledSlots:slice.slots,attemptedSlots:slice.slots,warmupAttempts:0,
+    tally:Object.fromEntries(arms.map(a=>[a,{attempts:slice.slots,verdicts:{NOT_SENT:slice.slots}}])),
+    triplets:slots.map(({block_slot,pair_id})=>({block_slot,pair_id,matched:false,
       attempts:arms.map((_,j)=>block_slot*arms.length+j),tripletIndex:block_slot}))};
+  end.window=windowRecord(m,{status:'EXHAUSTED',slots:end.triplets,complete:0,unusedSlots:[]});
   const index=rows.map(r=>({attempt:r.attemptIndex,passports:{start:{path:`passports/start-${r.sender}.json`}}}));
   return {m,start,rows,end,index,passports,run({withPlan=true,withManifest=true,bundle=bytes,truncated=false}={}) {
     if(withManifest) writeArtifact(dir,'manifest.json',m);
-    for(const [sender,p] of passports) writeArtifact(dir,`passports/start-${sender}.json`,p);
+    for(const [sender,p] of passports) {
+      writeArtifact(dir,`passports/start-${sender}.json`,p);
+      writeArtifact(dir,`passports/end-${sender}.json`,{...p,block:last.block});
+    }
     writeFileSync(join(dir,'bundle.json'),bundle);
     writeFileSync(join(dir,'run.jsonl'),[start,...rows,...(truncated?[]:[end])].map(stringify).join('\n')+'\n');
     writeFileSync(join(dir,'index.ndjson'),index.map(stringify).join('\n')+'\n');
     const r=spawnSync(process.execPath,['script/a6-collector/validate.mjs',join(dir,'run.jsonl'),
-      ...(withPlan?['--frozen-plan',join(dir,'bundle.json')]:[])],{encoding:'utf8'});
+      ...(withPlan?['--frozen-plan',join(dir,'bundle.json')]:[]),
+      '--registered-seed',schedule.payload.seed,'--registered-schedule-sha256',schedule.sha256],{encoding:'utf8'});
     assert.ifError(r.error);
     return {status:r.status,...JSON.parse(r.stdout)};
   }};
@@ -108,14 +120,32 @@ test('window rejects a mismatched manifest plan digest',t=>{
 test('window accepts all three start passports and scheduled NOT_SENT rows',t=>{
   const f=fixture(t), sp=f.rows.find(r=>r.arm==='SP');
   sp.failingCheck=sp.scheduleDisposition=sp.slotChecks[0].reason='sp_valid_after_exceeds_slot_deadline';
-  sp.slotChecks[0].wait.timestamp=sp.slotChecks[0].wait.deadline;
-  sp.slotChecks[0].wait.validAfter=sp.slotChecks[0].wait.deadline+1n;
+  const {wait}=sp.slotChecks[0];
+  Object.assign(wait,{timestamp:wait.deadline,lastTimestamp:wait.deadline,minTxInterval:1n,validAfter:wait.deadline+1n});
   assert.equal(f.passports.get(accounts[1]).invariant.pmGas.VPM.post,0n);
   const r=f.run();
   // The fixture has no archive or trailer (PR 2b): that is the only error the window may report.
   assert.deepEqual(r.errors,[NO_TRAILER],JSON.stringify(r));
   assert.equal(r.accepted,false);
   assert.deepEqual(r.recomputed,{NOT_SENT:f.rows.length});
+});
+test('a stopped slice may retain a partial final slot',t=>{
+  const f=fixture(t), [first,second]=f.end.triplets;
+  f.rows.length=f.index.length=4;
+  const stopped=f.rows.at(-1);
+  for(const key of ['sent','tx','failingCheck','scheduleDisposition','slotChecks','spWait']) delete stopped[key];
+  Object.assign(stopped,{verdict:'STOPPED',stoppedBy:{reason:'CRASH'},exclusion:'STOPPED'});
+  second.attempts=[3];
+  Object.assign(f.end,{stop:{reason:'CRASH',code:1},exitCode:1,attemptedSlots:2,triplets:[first,second]});
+  for(const [arm,tally] of Object.entries(f.end.tally)) {
+    tally.attempts=arm===stopped.arm?2:1;
+    tally.verdicts={NOT_SENT:1};
+  }
+  f.end.window=windowRecord(f.m,{status:'STOPPED',slots:f.end.triplets,complete:0,
+    unusedSlots:Array.from({length:18},(_,i)=>i+2)});
+  const r=f.run();
+  assert.deepEqual(r.errors,[NO_TRAILER],JSON.stringify(r));
+  assert.equal(r.accepted,false);
 });
 test('a packed NOT_SENT operation uses the passport of its sender',async t=>{
   const f=fixture(t), row=f.rows.find(r=>r.arm==='VPM' && r.sender===accounts[1]);
@@ -134,7 +164,7 @@ test('a packed NOT_SENT operation uses the passport of its sender',async t=>{
   gas.preVerificationGas=pvg.value;
   Object.assign(row,{chainId:10,entryPoint,paymaster,nonce:packed.nonce,bundler:inv.bundler,callDataHash:inv.callDataHash,gas,pmGas,
     expectedUserOpHash:hash,epUserOpHash:hash,localUserOpHash:hash,bundledUserOpHashes:[hash],packedOp:packed,bundledOps:[packed],guard:{allowed:true}});
-  const wait=row.slotChecks[0].wait;
+  const {wait}=row.slotChecks[0];
   row.slotChecks.unshift({allowed:true,wait:{...wait,timestamp:wait.start}});
   recordPVG(row,pvg);
   const r=f.run();
