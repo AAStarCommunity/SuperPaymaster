@@ -657,8 +657,8 @@ test('real archive: sibling answers in the first ~1 s only → canonical receipt
   const h0 = wire[0].head;
   assert.equal(wire[0].method, 'eth_blockNumber');
   for (const w of wire.filter(w => blockReads.includes(w.method))) assert.ok(w.head >= h0 + 3, JSON.stringify(w));
-  assert.deepEqual({ startBlock: stats.startBlock, firstReadHead: stats.firstReadHead, block: stats.block, confirmations: stats.confirmations, fallback: stats.fallback },
-    { startBlock: '100', firstReadHead: '103', block: '101', confirmations: '3', fallback: false });
+  assert.deepEqual({ startBlock: stats.startBlock, firstReadHead: stats.firstReadHead, block: stats.block, confirmations: stats.confirmations },
+    { startBlock: '100', firstReadHead: '103', block: '101', confirmations: '3' });
   // The reads pinned recordCompletion makes next on the same archive (verifyReceipt: receipt, block at height, tx) see
   // the same hash, so the anchor map does not trip.
   const r = await rpc.request({ method: 'eth_getTransactionReceipt', params: [TX] });
@@ -672,19 +672,19 @@ test('real archive: a sibling seen at the first receipt read rejects fast with "
   const { pub } = realArchive({ c, inclusion: 102, includedAt: 4000, siblingUntil: 7000 });
   const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
   assert.ok(err, 'must reject'); assert.match(causeChain(err), /recorded block hash changed|not canonical/);
-  assert.equal(stats.fallback, false); assert.ok(c.now() < 20000, 'fast: ' + c.now());
+  assert.ok(c.now() < 20000, 'fast: ' + c.now());
 });
 test('real archive: a transport error rejects at once with its own cause (archive goes sticky by design)', async () => {
   const c = clock(), stats = {};
   const { pub } = realArchive({ c, fail: (m, t) => m === 'eth_blockNumber' && t === 2000 ? Error('ECONNRESET') : null });
   const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
-  assert.match(causeChain(err), /transport failed/); assert.equal(c.now(), 2000); assert.equal(stats.fallback, false);
+  assert.match(causeChain(err), /transport failed/); assert.equal(c.now(), 2000);
 });
 test('real archive: a -32005 RPC error rejects at once with its own cause', async () => {
   const c = clock(), stats = {};
   const { pub } = realArchive({ c, fail: m => m === 'eth_getTransactionReceipt' ? { code: -32005, message: 'limit exceeded' } : null });
   const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
-  assert.match(causeChain(err), /-32005/); assert.equal(stats.fallback, false); assert.equal(c.now(), 6000);
+  assert.match(causeChain(err), /-32005/); assert.equal(c.now(), 6000);
 });
 test('real archive: receipt not found at first, included later (block 104) → canonical receipt at depth 3', async () => {
   const c = clock(), stats = {};
@@ -693,17 +693,17 @@ test('real archive: receipt not found at first, included later (block 104) → c
   assert.equal(got.blockHash, CANON); assert.equal(stats.block, '104'); assert.equal(stats.confirmations, '3');
   assert.equal(wire.filter(w => w.method === 'eth_getBlockByNumber').length, 1);
 });
-test('stable receipts: receipt never found within the timeout → the original viem wait runs (setup decides as before)', async () => {
+test('stable receipts: receipt never found within the timeout → explicit error naming hash, H0 and last head; no fallback wait', async () => {
   const c = clock(), stats = {};
   const pub = fakePub({ receipts: [null], heads: Array.from({ length: 400 }, (_, i) => BigInt(100 + i)) });
-  const got = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX });
-  assert.equal(got.fallback, true); assert.equal(stats.fallback, true);
-  assert.deepEqual(pub.calls.at(-1), ['waitForTransactionReceipt', { hash: TX }]);
+  const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.match(err.message, new RegExp('no receipt within 120 s for ' + TX + ' \\(H0 100, last head \\d+\\)'));
+  assert.equal(pub.calls.some(([m]) => m === 'waitForTransactionReceipt'), false);
 });
 test('stable receipts: no confirmations within the timeout → rejects (never returns a shallow receipt)', async () => {
   const c = clock(), stats = {};
   const pub = fakePub({ receipts: [receipt(CANON, 103n)], heads: [100n, 103n, 103n] });
-  await assert.rejects(stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }), /timed out for confirmations/);
+  await assert.rejects(stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }), /no receipt within 120 s/);
 });
 test('stable receipts: a receipt for another transaction rejects; hash case differences are accepted and the receipt keeps its own case', async () => {
   const c = clock();
@@ -812,8 +812,8 @@ test('SESSION_RECEIPTS: one line per step with H0, head at first read, inclusion
     const s = await runSession(opts({ end: 0 }), f.io);
     assert.equal(s.status, 'complete');
     const line = JSON.parse(f.ev.logs.find(l => l.startsWith('SESSION_RECEIPTS ')).slice(17));
-    assert.deepEqual(line, { index: 0, A: { hash: TX, polls: 3, startBlock: '100', firstReadHead: '103', block: '101', confirmations: '3', fallback: false },
-      B: { hash: TX, polls: 3, startBlock: '100', firstReadHead: '103', block: '101', confirmations: '4', fallback: false } });
+    assert.deepEqual(line, { index: 0, A: { hash: TX, polls: 3, startBlock: '100', firstReadHead: '103', lastHead: '103', block: '101', confirmations: '3' },
+      B: { hash: TX, polls: 3, startBlock: '100', firstReadHead: '103', lastHead: '104', block: '101', confirmations: '4' } });
   } finally { delete FORMAL.next; }
 });
 test('record: a refused record creates no step directory', async () => {
@@ -833,4 +833,62 @@ test('real archive: a provider that consistently answers the sibling is not caug
 test('stable receipts: without the archive layer, a block hash differing from the receipt is still rejected', async () => {
   const pub = fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n], blocks: [SIBLING] });
   await assert.rejects(stableReceipts(pub, {}, clock()).waitForTransactionReceipt({ hash: TX }), /not canonical/);
+});
+
+// ── Daybreak #682 increment 2: no fallback, deadline around every call, shared cancellation ──────────────
+test('real archive: inclusion exactly when the deadline expires → stop, no receipt accepted', async () => {
+  const c = clock(), stats = {};
+  const { pub, wire } = realArchive({ c, inclusion: 160, includedAt: 120000, siblingUntil: 0 });
+  const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.match(String(err?.message), /no receipt within 120 s/);
+  assert.equal(wire.some(w => w.method === 'eth_getTransactionReceipt' && w.t >= 120000), false);
+  assert.equal(wire.some(w => w.method === 'eth_getBlockByNumber'), false);
+});
+test('real archive: late inclusion whose first non-null receipt is provisional → stops fast with the cause', async () => {
+  const c = clock(), stats = {};
+  // Included in 105 at t=10000 (head 105); provisional until t=11000; first receipt read at t=10000; depth 3 at t=14000.
+  const { pub } = realArchive({ c, inclusion: 105, includedAt: 10000, siblingUntil: 11000 });
+  const err = await stableReceipts(pub, stats, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.ok(err); assert.match(causeChain(err), /recorded block hash changed|not canonical/); assert.equal(stats.block, '105');
+});
+test('real archive: a transport error after several not-found polls rejects at once with its cause', async () => {
+  const c = clock();
+  const { pub } = realArchive({ c, inclusion: 110, includedAt: 30000, fail: (m, t) => m === 'eth_getTransactionReceipt' && t === 9000 ? Error('ECONNRESET') : null });
+  const err = await stableReceipts(pub, {}, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.match(causeChain(err), /transport failed/); assert.equal(c.now(), 9000);
+});
+test('real archive: a transport error during the final block read rejects with its cause', async () => {
+  const c = clock();
+  const { pub } = realArchive({ c, siblingUntil: 0, fail: m => m === 'eth_getBlockByNumber' ? Error('ECONNRESET') : null });
+  const err = await stableReceipts(pub, {}, c).waitForTransactionReceipt({ hash: TX }).then(() => null, e => e);
+  assert.match(causeChain(err), /transport failed/);
+});
+test('stable receipts: a result that arrives after the deadline is rejected even though the call succeeded', async () => {
+  const c = clock();
+  const pub = fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n] });
+  const getBlock = pub.getBlock;
+  pub.getBlock = async a => { await c.sleep(200000); return getBlock(a); }; // the call outlives the 120 s bound
+  await assert.rejects(stableReceipts(pub, {}, c).waitForTransactionReceipt({ hash: TX }), /no receipt within 120 s/);
+});
+test('shared cancellation: once one provider waiter rejects, the other stops at its next call', async () => {
+  const c = clock();
+  const A = fakePub({ receipts: [Error('RPC A transport failed (redacted)')], heads: [100n, 103n] });
+  const B = fakePub({ receipts: [null], heads: Array.from({ length: 400 }, (_, i) => BigInt(100 + i)) });
+  const raw = rawRuntime(() => null); raw.runtime.pubA = A; raw.runtime.pubB = B;
+  const rt = await canonicalRuntime(raw.formalRuntime, { receipts: c })({});
+  const [ea, eb] = await Promise.all([rt.pubA.waitForTransactionReceipt({ hash: TX }).then(() => null, e => e), rt.pubB.waitForTransactionReceipt({ hash: TX }).then(() => null, e => e)]);
+  assert.match(ea.message, /RPC A transport failed/);
+  assert.match(eb.message, /receipt wait stopped: the other provider failed \(RPC A transport failed/);
+  assert.ok(B.calls.length < 20, 'B stopped early: ' + B.calls.length);
+});
+test('shared cancellation is per step: a new runtime starts with a clear flag', async () => {
+  const c = clock();
+  const raw = rawRuntime(() => null);
+  raw.runtime.pubA = fakePub({ receipts: [Error('boom')], heads: [100n, 103n] }); raw.runtime.pubB = fakePub({ receipts: [null], heads: [100n, 103n] });
+  const make = canonicalRuntime(raw.formalRuntime, { receipts: c });
+  const first = await make({});
+  await first.pubA.waitForTransactionReceipt({ hash: TX }).catch(() => {});
+  raw.runtime.pubA = fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n] });
+  const second = await make({});
+  assert.equal((await second.pubA.waitForTransactionReceipt({ hash: TX })).blockHash, CANON);
 });
