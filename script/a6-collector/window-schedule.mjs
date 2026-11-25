@@ -84,6 +84,11 @@ export function slotDecision(arm,{timestamp,start,deadline,validAfter}) {
   if(timestamp>=start && (arm!=='SP'||timestamp>=validAfter)) return {allowed:true};
   return null;
 }
+
+export function accumulateSlotWait(previous,wait) {
+  return {...wait,seconds:BigInt(previous?.seconds??0n)+BigInt(wait.seconds),blocks:BigInt(previous?.blocks??0n)+BigInt(wait.blocks)};
+}
+
 /** Fresh A/B reads at every pin, including the pin immediately before submission. */
 export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,deadline,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=180000}) {
   let first;const wallDeadline=Date.now()+timeoutMs;

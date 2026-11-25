@@ -11,6 +11,14 @@
       "type": "string",
       "minLength": 1
     },
+    "block_slot": {"type": "integer", "minimum": 0},
+    "pair_id": {"type": "string", "minLength": 1},
+    "seed": {"type": "string", "minLength": 1},
+    "schedule_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "warmup": {"const": false},
+    "spWait": {"type": "object"},
+    "slotChecks": {"type": "array", "maxItems": 2, "items": {"type": "object"}},
+    "scheduleDisposition": {"enum": ["slot_deadline_exceeded", "sp_valid_after_exceeds_slot_deadline"]},
     "tripleIndex": {
       "type": "integer",
       "minimum": 0
@@ -1060,7 +1068,16 @@
       }
     },
     {
+      "if": {"type": "object", "required": ["block_slot"]},
+      "then": {
+        "type": "object",
+        "required": ["pair_id", "seed", "schedule_sha256", "warmup"],
+        "properties": {"exclusionReason": {"type": "null"}}
+      }
+    },
+    {
       "if": {
+        "not": {"type": "object", "required": ["block_slot"]},
         "properties": {
           "verdict": {
             "not": {

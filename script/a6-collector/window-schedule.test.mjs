@@ -53,6 +53,18 @@ test('window index is required and must be an integer in 1..3',()=>{
   assert.throws(()=>w.createWindow({...opts,windowIndex,readBundle:()=>assert.fail('read bundle')}),/WINDOW_INDEX/);
  }
 });
+test('slice matching derives its size and index range from the registered protocol',()=>{
+ const registered=w.REGISTERED_WINDOW;
+ assert.deepEqual(registered,{targetTriplets:50,slotCap:60,windowSlots:20,windows:3,
+  stoppingRule:w.STOPPING_RULE,warmupAttempts:0,warmup:false});
+ const manifest=manifestFor(2);
+ assert.ok(w.windowProtocolMatches(manifest,registered));
+ for(const patch of [{windowIndex:'2'},{windowIndex:0},{windowIndex:4},{firstSlot:19},{lastSlot:40},{slots:19}]) {
+  assert.equal(w.windowProtocolMatches({...manifest,slice:{...manifest.slice,...patch}},registered),false);
+ }
+ assert.ok(w.windowProtocolMatches({...manifest,slice:{windowIndex:2,firstSlot:30,lastSlot:59,slots:30}},
+  {...registered,windows:2,windowSlots:30}));
+});
 test('window loads three exact plans, records digests, rejects plan.S mismatch',()=>{
  const window=w.createWindow({...opts,windowIndex:1});
  assert.equal(Object.keys(window.manifest.plan_sha256).length,3);

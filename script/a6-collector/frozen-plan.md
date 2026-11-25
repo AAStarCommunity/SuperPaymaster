@@ -46,9 +46,9 @@ three windows, within the existing plans' 34/33/33 per-arm budgets.
 `COMPLETE` with at least 50 complete triplets across all three valid windows and
 `INCOMPLETE` below 50. A missing or void slice yields `INVALID-INTERRUPTED`. A
 void or interrupted slice must never be rerun under the same registration. The
-collector refuses an existing window directory. Running the same slice in a new
-directory produces a second result for that range, which the aggregate must
-refuse as a duplicate.
+collector refuses a window directory that already contains `raw/`, `index.ndjson`
+or `manifest.json`. It also refuses a non-empty output file. The aggregate
+refuses a duplicate slice range, even when the runs have distinct IDs.
 
 No pilot/warmup attempts run in this mode. `warmupAttempts` is zero
 and every formal attempt row has `warmup:false`. Do any pilot in a separate run;
@@ -86,8 +86,18 @@ allowance/total caps remain a separate resource constraint; see the resource
 audit in `cache/sched/REPORT.md` rather than assuming an attempt budget alone
 proves allowance sufficiency.
 
-Slice validation and aggregation are pending in the evidence PR. The schedule
-evidence writer retains incomplete slots without applying the legacy
+Store the journal at `<window-dir>/run.jsonl`. Validate each slice and aggregate the
+three directories with the registered seed and schedule SHA-256 from the
+registration:
+
+```sh
+node script/a6-collector/validate.mjs <window-dir>/run.jsonl --frozen-plan <bundle> \
+  --registered-seed <seed> --registered-schedule-sha256 <hex>
+node script/a6-collector/aggregate-windows.mjs <window-1> <window-2> <window-3> \
+  --frozen-plan <bundle> --registered-seed <seed> --registered-schedule-sha256 <hex>
+```
+
+The evidence writer retains incomplete slots without applying the legacy
 replacement-exclusion policy.
 
 Offline tests use the real planner with its fake chain, injected chain clocks,

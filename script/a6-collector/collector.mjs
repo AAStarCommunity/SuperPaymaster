@@ -1,4 +1,4 @@
-import { createWindow, runSlots, waitForSlot, windowRecord, TARGET_TRIPLETS, WINDOW_SLOTS, WINDOWS } from './window-schedule.mjs';
+import { accumulateSlotWait, createWindow, runSlots, waitForSlot, windowRecord, TARGET_TRIPLETS, WINDOW_SLOTS, WINDOWS } from './window-schedule.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
 import { persistSettlement } from './frozen-plan.mjs';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
@@ -881,9 +881,6 @@ async function slotGate(arm,row) {
     start:windowStart+BigInt(activeSlot.start_seconds-firstSliceSlot.start_seconds),
     deadline:windowStart+BigInt(activeSlot.deadline_seconds-firstSliceSlot.start_seconds)});
   (row.slotChecks??=[]).push(result);
-  if(arm==='SP') {
-    const previous=row.spWait;
-    row.spWait={...result.wait,seconds:(previous?.seconds??0n)+result.wait.seconds,blocks:(previous?.blocks??0n)+result.wait.blocks};
-  }
+  if(arm==='SP') row.spWait=accumulateSlotWait(row.spWait,result.wait);
   return result;
 }
