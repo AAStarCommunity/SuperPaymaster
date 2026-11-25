@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // No-send timing probe for one window slot (three arms) on the real provider pair. Per arm, in
 // slot-0 order, it makes the reads of a window attempt in collector order: pre-gate pin + Passport,
-// slot gate, nonce, one PVG iteration's hash reads, deposit, both frozen-plan beforeSend checks with
-// their fee pins, a preflight simulation sample, the submit gate with its pin and pending-nonce
-// reads, the inclusion block, the read-backs and the post-inclusion Passport. It never signs or
+// slot gate, nonce, one PVG iteration's hash reads, deposit, the three frozen-plan beforeSend checks
+// with their fee pins, a preflight simulation sample, the submit gate with its pin and pending-nonce
+// reads, the inclusion block, the read-backs and the post-inclusion Passport; optionally the TPM tracers. It never signs or
 // sends: the runtime is read-only (no signer, wallet or keychain) and takes no bundler lock. Output
 // goes to a fresh --out-dir named timing-*, so it cannot be a later window directory.
 //
 // Usage: node script/a6-collector/window-timing.mjs --frozen-plan <bundle> --bundle-sha256 <hex>
 //   --seed <seed> --formal-config <json> --config <deployment json> --baselines <json>
-//   --rpc-a-file <file> --rpc-b-file <file> --out-dir <new dir> [--cap-a N] [--cap-b N]
+//   --rpc-a-file <file> --rpc-b-file <file> --out-dir <new timing-* dir> [--cap-a N] [--cap-b N]
+//   [--trace-tx <TPM handleOps tx hash>]
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { getAddress, keccak256, concat, pad, toHex, encodeAbiParameters } from 'viem';
@@ -26,6 +27,8 @@ if (!/^[0-9a-f]{64}$/.test(argVal('--bundle-sha256'))) die('--bundle-sha256 must
 const cap = (flag, d) => { const v = argVal(flag) ?? String(d); if (!/^[1-9]\d?$/.test(v)) die(`${flag} must be 1..99`); return Number(v); };
 const caps = { A: cap('--cap-a', READ_CAP.A), B: cap('--cap-b', READ_CAP.B) };
 const outDir = resolve(argVal('--out-dir'));
+const traceTx = argVal('--trace-tx') ?? null;
+if (traceTx !== null && !/^0x[0-9a-f]{64}$/i.test(traceTx)) die('--trace-tx must be a transaction hash');
 if (!/^timing-/.test(basename(outDir))) die('--out-dir basename must start with timing-');
 if (existsSync(outDir)) die('--out-dir must not exist');
 
@@ -118,23 +121,26 @@ for (const armName of slot.order) {
     for (const n of [bn - 1n, bn]) await readAB('readbacks', p => readReadbacks(p, arm, n, ZERO_HASH, sender, e, pools.get(p)));
   });
   await phase('postInclusionPassport', () => readAB('passport@bn', p => readPassport(p, bn, e, pools.get(p))));
-  // A formal TPM attempt traces its transaction twice per endpoint (trace-policy.mjs traceTPM). The
-  // probe traces the first transaction of the sample block, which also tests tracer support.
-  if (arm === 'TPM') await phase('tpmTraces', async () => {
-    const hash = (await pubA.getBlock({ blockNumber: bn })).transactions[0];
-    phases.tpmTraceErrors = [];
-    for (const client of [pubA, pubB]) for (const tracer of [{ tracer: 'callTracer', tracerConfig: { withLog: true } }, { tracer: 'prestateTracer', tracerConfig: { diffMode: true } }])
-      await client.request({ method: 'debug_traceTransaction', params: [hash, tracer] }).catch(error => phases.tpmTraceErrors.push(`${client === pubA ? 'A' : 'B'} ${tracer.tracer}: ${String(error.shortMessage ?? error.message).slice(0, 120)}`));
-  });
-  arms.push({ arm, sender, phases, totalSeconds: +Object.values(phases).reduce((s, x) => s + (x.seconds ?? 0), 0).toFixed(3) });
+  arms.push({ arm, sender, phases, totalSeconds: +Object.values(phases).reduce((s, x) => s + x.seconds, 0).toFixed(3) });
 }
-const result = { schema: 'a6-window-timing/1', caps, slot: { block_slot: slot.block_slot, order: slot.order.map(a => ARM[a]) },
+// A formal TPM attempt traces its transaction with two tracers per endpoint (trace-policy.mjs). With
+// --trace-tx (a TPM handleOps transaction), the probe times those four calls once, after every arm:
+// a tracer error latches the endpoint's transport, so nothing may run after it.
+let tpmTraces = null;
+if (traceTx) {
+  const t = performance.now(), errors = [];
+  for (const client of [pubA, pubB]) for (const tracer of [{ tracer: 'callTracer', tracerConfig: { withLog: true } }, { tracer: 'prestateTracer', tracerConfig: { diffMode: true } }])
+    await client.request({ method: 'debug_traceTransaction', params: [traceTx, tracer] }).catch(error => errors.push(`${client === pubA ? 'A' : 'B'} ${tracer.tracer}: ${String(error.shortMessage ?? error.message).slice(0, 120)}`));
+  tpmTraces = { seconds: +((performance.now() - t) / 1000).toFixed(3), ...mark(), errors };
+}
+const result = { schema: 'a6-window-timing/1', caps, tpmTraces, slot: { block_slot: slot.block_slot, order: slot.order.map(a => ARM[a]) },
   slotPeriodSeconds: window.manifest.schedule.payload.slot_period_seconds, maxElapsedSeconds: window.manifest.schedule.payload.max_elapsed_seconds,
   // slotSeconds sums the measured phases; wallSeconds also includes the probe's own sample-block pins.
-  arms, slotSeconds: +arms.reduce((s, a) => s + a.totalSeconds, 0).toFixed(3), wallSeconds: +((performance.now() - t0) / 1000).toFixed(3),
+  arms, slotSeconds: +(arms.reduce((s, a) => s + a.totalSeconds, 0) + (tpmTraces?.seconds ?? 0)).toFixed(3), wallSeconds: +((performance.now() - t0) / 1000).toFixed(3),
   maxInFlight: { A: pools.get(pubA).maxInFlight, B: pools.get(pubB).maxInFlight },
   excluded: ['signing (owner and VPM signer) per PVG iteration', 'PVG iterations after the first (reads per iteration are pvgIterationReads)',
     'gate polls after the first while waiting for the slot start or SP validAfter (each repeats slotGate reads)',
+    ...(traceTx ? [] : ['TPM tracers (pass --trace-tx to time them)']),
     'transaction broadcast', 'receipt polling and inclusion', 'transaction read', 'wait for both heads past inclusion before the next attempt'],
   note: 'preflight simulation is timed on an unsigned op (it reverts early); the real op is signed and simulates fully' };
 writeFileSync(resolve(outDir, 'timing.json'), JSON.stringify(result, null, 1) + '\n');
