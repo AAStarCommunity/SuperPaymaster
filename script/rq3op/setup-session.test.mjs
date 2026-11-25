@@ -892,3 +892,8 @@ test('shared cancellation is per step: a new runtime starts with a clear flag', 
   const second = await make({});
   assert.equal((await second.pubA.waitForTransactionReceipt({ hash: TX })).blockHash, CANON);
 });
+test('shared cancellation: a waiter whose peer has already failed makes no provider call at all', async () => {
+  const pub = fakePub({ receipts: [receipt(CANON)], heads: [100n, 103n, 103n] });
+  await assert.rejects(stableReceipts(pub, {}, { ...clock(), cancel: { reason: 'peer failed' } }).waitForTransactionReceipt({ hash: TX }), /other provider failed \(peer failed\)/);
+  assert.equal(pub.calls.length, 0);
+});
