@@ -449,11 +449,11 @@ def write_success(evidence, env, config, broadcast, gated_plan):
     digest = plan_digest(gated_plan)
     require(digest == plan_digest(json.loads((evidence/'gated-plan.json').read_text())),
             'gated plan changed before checker PASS')
-    rehearsal = False
-    if env.get('DEPLOYLIVE_FORK_REHEARSAL') == '1':
-        from deploylive_readback import fork_rehearsal_active, expected_chain_id
-        try: rehearsal = fork_rehearsal_active(env, expected_chain_id(env), env.get('DEPLOYLIVE_RPC', ''))
-        except (ValueError, TypeError): rehearsal = False
+    # Single source: the checker already recorded the mode in readback.json; never re-decide it here.
+    try: readback = json.loads((evidence/'readback.json').read_text())
+    except (OSError, ValueError): readback = None
+    require(isinstance(readback, dict), 'readback unreadable; no checker PASS record written')
+    rehearsal = readback.get('mode') == 'REHEARSAL' or (readback.get('singleProvider') is True and str(readback.get('chainId')) != '31337')
     record = dict(status='REHEARSAL_PASS' if rehearsal else 'PASS', manifest=manifest_digest(evidence),
         gatedPlanSha256=digest,
         readbackSha256=hashlib.sha256((evidence/'readback.json').read_bytes()).hexdigest(),

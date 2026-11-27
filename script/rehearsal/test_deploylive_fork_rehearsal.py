@@ -168,13 +168,29 @@ class ForkRehearsalRecordTest(unittest.TestCase):
             self.c.archive_records(self.root)
 
     def test_archive_refuses_single_provider_off_local_chain(self):
+        # The record type follows readback.json, not the environment: no flag, still REHEARSAL_PASS.
         (self.root / 'readback.json').write_text('{"singleProvider": true, "chainId": "10"}')
         plain = dict(self.env)
         plain.pop('DEPLOYLIVE_FORK_REHEARSAL')
         self.c.write_success(self.root, plain, self.config, self.broadcast, {})
-        self.assertTrue((self.root / 'checker.PASS.json').is_file())
+        self.assertFalse((self.root / 'checker.PASS.json').exists())
+        self.assertTrue((self.root / 'checker.REHEARSAL_PASS.json').is_file())
         with self.assertRaisesRegex(RuntimeError, 'rehearsal readback'):
             self.c.archive_records(self.root)
+
+    def test_env_flag_alone_does_not_make_a_rehearsal_record(self):
+        (self.root / 'readback.json').write_text('{"singleProvider": false, "chainId": "10"}')
+        self.c.write_success(self.root, self.env, self.config, self.broadcast, {})
+        self.assertTrue((self.root / 'checker.PASS.json').is_file())
+        self.assertFalse((self.root / 'checker.REHEARSAL_PASS.json').exists())
+
+    def test_unreadable_readback_writes_no_pass_record(self):
+        for text in ('not json', '[]'):
+            (self.root / 'readback.json').write_text(text)
+            with self.assertRaisesRegex(RuntimeError, 'readback unreadable'):
+                self.c.write_success(self.root, self.env, self.config, self.broadcast, {})
+            self.assertFalse((self.root / 'checker.PASS.json').exists())
+            self.assertFalse((self.root / 'checker.REHEARSAL_PASS.json').exists())
 
     def test_archive_allows_chain_31337_single_provider(self):
         (self.root / 'readback.json').write_text('{"singleProvider": true, "chainId": "31337"}')
