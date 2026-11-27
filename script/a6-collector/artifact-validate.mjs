@@ -6,7 +6,7 @@ import { resolve, isAbsolute } from 'node:path';
 import { evidenceIndex, sha256, stringify, loadRegistry, replacementReason, bindPreflight } from './evidence.mjs';
 import { formalConfig, armOrder, DEFAULT_FACTORY, inclusionErrors } from './formal.mjs';
 import { formatTransaction, decodeFunctionData, parseAbi, toFunctionSelector, encodeAbiParameters } from 'viem';
-import { tpmAttemptRefreshed } from './trace-policy.mjs';
+import { tpmAttemptRefreshed, untracedWindowRevert } from './trace-policy.mjs';
 import { measurePVG, recordPVG } from './pvg.mjs';
 
 // Receipt/transaction polls of one endpoint, in archive order. Polls made before inclusion stay referenced (the index
@@ -316,6 +316,10 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     }
     if (a.sent && (frozenWindow || a.verdict==='USEROP_SUCCESS') && r.arm==='TPM') {
       if (!a.tpmOracle || lower(a.tpmOracle)!==lower(inv.code.tokenPaymasterOracle.address)) throw new Error('TPM oracle/Passport mismatch');
+      if (untracedWindowRevert(a,frozenWindow)) {
+        if (['A','B'].some(e=>r.trace.raw[e].length)) throw new Error('unexpected TPM raw trace for reverted receipt');
+        continue;
+      }
       for (const [idx,endpoint] of (frozenWindow ? ['A'] : ['A','B']).entries()) {
         const refs=r.trace?.raw?.[endpoint] ?? [];
         for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {

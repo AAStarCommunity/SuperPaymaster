@@ -169,3 +169,28 @@ test('frozen transport checks first-use freshness on both sides of bundler signi
  assert.equal(sends,1);
  assert.equal(signed.length,1);
 });
+
+test('collector keeps a reverted TPM window receipt as TX_FAILED without requesting a trace',async()=>{
+ const receiptPath=source.slice(source.indexOf('  const tx = { raw: rawTx.A'),source.indexOf('  return r;\n}',source.indexOf('  const tx = { raw: rawTx.A')));
+ const finish=source.split('\n').find(line=>line.includes('const finish ='));
+ const requests=[], rows=[], client={request:async({method})=>{requests.push(method);throw Error(method);}};
+ const rcA={status:'reverted',blockHash:'0x01',logs:[]};
+ const state={blockNumber:1n,operatorBalance:0n};
+ const collected=await vm.runInNewContext(`(async()=>{${finish}\n${receiptPath}\nreturn r;})()`,{
+   ...await import('./gauge-lib.mjs'),...await import('./trace-policy.mjs'),...await import('./gas-decomposition.mjs'),
+   rcA,rcView:x=>x,rawTx:{A:{}},blk:{transactions:['0x02']},ours:{},bundled:[],headBefore:1n,bn:2n,
+   txHash:'0x02',expectedHash:'0x03',EP:accounts[0],sender:accounts[1],pm:accounts[2],nonce:0n,
+   arm:'TPM',formal:true,window:{},adapter:null,fixture:null,traceEnabled:true,pubA:client,pubB:client,
+   baselines:{tokenPaymaster:{oracle:accounts[0]}},row:{arm:'TPM'},st:{},recordMeasuredPVG(){},
+   readbacks:async()=>({A:state,B:state}),passportStart:{block:{number:state.blockNumber},volatile:state,invariant:{}},
+   stateByArm:new Map(),lastAttemptBlock:null,rehearsal:false,seenTransactions:new Set(),seenOperations:new Set(),seenBlocks:new Set(),
+   readAB:async()=>({A:{invariant:{}}}),writeLine:r=>rows.push(r),
+ });
+ assert.deepEqual(requests,[]);
+ assert.equal(rows.length,1);
+ assert.equal(rows[0],collected);
+ assert.equal(collected.sent,true);
+ assert.equal(collected.verdict,'TX_FAILED');
+ assert.equal(collected.postOpRefreshed,false);
+ assert.equal(collected.traces.length,0);
+});

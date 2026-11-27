@@ -573,3 +573,12 @@ test('window TPM trace is bound to A and checked against the receipt', async t =
     assert.equal(result.matchedTriplets,options.tpmRefresh?18:19);
   });
 });
+
+test('window accepts a reverted TPM receipt without traces and requires the A trace on success',async t=>{
+  const f=await fixture(t,{finalTpmRevert:true});
+  const result=validate(f);
+  assert.equal(result.accepted,true,JSON.stringify(result));
+  assert.equal(result.recomputed.TX_FAILED,1);
+  assert.equal(f.rows.find(row=>row.verdict==='TX_FAILED').traces.length,0);
+  refuses(await fixture(t,{tpmTraceEndpoints:[]}),/TPM raw trace missing or inconsistent/);
+});

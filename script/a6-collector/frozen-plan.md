@@ -70,11 +70,17 @@ signing and at inclusion. A signed transaction awaiting reconciliation leaves
 a sender marker in the collector lock directory. The setup journal cannot be
 used as window evidence.
 
+If the collector stops after writing a sender marker but before broadcasting,
+recover by hand: confirm the sender's key-0 nonce is still 0 and the bundler's
+pending nonce is unchanged on A and B, then remove the marker.
+
 ## Window gates and traces
 
 A sent TPM operation in a frozen window takes both debug traces from RPC A.
 RPC A and B still agree on the receipt. A `TokenPriceUpdated` log emitted by
 the TPM paymaster requires the trace-derived refresh flag to be true.
+A sent TPM operation whose agreed receipt status is reverted is kept as
+TX_FAILED with no trace and a false refresh flag.
 
 Known gap: TPM postOp trace from one provider; byte-identical callTracer and prestateTracer results on two further providers for tx 0x62318b209aca40c80e67c6d4e21a3c1cd42bc2dfcde8ecb34023cf155490809b (probe 2026-11-27)
 

@@ -636,8 +636,11 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
       throw new Stop('SP_BRANCH_MISMATCH', 22, {branch:row.spBranch});
     }
   } else row.spBranch = null;
-  if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle,{window:Boolean(window)}));
-  if (traceEnabled) {
+  const skipTpmTrace = window && arm === 'TPM' && tx.status === 'reverted';
+  if (formal && arm === 'TPM') Object.assign(row, skipTpmTrace
+    ? {tpmOracle:baselines.tokenPaymaster.oracle,traces:[],postOpRefreshed:false}
+    : await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle,{window:Boolean(window)}));
+  if (traceEnabled && !skipTpmTrace) {
     try {
       row.gasTrace = { transactionHash: txHash, blockHash: rcA.blockHash,
         tracer: 'callTracer', result: await pubA.request({ method: 'debug_traceTransaction',

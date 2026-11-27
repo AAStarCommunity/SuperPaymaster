@@ -33,8 +33,13 @@ export async function traceTPM(clients, hash, paymaster, oracle, { window = fals
   return {tpmOracle:oracle,traces,postOpRefreshed:traces[0].postOpRefreshed};
 }
 
+export function untracedWindowRevert(row, window) {
+  return window && row.sent === true && row.arm === 'TPM' && row.tx?.status === 'reverted'
+    && Array.isArray(row.traces) && row.traces.length === 0 && row.postOpRefreshed === false;
+}
+
 export function tpmAttemptRefreshed(row, { window = false } = {}) {
-  if (row.arm!=='TPM') return false;
+  if (row.arm!=='TPM' || untracedWindowRevert(row,window)) return false;
   if (row.traces?.length!==(window ? 1 : 2)) throw new Error('TPM trace incomplete');
   const flags=row.traces.map(t=>postOpRefreshed(t.call,t.state,row.paymaster,row.tpmOracle,row.entryPoint));
   if (flags.some(flag=>flag!==flags[0]) || row.postOpRefreshed!==flags[0]) throw new Error('TPM trace disagreement');
