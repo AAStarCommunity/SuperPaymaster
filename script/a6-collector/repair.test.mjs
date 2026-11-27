@@ -244,3 +244,38 @@ for(const delta of [0,1]) test(`headBefore rejects inclusion at or below maximum
   });
   assert.match(f.check().join(';'),/raw inclusion block not newer/);
 }));
+
+test('TPM collector requests both tracer shapes from A only for frozen windows', async () => {
+  const pm='0x'+'12'.repeat(20), ep='0x'+'34'.repeat(20);
+  const call={type:'CALL',to:ep,calls:[{to:pm,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)')}]};
+  const state={pre:{[ep]:{balance:'0x1'}},post:{[ep]:{balance:'0x2'}}};
+  const requests=[];
+  const client=endpoint=>({request:async request=>{
+    requests.push([endpoint,request]);
+    return request.params[1].tracer==='callTracer'?call:state;
+  }});
+  const a=client('A'), b=client('B');
+  assert.deepEqual(await traceTPM([a,b],H,pm,undefined,{window:true}),{
+    tpmOracle:undefined,traces:[{call,state,postOpRefreshed:false}],postOpRefreshed:false
+  });
+  assert.deepEqual(requests,[
+    ['A',{method:'debug_traceTransaction',params:[H,{tracer:'callTracer',tracerConfig:{withLog:true}}]}],
+    ['A',{method:'debug_traceTransaction',params:[H,{tracer:'prestateTracer',tracerConfig:{diffMode:true}}]}]
+  ]);
+  requests.length=0;
+  assert.equal((await traceTPM([a,b],H,pm)).traces.length,2);
+  assert.deepEqual(requests.map(([endpoint])=>endpoint),['A','A','B','B']);
+  await assert.rejects(traceTPM([a],H,pm),/TPM trace incomplete/);
+});
+
+test('non-window TPM still rejects a single trace with both archives available', ()=>temp(d=>{
+  const f=repairFixture(d,3);
+  const trailer={finalBlockCheck:f.finalBlockCheck,endPassport:f.passport,triples:[{tripleIndex:0,included:true,attempts:[0,1,2]}]};
+  const check=()=>artifactErrors(d,f.rows,trailer,[f.start,...f.attempts]).join(';');
+  assert.equal(check(),'');
+  const tpm=f.attempts.find(row=>row.arm==='TPM');
+  tpm.traces.push(tpm.traces[0]);
+  assert.match(check(),/TPM trace incomplete/);
+  tpm.traces.splice(1);
+  assert.match(check(),/TPM raw trace missing or inconsistent|traces\.1/);
+}));

@@ -284,7 +284,7 @@ export async function pendingSequence(clients,address) {
   }};
 }
 
-export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup, keystorePasswordSource }) {
+export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehearsal = false, pendingNonce = false, frozenPlan = false, deferPendingNonce = false, readOnly = false, createSigner = castSigner, fetchImpl, resolver = lookup, keystorePasswordSource }) {
   pendingNonce ||= frozenPlan;
   withPasswordSource({}, keystorePasswordSource);
   const a = readFileSync(rpcAFile, 'utf8').trim(), b = readFileSync(rpcBFile, 'utf8').trim();
@@ -324,20 +324,31 @@ export async function formalRuntime({ config, rpcAFile, rpcBFile, outPath, rehea
     pin = number;
     return A;
   }
-  const sequence=frozenPlan ? await pendingSequence(publicClients,accounts.bundler.address) : null;
-  return { pubA, pubB, accounts, archives, refreshPin,
+  let sequence;
+  async function preparePendingNonce() {
+    sequence ??= await pendingSequence(publicClients,accounts.bundler.address);
+  }
+  if (frozenPlan && !deferPendingNonce) await preparePendingNonce();
+  return { pubA, pubB, accounts, archives, refreshPin, preparePendingNonce,
     async writeContract(args) {
-      const {beforeSubmit,...transactionArgs}=args;
+      const {beforeSubmit,beforeBroadcast,...transactionArgs}=args;
       if(beforeSubmit) await beforeSubmit();
       const block = await refreshPin();
       const pause = feePause(block, config.fees.maxFeePerGas);
       if (pause) { const error = new Error('basefee_above_cap'); error.pause = pause; throw error; }
       if (!feesWithinRule(config.fees, config.feeRule, block.baseFeePerGas)) throw Error('signing head fee rule');
+      const account = beforeBroadcast ? {...accounts.bundler,async signTransaction(...params) {
+        await beforeBroadcast();
+        const signed = await accounts.bundler.signTransaction(...params);
+        await beforeBroadcast(signed);
+        return signed;
+      }} : accounts.bundler;
       const submit=async nonce=>{
-        return wallet.writeContract({ ...transactionArgs, chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
+        return wallet.writeContract({ ...transactionArgs, ...(beforeBroadcast ? {account} : {}), chain: null, chainId:config.chainId, type: 'eip1559', gas: BigInt(config.bundlerGasLimit),
         nonce,
         maxFeePerGas: BigInt(config.fees.maxFeePerGas), maxPriorityFeePerGas: BigInt(config.fees.maxPriorityFeePerGas) });
       };
+      if (frozenPlan && !sequence) throw Error('PENDING_NONCE_UNINITIALIZED');
       return sequence ? sequence.send(publicClients,submit) : submit(await pubA.getTransactionCount({address:accounts.bundler.address}));
     } };
 }

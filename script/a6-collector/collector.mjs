@@ -1,6 +1,6 @@
 import { accumulateSlotWait, createWindow, runSlots, waitForSlot, windowRecord, TARGET_TRIPLETS, WINDOW_SLOTS, WINDOWS } from './window-schedule.mjs';
 import { finalizePVG, recordPVG } from './pvg.mjs';
-import { persistSettlement } from './frozen-plan.mjs';
+import { createFrozenPlan, parse, persistSettlement } from './frozen-plan.mjs';
 import { settlementBranch, settlementSignatures } from '../rq3op/branch.mjs';
 import { rehearsalTpmRefresh } from './rehearsal-refresh.mjs';
 import { traceTPM } from './trace-policy.mjs';
@@ -44,7 +44,7 @@ import { READ_CAP, readPool, readPassport, readReadbacks, waitForHead, EP_DEPOSI
 //   20 RPC_DISAGREEMENT, 21 PASSPORT_DRIFT, 22 CONSERVATION_MISMATCH, 23 HASH_SELF_CHECK,
 //   24 BLOCK_NOT_ISOLATED, 25 RECEIPT_DISAGREEMENT or RECEIPT_B_HEAD_BEHIND, 26 ENTRYPOINT_MISMATCH (an arm or the account
 //   is bound to another EntryPoint); 27 UNEXPECTED_USEROP_EVENT (extra op in single-op gauge); 28 EVIDENCE_CONTINUITY_MISMATCH; 29 END_PASSPORT_ERROR; 2 = bad arguments / refused; 1 = crash.
-import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync, unlinkSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -57,7 +57,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { EP_ABI, DEFAULT_FACTORY, formalConfig, formalRuntime, castSigner, withPasswordSource, acquireBundlerLock, armOrder, taskCallData, requirePostGas, feePause, prepareSimpleAccount } from './formal.mjs';
 const rehearsal = process.argv.includes('--rehearsal');
 const scheduled = process.argv.includes('--frozen-plan');
-const formal = process.argv.includes('--formal') || rehearsal || scheduled;
+const firstUse = process.argv.includes('--first-use');
+const formal = process.argv.includes('--formal') || rehearsal || scheduled || firstUse;
 // Do not even load the development key module in formal mode.
 const { clients, send, rpc, ANVIL_KEYS } = formal ? {} : await import('../b-layer/lib.mjs');
 import { checkDepositFloor, opGasLimitSum, depositFloor } from './deposit-guard.mjs';
@@ -73,6 +74,13 @@ const PROTOCOL_N = 50;
 // ── arguments (validated; no silent defaults for the protocol parameters) ─────────────────
 function argVal(flag) { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; }
 function die(msg) { console.error(`collector: ${msg}`); process.exit(2); }
+if (firstUse) {
+  if (process.argv.includes('--window-index') || rehearsal) die('--first-use cannot be combined with --window-index or --rehearsal');
+  for (const flag of ['--frozen-plan','--bundle-sha256','--formal-config','--config','--baselines','--rpc-registry','--pins',
+    '--rpc-a-file','--rpc-b-file','--keystore-password-source','--run-id','--out']) {
+    if (!argVal(flag) || argVal(flag).startsWith('--')) die(`--first-use requires ${flag}`);
+  }
+}
 if (formal && !rehearsal && (!argVal('--frozen-plan') || argVal('--frozen-plan').startsWith('--') || !/^[0-9a-f]{64}$/.test(argVal('--bundle-sha256') ?? ''))) die('non-rehearsal formal requires --frozen-plan and --bundle-sha256');
 const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/;
 const rpcA = argVal('--rpc-a') ?? argVal('--rpc');
@@ -84,10 +92,10 @@ const allowSameEndpointLocal = process.argv.includes('--allow-same-endpoint-loca
 const distinctEndpoints = false; // Local aliases cannot establish independent host identity.
 if (!formal && new URL(rpcA).port === new URL(rpcB).port) die('identical RPC endpoints: different local ports are required');
 if (!formal && !distinctEndpoints && !allowSameEndpointLocal) die('local RPC ports require --allow-same-endpoint-local (disqualifies conformance)');
-const countRaw = argVal('--count');
+const countRaw = firstUse ? '1' : argVal('--count');
 if (!countRaw || !/^[1-9]\d*$/.test(countRaw) || Number(countRaw) > 1000) die('--count is required: an integer in [1, 1000] (matched triplets to collect)');
 const count = Number(countRaw);
-const bMaxRaw = argVal('--b-max');
+const bMaxRaw = firstUse ? '1' : argVal('--b-max');
 if (!bMaxRaw || !/^[1-9]\d*$/.test(bMaxRaw) || Number(bMaxRaw) > 1_000_000) die('--b-max is required: an integer in [1, 1000000]');
 const bMax = BigInt(bMaxRaw);
 const maxAttemptsRaw = argVal('--max-attempts') ?? (scheduled ? '' : String(count * 2));
@@ -95,10 +103,10 @@ const maxAttempts = Number(maxAttemptsRaw);
 const windowIndexRaw = argVal('--window-index');
 const windowIndex = Number(windowIndexRaw);
 const seed = argVal('--seed');
-if (scheduled) {
+if (scheduled && !firstUse) {
   if (!seed || seed.startsWith('--') || count !== TARGET_TRIPLETS || maxAttemptsRaw !== String(WINDOW_SLOTS)) die(`frozen window requires --seed, --count ${TARGET_TRIPLETS} and --max-attempts ${WINDOW_SLOTS}`);
   if (String(windowIndex) !== windowIndexRaw || !Number.isInteger(windowIndex) || windowIndex < 1 || windowIndex > WINDOWS) die(`frozen window requires --window-index in 1..${WINDOWS}`);
-} else if (!/^[1-9]\d*$/.test(maxAttemptsRaw) || maxAttempts < count) die('--max-attempts must be an integer >= --count (attempt budget per arm)');
+} else if (!firstUse && (!/^[1-9]\d*$/.test(maxAttemptsRaw) || maxAttempts < count)) die('--max-attempts must be an integer >= --count (attempt budget per arm)');
 const ARM_NAMES = ['SP', 'VPM', 'TPM'];
 const arms = (argVal('--arms') ?? ARM_NAMES.join(',')).split(',');
 if (!arms.length || arms.some((a) => !ARM_NAMES.includes(a)) || new Set(arms).size !== arms.length) die(`--arms must be a subset of ${ARM_NAMES}`);
@@ -117,13 +125,15 @@ const evidencePins = formal ? loadPins(argVal('--pins')) : null;
 const registry = formal ? loadRegistry(argVal('--rpc-registry')) : null;
 if (formal && (existsSync(resolve(windowPath, 'raw')) || existsSync(resolve(windowPath, 'index.ndjson')) || existsSync(resolve(windowPath, 'manifest.json')))) die('formal window already exists');
 if (formal) formalInput.factory ??= DEFAULT_FACTORY;
-if (scheduled && (!Array.isArray(formalInput.senders) || formalInput.senders.length !== 3)) die('formal config requires three senders: {sender,salt,owner:{name,address}}');
+if (scheduled && (!Array.isArray(formalInput.senders) || (!firstUse && formalInput.senders.length !== 3))) die('formal config requires three senders: {sender,salt,owner:{name,address}}');
 const senderConfigs = scheduled ? formalInput.senders.map(s => ({...formalInput,sender:getAddress(s.sender),salt:s.salt,accounts:{...formalInput.accounts,owner:s.owner}})) : [];
 // Refuse conflicts across all rotating owners before runtime can start a signer process.
 for (const config of senderConfigs) withPasswordSource(config.accounts.owner, argVal('--keystore-password-source'));
-const window = scheduled ? createWindow({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),seed,chainId:formalInput.chainId,accounts:senderConfigs.map(c=>c.sender),windowIndex}) : null;
-let adapter = window ? window.adapters.get(senderConfigs[0].sender) : null;
-if (window) Object.assign(formalInput,senderConfigs[0]);
+const window = scheduled && !firstUse ? createWindow({readBundle:()=>readFileSync(argVal('--frozen-plan')),bundleSha256:argVal('--bundle-sha256'),seed,chainId:formalInput.chainId,accounts:senderConfigs.map(c=>c.sender),windowIndex}) : null;
+const adapters = firstUse ? firstUsePlans() : window?.adapters;
+if (firstUse) senderConfigs.splice(0,senderConfigs.length,...[...adapters.keys()].map(account=>senderConfigs.find(c=>c.sender===account)));
+let adapter = adapters?.get(senderConfigs[0].sender) ?? null;
+if (adapter) Object.assign(formalInput,senderConfigs[0]);
 if (adapter && rehearsal) die('frozen plan requires formal transport');
 let frozen = adapter ? adapter.frozen : formal ? formalConfig(formalInput, bMax) : null;
 const configPath = argVal('--config') ?? resolve(ROOT, 'deployments/config.anvil.json');
@@ -138,15 +148,16 @@ if (expectEp !== null && (!/^0x[0-9a-fA-F]{40}$/.test(expectEp) || getAddress(ex
 }
 const SPA = getAddress(cfg.superPaymaster);
 if (new Set([SPA, baselines.verifyingPaymaster.address, baselines.tokenPaymaster.address].map(a => getAddress(a).toLowerCase())).size !== 3) die('SP/VPM/TPM paymasters must be distinct');
-if (window) for (const config of senderConfigs) window.adapters.get(config.sender).bind(config,cfg,baselines,bMax,20);
-if (adapter) adapter.bind(formalInput,cfg,baselines,bMax,20);
+if (adapters) for (const config of senderConfigs) adapters.get(config.sender).bind(config,cfg,baselines,bMax,firstUse ? 1 : 20);
+if (adapter) adapter.bind(formalInput,cfg,baselines,bMax,firstUse ? 1 : 20);
+const lockRoot = resolve(ROOT,'cache/3arm/collector-locks');
 if (adapter) {
-  const release=acquireBundlerLock(resolve(ROOT,'cache/3arm/collector-locks'),formalInput.chainId,formalInput.accounts.bundler.address);
+  const release=acquireBundlerLock(lockRoot,formalInput.chainId,formalInput.accounts.bundler.address);
   process.once('exit',release);
 }
 // --keystore-password-source keychain: opt-in Keychain+pty password delivery (see README); default prompts on /dev/tty.
-const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath, keystorePasswordSource: argVal('--keystore-password-source') }) : null;
-let frozenArm, activeSlot, activeRow, windowStart;
+const runtime = formal ? await formalRuntime({ config: formalInput, rehearsal, frozenPlan: Boolean(adapter), deferPendingNonce: firstUse, rpcAFile: argVal('--rpc-a-file'), rpcBFile: argVal('--rpc-b-file'), outPath, keystorePasswordSource: argVal('--keystore-password-source') }) : null;
+let frozenArm, activeSlot, activeRow, windowStart, firstUseGate;
 const owners = new Map();
 const senderPassports = new Map();
 const senderPassportRefs = new Map();
@@ -156,9 +167,10 @@ if (adapter) {
     return adapter.send({...runtime,writeContract: async checked => {
       formalInput.bundlerGasLimit = checked.gas;
       return write({...checked, beforeSubmit: async () => {
+        if (firstUse) return checkFirstUseGate(activeRow);
         const result = await slotGate(frozenArm,activeRow);
         if (!result.allowed) throw Object.assign(Error('SLOT_DEADLINE'),{slotResult:result});
-      }});
+      }, ...(firstUse ? {beforeBroadcast:assertFirstUseFresh} : {})});
     }},frozenArm,args,poolOf);
   };
 }
@@ -195,8 +207,8 @@ function savePassport(name, passport) {
   return { path, raw:Object.fromEntries(runtime.archives.map((a,i) => [i?'B':'A', a.records.filter(r=>r.method==='eth_chainId' || r.blockAnchor?.number===String(passport.block.number) && r.blockAnchor?.hash===passport.block.hash && ['eth_call','eth_getCode','eth_getStorageAt','eth_getBlockByNumber'].includes(r.method)).map(r => ({path:r.path,id:r.id}))])) };
 }
 function writeLine(obj) {
+  if (formal && (obj.kind === 'attempt' || obj.kind === 'first_use_attempt')) obj.evidenceEnd = runtime.archives.map(a => a.ids.length);
   if (formal && obj.kind === 'attempt') {
-    obj.evidenceEnd = runtime.archives.map(a => a.ids.length);
     const index = evidenceIndex(obj, {schedule:Boolean(window),windowId:runId, archives:runtime.archives, pins:evidencePins, rpcIdentity:rpcIdentityPin,
       passports:{start:passportRefs.start, attempt:passportRefs[obj.attemptIndex]},
       stopReason:obj.stoppedBy?.reason ?? null, replaces:pendingReplacement});
@@ -292,6 +304,12 @@ async function signAndHash({ sender, nonce, callData, pmAddr, pmGas, pmData, gas
   const epHash = await readAB('getUserOpHash', (p) => p.readContract({ address: EP, abi: EP_ABI, functionName: 'getUserOpHash', args: [packed] }));
   const local = localUserOpHash(packed, EP, chainId);
   if (epHash.value.toLowerCase() !== local.toLowerCase()) throw new Stop('HASH_SELF_CHECK', 23, { epHash: epHash.value, local });
+  if (firstUse) {
+    const block = await runtime.refreshPin();
+    const nonceBefore = await firstUseNonce(sender,block.number);
+    activeRow.nonceBefore = nonceBefore;
+    if (nonceBefore.A !== '0') throw new Stop('FIRST_USE_NONCE_CHANGED',20,{sender,nonceBefore});
+  }
   packed.signature = await (formal ? runtime.accounts.owner : privateKeyToAccount(ANVIL_KEYS[0])).signMessage({ message: { raw: epHash.value } });
   return { packed, hash: epHash.value, localHash: local };
 }
@@ -376,7 +394,7 @@ async function ownerExec(to, abi, functionName, args) {
   await send(ctx, sender, ACCOUNT_ABI, 'execute', [to, 0n, func]);
 }
 const setupLog = [];
-async function setup() {
+async function setup(minimumBalance) {
   if (formal) {
     const prepared = await prepareSimpleAccount({ config: formalInput, runtime, readAB });
     sender = prepared.sender;
@@ -384,8 +402,8 @@ async function setup() {
     const op = await readAB('operator', p => p.readContract({ address: SPA, abi: SP_ABI, functionName: 'operators', args: [ctx.account.address] }));
     spToken = getAddress(op.value[3]);
     if ([spToken, cfg.aPNTs, baselines.tokenPaymaster.token].some(a => a?.toLowerCase() === formalInput.task.token.toLowerCase())) throw new Error('task must use a separate plain ERC20 token');
-    const minimumSenderBalance = window ? 1n + BigInt(window.manifest.schedule.payload.slots.slice(window.manifest.slice.firstSlot)
-      .filter(slot => Object.values(slot.senders).includes(sender)).length) : 300n;
+    const minimumSenderBalance = minimumBalance ?? (window ? 1n + BigInt(window.manifest.schedule.payload.slots.slice(window.manifest.slice.firstSlot)
+      .filter(slot => Object.values(slot.senders).includes(sender)).length) : 300n);
     for (const who of [sender, formalInput.task.recipient]) {
       const balance = await readAB('task balance', p => p.readContract({ address: formalInput.task.token, abi: TOKEN_ABI, functionName: 'balanceOf', args: [who] }));
       if (balance.value < (who === sender ? minimumSenderBalance : 1n)) throw new Error('task requires warmed, funded token balances');
@@ -448,7 +466,7 @@ let previousInclusion = null;
  *  including one interrupted by a stop condition (then with `stoppedBy` and whatever was known). */
 async function attempt(arm, tripletIndex, passportStart) {
   const idx = attemptIndex++;
-  const st = { row: { ...(adapter ? adapter.row(arm,activeSlot.allocationIndex) : {}), ...(window ? {block_slot:activeSlot.block_slot,pair_id:activeSlot.pair_id,seed:window.manifest.schedule.payload.seed,schedule_sha256:window.manifest.schedule.sha256,sender,warmup:false} : {}), kind: 'attempt', spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, tripletIndex, arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal ? { armOrder: window ? activeSlot.order.map(a=>({SP:"SP",VerifyingPaymaster:"VPM",TokenPaymaster:"TPM"}[a])) : armOrder(tripletIndex) } : {}) }, written: false };
+  const st = { row: { ...(window ? adapter.row(arm,activeSlot.allocationIndex) : {}), ...(window ? {block_slot:activeSlot.block_slot,pair_id:activeSlot.pair_id,seed:window.manifest.schedule.payload.seed,schedule_sha256:window.manifest.schedule.sha256,sender,warmup:false} : {}), kind: firstUse ? 'first_use_attempt' : 'attempt', ...(firstUse ? {sender,nonceBefore:firstUseGate.nonceBefore} : {}), spBranch: arm === 'SP' ? {planned:'balance', observed:null, event:null} : null, ...(formal ? {stateTargets:{superPaymaster:SPA,token:spToken,tpmToken:baselines.tokenPaymaster.token,operator:ctx.account.address}} : {}), attemptIndex: idx, ...(!firstUse ? {tripletIndex} : {}), arm, fixture, ...(formal ? { evidenceStart:runtime.archives.map(a => a.ids.length) } : {}), ...(formal && !firstUse ? { armOrder: window ? activeSlot.order.map(a=>({SP:"SP",VerifyingPaymaster:"VPM",TokenPaymaster:"TPM"}[a])) : armOrder(tripletIndex) } : {}) }, written: false };
   try {
     return await attemptInner(arm, idx, tripletIndex, passportStart, st);
   } catch (e) {
@@ -482,10 +500,10 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
       writeLine(row);st.written=true;return row;
     }
   }
+  if (firstUse) await checkFirstUseGate(st.row);
   const pm = pmAddrOf(arm);
   const callData = fixture === 'exec-revert' ? revertingCallData() : defaultCallData();
-  const nonceR = await readAB('getNonce', (p) => p.readContract({ address: EP, abi: EP_ABI, functionName: 'getNonce', args: [sender, NONCE_KEY] }));
-  const nonce = nonceR.value;
+  const nonce = firstUse ? 0n : (await readAB('getNonce', p => readNonce(p,sender))).value;
   const sign = async value => {
     GAS.preVerificationGas=value;
     return signAndHash({ sender, nonce, callData, pmAddr: pm, gas: GAS, pmGas: PM_GAS[arm], pmData: await pmDataFor(arm, { sender, nonce, callData }, GAS) });
@@ -559,6 +577,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   if (formal) { row.sent = true; row.tx = { hash: txHash }; }
   // 1 s polling: with no chain set viem polls every 4 s, about two OP blocks per poll.
   const rcA = await pubA.waitForTransactionReceipt({ hash: txHash, pollingInterval: 1_000 });
+  if (firstUse) Object.assign(row.tx,{blockNumber:rcA.blockNumber,blockHash:rcA.blockHash});
   // B's receipt is read once. A can see it about a second after inclusion, so first wait until B's
   // head reaches A's receipt block (60 s, then stop); a null receipt at that head still fails closed.
   try { await waitForHead(pubB, rcA.blockNumber); }
@@ -567,13 +586,18 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   const rcView = (rc) => ({ status: rc.status, blockNumber: rc.blockNumber, blockHash: rc.blockHash, gasUsed: rc.gasUsed,
     effectiveGasPrice: rc.effectiveGasPrice, l1Fee: rc.l1Fee??null, logs: rc.logs.map((l) => ({ address: getAddress(l.address), topics: l.topics, data: l.data, logIndex: l.logIndex, ...(formal ? {transactionHash:l.transactionHash} : {}) })) });
   row.sent = true;
-  row.tx = { hash: txHash };
+  row.tx ??= { hash: txHash };
   const rdiff = diffPaths(jsonable(rcView(rcA)), jsonable(rcView(rcB)));
   if (rdiff.length) throw new Stop('RECEIPT_DISAGREEMENT', 25, { txHash, diff: rdiff });
   previousInclusion = rcA;
   const bn = rcA.blockNumber;
   const blocks = await readAB('attempt block', async p => { const b = await p.getBlock({ blockNumber: bn }); return { hash: b.hash, timestamp: b.timestamp, transactions: b.transactions }; });
   const blk = blocks.A;
+  if (firstUse) {
+    if (blk.hash.toLowerCase() !== rcA.blockHash.toLowerCase()) throw new Stop('RECEIPT_BLOCK_MISMATCH',25,{txHash});
+    row.nonceAfter = await firstUseNonce(sender,bn);
+    if (row.nonceAfter.A !== '1') throw new Stop('FIRST_USE_NONCE_NOT_ADVANCED',20,{sender,nonceAfter:row.nonceAfter});
+  }
   const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
   function recordMeasuredPVG(event=null) {
     if (!adapter) return;
@@ -612,7 +636,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
       throw new Stop('SP_BRANCH_MISMATCH', 22, {branch:row.spBranch});
     }
   } else row.spBranch = null;
-  if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle));
+  if (formal && arm === 'TPM') Object.assign(row, await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle,{window:Boolean(window)}));
   if (traceEnabled) {
     try {
       row.gasTrace = { transactionHash: txHash, blockHash: rcA.blockHash,
@@ -648,7 +672,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   // A declared rehearsal cache-aging control (rehearsal-refresh.mjs) changes only the TPM cache timestamp between attempts.
   const aged = rehearsal && st.row.rehearsalControl?.kind === 'tpmCacheAged' && arm === 'TPM' ? ['tpmCachedPriceTimestamp'] : [];
   if (prior) for (const f of Object.keys(prior).filter(f => ![...aged, 'blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
-    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], window && senderFields.includes(f) ? (senderPrior?.[f] ?? before.A[f]) : window && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? before.A[f].sender} : prior[f]).length === 0 });
+    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], (window || firstUse) && senderFields.includes(f) ? (senderPrior?.[f] ?? before.A[f]) : window && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? before.A[f].sender} : prior[f]).length === 0 });
   }
   checks.push(...operatorBalanceContinuity(arm, before.A, after.A, lastAttemptBlock?.operatorBalance ?? passportStart.volatile.operatorBalance));
   if (arm === 'SP') checks.push({ id: 'continuity.new_op_lock_empty', ok: BigInt(before.A.lockXLocked) === 0n });
@@ -694,6 +718,11 @@ let windowOutcome = null;
 try {
   chainId = (await readAB('chainId', (p) => p.getChainId())).value;
   if (formal && chainId !== formalInput.chainId) throw new Error('formal target chainId mismatch');
+  if (firstUse) {
+    await runFirstUse();
+    closeSync(fd);
+    process.exit(0);
+  }
   if (window) {
     for (const config of senderConfigs) {
       const owner = await castSigner(withPasswordSource(config.accounts.owner, argVal('--keystore-password-source')), 'owner');
@@ -786,6 +815,12 @@ try {
   if (e instanceof Stop) stop = { reason: e.reason, code: e.code, detail: e.detail };
   else { stop = { reason: 'CRASH', code: 1, detail: String(e?.stack ?? e) }; }
 }
+if (firstUse) {
+  writeLine({kind:'first_use_end',stop,exitCode:stop.code});
+  closeSync(fd);
+  console.error(`collector: ${stop.reason} ${JSON.stringify(jsonable(stop.detail ?? null))}`);
+  process.exit(stop.code);
+}
 let passportEnd = null;
 let finalBlockCheck = null;
 // End checks run on every in-process exit (not on SIGINT/SIGTERM/SIGKILL).
@@ -870,8 +905,8 @@ process.exit(exitCode);
 function selectSender(account) {
   const config=senderConfigs.find(c=>c.sender===account);
   Object.assign(formalInput,config);
-  adapter=window.adapters.get(account);frozen=adapter.frozen;
-  adapter.bind(formalInput,cfg,baselines,bMax,20);
+  adapter=adapters.get(account);frozen=adapter.frozen;
+  adapter.bind(formalInput,cfg,baselines,bMax,firstUse ? 1 : 20);
   PM_GAS=frozen.pmGas;MAX_FEE_CEILING=frozen.fees.maxFeePerGas;
   sender=account;runtime.accounts.owner=owners.get(account);
 }
@@ -883,4 +918,92 @@ async function slotGate(arm,row) {
   (row.slotChecks??=[]).push(result);
   if(arm==='SP') row.spWait=accumulateSlotWait(row.spWait,result.wait);
   return result;
+}
+
+
+function firstUsePlans() {
+  const readBundle = () => readFileSync(argVal('--frozen-plan'));
+  const bundleSha256 = argVal('--bundle-sha256');
+  const bytes = readBundle();
+  if (sha256(bytes) !== bundleSha256) die('BUNDLE_DIGEST_MISMATCH');
+  const plans = Object.entries(parse(bytes).plans).sort(([,a],[,b])=>a.planIndex-b.planIndex);
+  if (plans.some(([,plan],index)=>plan.planIndex!==index)) die('invalid frozen plan order');
+  const accounts = plans.map(([account])=>getAddress(account));
+  const configured = new Set(senderConfigs.map(c=>c.sender));
+  if (!accounts.length || accounts.length !== senderConfigs.length || new Set(accounts).size !== accounts.length ||
+      accounts.some(account=>!configured.has(account))) die('--first-use requires exactly the frozen plan senders');
+  return new Map(accounts.map(account=>[account,createFrozenPlan({readBundle,bundleSha256,account})]));
+}
+
+function readNonce(client,account,blockNumber) {
+  return client.readContract({address:EP,abi:EP_ABI,functionName:'getNonce',args:[account,NONCE_KEY],blockNumber});
+}
+
+async function firstUseNonce(account,blockNumber) {
+  const {A,B} = await readAB('first-use getNonce',client=>readNonce(client,account,blockNumber));
+  return {A,B,blockNumber};
+}
+
+async function checkFirstUseGate(row) {
+  const {start,deadline,priceDeadline,wallDeadline} = firstUseGate;
+  const result = await waitForSlot({runtime,arm:'SP',operator:ctx.account.address,sender,paymaster:SPA,
+    start,deadline,priceDeadline,timeoutMs:wallDeadline-Date.now()});
+  (row.slotChecks??=[]).push(result);
+  row.spWait=accumulateSlotWait(row.spWait,result.wait);
+  if (!result.allowed) throw new Stop(result.reason,29,{sender,wait:result.wait});
+}
+
+function firstUsePendingPath(account) {
+  return resolve(lockRoot,String(formalInput.chainId),`first-use-${account.toLowerCase()}.json`);
+}
+
+async function assertFirstUseFresh(signed) {
+  const {timestamp} = await runtime.refreshPin();
+  if (timestamp >= firstUseGate.priceDeadline) throw new Stop('FIRST_USE_PRICE_STALE',29,{sender,timestamp});
+  if (timestamp > firstUseGate.deadline || Date.now() >= firstUseGate.wallDeadline) throw new Stop('FIRST_USE_DEADLINE',29,{sender,timestamp});
+  if (signed) {
+    // Reserve the sender durably before giving the signed transaction to the transport.
+    const hash = keccak256(signed);
+    const pendingFd = openSync(firstUsePendingPath(sender),'wx',0o600);
+    try {
+      writeSync(pendingFd,JSON.stringify({sender,hash,runId,journal:resolve(outPath)}));
+      fsyncSync(pendingFd);
+    } finally { closeSync(pendingFd); }
+    activeRow.tx = {hash};
+  }
+}
+
+async function runFirstUse() {
+  const block = await runtime.refreshPin();
+  writeLine({kind:'first_use_start',bundleSha256:argVal('--bundle-sha256'),senders:senderConfigs.map(c=>c.sender),pin:{number:block.number,hash:block.hash}});
+  const selected = [];
+  for (const config of senderConfigs) {
+    const nonceBefore = await firstUseNonce(config.sender,block.number);
+    if (nonceBefore.A === '0') selected.push({config,nonceBefore});
+  }
+  if (!selected.length) console.log('nothing to do');
+  for (const {config} of selected) {
+    if (existsSync(firstUsePendingPath(config.sender))) throw new Stop('FIRST_USE_UNRECONCILED',29,{sender:config.sender});
+  }
+  if (selected.length) await runtime.preparePendingNonce();
+  for (const {config,nonceBefore} of selected) {
+    const owner = await castSigner(withPasswordSource(config.accounts.owner,argVal('--keystore-password-source')),'owner');
+    if (owner.type !== 'local' || getAddress(owner.address) !== getAddress(config.accounts.owner.address)) throw new Error('injected signer identity mismatch');
+    owners.set(config.sender,owner);
+    selectSender(config.sender);
+    await setup(1n);
+    const start = await passportAB('first-use start');
+    requirePostGas(frozen.pmGas.SP.post,start.invariant.superPaymaster.minPostOpGas);
+    const epMismatch = Object.entries(start.invariant.armEntryPoints).filter(([,a])=>getAddress(a)!==EP);
+    if (epMismatch.length) throw new Stop('ENTRYPOINT_MISMATCH',26,{EP,epMismatch});
+    if (BigInt(start.invariant.credit.policy) !== 0n || BigInt(start.invariant.credit.pendingPolicyEta) !== 0n) throw new Error('formal SP requires credit OFF and no pending policy');
+    const timestamp = BigInt(start.block.timestamp);
+    firstUseGate = {start:timestamp,deadline:timestamp+180n,wallDeadline:Date.now()+180_000,
+      priceDeadline:BigInt(start.volatile.cachedPriceUpdatedAt)+BigInt(start.invariant.superPaymaster.priceStalenessThreshold),nonceBefore};
+    const row = await attempt('SP',attemptIndex,start);
+    if (row.verdict !== VERDICTS.USEROP_SUCCESS || row.conservation?.ok !== true) throw new Stop('FIRST_USE_ATTEMPT_FAILED',29,{sender,verdict:row.verdict});
+  }
+  const finalBlockCheck = selected.length ? await revalidateAnchors(runtime.archives) : null;
+  for (const {config} of selected) unlinkSync(firstUsePendingPath(config.sender));
+  writeLine({kind:'first_use_end',exitCode:0,completed:selected.length,finalBlockCheck});
 }

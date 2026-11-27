@@ -123,14 +123,12 @@ for (const armName of slot.order) {
   await phase('postInclusionPassport', () => readAB('passport@bn', p => readPassport(p, bn, e, pools.get(p))));
   arms.push({ arm, sender, phases, totalSeconds: +Object.values(phases).reduce((s, x) => s + x.seconds, 0).toFixed(3) });
 }
-// A formal TPM attempt traces its transaction with two tracers per endpoint (trace-policy.mjs). With
-// --trace-tx (a TPM handleOps transaction), the probe times those four calls once, after every arm:
-// a tracer error latches the endpoint's transport, so nothing may run after it.
+// Time the two TPM tracers on A after the arm probes. A tracer error latches the transport.
 let tpmTraces = null;
 if (traceTx) {
   const t = performance.now(), errors = [];
-  for (const client of [pubA, pubB]) for (const tracer of [{ tracer: 'callTracer', tracerConfig: { withLog: true } }, { tracer: 'prestateTracer', tracerConfig: { diffMode: true } }])
-    await client.request({ method: 'debug_traceTransaction', params: [traceTx, tracer] }).catch(error => errors.push(`${client === pubA ? 'A' : 'B'} ${tracer.tracer}: ${String(error.shortMessage ?? error.message).slice(0, 120)}`));
+  for (const tracer of [{ tracer: 'callTracer', tracerConfig: { withLog: true } }, { tracer: 'prestateTracer', tracerConfig: { diffMode: true } }])
+    await pubA.request({ method: 'debug_traceTransaction', params: [traceTx, tracer] }).catch(error => errors.push(`A ${tracer.tracer}: ${String(error.shortMessage ?? error.message).slice(0, 120)}`));
   tpmTraces = { seconds: +((performance.now() - t) / 1000).toFixed(3), ...mark(), errors };
 }
 const result = { schema: 'a6-window-timing/1', caps, tpmTraces, slot: { block_slot: slot.block_slot, order: slot.order.map(a => ARM[a]) },

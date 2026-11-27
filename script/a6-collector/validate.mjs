@@ -604,6 +604,10 @@ function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
   catch (e) { throw e instanceof Missing ? e : new Missing(`cannot read ${file}: ${e.message}`); }
   if (lines.length < 2) throw new Missing('need at least run_start and run_end');
   const start = lines[0], end = lines[lines.length - 1];
+  if (lines.some(row=>['first_use_start','first_use_attempt','first_use_end'].includes(row.kind))) {
+    report.accepted = false;
+    throw new Missing('first-use journal cannot be used as window evidence');
+  }
   const attempts = lines.slice(1,-1);
   const isFormal = start.formal === true;
   report.formal = isFormal;
@@ -984,7 +988,13 @@ function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
   }
   for (const [tripletIndex, rows] of byTriplet) {
     // A row interrupted by a stop condition never counts, whatever its receipt said.
-    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && (!(isFormal || r.row.traces) || !tpmAttemptRefreshed(r.row)) && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
+    const refreshed = r => {
+      if (!(isFormal || r.row.traces)) return false;
+      if (!window) return tpmAttemptRefreshed(r.row);
+      try { return tpmAttemptRefreshed(r.row,{window:true}); }
+      catch (e) { errors.push(`attempt ${r.row.attemptIndex}: ${e.message}`); return true; }
+    };
+    const okArms = arms.every((arm) => rows.some((r) => r.row.arm === arm && r.recomputed === 'USEROP_SUCCESS' && !refreshed(r) && r.row.conservation?.evaluated === true && r.row.conservation?.ok === true && !r.row.stoppedBy));
     const sentRows = rows.filter(r => r.row.sent);
     const same = new Set(sentRows.map((r) => window ? r.row.derivedCallDataHash : `${r.row.derivedCallDataHash}|${JSON.stringify(isFormal ? {maxFeePerGas:r.row.derivedGas.maxFeePerGas,maxPriorityFeePerGas:r.row.derivedGas.maxPriorityFeePerGas} : r.row.derivedGas)}|${lc(r.row.tx?.from)}|${lc(r.row.entryPoint)}|${lc(r.row.sender)}`)).size <= 1;
     if (!same) errors.push('triplet callData/gas/bundler differ between arms');

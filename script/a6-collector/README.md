@@ -601,9 +601,13 @@ run, real key use, or broadcast is implied by these offline tooling changes.
 
 ### RPC trace prerequisite
 
-Both RPC A and RPC B must support `debug_traceTransaction` with `callTracer`
-(`withLog: true`) and `prestateTracer` (`diffMode: true`). Missing trace support
-stops a formal window; a standard JSON-RPC endpoint without debug tracing is insufficient.
+For frozen windows, RPC A must support `debug_traceTransaction` with
+`callTracer` (`withLog: true`) and `prestateTracer` (`diffMode: true`). Both
+endpoints supply the receipt. A `TokenPriceUpdated` log from the TPM paymaster
+requires a refresh in the trace. Formal runs outside frozen windows still
+require the two tracers on both endpoints.
+
+Known gap: TPM postOp trace from one provider; byte-identical callTracer and prestateTracer results on two further providers for tx 0x62318b209aca40c80e67c6d4e21a3c1cd42bc2dfcde8ecb34023cf155490809b (probe 2026-11-27)
 
 Local `rehearsal-setup.mjs` takes a fifth argument: a public policy JSON with
 `feeFactor`, `feeCeiling`, `gasFactor`, and `spPostOpMeasurement` from calibration.

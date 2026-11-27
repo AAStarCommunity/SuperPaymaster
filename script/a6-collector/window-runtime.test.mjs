@@ -35,7 +35,7 @@ test('collector gates windows 2 and 3 on their own start timestamps',async()=>{
 });
 
 test('collector setup requires the remaining scheduled sender transfers plus one',async()=>{
- const setup=source.slice(source.indexOf('async function setup()'),source.indexOf('  const salt = 9001n;'));
+ const setup=source.slice(source.indexOf('async function setup('),source.indexOf('  const salt = 9001n;'));
  const recipient='recipient';
  async function run(windowIndex,account,senderBalance,recipientBalance) {
   return vm.runInNewContext(`${setup}}\nsetup()`,{
@@ -118,4 +118,54 @@ test('formal transport signs and sends only the 20 slots of the selected slice',
   const rec=w.windowRecord(manifest,result);
   assert.deepEqual(rec.unusedSlots,[]);assert.equal(rec.schedule_sha256,schedule.sha256);
  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
+test('frozen transport checks first-use freshness on both sides of bundler signing',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'rq3-first-sign-'));
+ t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const signer=privateKeyToAccount('0x'+'33'.repeat(32)), hash='0x'+'ab'.repeat(32);
+ const config={chainId:10,bundlerGasLimit:100000n,accounts:Object.fromEntries(['owner','bundler','verifyingSigner'].map(r=>[r,{name:r,address:signer.address}])),
+  fees:{maxFeePerGas:5n,maxPriorityFeePerGas:1n},feeRule:{baseFee:1,factor:{numerator:4,denominator:1},ceiling:5}};
+ for(const endpoint of ['a','b']) writeFileSync(join(dir,endpoint),`https://${endpoint}.invalid/test`);
+ let time=100n, expireWhileSigning=true, sends=0, signatures=0, pendingChecks=0;
+ const runtime=await formalRuntime({config,frozenPlan:true,deferPendingNonce:true,rpcAFile:join(dir,'a'),rpcBFile:join(dir,'b'),outPath:join(dir,'run'),
+  resolver:async h=>[{address:h.startsWith('a')?'8.8.8.8':'1.1.1.1'}],
+  createSigner:()=>({...signer,signTransaction:async(...args)=>{
+   signatures++;
+   if(expireWhileSigning) time=101n;
+   return signer.signTransaction(...args);
+  }}),
+  fetchImpl:async(_,{body})=>{
+   const r=JSON.parse(body);
+   if(r.method==='eth_sendRawTransaction') sends++;
+   if(r.method==='eth_getTransactionCount') pendingChecks++;
+   const results={eth_chainId:'0xa',eth_blockNumber:'0x2a',eth_getTransactionCount:'0x4',eth_sendRawTransaction:hash,
+    eth_getBlockByNumber:{number:'0x2a',hash,baseFeePerGas:'0x1',timestamp:'0x'+time.toString(16),transactions:[]}};
+   assert.ok(r.method in results);
+   return new Response(JSON.stringify({jsonrpc:'2.0',id:r.id,result:results[r.method]}));
+  }});
+ const signed=[];
+ const args={address:signer.address,abi:parseAbi(['function go()']),functionName:'go',
+  beforeBroadcast:async candidate=>{
+   assert.ok(pendingChecks>=4);
+   if((await runtime.refreshPin()).timestamp>=101n) throw Error('FIRST_USE_PRICE_STALE');
+   if(candidate) signed.push(candidate);
+  }};
+ assert.equal(pendingChecks,0);
+ const {beforeBroadcast,...baseline}=args;
+ await assert.rejects(runtime.writeContract(baseline),/PENDING_NONCE_UNINITIALIZED/);
+ await runtime.preparePendingNonce();
+ assert.equal(pendingChecks,2);
+ time=101n;
+ await assert.rejects(runtime.writeContract(args),/FIRST_USE_PRICE_STALE/);
+ assert.equal(signatures,0);
+ time=100n;
+ await assert.rejects(runtime.writeContract(args),/FIRST_USE_PRICE_STALE/);
+ assert.equal(signatures,1);
+ assert.equal(sends,0);
+ assert.deepEqual(signed,[]);
+ expireWhileSigning=false;time=100n;
+ await runtime.writeContract(args);
+ assert.equal(sends,1);
+ assert.equal(signed.length,1);
 });

@@ -213,7 +213,7 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     const preflightErrors=archives[0].records.filter(raw=>raw.id>a.evidenceStart?.[0] && raw.id<=a.evidenceEnd?.[0] && raw.method==='eth_call' && lower(raw.params[0]?.to)===lower(a.entryPoint) && raw.params[0]?.data?.startsWith('0x765e827f') && raw.response && JSON.parse(Buffer.from(raw.response,'base64')).error);
     if (preflightErrors.length && (a.sent!==false || a.verdict!=='NOT_SENT' || a.failingCheck!=='preflight_revert')) throw Error('derived evidence mismatch: preflight disposition');
     if (preflightErrors.length || a.preflight || a.failingCheck==='preflight_revert') bindPreflight(a,archives);
-    bindArchivedDisposition(a,archives);
+    bindArchivedDisposition(a,archives,{window:Boolean(frozenWindow)});
     const event=bindReceiptSummaries(a, {formal:true});
     const time=Date.parse(a.collectedAtUtc);
     if (!Number.isFinite(time) || time<lastTime) throw new Error('journal chronology mismatch');
@@ -314,15 +314,15 @@ export function artifactErrors(window,rows,trailer,journal,frozenWindow = null) 
     if (context && !a.packedOp && a.gasTrace == null) for (const key of unusedPenaltyColumns) {
       if (a[key] !== null) fail(`attempt ${i}: PVG measurement mismatch: ${key}`);
     }
-    if (a.sent && a.verdict==='USEROP_SUCCESS' && r.arm==='TPM') {
+    if (a.sent && (frozenWindow || a.verdict==='USEROP_SUCCESS') && r.arm==='TPM') {
       if (!a.tpmOracle || lower(a.tpmOracle)!==lower(inv.code.tokenPaymasterOracle.address)) throw new Error('TPM oracle/Passport mismatch');
-      for (const [idx,endpoint] of ['A','B'].entries()) {
+      for (const [idx,endpoint] of (frozenWindow ? ['A'] : ['A','B']).entries()) {
         const refs=r.trace?.raw?.[endpoint] ?? [];
         for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {
           if (!refs.some(ref=>{const raw=reference(ref,endpoint),request=JSON.parse(Buffer.from(raw.request,'base64').toString());return request.params[1]?.tracerConfig?.[tracer==='callTracer'?'withLog':'diffMode']===true && raw.method==='debug_traceTransaction' && raw.params[0]===a.tx.hash && raw.params[1]?.tracer===tracer && raw.blockAnchor?.hash===a.tx.blockHash && eq(JSON.parse(Buffer.from(raw.response,'base64').toString()).result,a.traces?.[idx]?.[key]);})) throw new Error('TPM raw trace missing or inconsistent');
         }
       }
-      if (tpmAttemptRefreshed(a) && included.has(i)) throw new Error('included TPM refresh or trace unavailable');
+      if (tpmAttemptRefreshed(a,{window:Boolean(frozenWindow)}) && included.has(i)) throw new Error('included TPM refresh or trace unavailable');
     }
   } catch(e) { fail(`attempt ${i}: ${e.message}`); }
   try {

@@ -54,6 +54,30 @@ No pilot/warmup attempts run in this mode. `warmupAttempts` is zero
 and every formal attempt row has `warmup:false`. Do any pilot in a separate run;
 its rows must be marked warmup and must not be inserted into this schedule.
 
+## First use before collection
+
+Run the collector with `--first-use --frozen-plan` and the approved bundle
+digest, formal configuration, deployment configuration, baselines, RPC
+registry, pins, RPC URL files, and keystore password source. Give it a separate
+`--run-id` and `--out` directory with a `run.jsonl` path. Omit
+`--window-index`.
+
+The collector compares key-0 EntryPoint nonces at a common pinned block, then
+runs one frozen SP attempt for each zero-nonce sender in bundle order. Each
+attempt has a separate 180-second wait and submission limit, also bounded by
+the cached price expiry. The journal records the two nonce readings before
+signing and at inclusion. A signed transaction awaiting reconciliation leaves
+a sender marker in the collector lock directory. The setup journal cannot be
+used as window evidence.
+
+## Window gates and traces
+
+A sent TPM operation in a frozen window takes both debug traces from RPC A.
+RPC A and B still agree on the receipt. A `TokenPriceUpdated` log emitted by
+the TPM paymaster requires the trace-derived refresh flag to be true.
+
+Known gap: TPM postOp trace from one provider; byte-identical callTracer and prestateTracer results on two further providers for tx 0x62318b209aca40c80e67c6d4e21a3c1cd42bc2dfcde8ecb34023cf155490809b (probe 2026-11-27)
+
 Before an SP attempt, both archived endpoints read `operators(operator)` and
 `userOpState(operator,sender)` at a common fixed block. The collector waits for
 `block.timestamp >= lastTimestamp + minTxInterval`, rereading both values at

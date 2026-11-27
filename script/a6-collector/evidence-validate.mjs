@@ -82,7 +82,7 @@ export function windowErrors(rows, trailer, journal = null, manifest = null, reg
     if (!rs || !equal(t.attempts,rs.map(r=>r.attempt))) fail('candidate attempts missing or not retained');
     if (typeof t.included !== 'boolean') fail('invalid inclusion');
     if (t.included) for (const r of rs ?? []) {
-      if (r.arm==='TPM' && (r.trace?.postOpRefreshed!==false || ['A','B'].some(e=>!r.trace?.raw?.[e]?.length))) fail('included TPM missing trace or refreshed');
+      if (r.arm==='TPM' && (r.trace?.postOpRefreshed!==false || (manifest ? ['A'] : ['A','B']).some(e=>!r.trace?.raw?.[e]?.length))) fail('included TPM missing trace or refreshed');
       const required=['packedOp','bundle','tx','uoe','gas','expectedUserOpHash','observedUserOpHash'];
       if (required.some(k=>r[k]==null) || !r.bundle?.length || ['raw','input','handleOpsIndex','gasLimit','maxFeePerGas','maxPriorityFeePerGas','blockNumber','blockHash'].some(k=>r.tx?.[k]==null)) fail('included attempt missing required evidence');
       for (const e of ['A','B']) if (['receipt','logs','transaction','stateReads'].some(k=>!r.endpoints?.[e]?.[k]?.length)) fail('included attempt missing required raw references');
