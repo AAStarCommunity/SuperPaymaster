@@ -677,7 +677,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   // A declared rehearsal cache-aging control (rehearsal-refresh.mjs) changes only the TPM cache timestamp between attempts.
   const aged = rehearsal && st.row.rehearsalControl?.kind === 'tpmCacheAged' && arm === 'TPM' ? ['tpmCachedPriceTimestamp'] : [];
   if (prior) for (const f of Object.keys(prior).filter(f => ![...aged, 'blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
-    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], (window || firstUse) && senderFields.includes(f) ? (senderPrior?.[f] ?? before.A[f]) : window && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? before.A[f].sender} : prior[f]).length === 0 });
+    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], continuityPrior(f, prior, senderPrior, before.A[f], window || firstUse, senderFields)).length === 0 });
   }
   checks.push(...operatorBalanceContinuity(arm, before.A, after.A, lastAttemptBlock?.operatorBalance ?? passportStart.volatile.operatorBalance));
   if (arm === 'SP') checks.push({ id: 'continuity.new_op_lock_empty', ok: BigInt(before.A.lockXLocked) === 0n });
@@ -925,6 +925,12 @@ async function slotGate(arm,row) {
   return result;
 }
 
+
+function continuityPrior(f, prior, senderPrior, beforeValue, perSender, senderFields) {
+  return perSender && senderFields.includes(f) ? (senderPrior?.[f] ?? beforeValue)
+    : perSender && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? beforeValue.sender}
+    : prior[f];
+}
 
 function firstUsePlans() {
   const readBundle = () => readFileSync(argVal('--frozen-plan'));

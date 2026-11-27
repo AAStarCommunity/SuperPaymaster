@@ -78,6 +78,22 @@ the sender's key-0 nonce and the bundler's pending nonce on A and B, reconcile
 the recorded hash, then remove the marker. A re-run then resumes at the arm the
 sender's nonce gives.
 
+Known follow-ups (#693 review, not fixed here):
+- F2: the gate for every first-use op uses the SP arm's minTxInterval and price
+  checks, and a sender's three ops share one 180-second deadline; this can only
+  stop early, never record wrong evidence.
+- F3: the marker records only the first op's transaction hash; if a later op of
+  the same sender was in flight, reconcile all three nonces before removing it.
+- F4: resume selects arms by nonce only, so a warm-up op that failed but used
+  its nonce counts as done; before window 1 the operator checks that the
+  first-use journal shows nine USEROP_SUCCESS rows.
+
+Residual (DSR ruling on #693): the nine-op first-use path has not run end to end
+against a chain; the OP Sepolia rehearsal ran the one-op-per-account version.
+A first-use failure on mainnet costs the gas of the ops already sent and a
+manual resume (marker check, then resume by nonce); first-use rows never enter
+the dataset.
+
 ## Window gates and traces
 
 A sent TPM operation in a frozen window takes both debug traces from RPC A.

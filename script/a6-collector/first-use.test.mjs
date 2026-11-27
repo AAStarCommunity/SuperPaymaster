@@ -6,6 +6,7 @@ import { resolve, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { getAddress, keccak256 } from 'viem';
 import { aggregateWindows } from './aggregate-windows.mjs';
+import { diffPaths } from './gauge-lib.mjs';
 import { stringify } from './evidence.mjs';
 import { validateRun } from './validate.mjs';
 import { accumulateSlotWait, waitForSlot } from './window-schedule.mjs';
@@ -242,6 +243,22 @@ test('first use binds exactly the bundle senders in planIndex order',()=>{
   assert.throws(()=>bind(plans,senderConfigs,'wrong'),/BUNDLE_DIGEST_MISMATCH/);
 });
 
+
+test('TPM continuity keeps each sender balance in first-use and window mode',()=>{
+  const mark='function continuityPrior(';
+  const body=src.slice(src.indexOf(mark),src.indexOf('function firstUsePlans()'));
+  assert.equal(body.startsWith(mark),true);
+  assert.match(src,/continuityPrior\(f, prior, senderPrior, before\.A\[f\], window \|\| firstUse, senderFields\)/);
+  const continuityPrior=runInNewContext(`${body}\ncontinuityPrior`);
+  const senderFields=['userXPNTs','lockedOf','debts','creditReservedOf'];
+  const prior={tpmTokenBalances:{sender:90,paymaster:10}};
+  const beforeB={sender:100,paymaster:10};
+  const passes=(perSender,value=beforeB)=>diffPaths(value,continuityPrior('tpmTokenBalances',prior,undefined,value,perSender,senderFields)).length===0;
+  assert.equal(passes(true),true);
+  assert.equal(passes({slice:0}),true);
+  assert.equal(passes(false),false);
+  assert.equal(passes(true,{sender:100,paymaster:11}),false);
+});
 
 test('first-use retains all six transaction hashes if final anchor verification fails',async()=>{
   const result=await run({reorg:true});
