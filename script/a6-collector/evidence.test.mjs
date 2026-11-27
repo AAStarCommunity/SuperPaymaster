@@ -60,7 +60,7 @@ test('index references observed UOE position, raw transaction bytes and both fix
   const archives=['A','B'].map(e=>rawArchive(d,e));
   const uoe=row.logs.find(l=>l.topics[1]===row.expectedUserOpHash); row.userOpEvent.logIndex=uoe.logIndex;
   row.tx.input='0x1234'; row.tx.handleOpsIndex=0; row.tx.maxFeePerGas='20000000000'; row.tx.maxPriorityFeePerGas='2000000000';
-  const rawTx={hash:row.tx.hash,input:row.tx.input};
+  const rawTx={hash:row.tx.hash,input:row.tx.input,blockNumber:row.tx.blockNumber,blockHash:row.tx.blockHash};
   for(const a of archives) for(const side of ['before','after']) {
     const s=row.readbacks[side].A;
     for(const method of ['eth_call','eth_getTransactionReceipt','eth_getTransactionByHash']) a.append({requestedAtUtc:'2026-11-01T00:00:00.000Z',method,params:method==='eth_call'?[{},'0x'+BigInt(s.blockNumber).toString(16)]:[row.tx.hash],anchor:{number:'0x'+BigInt(s.blockNumber).toString(16),hash:s.blockHash},requestBase64:'e30=',responseBase64:Buffer.from(JSON.stringify({result:rawTx})).toString('base64')});

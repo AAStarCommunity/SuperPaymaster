@@ -68,10 +68,17 @@ export function evidenceIndex(row, context) {
   out.tx = row.tx ? { txHash: row.tx.hash, ...Object.fromEntries(['blockNumber','blockHash','raw','input','handleOpsIndex','gasLimit','maxFeePerGas','maxPriorityFeePerGas'].map(k => [k, value('/tx/'+k, row.tx[k])])) } : value('/tx', null, 'transaction not submitted');
   const observed = row.observedUserOpEvent ?? row.userOpEvent;
   const event = row.logs?.find(l => l.logIndex === observed?.logIndex);
-  const transactionRecord = archives[0].records.find(r => r.method === 'eth_getTransactionByHash' && r.params[0] === row.tx?.hash && r.response);
-  if (out.tx && transactionRecord) {
-    try { out.tx.raw = JSON.parse(Buffer.from(transactionRecord.response,'base64').toString()).result; delete missing['/tx/raw']; } catch {}
-  }
+  // 1 s receipt polling archives pre-inclusion polls (null result) before the included response, so the first
+  // record is often null. Only the included observation — non-null result whose blockHash equals the row's
+  // inclusion block hash — may populate tx.raw, and a null result never overwrites it.
+  const includedTx = archives[0].records.flatMap(r => {
+    if (r.method !== 'eth_getTransactionByHash' || r.params[0] !== row.tx?.hash || !r.response || row.tx?.blockHash == null) return [];
+    try {
+      const result = JSON.parse(Buffer.from(r.response,'base64').toString()).result;
+      return result != null && String(result.blockHash).toLowerCase() === String(row.tx.blockHash).toLowerCase() ? [result] : [];
+    } catch { return []; }
+  });
+  if (out.tx && includedTx.length) { out.tx.raw = includedTx[0]; delete missing['/tx/raw']; }
   out.observedUserOpHash = value('/observedUserOpHash', observed?.userOpHash);
   out.uoe = value('/uoe', event && { txHash: observed.txHash ?? event.transactionHash ?? row.tx.hash, logIndex: event.logIndex, address: event.address, topics: event.topics, data: event.data });
   out.endpoints = Object.fromEntries(archives.map((a,i) => {
