@@ -32,7 +32,7 @@ export async function sentWindowFixture(dir,{
   initialNonces=new Map(), firstSenderKeyedNonce, priorSPTimestamps=new Map(),
   nonceGap=false, balanceGap=false, senderBalanceGap=false, outerGasDelta=0n,
   priceStalenessThreshold=3000, endPassportDelay=0n, lastSPInclusionDelay=0n,
-  finalVpmVerdict='USEROP_SUCCESS', finalVpmSlots=1
+  finalVpmVerdict='USEROP_SUCCESS', finalVpmSlots=1, finalTpmRevert=false, tpmRefresh=false, tpmPriceLog=false, tpmTraceEndpoints=[0]
 }={}) {
   const bytes=fixtureBundle??=execFileSync('python3.11',['-B','script/a6-collector/frozen-fixture.py']);
   const bundleSha256=sha256(bytes), chainId=10, seed='public';
@@ -185,6 +185,7 @@ export async function sentWindowFixture(dir,{
   let brokenBalance=false;
   for(const slot of usedSlots) {
     const sent=slot.block_slot>=firstSent, armOrder=slot.order.map(name=>names[name]), attempts=[];
+    const tpmReverted=finalTpmRevert && slot.block_slot===slice.lastSlot;
     const vpmVerdict=slot.block_slot>slice.lastSlot-finalVpmSlots?finalVpmVerdict:'USEROP_SUCCESS';
     const startTime=epoch+BigInt(slot.start_seconds-missedSlot.start_seconds), deadline=epoch+BigInt(slot.deadline_seconds-missedSlot.start_seconds);
     for(const [position,name] of slot.order.entries()) {
@@ -239,7 +240,7 @@ export async function sentWindowFixture(dir,{
         const txId=hash(10000+blockStart+attemptIndex), txBlock=block(blockNumber++,inclusionTime,[txId]);
         const template=legacy.find(row=>row.arm===arm), gasUsed=BigInt(template.userOpEvent.actualGasUsed);
         const gasPrice=BigInt(pc.feeRule.baseFee)+gas.maxPriorityFeePerGas, gasCost=gasUsed*gasPrice;
-        const verdict=arm==='VPM'?vpmVerdict:'USEROP_SUCCESS';
+        const verdict=arm==='VPM'?vpmVerdict:arm==='TPM' && tpmReverted?'TX_FAILED':'USEROP_SUCCESS';
         const txReverted=verdict==='TX_FAILED';
         const event=txReverted || verdict==='NO_EVENT'?null:{
           userOpHash:opHash,sender,paymaster,nonce,success:verdict==='USEROP_SUCCESS',actualGasUsed:gasUsed,actualGasCost:gasCost};
@@ -253,6 +254,11 @@ export async function sentWindowFixture(dir,{
         const before=readback(beforeBlock);
         const logs=event?template.logs.map(l=>({...l,transactionHash:txId})):[];
         const uoe=logs.at(-1);
+        const refresh=arm==='TPM' && slot.block_slot===firstSent && tpmRefresh;
+        if (arm==='TPM' && slot.block_slot===firstSent && tpmPriceLog) logs.push({
+          address:tpmPriceLog===true?paymaster:entryPoint,topics:[keccak256(toHex('TokenPriceUpdated(uint256,uint256,uint256)'))],
+          data:words(1n,2n,3n),logIndex:uoe.logIndex+1,transactionHash:txId
+        });
         if(event) Object.assign(uoe,{address:entryPoint,topics:[uoe.topics[0],opHash,addressTopic(sender),addressTopic(paymaster)],
           data:words(nonce,event.success?1n:0n,gasCost,gasUsed)});
         for(const log of logs.slice(0,-1)) if(log.address===template.entryPoint) log.address=entryPoint;
@@ -274,7 +280,7 @@ export async function sentWindowFixture(dir,{
           const user=spUsers.get(sender);
           user.userXPNTs=String(BigInt(user.userXPNTs)-charge);
           lastSP.set(sender,inclusionTime);
-        } else if(arm==='TPM') {
+        } else if(arm==='TPM' && !txReverted) {
           for(const log of logs.slice(0,-1)) {
             if(log.address===template.paymaster) log.address=paymaster;
             else if(log.address!==entryPoint) {log.address=addresses.Q;log.topics=[log.topics[0],addressTopic(sender),addressTopic(paymaster)];}
@@ -305,9 +311,9 @@ export async function sentWindowFixture(dir,{
           revertKind:event?.success===false?'executionReverted':null,execRevert:[],postOpRevert:[],prefundTooLow:[],
           readbacks:{before:pairs(()=>before),after:pairs(()=>after)},conservation:{evaluated:!!event,ok:event?true:null,checks:[]},exclusion:failingCheck});
         if(arm==='SP') a.spBranch={planned:'balance',observed:'balance',event:'LockSettled'};
-        if(arm==='TPM') Object.assign(a,{tpmOracle:addresses.oracle,postOpRefreshed:false,traces:[0,1].map(()=>({
-          call:{type:'CALL',to:entryPoint,calls:[{type:'CALL',to:paymaster,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:[]}]},
-          state:{pre:{[entryPoint]:{storage:{'0x0':'0x1'}}},post:{[entryPoint]:{storage:{'0x0':'0x2'}}}},postOpRefreshed:false
+        if(arm==='TPM') Object.assign(a,{tpmOracle:addresses.oracle,postOpRefreshed:refresh,traces:txReverted?[]:tpmTraceEndpoints.map(()=>({
+          call:{type:'CALL',to:entryPoint,calls:[{type:'CALL',to:paymaster,input:toFunctionSelector('postOp(uint8,bytes,uint256,uint256)'),calls:refresh?[{type:'STATICCALL',to:addresses.oracle,input:toFunctionSelector('latestRoundData()')}]:[]}]},
+          state:{pre:{[entryPoint]:{storage:{'0x0':'0x1'}}},post:{[entryPoint]:{storage:{'0x0':'0x2'}}}},postOpRefreshed:refresh
         }))});
         recordPVG(a,pvg,input,{gasUsed:tx.gasUsed,effectiveGasPrice:gasPrice},event);
         for(const i of [0,1]) {
@@ -318,8 +324,8 @@ export async function sentWindowFixture(dir,{
           append(i,'eth_getTransactionReceipt',[txId],receipt,txBlock.anchor);
           readBlock(i,txBlock);
           append(i,'eth_getTransactionByHash',[txId],archivedTx,txBlock.anchor);
-          if(a.traces) for(const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {
-            append(i,'debug_traceTransaction',[txId,{tracer,tracerConfig:tracer==='callTracer'?{withLog:true}:{diffMode:true}}],a.traces[i][key],txBlock.anchor);
+          if(a.traces?.length && tpmTraceEndpoints.includes(i)) for(const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {
+            append(i,'debug_traceTransaction',[txId,{tracer,tracerConfig:tracer==='callTracer'?{withLog:true}:{diffMode:true}}],a.traces[tpmTraceEndpoints.indexOf(i)][key],txBlock.anchor);
           }
           for(const [b,s] of [[beforeBlock,before],[txBlock,after]]) {
             readBlock(i,b);
@@ -340,7 +346,7 @@ export async function sentWindowFixture(dir,{
       tally[arm].attempts++;
       tally[arm].verdicts[a.verdict]=(tally[arm].verdicts[a.verdict]??0)+1;
     }
-    triplets.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:sent&&vpmVerdict==='USEROP_SUCCESS',attempts,tripletIndex:slot.block_slot});
+    triplets.push({block_slot:slot.block_slot,pair_id:slot.pair_id,matched:sent&&!tpmReverted&&vpmVerdict==='USEROP_SUCCESS'&&!(slot.block_slot===firstSent&&tpmRefresh),attempts,tripletIndex:slot.block_slot});
   }
   const endChecks=['endBlock',...accounts.map(sender=>'senderPassport:'+sender),'finalPassport','anchors'].map(check=>({check,status:'PASS'}));
   let endTime=lastTx.time+endPassportDelay;
@@ -376,5 +382,5 @@ export async function sentWindowFixture(dir,{
   writeTrailer(dir,trailer);
   const runPath=join(dir,'run.jsonl');
   writeFileSync(runPath,[start,...rows,end].map(stringify).join('\n')+'\n');
-  return {runPath,accounts,rows,end,trailer,registered};
+  return {runPath,accounts,rows,index,end,trailer,registered};
 }

@@ -15,7 +15,7 @@ async function run({ heads, receiptB = { status: 'success' } }) {
     getBlockNumber: async () => { const h = heads.length > 1 ? heads.shift() : heads[0]; calls.push(['B head', h]); return h; },
     getTransactionReceipt: async () => { calls.push(['B receipt']); if (!receiptB) throw new Error('TransactionReceiptNotFoundError'); return receiptB; },
   };
-  const context = { pubA, pubB, txHash: '0x' + 'ab'.repeat(32), Stop, waitForHead: (c, b) => waitForHead(c, b, { timeoutMs: 60, pollMs: 5 }) };
+  const context = { firstUse:false, pubA, pubB, txHash: '0x' + 'ab'.repeat(32), Stop, waitForHead: (c, b) => waitForHead(c, b, { timeoutMs: 60, pollMs: 5 }) };
   let error = null;
   try { await vm.runInNewContext(`(async()=>{${snippet}\nreturn rcB;})()`, context); } catch (e) { error = e; }
   return { calls, error };

@@ -172,5 +172,5 @@ test('the collector polls for the A receipt every second and passes its pools to
   assert.match(src, /pubA\.waitForTransactionReceipt\(\{ hash: txHash, pollingInterval: 1_000 \}\)/);
   assert.match(src, /const rcB = await pubB\.getTransactionReceipt\(\{ hash: txHash \}\);/);
   assert.equal(src.match(/adapter\.beforeSend\(runtime, poolOf\)/g).length, 3);
-  assert.match(src, /\}\},frozenArm,args,poolOf\);/);
+  assert.match(src, /\},frozenArm,args,poolOf\);/);
 });

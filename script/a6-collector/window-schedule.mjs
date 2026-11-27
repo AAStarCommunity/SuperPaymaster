@@ -90,7 +90,7 @@ export function accumulateSlotWait(previous,wait) {
 }
 
 /** Fresh A/B reads at every pin, including the pin immediately before submission. */
-export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,deadline,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=180000}) {
+export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,deadline,priceDeadline,sleep=ms=>new Promise(r=>setTimeout(r,ms)),timeoutMs=180000}) {
   let first;const wallDeadline=Date.now()+timeoutMs;
   while(true) {
     const block=await runtime.refreshPin();first??=block;
@@ -106,6 +106,10 @@ export async function waitForSlot({runtime,arm,operator,sender,paymaster,start,d
     const [minTxInterval,lastTimestamp]=values[0],validAfter=lastTimestamp+minTxInterval;
     const wait={seconds:block.timestamp-first.timestamp,blocks:block.number-first.number,minTxInterval,lastTimestamp,validAfter,
       timestamp:block.timestamp,pin:{number:block.number,hash:block.hash},start,deadline};
+    if (priceDeadline !== undefined) {
+      if (block.timestamp >= priceDeadline || validAfter >= priceDeadline) return {allowed:false,reason:'FIRST_USE_PRICE_STALE',wait};
+      if (Date.now() >= wallDeadline) return {allowed:false,reason:'FIRST_USE_DEADLINE',wait};
+    }
     const decision=slotDecision(arm,wait); if(decision) return {...decision,wait};
     if(Date.now()>=wallDeadline) throw Object.assign(Error('SCHEDULE_CLOCK_STALLED'),{wait});
     await sleep(250);

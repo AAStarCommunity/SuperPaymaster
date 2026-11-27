@@ -63,6 +63,10 @@ test('frozen SENT window with rotating senders and A/B archives',async t=>{
   for(const arm of ['SP','VPM','TPM']) {
     const sent=f.rows.filter(r=>r.sent && r.arm===arm);
     assert.equal(new Set(sent.map(r=>r.sender)).size,3);
+    if (arm==='TPM') {
+      assert.ok(sent.every(r=>r.traces.length===1));
+      assert.ok(f.index.filter(r=>r.trace).every(r=>r.trace.raw.A.length===2 && r.trace.raw.B.length===0));
+    }
     if(arm==='VPM') assert.ok(sent.every(r=>r.pmGas.post==='0'));
   }
   assert.ok(f.rows.some(r=>!r.sent && r.slotChecks.length===1 && !r.packedOp));
@@ -552,3 +556,29 @@ for(const finalVpmVerdict of ['TX_FAILED','USEROP_REVERTED','NO_EVENT']) {
     });
   });
 }
+
+test('window TPM trace is bound to A and checked against the receipt', async t => {
+  for (const [name, options, error] of [
+    ['two provider traces', {tpmTraceEndpoints:[0,1]}, /TPM trace incomplete/],
+    ['B-only trace', {tpmTraceEndpoints:[1]}, /TPM raw trace missing or inconsistent/],
+    ['paymaster price log with false refresh', {tpmPriceLog:true}, /TPM receipt TokenPriceUpdated contradicts postOpRefreshed/],
+    ['other emitter with false refresh', {tpmPriceLog:'other'}],
+    ['true refresh with no price log', {tpmRefresh:true}],
+    ['true refresh with a paymaster price log', {tpmRefresh:true,tpmPriceLog:true}],
+  ]) await t.test(name, async st => {
+    const f = await fixture(st,options);
+    if (error) return refuses(f,error);
+    const result = validate(f);
+    assert.equal(result.accepted,true,JSON.stringify(result));
+    assert.equal(result.matchedTriplets,options.tpmRefresh?18:19);
+  });
+});
+
+test('window accepts a reverted TPM receipt without traces and requires the A trace on success',async t=>{
+  const f=await fixture(t,{finalTpmRevert:true});
+  const result=validate(f);
+  assert.equal(result.accepted,true,JSON.stringify(result));
+  assert.equal(result.recomputed.TX_FAILED,1);
+  assert.equal(f.rows.find(row=>row.verdict==='TX_FAILED').traces.length,0);
+  refuses(await fixture(t,{tpmTraceEndpoints:[]}),/TPM raw trace missing or inconsistent/);
+});

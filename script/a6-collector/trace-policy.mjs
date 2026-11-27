@@ -21,21 +21,30 @@ export function postOpRefreshed(call, diff, paymaster, oracle, entryPoint = call
   for (const side of ['pre','post']) if (Object.keys(diff[side][address]?.storage ?? {}).some(slot=>TPM_CACHE_SLOTS.includes(BigInt(slot)))) refresh = true;
   return refresh;
 }
-export async function traceTPM(clients, hash, paymaster, oracle) {
+export async function traceTPM(clients, hash, paymaster, oracle, { window = false } = {}) {
   const traces = [];
-  for (const client of clients) {
+  for (const client of window ? clients.slice(0,1) : clients) {
     const call = await client.request({method:'debug_traceTransaction',params:[hash,{tracer:'callTracer',tracerConfig:{withLog:true}}]});
     const state = await client.request({method:'debug_traceTransaction',params:[hash,{tracer:'prestateTracer',tracerConfig:{diffMode:true}}]});
     traces.push({call,state,postOpRefreshed:postOpRefreshed(call,state,paymaster,oracle)});
   }
-  if (traces[0].postOpRefreshed !== traces[1].postOpRefreshed) throw new Error('TPM trace disagreement');
+  if (traces.length !== (window ? 1 : 2)) throw new Error('TPM trace incomplete');
+  if (!window && traces[0].postOpRefreshed !== traces[1].postOpRefreshed) throw new Error('TPM trace disagreement');
   return {tpmOracle:oracle,traces,postOpRefreshed:traces[0].postOpRefreshed};
 }
 
-export function tpmAttemptRefreshed(row) {
-  if (row.arm!=='TPM') return false;
-  if (row.traces?.length!==2) throw new Error('TPM trace incomplete');
+export function untracedWindowRevert(row, window) {
+  return window && row.sent === true && row.arm === 'TPM' && row.tx?.status === 'reverted'
+    && Array.isArray(row.traces) && row.traces.length === 0 && row.postOpRefreshed === false;
+}
+
+export function tpmAttemptRefreshed(row, { window = false } = {}) {
+  if (row.arm!=='TPM' || untracedWindowRevert(row,window)) return false;
+  if (row.traces?.length!==(window ? 1 : 2)) throw new Error('TPM trace incomplete');
   const flags=row.traces.map(t=>postOpRefreshed(t.call,t.state,row.paymaster,row.tpmOracle,row.entryPoint));
-  if (flags[0]!==flags[1] || row.postOpRefreshed!==flags[0]) throw new Error('TPM trace disagreement');
+  if (flags.some(flag=>flag!==flags[0]) || row.postOpRefreshed!==flags[0]) throw new Error('TPM trace disagreement');
+  if (window && !flags[0] && row.logs?.some(log=>log.address?.toLowerCase()===row.paymaster.toLowerCase() && log.topics?.[0]?.toLowerCase()===priceUpdated)) {
+    throw new Error('TPM receipt TokenPriceUpdated contradicts postOpRefreshed');
+  }
   return flags[0];
 }

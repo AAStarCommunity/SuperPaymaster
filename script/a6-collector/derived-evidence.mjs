@@ -1,5 +1,5 @@
 import { decodeEventLog, parseAbi, parseTransaction, encodeFunctionData } from 'viem';
-import { tpmAttemptRefreshed } from './trace-policy.mjs';
+import { tpmAttemptRefreshed, untracedWindowRevert } from './trace-policy.mjs';
 const abi = parseAbi([
   'event UserOperationEvent(bytes32 indexed userOpHash,address indexed sender,address indexed paymaster,uint256 nonce,bool success,uint256 actualGasCost,uint256 actualGasUsed)',
   'event UserOperationRevertReason(bytes32 indexed userOpHash,address indexed sender,uint256 nonce,bytes revertReason)',
@@ -50,7 +50,7 @@ export function bindReceiptSummaries(row, {formal = false} = {}) {
   return u?.args ?? null;
 }
 
-export function bindArchivedDisposition(row,archives) {
+export function bindArchivedDisposition(row,archives,{window=false}={}) {
   const records=archives[0].records.filter(r=>r.id>row.evidenceStart?.[0] && r.id<=row.evidenceEnd?.[0]);
   const response=r=>r.response ? JSON.parse(Buffer.from(r.response,'base64')) : null;
   const sends=records.filter(r=>r.method==='eth_sendRawTransaction');
@@ -74,13 +74,14 @@ export function bindArchivedDisposition(row,archives) {
     requireEqual('baseFeePerGas',row.baseFeePerGas,String(BigInt(block.baseFeePerGas)));
     if (BigInt(block.baseFeePerGas)<=BigInt(row.gas.maxFeePerGas)) throw Error('derived evidence mismatch: fee pause');
   }
-  if (row.traces || row.postOpRefreshed!=null) {
-    for (const [i,arc] of archives.entries()) for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {
+  if (untracedWindowRevert(row,window)) return;
+  if (row.traces || row.postOpRefreshed!=null || window && row.sent && row.arm==='TPM') {
+    for (const [i,arc] of (window ? archives.slice(0,1) : archives).entries()) for (const [tracer,key] of [['callTracer','call'],['prestateTracer','state']]) {
       const raw=arc.records.find(r=>r.id>row.evidenceStart?.[i] && r.id<=row.evidenceEnd?.[i] && r.method==='debug_traceTransaction' && lower(r.params[0])===lower(row.tx?.hash) && r.params[1]?.tracer===tracer);
       if (!raw) throw Error('TPM raw trace missing or inconsistent');
       requireEqual(`traces.${i}.${key}`,row.traces?.[i]?.[key],response(raw)?.result);
     }
-    const refresh=tpmAttemptRefreshed(row);
+    const refresh=tpmAttemptRefreshed(row,{window});
     for (const t of row.traces) requireEqual('traces.postOpRefreshed',t.postOpRefreshed,refresh);
   }
 }

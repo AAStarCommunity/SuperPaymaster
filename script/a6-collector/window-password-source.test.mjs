@@ -16,7 +16,7 @@ async function windowOwners(cliSource, ownSources = [undefined, undefined, undef
       ...(own === undefined ? {} : { keystorePasswordSource: own }) },
   }));
   const context = {
-    scheduled: true, formal: true, formalInput: { senders, accounts: {} }, getAddress,
+    scheduled: true, firstUse:false, formal: true, formalInput: { senders, accounts: {} }, getAddress,
     withPasswordSource: formal.withPasswordSource,
     argVal: flag => flag === '--keystore-password-source' ? cliSource : undefined,
     rehearsal: false, adapter: {}, outPath: '/offline/run.jsonl', window: {},

@@ -30,3 +30,18 @@ test('timing probe is read-only by construction: no signer, lock, keychain, sign
   for (const forbidden of ['acquireBundlerLock', 'acquireLock', 'withPasswordSource', 'keystore', 'writeContract', 'sendRawTransaction', 'signTransaction', 'collector-locks'])
     assert.ok(!src.includes(forbidden), forbidden);
 });
+
+test('--trace-tx times only A and keeps both tracer request shapes', async () => {
+  const {runInNewContext} = await import('node:vm');
+  const source = readFileSync(SCRIPT,'utf8');
+  const code = source.slice(source.indexOf('let tpmTraces = null;'),source.indexOf('const result = { schema:'));
+  const calls = [], traceTx='0x'+'44'.repeat(32);
+  await runInNewContext(`(async()=>{${code}})()`,{
+    traceTx,performance,mark:()=>({}),pubA:{request:async request=>calls.push(request)},
+    pubB:{request:async()=>assert.fail('traced on B')}
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)),[
+    {method:'debug_traceTransaction',params:[traceTx,{tracer:'callTracer',tracerConfig:{withLog:true}}]},
+    {method:'debug_traceTransaction',params:[traceTx,{tracer:'prestateTracer',tracerConfig:{diffMode:true}}]}
+  ]);
+});
