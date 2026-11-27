@@ -1,6 +1,7 @@
 """Collect ABI-enumerated readback using the checker's block-pinned transport."""
 import hashlib
 import json
+import os
 import re
 import subprocess
 from functools import lru_cache
@@ -95,9 +96,18 @@ def expected_chain_id(env):
     return int(value)
 
 
-def single_provider_allowed(chain, endpoint):
+def fork_rehearsal_active(env, chain, endpoint):
+    """Explicit-flag single-provider mode for a declared local fork on a real chain id."""
+    if env.get('DEPLOYLIVE_FORK_REHEARSAL') != '1' or chain == 31337: return False
+    from urllib.parse import urlsplit
+    try: return urlsplit(endpoint or '').hostname == '127.0.0.1'
+    except (ValueError, TypeError): return False
+
+
+def single_provider_allowed(chain, endpoint, env=None):
     # Callers must bind RPC chain answers to the operator expectation first.
-    return chain == 31337
+    if chain == 31337: return True
+    return fork_rehearsal_active(os.environ if env is None else env, chain, endpoint)
 
 
 def independent_providers(primary, secondary, primary_url=None, secondary_url=None):

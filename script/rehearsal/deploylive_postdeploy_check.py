@@ -29,7 +29,7 @@ elif len(sys.argv) == 5:
 else:
     print("FAIL unknown checker option or missing arguments")
     sys.exit(1)
-from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed, expected_chain_id
+from deploylive_readback import provider_name, evidence_path, independent_providers, single_provider_allowed, fork_rehearsal_active, expected_chain_id
 try:
     evidence = os.environ.get('DEPLOYLIVE_EVIDENCE_DIR') or os.environ.get('DEPLOYLIVE_LOCAL_EVIDENCE')
     if not evidence: raise ValueError('explicit evidence directory required')
@@ -43,6 +43,12 @@ try:
 except (ValueError, OSError) as error:
     print('FAIL ' + str(error))
     sys.exit(1)
+if os.environ.get('DEPLOYLIVE_FORK_REHEARSAL') == '1' and (os.environ.get('DEPLOYLIVE_REHEARSAL', '') == '0' or os.environ.get('DEPLOYER_ACCOUNT')):
+    print('FAIL DEPLOYLIVE_FORK_REHEARSAL refused with production or configured keystore')
+    sys.exit(1)
+rehearsal = fork_rehearsal_active(os.environ, chain, RPC)
+if rehearsal:
+    print('MODE REHEARSAL single-provider local fork; not evidence of on-chain state')
 results = []
 BLOCK = None
 block = None
@@ -727,6 +733,7 @@ if all(results) and len(results) == expected_count:
     record['secondProvider'] = second
     record['singleProvider'] = second is None
     record['singleProviderNote'] = 'single provider: not evidence of on-chain state' if second is None else None
+    if rehearsal: record['mode'] = 'REHEARSAL'
     if second is None:
         print('INFO  single provider: not evidence of on-chain state')
     try:

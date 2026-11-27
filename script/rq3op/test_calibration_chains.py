@@ -1,6 +1,8 @@
+import ast
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -44,6 +46,42 @@ def full_deploylive_config():
             return {}
         return strings.get(key, '0x' + '0'*40)
     return {key: attempt[key] if key in attempt else placeholder(key) for key in keys}
+
+
+def postop_floor_spans(text):
+    """Spans of sp_postop_limit and the one SP postOp rule= literal. Nothing else."""
+    lines = text.splitlines(keepends=True)
+    offsets, pos = [], 0
+    for line in lines:
+        offsets.append(pos)
+        pos += len(line)
+    fns = [node for node in ast.parse(text).body
+           if isinstance(node, ast.FunctionDef) and node.name == 'sp_postop_limit']
+    if len(fns) != 1:
+        raise AssertionError('sp_postop_limit')
+    fn = fns[0]
+    fn_span = (offsets[fn.lineno - 1], offsets[fn.end_lineno] if fn.end_lineno < len(offsets) else len(text))
+    hits = [i for i, line in enumerate(lines) if "sources['SP']['postOp'].update(" in line]
+    if len(hits) != 1:
+        raise AssertionError("sources['SP']['postOp'].update")
+    found = list(re.finditer(r"rule='[^']*'", lines[hits[0]]))
+    if len(found) != 1:
+        raise AssertionError('rule=')
+    rule = found[0]
+    rule_span = (offsets[hits[0]] + rule.start(), offsets[hits[0]] + rule.end())
+    if not (fn_span[1] <= rule_span[0] or rule_span[1] <= fn_span[0]):
+        raise AssertionError('rule overlaps sp_postop_limit')
+    return fn_span, rule_span
+
+
+def rewind_postop_floor(current, baseline):
+    """Swap those two spans for the 99a38d8d text. Any other byte stays put."""
+    current_text, baseline_text = current.decode(), baseline.decode()
+    pairs = zip(postop_floor_spans(current_text), postop_floor_spans(baseline_text))
+    out = current_text
+    for (start, end), (old_start, old_end) in sorted(pairs, key=lambda item: item[0][0], reverse=True):
+        out = out[:start] + baseline_text[old_start:old_end] + out[end:]
+    return out.encode()
 
 
 class DeployLiveConfigKeys(unittest.TestCase):
@@ -137,11 +175,23 @@ class CalibrationChains(unittest.TestCase):
         for path in driver:
             absent = subprocess.run(['git', 'cat-file', '-e', f'99a38d8d:{path}'], cwd=root, capture_output=True)
             self.assertNotEqual(absent.returncode, 0, path + ' exists at 99a38d8d')
-        for path in ('script/rq3op/plan_three_arm.py', 'script/upgrade/manifest_exec.py',
+        for path in ('script/upgrade/manifest_exec.py',
                      *(str(p.relative_to(root)) for p in sorted((root/'script/rq3op').glob('setup*.mjs'))
                        if str(p.relative_to(root)) not in driver)):
             baseline = subprocess.check_output(['git', 'show', f'99a38d8d:{path}'], cwd=root)
             self.assertEqual((root/path).read_bytes(), baseline, path)
+        # DSR: plan_three_arm.py may differ from 99a38d8d only in the postOp floor rule.
+        plan = 'script/rq3op/plan_three_arm.py'
+        baseline = subprocess.check_output(['git', 'show', f'99a38d8d:{plan}'], cwd=root)
+        current = (root/plan).read_bytes()
+        self.assertEqual(rewind_postop_floor(current, baseline), baseline, plan)
+        text = current.decode()
+        needle = 'def check_inputs('
+        begin = text.index(needle)
+        for span in postop_floor_spans(text):
+            self.assertTrue(begin + len(needle) <= span[0] or begin >= span[1])
+        mutated = current.replace(needle.encode(), b'def check_inputs( ', 1)
+        self.assertNotEqual(rewind_postop_floor(mutated, baseline), baseline)
 
 
 class ExplicitCalibrationChain(unittest.TestCase):

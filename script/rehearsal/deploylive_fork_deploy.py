@@ -508,6 +508,9 @@ def cli(argv=None):
     try:
         os.environ.clear()
         os.environ.update(env)
+        # Execution-context flag, not an approved input: survive load_inputs' allowlist for the checker.
+        if previous.get('DEPLOYLIVE_FORK_REHEARSAL') == '1':
+            os.environ['DEPLOYLIVE_FORK_REHEARSAL'] = '1'
         if args.action in ('build','predict'):
             flags = ['--production'] if args.production else []
             if args.action == 'predict': flags += ['--evidence', str(evidence)]
