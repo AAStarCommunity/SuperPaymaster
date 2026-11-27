@@ -286,6 +286,27 @@ class Ddf5Test(unittest.TestCase):
         self.assertIn('GAS partial post-broadcast', output.getvalue())
         self.assertFalse((self.root/'checker.PASS.json').exists())
 
+    def test_cli_passes_fork_rehearsal_flag_through_load_inputs_allowlist(self):
+        # DEPLOYLIVE_FORK_REHEARSAL is operator shell context, not an approved input: load_inputs'
+        # environment allowlist drops it, so cli() must re-inject it for the deploy checker env.
+        env = {key: 'value' for key in c.input_keys() if not key.endswith('_FILE')}
+        env.update(self.env, DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYER_ADDRESS='0x' + '11' * 20,
+                   FOUNDRY_VERBOSITY='2', REHEARSAL_BLS_SCALARS='[]', DEPLOYER_ACCOUNT='')
+        c.write_manifest(env, self.root)
+        c.write_conversion(self.root, b'{}', (self.root / 'pop-request.json').read_bytes(), b'0x00')
+        captured = []
+
+        def fake_main():
+            captured.append(dict(os.environ))
+
+        for flag, expected in (('1', '1'), (None, None)):
+            with self.subTest(flag=flag):
+                shell = dict(env)
+                if flag: shell['DEPLOYLIVE_FORK_REHEARSAL'] = flag
+                with patch.dict(os.environ, shell, clear=True), patch.object(c, 'load_inputs', return_value=env), patch.object(f, 'main', side_effect=fake_main):
+                    f.cli(['deploy', '--inputs', 'unused'])
+                self.assertEqual(captured[-1].get('DEPLOYLIVE_FORK_REHEARSAL'), expected)
+
     def test_driver_success_and_rule_is_mandatory(self):
         self.driver()
         self.rule.assert_called_once()

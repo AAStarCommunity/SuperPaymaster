@@ -6,6 +6,7 @@ import { resolve, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { getAddress, keccak256 } from 'viem';
 import { aggregateWindows } from './aggregate-windows.mjs';
+import { diffPaths } from './gauge-lib.mjs';
 import { stringify } from './evidence.mjs';
 import { validateRun } from './validate.mjs';
 import { accumulateSlotWait, waitForSlot } from './window-schedule.mjs';
@@ -28,6 +29,9 @@ async function run(options={}) {
   const reads=[], sends=[], rows=[], messages=[];
   let pendingChecks=0;
   const pending = options.pending ?? new Map();
+  // sender -> key-0 EntryPoint nonce ops already included (warm-up before this run via
+  // options.presend, plus ops sent in this run)
+  const sent = new Map(Object.entries(options.presend ?? {}).map(([k,v])=>[k,BigInt(v)]));
   let head=block;
   const client=endpoint=>({
     getBlock:async()=>head,
@@ -37,10 +41,15 @@ async function run(options={}) {
       assert.equal(functionName,'getNonce');
       assert.equal(args[1],0n);
       reads.push([endpoint,args[0],blockNumber]);
-      if (blockNumber>block.number) return endpoint==='B'&&options.inclusionDisagreement?2n:options.inclusionNonce??1n;
-      if (args[0]===skipped) return endpoint==='B'&&options.disagree?2n:1n;
-      if (options.none) return 1n;
-      return options.changed && reads.length>6 ? 1n : 0n;
+      if (blockNumber>block.number) { // inclusion block: nonce = ops included so far
+        const after = options.inclusionNonce ?? sent.get(args[0]) ?? 1n;
+        return endpoint==='B'&&options.inclusionDisagreement?2n:after;
+      }
+      if (args[0]===skipped) return endpoint==='B'&&options.disagree?2n:3n;
+      if (options.none) return 3n;
+      if (options.changed && reads.length>6) return 1n;
+      if (options.changedAfter && reads.length>options.changedAfter) return 9n;
+      return sent.get(args[0]) ?? 0n;
     }
   });
   const pubA=client('A'), pubB=client('B');
@@ -80,6 +89,7 @@ async function run(options={}) {
       if (moveClock) advanceClock();
       await assertFirstUseFresh(signed);
       sends.push({arm,sender});
+      sent.set(sender,(sent.get(sender)??0n)+1n);
       const txHash=row.tx.hash, bn=11n+BigInt(idx), blk={hash:receiptHash};
       const rcA={blockHash:blockMismatch?'other':receiptHash};
       Object.assign(row.tx,{blockNumber:bn,blockHash:rcA.blockHash});
@@ -93,7 +103,7 @@ async function run(options={}) {
     catch (e) {writeLine({kind:'first_use_end',exitCode:e.code??1}); return e.message;}
   })()`;
   const status = await runInNewContext(code,{
-    ...context, get sender(){return context.sender;}, signed,sends,moveClock:options.moveClock,
+    ...context, get sender(){return context.sender;}, signed,sends,sent,moveClock:options.moveClock,
     advanceClock:()=>{head={...head,timestamp:options.moveClock};},
     withheld:options.withheld,
     receiptHash:block.hash,blockMismatch:options.blockMismatch,failReceipt:options.failReceipt
@@ -102,12 +112,35 @@ async function run(options={}) {
 }
 
 test('first use scans every configured plan sender at one pin and exits cleanly when all are used', async()=>{
-  const result=await run({none:true});
+  const result=await run({none:true}); // every plan sender at key-0 nonce 3: done, nothing to do
   assert.equal(result.status,0);
   assert.deepEqual(result.messages,['nothing to do']);
   assert.equal(result.pendingChecks,0);
   assert.deepEqual(result.sends,[]);
   assert.deepEqual(result.reads,senderConfigs.flatMap(({sender})=>[['A',sender,10n],['B',sender,10n]]));
+});
+
+test('first use resumes a sender at an advanced nonce from the arm the nonce points to',async()=>{
+  const result=await run({presend:{[first]:1n,[second]:3n}}); // first: 1 warm-up op included, no marker
+  assert.equal(result.status,0);
+  assert.deepEqual(JSON.parse(stringify(result.sends)),[{arm:'VPM',sender:first},{arm:'TPM',sender:first}]);
+  assert.equal(result.pendingChecks,1);
+  assert.equal(result.pending.size,0);
+  const attempts=result.rows.filter(row=>row.kind==='first_use_attempt');
+  assert.deepEqual(attempts.map(row=>row.arm),['VPM','TPM']);
+  assert.deepEqual(attempts[0].nonceBefore,{A:'1',B:'1',blockNumber:'10'});
+  assert.deepEqual(attempts[0].nonceAfter,{A:'2',B:'2',blockNumber:'11'});
+  assert.deepEqual(attempts[1].nonceBefore,{A:'2',B:'2',blockNumber:'10'});
+  assert.deepEqual(attempts[1].nonceAfter,{A:'3',B:'3',blockNumber:'12'});
+});
+
+test('first use refuses an unreconciled marker before reading any nonce, even at an advanced nonce',async()=>{
+  const marker=resolve('/locks','10',`first-use-${first.toLowerCase()}.json`);
+  const pending=new Map([[marker,{sender:first,hash:keccak256(signed)}]]);
+  const result=await run({presend:{[first]:1n,[second]:3n},pending});
+  assert.equal(result.status,'FIRST_USE_UNRECONCILED');
+  assert.deepEqual(result.sends,[]);
+  assert.deepEqual(result.reads,[]);
 });
 
 test('first use scans all senders before sending and refuses nonce disagreement',async()=>{
@@ -116,17 +149,21 @@ test('first use scans all senders before sending and refuses nonce disagreement'
   assert.deepEqual(result.sends,[]);
 });
 
-test('first use submits two SP attempts in plan order and records their inclusion nonces',async t=>{
+test('first use submits SP,VPM,TPM per sender in plan order and records their inclusion nonces',async t=>{
   const result=await run();
   assert.equal(result.status,0);
-  assert.deepEqual(JSON.parse(stringify(result.sends)),[{arm:'SP',sender:first},{arm:'SP',sender:second}]);
+  assert.deepEqual(JSON.parse(stringify(result.sends)),[
+    {arm:'SP',sender:first},{arm:'VPM',sender:first},{arm:'TPM',sender:first},
+    {arm:'SP',sender:second},{arm:'VPM',sender:second},{arm:'TPM',sender:second}]);
   assert.equal(result.pending.size,0);
   assert.equal(result.pendingChecks,1);
   const attempts=result.rows.filter(row=>row.kind==='first_use_attempt');
-  assert.equal(attempts.length,2);
+  assert.equal(attempts.length,6);
+  const nonces=[['0','1'],['1','2'],['2','3'],['0','1'],['1','2'],['2','3']];
   for (const [i,row] of attempts.entries()) {
-    assert.deepEqual(row.nonceBefore,{A:'0',B:'0',blockNumber:'10'});
-    assert.deepEqual(row.nonceAfter,{A:'1',B:'1',blockNumber:String(11+i)});
+    assert.equal(row.arm,['SP','VPM','TPM'][i%3]);
+    assert.deepEqual(row.nonceBefore,{A:nonces[i][0],B:nonces[i][0],blockNumber:'10'});
+    assert.deepEqual(row.nonceAfter,{A:nonces[i][1],B:nonces[i][1],blockNumber:String(11+i)});
     assert.deepEqual(row.tx,{hash:keccak256(signed),blockNumber:String(11+i),blockHash:block.hash});
     for (const field of ['block_slot','pair_id','allocation','tripletIndex','armOrder']) assert.ok(!(field in row));
   }
@@ -157,8 +194,19 @@ for (const [name,options,error] of [
   if (options.withheld) assert.equal(result.rows.filter(row=>row.kind==='first_use_attempt').length,1);
 });
 
+test('first use refuses when a sender nonce moves mid-run',async()=>{
+  const result=await run({changedAfter:8});
+  assert.equal(result.status,'FIRST_USE_NONCE_CHANGED');
+  assert.deepEqual(JSON.parse(stringify(result.sends)),[{arm:'SP',sender:first}]);
+  const attempts=result.rows.filter(row=>row.kind==='first_use_attempt');
+  assert.equal(attempts.length,2); // the SP op succeeded; the interrupted VPM op still writes its row
+  assert.equal(attempts[1].stoppedBy.reason,'FIRST_USE_NONCE_CHANGED');
+  assert.equal(attempts[1].arm,'VPM');
+});
+
 for (const [options,error] of [
   [{inclusionNonce:0n},'FIRST_USE_NONCE_NOT_ADVANCED'],
+  [{inclusionNonce:2n},'FIRST_USE_NONCE_NOT_ADVANCED'],
   [{inclusionDisagreement:true},'RPC_DISAGREEMENT'],
   [{blockMismatch:true},'RECEIPT_BLOCK_MISMATCH'],
   [{failReceipt:true},'receipt unavailable'],
@@ -196,9 +244,25 @@ test('first use binds exactly the bundle senders in planIndex order',()=>{
 });
 
 
-test('first use retains both transaction hashes if final anchor verification fails',async()=>{
+test('TPM continuity keeps each sender balance in first-use and window mode',()=>{
+  const mark='function continuityPrior(';
+  const body=src.slice(src.indexOf(mark),src.indexOf('function firstUsePlans()'));
+  assert.equal(body.startsWith(mark),true);
+  assert.match(src,/continuityPrior\(f, prior, senderPrior, before\.A\[f\], window \|\| firstUse, senderFields\)/);
+  const continuityPrior=runInNewContext(`${body}\ncontinuityPrior`);
+  const senderFields=['userXPNTs','lockedOf','debts','creditReservedOf'];
+  const prior={tpmTokenBalances:{sender:90,paymaster:10}};
+  const beforeB={sender:100,paymaster:10};
+  const passes=(perSender,value=beforeB)=>diffPaths(value,continuityPrior('tpmTokenBalances',prior,undefined,value,perSender,senderFields)).length===0;
+  assert.equal(passes(true),true);
+  assert.equal(passes({slice:0}),true);
+  assert.equal(passes(false),false);
+  assert.equal(passes(true,{sender:100,paymaster:11}),false);
+});
+
+test('first-use retains all six transaction hashes if final anchor verification fails',async()=>{
   const result=await run({reorg:true});
   assert.equal(result.status,'anchor changed');
-  assert.equal(result.sends.length,2);
+  assert.equal(result.sends.length,6);
   assert.equal(result.pending.size,2);
 });

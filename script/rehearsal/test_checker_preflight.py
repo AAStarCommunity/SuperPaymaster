@@ -134,7 +134,7 @@ class CheckerPreflight(unittest.TestCase):
 
     def test_evidence_destinations_before_forge(self):
         for name in ('readback.json', 'checker.log', 'checker.stdout.log', 'checker.stderr.log',
-                     'checker.PASS.json', 'forge.stdout.log', 'forge.stderr.log',
+                     'checker.PASS.json', 'checker.REHEARSAL_PASS.json', 'forge.stdout.log', 'forge.stderr.log',
                      'postbroadcast.diff.json', 'postbroadcast.gas.json', 'REDACTED_AFTER_BROADCAST'):
             with self.subTest(name=name):
                 target = self.evidence/name

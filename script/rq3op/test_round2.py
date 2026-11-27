@@ -8,6 +8,8 @@ class Round2(ThreeArm):
         self.cal['arms']['SP']['postOp']=400000
 
     def test_all_fields_use_factor(self):
+        # Above the floor, K9 leaves every field, including SP postOp, on the gas factor.
+        self.cal['arms']['SP']['postOp']=600000
         for i,arm in enumerate(m.ARMS):
             self.cal['arms'][arm]['paymasterVerification']=83001+i*170003
         pc=next(iter(self.build()['plans'].values()))['phaseC']
@@ -22,13 +24,26 @@ class Round2(ThreeArm):
         floor=pc['gasTuple'][0]; rule=pc['spPostOpRule']
         self.assertEqual(pc['spPostOp'],floor)
         self.assertEqual((rule['scaled'],rule['chainFloor'],rule['limit'],rule['floorApplied']),(2,floor,floor,True))
+        self.assertTrue(rule['bottomedOnFloor'])
         self.assertTrue(pc['gasSources']['SP']['postOp']['floorApplied'])
 
-    def test_postop_floor_not_applied_when_scaled_is_above(self):
+    def test_postop_limit_is_the_floor_when_measured_equals_it(self):
+        # DSR ruling 2026-11-27 K9: measured == minPostOpGas stays at the floor, not floor × 3/2.
+        self.cal['arms']['SP']['postOp']=500000
         pc=next(iter(self.build()['plans'].values()))['phaseC']
         rule=pc['spPostOpRule']
-        self.assertEqual((rule['scaled'],rule['limit'],rule['floorApplied']),(600000,600000,False))
-        self.assertGreater(rule['limit'],rule['chainFloor'])
+        self.assertEqual(pc['spPostOp'],500000)
+        self.assertEqual((rule['measurement'],rule['scaled'],rule['chainFloor'],rule['limit'],rule['floorApplied'],rule['bottomedOnFloor']),
+                         (500000,750000,500000,500000,True,True))
+        self.assertTrue(pc['gasSources']['SP']['postOp']['bottomedOnFloor'])
+
+    def test_postop_floor_not_applied_when_measured_is_above(self):
+        self.cal['arms']['SP']['postOp']=600000
+        pc=next(iter(self.build()['plans'].values()))['phaseC']
+        rule=pc['spPostOpRule']
+        self.assertEqual((rule['scaled'],rule['limit'],rule['floorApplied'],rule['bottomedOnFloor']),(900000,900000,False,False))
+        self.assertGreater(rule['measurement'],rule['chainFloor'])
+        self.assertEqual(rule['limit'],q.scale(600000,self.inputs['gasFactor']))
 
     def test_postop_floor_must_be_positive(self):
         with self.assertRaises(a.Gate): q.sp_postop_limit(1,{'numerator':3,'denominator':2},0)

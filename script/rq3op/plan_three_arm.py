@@ -302,16 +302,20 @@ def check_inputs(cfg, inputs, checker):
 
 
 def sp_postop_limit(measured, gas_factor, minimum):
-    """DSR 2026-11-18 ruling (b): max(measured × gasFactor, SP's on-chain minPostOpGas).
+    """DSR ruling 2026-11-27 K9: measured <= minPostOpGas freezes the limit at that floor.
 
-    The floor is imposed by the system under test, so every real SP-arm transaction must meet it.
-    When it applies, EntryPoint's unused-gas penalty is part of the SP arm's cost; the returned
-    record (floorApplied) is copied into every data row so the paper can report it."""
+    gasFactor applies only when measured is above the floor (DSR 2026-11-18 (b):
+    max(measured × gasFactor, minPostOpGas)). The floor is imposed by the system under test.
+    When it applies, EntryPoint's unused-gas penalty is part of the SP arm's cost; floorApplied
+    is copied into every data row. bottomedOnFloor records which branch applied."""
     scaled=scale(measured,gas_factor)
     a.need('rq3_postop_floor',type(minimum) is int and minimum>0 and minimum>=RELEASE_EXPECTATION['GP_MINPOST_MIN'],True)
-    limit=max(scaled,minimum)
+    # calibrate_ops.mjs least() keeps only the accepted minimum and drops the revert of the
+    # candidate below it, so a measurement equal to the floor cannot be told apart from C-04.
+    bottomed=measured<=minimum
+    limit=minimum if bottomed else max(scaled,minimum)
     return limit, dict(measurement=measured,factor=gas_factor,scaled=scaled,chainFloor=minimum,
-                       limit=limit,floorApplied=limit>scaled)
+                       limit=limit,floorApplied=bottomed or limit>scaled,bottomedOnFloor=bottomed)
 
 
 def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
@@ -343,7 +347,7 @@ def worksheet(pin,c,ctx,n,cal,gas_factor,fee,priority,gas_tuple,head):
     for arm in m.ARMS:
         bounds[arm]['preVerification'] = None
         sources[arm]['preVerification'] = dict(copy.deepcopy(PVG_RULE), reserve=reserves[arm], fixedLengths=lengths[arm])
-    sources['SP']['postOp'].update(rule='max(measured*gasFactor, minPostOpGas)',target=ctx['SP'],**postop_rule)
+    sources['SP']['postOp'].update(rule='measured<=minPostOpGas ? minPostOpGas : max(measured*gasFactor, minPostOpGas)',target=ctx['SP'],**postop_rule)
     # DSR 2026-11-18: record the structural zero explicitly instead of a scaled limit.
     sources['VPM']['postOp'].update(rule='structural zero: VerifyingPaymaster has no postOp (empty context)',limit=0)
     return dict(attempts=n,feeCap=fee,priorityCap=priority,priceCap=m.PC_PRICE_CAP,priceDecimals=m.PC_PRICE_DECIMALS,

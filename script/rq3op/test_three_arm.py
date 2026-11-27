@@ -116,7 +116,8 @@ class ThreeArm(unittest.TestCase):
         self.assertEqual([s['id'] for s in result['safeTransactions']],['C1','SP.stake.schedule','SP.stake.execute'])
         self.assertEqual(result['timelockOperation']['delay'],172800)
         for p in plans:
-            self.assertEqual(p['phaseC']['spPostOp'],600000)
+            # measured 400000 <= minPostOpGas 500000: K9 freezes the limit at the floor.
+            self.assertEqual(p['phaseC']['spPostOp'],500000)
             self.assertEqual(p['phaseC']['bounds']['SP']['call'],90000)
             self.assertEqual(p['phaseC']['addresses']['SP'],self.cfg['superPaymaster'])
         for s in steps:

@@ -145,7 +145,7 @@ def prepare_checker(env, evidence, deployer):
         require(False, 'STOP checker script unavailable')
     try:
         writable_evidence(evidence, ('readback.json', 'checker.log', 'checker.stdout.log',
-            'checker.stderr.log', 'checker.PASS.json', 'forge.stdout.log', 'forge.stderr.log',
+            'checker.stderr.log', 'checker.PASS.json', 'checker.REHEARSAL_PASS.json', 'forge.stdout.log', 'forge.stderr.log',
             'postbroadcast.diff.json', 'postbroadcast.gas.json', 'REDACTED_AFTER_BROADCAST'))
     except (OSError, ValueError):
         require(False, 'STOP deployment evidence unavailable')
@@ -296,6 +296,7 @@ def main():
     binary = verify_build(env, production)
     real, corroborating = gate_sources(env, production, chain)
     (evidence/'checker.PASS.json').unlink(missing_ok=True)
+    (evidence/'checker.REHEARSAL_PASS.json').unlink(missing_ok=True)
     deployment_rule(env, evidence, ReadOnlyRPC, chain)
     request = json.loads((evidence/REQUEST_NAME).read_text())
     hardfork = env['DEPLOYLIVE_HARDFORK']
@@ -489,10 +490,13 @@ def cli(argv=None):
     args = parser.parse_args(argv)
     require(not args.stop or (args.action == 'deploy' and not args.production), '--stop requires rehearsal deploy')
     env = load_inputs(args.inputs)
+    if os.environ.get('DEPLOYLIVE_FORK_REHEARSAL') == '1' and (args.production or env.get('DEPLOYER_ACCOUNT')):
+        require(False, 'DEPLOYLIVE_FORK_REHEARSAL refused with production or configured keystore')
     evidence = evidence_dir(env)
     evidence.mkdir(parents=True, exist_ok=True)
     if args.action in ('predict', 'deploy'):
         (evidence/'checker.PASS.json').unlink(missing_ok=True)
+        (evidence/'checker.REHEARSAL_PASS.json').unlink(missing_ok=True)
     if args.action == 'hardfork-check':
         require(env['DEPLOYLIVE_SOURCE_RPC'] != env['DEPLOYLIVE_SECOND_RPC'], 'distinct endpoints required')
         return hardfork_check(ReadOnlyRPC(env['DEPLOYLIVE_SOURCE_RPC']), ReadOnlyRPC(env['DEPLOYLIVE_SECOND_RPC']), evidence)
@@ -508,6 +512,9 @@ def cli(argv=None):
     try:
         os.environ.clear()
         os.environ.update(env)
+        # Execution-context flag, not an approved input: survive load_inputs' allowlist for the checker.
+        if previous.get('DEPLOYLIVE_FORK_REHEARSAL') == '1':
+            os.environ['DEPLOYLIVE_FORK_REHEARSAL'] = '1'
         if args.action in ('build','predict'):
             flags = ['--production'] if args.production else []
             if args.action == 'predict': flags += ['--evidence', str(evidence)]

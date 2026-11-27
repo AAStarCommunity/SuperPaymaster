@@ -63,16 +63,36 @@ registry, pins, RPC URL files, and keystore password source. Give it a separate
 `--window-index`.
 
 The collector compares key-0 EntryPoint nonces at a common pinned block, then
-runs one frozen SP attempt for each zero-nonce sender in bundle order. Each
+runs the remaining warm-up arms (SP, VPM, TPM in that order) for each sender
+whose nonce is below 3, in bundle order, resuming at the arm the nonce points
+to; a sender already at nonce 3 is done. Each
 attempt has a separate 180-second wait and submission limit, also bounded by
 the cached price expiry. The journal records the two nonce readings before
 signing and at inclusion. A signed transaction awaiting reconciliation leaves
-a sender marker in the collector lock directory. The setup journal cannot be
+a sender marker in the collector lock directory, and any marker stops a re-run
+before it reads any nonce. The setup journal cannot be
 used as window evidence.
 
-If the collector stops after writing a sender marker but before broadcasting,
-recover by hand: confirm the sender's key-0 nonce is still 0 and the bundler's
-pending nonce is unchanged on A and B, then remove the marker.
+If the collector stops after writing a sender marker, recover by hand: confirm
+the sender's key-0 nonce and the bundler's pending nonce on A and B, reconcile
+the recorded hash, then remove the marker. A re-run then resumes at the arm the
+sender's nonce gives.
+
+Known follow-ups (#693 review, not fixed here):
+- F2: the gate for every first-use op uses the SP arm's minTxInterval and price
+  checks, and a sender's three ops share one 180-second deadline; this can only
+  stop early, never record wrong evidence.
+- F3: the marker records only the first op's transaction hash; if a later op of
+  the same sender was in flight, reconcile all three nonces before removing it.
+- F4: resume selects arms by nonce only, so a warm-up op that failed but used
+  its nonce counts as done; before window 1 the operator checks that the
+  first-use journal shows nine USEROP_SUCCESS rows.
+
+Residual (DSR ruling on #693): the nine-op first-use path has not run end to end
+against a chain; the OP Sepolia rehearsal ran the one-op-per-account version.
+A first-use failure on mainnet costs the gas of the ops already sent and a
+manual resume (marker check, then resume by nonce); first-use rows never enter
+the dataset.
 
 ## Window gates and traces
 

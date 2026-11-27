@@ -308,7 +308,8 @@ async function signAndHash({ sender, nonce, callData, pmAddr, pmGas, pmData, gas
     const block = await runtime.refreshPin();
     const nonceBefore = await firstUseNonce(sender,block.number);
     activeRow.nonceBefore = nonceBefore;
-    if (nonceBefore.A !== '0') throw new Stop('FIRST_USE_NONCE_CHANGED',20,{sender,nonceBefore});
+    const expected = String(firstUseExpectedNonce());
+    if (nonceBefore.A !== expected) throw new Stop('FIRST_USE_NONCE_CHANGED',20,{sender,nonceBefore,expected});
   }
   packed.signature = await (formal ? runtime.accounts.owner : privateKeyToAccount(ANVIL_KEYS[0])).signMessage({ message: { raw: epHash.value } });
   return { packed, hash: epHash.value, localHash: local };
@@ -503,7 +504,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   if (firstUse) await checkFirstUseGate(st.row);
   const pm = pmAddrOf(arm);
   const callData = fixture === 'exec-revert' ? revertingCallData() : defaultCallData();
-  const nonce = firstUse ? 0n : (await readAB('getNonce', p => readNonce(p,sender))).value;
+  const nonce = firstUse ? firstUseExpectedNonce() : (await readAB('getNonce', p => readNonce(p,sender))).value;
   const sign = async value => {
     GAS.preVerificationGas=value;
     return signAndHash({ sender, nonce, callData, pmAddr: pm, gas: GAS, pmGas: PM_GAS[arm], pmData: await pmDataFor(arm, { sender, nonce, callData }, GAS) });
@@ -596,7 +597,8 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   if (firstUse) {
     if (blk.hash.toLowerCase() !== rcA.blockHash.toLowerCase()) throw new Stop('RECEIPT_BLOCK_MISMATCH',25,{txHash});
     row.nonceAfter = await firstUseNonce(sender,bn);
-    if (row.nonceAfter.A !== '1') throw new Stop('FIRST_USE_NONCE_NOT_ADVANCED',20,{sender,nonceAfter:row.nonceAfter});
+    const expectedAfter = String(firstUseExpectedNonce() + 1n);
+    if (row.nonceAfter.A !== expectedAfter) throw new Stop('FIRST_USE_NONCE_NOT_ADVANCED',20,{sender,nonceAfter:row.nonceAfter,expected:expectedAfter});
   }
   const rawTx = await readAB('transaction', p => p.getTransaction({ hash: txHash }));
   function recordMeasuredPVG(event=null) {
@@ -636,10 +638,10 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
       throw new Stop('SP_BRANCH_MISMATCH', 22, {branch:row.spBranch});
     }
   } else row.spBranch = null;
-  const skipTpmTrace = window && arm === 'TPM' && tx.status === 'reverted';
+  const skipTpmTrace = (window || firstUse) && arm === 'TPM' && tx.status === 'reverted';
   if (formal && arm === 'TPM') Object.assign(row, skipTpmTrace
     ? {tpmOracle:baselines.tokenPaymaster.oracle,traces:[],postOpRefreshed:false}
-    : await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle,{window:Boolean(window)}));
+    : await traceTPM([pubA,pubB],txHash,pm,baselines.tokenPaymaster.oracle,{window:Boolean(window) || firstUse}));
   if (traceEnabled && !skipTpmTrace) {
     try {
       row.gasTrace = { transactionHash: txHash, blockHash: rcA.blockHash,
@@ -675,7 +677,7 @@ async function attemptInner(arm, idx, tripletIndex, passportStart, st) {
   // A declared rehearsal cache-aging control (rehearsal-refresh.mjs) changes only the TPM cache timestamp between attempts.
   const aged = rehearsal && st.row.rehearsalControl?.kind === 'tpmCacheAged' && arm === 'TPM' ? ['tpmCachedPriceTimestamp'] : [];
   if (prior) for (const f of Object.keys(prior).filter(f => ![...aged, 'blockNumber', 'blockHash', 'operatorBalance', 'lockXLocked', 'inflightA0', 'inflightOperator'].includes(f))) {
-    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], (window || firstUse) && senderFields.includes(f) ? (senderPrior?.[f] ?? before.A[f]) : window && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? before.A[f].sender} : prior[f]).length === 0 });
+    checks.push({ id: `continuity.${f}`, ok: diffPaths(before.A[f], continuityPrior(f, prior, senderPrior, before.A[f], window || firstUse, senderFields)).length === 0 });
   }
   checks.push(...operatorBalanceContinuity(arm, before.A, after.A, lastAttemptBlock?.operatorBalance ?? passportStart.volatile.operatorBalance));
   if (arm === 'SP') checks.push({ id: 'continuity.new_op_lock_empty', ok: BigInt(before.A.lockXLocked) === 0n });
@@ -924,6 +926,12 @@ async function slotGate(arm,row) {
 }
 
 
+function continuityPrior(f, prior, senderPrior, beforeValue, perSender, senderFields) {
+  return perSender && senderFields.includes(f) ? (senderPrior?.[f] ?? beforeValue)
+    : perSender && f==='tpmTokenBalances' ? {...prior[f],sender:senderPrior?.[f]?.sender ?? beforeValue.sender}
+    : prior[f];
+}
+
 function firstUsePlans() {
   const readBundle = () => readFileSync(argVal('--frozen-plan'));
   const bundleSha256 = argVal('--bundle-sha256');
@@ -947,6 +955,12 @@ async function firstUseNonce(account,blockNumber) {
   return {A,B,blockNumber};
 }
 
+/** Expected EntryPoint nonce for this sender's next first-use op: the pinned nonce plus the ops
+ *  already sent for this sender in this run (from nonce 0: 0 for SP, 1 for VPM, 2 for TPM). */
+function firstUseExpectedNonce() {
+  return BigInt(firstUseGate.nonceBefore.A) + BigInt(firstUseGate.sent ?? 0);
+}
+
 async function checkFirstUseGate(row) {
   const {start,deadline,priceDeadline,wallDeadline} = firstUseGate;
   const result = await waitForSlot({runtime,arm:'SP',operator:ctx.account.address,sender,paymaster:SPA,
@@ -965,31 +979,42 @@ async function assertFirstUseFresh(signed) {
   if (timestamp >= firstUseGate.priceDeadline) throw new Stop('FIRST_USE_PRICE_STALE',29,{sender,timestamp});
   if (timestamp > firstUseGate.deadline || Date.now() >= firstUseGate.wallDeadline) throw new Stop('FIRST_USE_DEADLINE',29,{sender,timestamp});
   if (signed) {
-    // Reserve the sender durably before giving the signed transaction to the transport.
+    // Reserve the sender durably before giving the signed transaction to the transport; one marker
+    // per sender covers the whole SP,VPM,TPM run (created on the sender's first op only).
     const hash = keccak256(signed);
-    const pendingFd = openSync(firstUsePendingPath(sender),'wx',0o600);
-    try {
-      writeSync(pendingFd,JSON.stringify({sender,hash,runId,journal:resolve(outPath)}));
-      fsyncSync(pendingFd);
-    } finally { closeSync(pendingFd); }
+    const pendingPath = firstUsePendingPath(sender);
+    if (!existsSync(pendingPath)) {
+      const pendingFd = openSync(pendingPath,'wx',0o600);
+      try {
+        writeSync(pendingFd,JSON.stringify({sender,hash,runId,journal:resolve(outPath)}));
+        fsyncSync(pendingFd);
+      } finally { closeSync(pendingFd); }
+    }
     activeRow.tx = {hash};
   }
 }
 
+const FIRST_USE_ARMS = ['SP','VPM','TPM'];
+
 async function runFirstUse() {
   const block = await runtime.refreshPin();
   writeLine({kind:'first_use_start',bundleSha256:argVal('--bundle-sha256'),senders:senderConfigs.map(c=>c.sender),pin:{number:block.number,hash:block.hash}});
+  // Any marker means a signed op may still be unreconciled in the bundler pool, whatever the
+  // EntryPoint nonce says now: refuse before the nonce filter, for every plan sender.
+  for (const config of senderConfigs) {
+    if (existsSync(firstUsePendingPath(config.sender))) throw new Stop('FIRST_USE_UNRECONCILED',29,{sender:config.sender});
+  }
   const selected = [];
   for (const config of senderConfigs) {
     const nonceBefore = await firstUseNonce(config.sender,block.number);
-    if (nonceBefore.A === '0') selected.push({config,nonceBefore});
+    // n = key-0 EntryPoint nonce at the pin = warm-up ops already included (these accounts have
+    // no other ops); n >= 3 is done for that sender, otherwise resume at the arm n points to.
+    const n = Number(BigInt(nonceBefore.A));
+    if (n < FIRST_USE_ARMS.length) selected.push({config,nonceBefore,arms:FIRST_USE_ARMS.slice(n)});
   }
   if (!selected.length) console.log('nothing to do');
-  for (const {config} of selected) {
-    if (existsSync(firstUsePendingPath(config.sender))) throw new Stop('FIRST_USE_UNRECONCILED',29,{sender:config.sender});
-  }
   if (selected.length) await runtime.preparePendingNonce();
-  for (const {config,nonceBefore} of selected) {
+  for (const {config,nonceBefore,arms} of selected) {
     const owner = await castSigner(withPasswordSource(config.accounts.owner,argVal('--keystore-password-source')),'owner');
     if (owner.type !== 'local' || getAddress(owner.address) !== getAddress(config.accounts.owner.address)) throw new Error('injected signer identity mismatch');
     owners.set(config.sender,owner);
@@ -1002,9 +1027,16 @@ async function runFirstUse() {
     if (BigInt(start.invariant.credit.policy) !== 0n || BigInt(start.invariant.credit.pendingPolicyEta) !== 0n) throw new Error('formal SP requires credit OFF and no pending policy');
     const timestamp = BigInt(start.block.timestamp);
     firstUseGate = {start:timestamp,deadline:timestamp+180n,wallDeadline:Date.now()+180_000,
-      priceDeadline:BigInt(start.volatile.cachedPriceUpdatedAt)+BigInt(start.invariant.superPaymaster.priceStalenessThreshold),nonceBefore};
-    const row = await attempt('SP',attemptIndex,start);
-    if (row.verdict !== VERDICTS.USEROP_SUCCESS || row.conservation?.ok !== true) throw new Stop('FIRST_USE_ATTEMPT_FAILED',29,{sender,verdict:row.verdict});
+      priceDeadline:BigInt(start.volatile.cachedPriceUpdatedAt)+BigInt(start.invariant.superPaymaster.priceStalenessThreshold),nonceBefore,sent:0};
+    // One op per remaining arm per account, in order from the pinned nonce; the per-op gate stays
+    // expected = n + ops sent this run, nonceAfter = expected + 1. SP first only from nonce 0:
+    // the frozen VPM/TPM verificationGasLimit does not cover the EntryPoint nonce 0->1 SSTORE,
+    // SP's does. This is the mainnet warm-up.
+    for (const arm of arms) {
+      const row = await attempt(arm,attemptIndex,start);
+      if (row.verdict !== VERDICTS.USEROP_SUCCESS || row.conservation?.ok !== true) throw new Stop('FIRST_USE_ATTEMPT_FAILED',29,{sender,arm,verdict:row.verdict});
+      firstUseGate.sent++;
+    }
   }
   const finalBlockCheck = selected.length ? await revalidateAnchors(runtime.archives) : null;
   for (const {config} of selected) unlinkSync(firstUsePendingPath(config.sender));
