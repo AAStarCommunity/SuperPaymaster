@@ -498,7 +498,18 @@ test('real evidence.mjs rawArchive (pinned at 99a38d8d): per-step windows both c
   const here = dirname(fileURLToPath(import.meta.url));
   const pinned = spawnSync('git', ['show', '99a38d8d:script/a6-collector/evidence.mjs'], { cwd: here });
   assert.equal(pinned.status, 0);
-  assert.ok(readFileSync(resolve(here, '../a6-collector/evidence.mjs')).equals(pinned.stdout), 'evidence.mjs differs from 99a38d8d');
+  // #692 changed evidenceIndex (tx.raw selection) in evidence.mjs but not rawArchive, so whole-file equality with
+  // 99a38d8d no longer holds. Pin exactly what this test exercises: the rawArchive function, the stringify helper it
+  // calls, and the node:fs / node:path imports it uses, byte-equal to the 99a38d8d source the deploy root runs.
+  const pinnedParts = src => {
+    const text = src.toString();
+    const fn = text.match(/^export function rawArchive\([\s\S]*?^}$/m)?.[0];
+    const helper = text.match(/^export const stringify = .*$/m)?.[0];
+    const imports = text.match(/^import .* from 'node:(fs|path)';$/gm);
+    assert.ok(fn && helper && imports?.length === 2, 'rawArchive, stringify or its imports not found');
+    return [fn, helper, ...imports];
+  };
+  assert.deepEqual(pinnedParts(readFileSync(resolve(here, '../a6-collector/evidence.mjs'))), pinnedParts(pinned.stdout), 'rawArchive (or a helper it calls) differs from 99a38d8d');
   const { rawArchive } = await import('../a6-collector/evidence.mjs');
   const base = realpathSync(mkdtempSync(resolve(tmpdir(), 'raw-')));
   try {
