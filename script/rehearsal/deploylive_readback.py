@@ -98,9 +98,11 @@ def expected_chain_id(env):
 
 def fork_rehearsal_active(env, chain, endpoint):
     """Explicit-flag single-provider mode for a declared local fork on a real chain id."""
-    if env.get('DEPLOYLIVE_FORK_REHEARSAL') != '1' or chain == 31337: return False
+    if env.get('DEPLOYLIVE_FORK_REHEARSAL') != '1' or env.get('DEPLOYLIVE_REHEARSAL') != '1' or chain == 31337: return False
     from urllib.parse import urlsplit
-    try: return urlsplit(endpoint or '').hostname == '127.0.0.1'
+    try:
+        parsed = urlsplit(endpoint or '')
+        return parsed.hostname == '127.0.0.1' and parsed.username is None and parsed.password is None
     except (ValueError, TypeError): return False
 
 

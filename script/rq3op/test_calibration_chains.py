@@ -185,6 +185,10 @@ class CalibrationChains(unittest.TestCase):
         baseline = subprocess.check_output(['git', 'show', f'99a38d8d:{plan}'], cwd=root)
         current = (root/plan).read_bytes()
         self.assertEqual(rewind_postop_floor(current, baseline), baseline, plan)
+        # A mutation inside sp_postop_limit itself is invisible to the swap-back above, so pin
+        # the exact bytes of the current planner as well.
+        self.assertEqual(hashlib.sha256(current).hexdigest(),
+            '892c4738dc856834fd2749dfd23c610c6f52d46a0a0ac3fabe301d39e9bfd719', plan)
         text = current.decode()
         needle = 'def check_inputs('
         begin = text.index(needle)

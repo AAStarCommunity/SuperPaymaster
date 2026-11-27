@@ -28,7 +28,9 @@ async function run(options={}) {
   const reads=[], sends=[], rows=[], messages=[];
   let pendingChecks=0;
   const pending = options.pending ?? new Map();
-  const sent = new Map(); // sender -> first-use ops already included this run
+  // sender -> key-0 EntryPoint nonce ops already included (warm-up before this run via
+  // options.presend, plus ops sent in this run)
+  const sent = new Map(Object.entries(options.presend ?? {}).map(([k,v])=>[k,BigInt(v)]));
   let head=block;
   const client=endpoint=>({
     getBlock:async()=>head,
@@ -42,8 +44,8 @@ async function run(options={}) {
         const after = options.inclusionNonce ?? sent.get(args[0]) ?? 1n;
         return endpoint==='B'&&options.inclusionDisagreement?2n:after;
       }
-      if (args[0]===skipped) return endpoint==='B'&&options.disagree?2n:1n;
-      if (options.none) return 1n;
+      if (args[0]===skipped) return endpoint==='B'&&options.disagree?2n:3n;
+      if (options.none) return 3n;
       if (options.changed && reads.length>6) return 1n;
       if (options.changedAfter && reads.length>options.changedAfter) return 9n;
       return sent.get(args[0]) ?? 0n;
@@ -109,12 +111,35 @@ async function run(options={}) {
 }
 
 test('first use scans every configured plan sender at one pin and exits cleanly when all are used', async()=>{
-  const result=await run({none:true});
+  const result=await run({none:true}); // every plan sender at key-0 nonce 3: done, nothing to do
   assert.equal(result.status,0);
   assert.deepEqual(result.messages,['nothing to do']);
   assert.equal(result.pendingChecks,0);
   assert.deepEqual(result.sends,[]);
   assert.deepEqual(result.reads,senderConfigs.flatMap(({sender})=>[['A',sender,10n],['B',sender,10n]]));
+});
+
+test('first use resumes a sender at an advanced nonce from the arm the nonce points to',async()=>{
+  const result=await run({presend:{[first]:1n,[second]:3n}}); // first: 1 warm-up op included, no marker
+  assert.equal(result.status,0);
+  assert.deepEqual(JSON.parse(stringify(result.sends)),[{arm:'VPM',sender:first},{arm:'TPM',sender:first}]);
+  assert.equal(result.pendingChecks,1);
+  assert.equal(result.pending.size,0);
+  const attempts=result.rows.filter(row=>row.kind==='first_use_attempt');
+  assert.deepEqual(attempts.map(row=>row.arm),['VPM','TPM']);
+  assert.deepEqual(attempts[0].nonceBefore,{A:'1',B:'1',blockNumber:'10'});
+  assert.deepEqual(attempts[0].nonceAfter,{A:'2',B:'2',blockNumber:'11'});
+  assert.deepEqual(attempts[1].nonceBefore,{A:'2',B:'2',blockNumber:'10'});
+  assert.deepEqual(attempts[1].nonceAfter,{A:'3',B:'3',blockNumber:'12'});
+});
+
+test('first use refuses an unreconciled marker before reading any nonce, even at an advanced nonce',async()=>{
+  const marker=resolve('/locks','10',`first-use-${first.toLowerCase()}.json`);
+  const pending=new Map([[marker,{sender:first,hash:keccak256(signed)}]]);
+  const result=await run({presend:{[first]:1n,[second]:3n},pending});
+  assert.equal(result.status,'FIRST_USE_UNRECONCILED');
+  assert.deepEqual(result.sends,[]);
+  assert.deepEqual(result.reads,[]);
 });
 
 test('first use scans all senders before sending and refuses nonce disagreement',async()=>{

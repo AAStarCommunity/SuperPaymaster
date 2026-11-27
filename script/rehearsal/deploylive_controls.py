@@ -291,6 +291,7 @@ def write_manifest(env, evidence):
     (evidence/MANIFEST).write_bytes(data)
     (evidence/(MANIFEST+'.sha256')).write_text(hashlib.sha256(data).hexdigest()+'\n')
     (evidence/'checker.PASS.json').unlink(missing_ok=True)
+    (evidence/'checker.REHEARSAL_PASS.json').unlink(missing_ok=True)
 
 
 def manifest_digest(evidence):
@@ -448,7 +449,12 @@ def write_success(evidence, env, config, broadcast, gated_plan):
     digest = plan_digest(gated_plan)
     require(digest == plan_digest(json.loads((evidence/'gated-plan.json').read_text())),
             'gated plan changed before checker PASS')
-    write_json(evidence, 'checker.PASS.json', dict(status='PASS', manifest=manifest_digest(evidence),
+    rehearsal = False
+    if env.get('DEPLOYLIVE_FORK_REHEARSAL') == '1':
+        from deploylive_readback import fork_rehearsal_active, expected_chain_id
+        try: rehearsal = fork_rehearsal_active(env, expected_chain_id(env), env.get('DEPLOYLIVE_RPC', ''))
+        except (ValueError, TypeError): rehearsal = False
+    record = dict(status='REHEARSAL_PASS' if rehearsal else 'PASS', manifest=manifest_digest(evidence),
         gatedPlanSha256=digest,
         readbackSha256=hashlib.sha256((evidence/'readback.json').read_bytes()).hexdigest(),
         noCredentialEndpoints=sorted(k for k in URL_KEYS if env.get(k + '_NO_CREDENTIAL') == '1'),
@@ -457,10 +463,17 @@ def write_success(evidence, env, config, broadcast, gated_plan):
         redactedStreams=redacted_streams(evidence),
         env=env['ENV'], config=str(config), broadcast=str(broadcast),
         configSha256=hashlib.sha256(config.read_bytes()).hexdigest(),
-        broadcastSha256=hashlib.sha256(broadcast.read_bytes()).hexdigest()))
+        broadcastSha256=hashlib.sha256(broadcast.read_bytes()).hexdigest())
+    if rehearsal: record.update(mode='REHEARSAL', singleProvider=True)
+    (evidence/('checker.PASS.json' if rehearsal else 'checker.REHEARSAL_PASS.json')).unlink(missing_ok=True)
+    write_json(evidence, 'checker.REHEARSAL_PASS.json' if rehearsal else 'checker.PASS.json', record)
 
 
 def archive_records(source):
+    try: readback = json.loads((source/'readback.json').read_text())
+    except (OSError, ValueError): readback = {}
+    require(not isinstance(readback, dict) or (readback.get('mode') != 'REHEARSAL' and not (readback.get('singleProvider') is True and str(readback.get('chainId')) != '31337')),
+            'archive refuses rehearsal readback')
     record = json.loads((source/'checker.PASS.json').read_text()) if (source/'checker.PASS.json').is_file() else {}
     require(record.get('status') == 'PASS' and record.get('manifest') == manifest_digest(source), 'archive requires current manifest-bound checker PASS')
     require(record.get('gatedPlanSha256') == plan_digest(json.loads((source/'gated-plan.json').read_text())),

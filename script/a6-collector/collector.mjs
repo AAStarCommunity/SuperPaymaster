@@ -950,7 +950,7 @@ async function firstUseNonce(account,blockNumber) {
 }
 
 /** Expected EntryPoint nonce for this sender's next first-use op: the pinned nonce plus the ops
- *  already sent for this sender in this run (0 for SP, 1 for VPM, 2 for TPM). */
+ *  already sent for this sender in this run (from nonce 0: 0 for SP, 1 for VPM, 2 for TPM). */
 function firstUseExpectedNonce() {
   return BigInt(firstUseGate.nonceBefore.A) + BigInt(firstUseGate.sent ?? 0);
 }
@@ -988,20 +988,27 @@ async function assertFirstUseFresh(signed) {
   }
 }
 
+const FIRST_USE_ARMS = ['SP','VPM','TPM'];
+
 async function runFirstUse() {
   const block = await runtime.refreshPin();
   writeLine({kind:'first_use_start',bundleSha256:argVal('--bundle-sha256'),senders:senderConfigs.map(c=>c.sender),pin:{number:block.number,hash:block.hash}});
+  // Any marker means a signed op may still be unreconciled in the bundler pool, whatever the
+  // EntryPoint nonce says now: refuse before the nonce filter, for every plan sender.
+  for (const config of senderConfigs) {
+    if (existsSync(firstUsePendingPath(config.sender))) throw new Stop('FIRST_USE_UNRECONCILED',29,{sender:config.sender});
+  }
   const selected = [];
   for (const config of senderConfigs) {
     const nonceBefore = await firstUseNonce(config.sender,block.number);
-    if (nonceBefore.A === '0') selected.push({config,nonceBefore});
+    // n = key-0 EntryPoint nonce at the pin = warm-up ops already included (these accounts have
+    // no other ops); n >= 3 is done for that sender, otherwise resume at the arm n points to.
+    const n = Number(BigInt(nonceBefore.A));
+    if (n < FIRST_USE_ARMS.length) selected.push({config,nonceBefore,arms:FIRST_USE_ARMS.slice(n)});
   }
   if (!selected.length) console.log('nothing to do');
-  for (const {config} of selected) {
-    if (existsSync(firstUsePendingPath(config.sender))) throw new Stop('FIRST_USE_UNRECONCILED',29,{sender:config.sender});
-  }
   if (selected.length) await runtime.preparePendingNonce();
-  for (const {config,nonceBefore} of selected) {
+  for (const {config,nonceBefore,arms} of selected) {
     const owner = await castSigner(withPasswordSource(config.accounts.owner,argVal('--keystore-password-source')),'owner');
     if (owner.type !== 'local' || getAddress(owner.address) !== getAddress(config.accounts.owner.address)) throw new Error('injected signer identity mismatch');
     owners.set(config.sender,owner);
@@ -1015,9 +1022,11 @@ async function runFirstUse() {
     const timestamp = BigInt(start.block.timestamp);
     firstUseGate = {start:timestamp,deadline:timestamp+180n,wallDeadline:Date.now()+180_000,
       priceDeadline:BigInt(start.volatile.cachedPriceUpdatedAt)+BigInt(start.invariant.superPaymaster.priceStalenessThreshold),nonceBefore,sent:0};
-    // One op per arm per account, SP first: the frozen VPM/TPM verificationGasLimit does not cover
-    // the EntryPoint nonce 0->1 SSTORE, SP's does. This is the mainnet warm-up.
-    for (const arm of ['SP','VPM','TPM']) {
+    // One op per remaining arm per account, in order from the pinned nonce; the per-op gate stays
+    // expected = n + ops sent this run, nonceAfter = expected + 1. SP first only from nonce 0:
+    // the frozen VPM/TPM verificationGasLimit does not cover the EntryPoint nonce 0->1 SSTORE,
+    // SP's does. This is the mainnet warm-up.
+    for (const arm of arms) {
       const row = await attempt(arm,attemptIndex,start);
       if (row.verdict !== VERDICTS.USEROP_SUCCESS || row.conservation?.ok !== true) throw new Stop('FIRST_USE_ATTEMPT_FAILED',29,{sender,arm,verdict:row.verdict});
       firstUseGate.sent++;

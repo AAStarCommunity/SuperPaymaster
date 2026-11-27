@@ -291,7 +291,7 @@ class Ddf5Test(unittest.TestCase):
         # environment allowlist drops it, so cli() must re-inject it for the deploy checker env.
         env = {key: 'value' for key in c.input_keys() if not key.endswith('_FILE')}
         env.update(self.env, DEPLOYLIVE_RPC='https://primary.alchemy.com/key', DEPLOYER_ADDRESS='0x' + '11' * 20,
-                   FOUNDRY_VERBOSITY='2', REHEARSAL_BLS_SCALARS='[]')
+                   FOUNDRY_VERBOSITY='2', REHEARSAL_BLS_SCALARS='[]', DEPLOYER_ACCOUNT='')
         c.write_manifest(env, self.root)
         c.write_conversion(self.root, b'{}', (self.root / 'pop-request.json').read_bytes(), b'0x00')
         captured = []
