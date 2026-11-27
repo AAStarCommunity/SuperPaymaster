@@ -57,6 +57,9 @@ export function loadArchives(windowDir) {
   return archives;
 }
 
+// For rows whose original tx.raw was null, only tx.raw (and its missing-evidence entry) may change.
+const ALLOWED_DIFF = [/^tx\.raw(\.|$)/, /^missing\.\/tx\/raw$/];
+
 /** Leaf paths whose serialized values differ between two parsed values. */
 function diffPaths(a, b, prefix = '') {
   if (stringify(a) === stringify(b)) return [];
@@ -95,7 +98,7 @@ export function regenerateIndex(windowDir, outPath, log = console.log) {
 
   const lines = [];
   const rawRows = { identical: 0, differing: 0, violations: [] };
-  const otherRows = { identical: 0, differing: 0, paths: new Map() };
+  const otherRows = { identical: 0, differing: 0, paths: new Map(), violations: [] };
   for (const [i, a] of attempts.entries()) {
     const origLine = originalLines[i], orig = JSON.parse(origLine);
     // Context exactly as collector.mjs writeLine() (~line 212) passes it, with the archive
@@ -119,7 +122,13 @@ export function regenerateIndex(windowDir, outPath, log = console.log) {
       if (line === origLine) rawRows.identical++;
       else { rawRows.differing++; rawRows.violations.push(i); for (const p of diffPaths(JSON.parse(line), orig)) otherRows.paths.set(p, (otherRows.paths.get(p) ?? 0) + 1); }
     } else if (line === origLine) otherRows.identical++;
-    else { otherRows.differing++; for (const p of diffPaths(JSON.parse(line), orig)) otherRows.paths.set(p, (otherRows.paths.get(p) ?? 0) + 1); }
+    else {
+      otherRows.differing++;
+      for (const p of diffPaths(JSON.parse(line), orig)) {
+        otherRows.paths.set(p, (otherRows.paths.get(p) ?? 0) + 1);
+        if (!ALLOWED_DIFF.some(re => re.test(p))) otherRows.violations.push(`${i}:${p}`);
+      }
+    }
   }
 
   log('self-check against original index.ndjson:');
@@ -129,6 +138,9 @@ export function regenerateIndex(windowDir, outPath, log = console.log) {
   if (otherRows.paths.size)
     log(`  differing field paths (path: rows): ${[...otherRows.paths.entries()].map(([p, n]) => `${p}: ${n}`).join(', ')}`);
 
+  log(`  allowed differing paths for rows with null original tx.raw: ${ALLOWED_DIFF.map(re => re.source).join(', ')}`);
+  if (rawRows.violations.length) throw new Error(`self-check failed: ${rawRows.violations.length} rows with non-null original tx.raw are not byte-identical; nothing written`);
+  if (otherRows.violations.length) throw new Error(`self-check failed: paths outside the allowed set differ (row:path): ${otherRows.violations.join(', ')}; nothing written`);
   writeFileSync(outPath, lines.join('\n') + '\n', { flag: 'wx', mode: 0o600 });
   log(`wrote ${lines.length} rows to ${outPath}`);
 
@@ -140,7 +152,6 @@ export function regenerateIndex(windowDir, outPath, log = console.log) {
   log(`inputs unchanged: OK (${Object.keys(post).length}/${Object.keys(post).length} files match pre-write hashes)`);
   const indexSha = sha256(readFileSync(outPath));
   log(`new index sha256: ${indexSha}`);
-  if (rawRows.violations.length) throw new Error(`self-check failed: ${rawRows.violations.length} rows with non-null original tx.raw are not byte-identical`);
   return { outPath, rows: lines.length, indexSha, rawRows, otherRows, pre, post };
 }
 
@@ -155,7 +166,7 @@ function main() {
   const windowDir = args[0];
   const outFlag = args.findIndex(a => a === '--out' || a.startsWith('--out='));
   if (outFlag < 0) usage();
-  const outPath = args[outFlag].startsWith('--out=') ? args[outFlag].slice(4) : args[outFlag + 1];
+  const outPath = args[outFlag].startsWith('--out=') ? args[outFlag].slice('--out='.length) : args[outFlag + 1];
   if (!outPath) usage();
   try {
     regenerateIndex(windowDir, outPath);

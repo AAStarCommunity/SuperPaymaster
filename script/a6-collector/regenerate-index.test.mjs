@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sha256 } from './evidence.mjs';
+import { sha256, stringify } from './evidence.mjs';
 import { sentWindowFixture } from './sent-window-fixture.mjs';
 
 const script = fileURLToPath(new URL('./regenerate-index.mjs', import.meta.url));
@@ -98,5 +98,35 @@ test('regenerate-index refuses a non-window journal, changing nothing', async t 
   const r = runCli(dir, join(dir, 'index.regenerated.ndjson'));
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /not a frozen window/);
+  assert.deepEqual(snapshot(dir), before);
+});
+
+test('regenerate-index accepts the --out=<path> form', async t => {
+  const dir = mkdtempSync(join(process.cwd(), '.regen-index-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  await sentWindowFixture(dir);
+  const out = join(dir, 'index.regenerated.ndjson');
+  const r = spawnSync(process.execPath, [script, dir, `--out=${out}`], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(out));
+});
+
+test('regenerate-index refuses a difference outside tx.raw for a null-tx.raw row and writes nothing', async t => {
+  const dir = mkdtempSync(join(process.cwd(), '.regen-index-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  await sentWindowFixture(dir);
+  const indexPath = join(dir, 'index.ndjson');
+  const rows = readFileSync(indexPath, 'utf8').trim().split('\n').map(JSON.parse);
+  const k = rows.findIndex(r => r.tx?.raw != null);
+  assert.ok(k >= 0);
+  rows[k].tx = { ...rows[k].tx, raw: null };
+  rows[k].block_slot = 'tampered';
+  writeFileSync(indexPath, rows.map(r => stringify(r)).join('\n') + '\n');
+  const before = snapshot(dir);
+  const out = join(dir, 'index.regenerated.ndjson');
+  const r = runCli(dir, out);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, new RegExp(`paths outside the allowed set differ \\(row:path\\): ${k}:block_slot; nothing written`));
+  assert.ok(!existsSync(out));
   assert.deepEqual(snapshot(dir), before);
 });
