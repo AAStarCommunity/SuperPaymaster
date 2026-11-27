@@ -52,6 +52,5 @@
       "description": "MCP payment required error with x-payment header"
     }
   },
-  "skillFile": "./SKILL.md",
   "paymentInfo": "./.well-known/x-payment-info.json"
 }
