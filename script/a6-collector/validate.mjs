@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { accumulateSlotWait, generateSchedule, REGISTERED_WINDOW, slotDecision, windowProtocolMatches } from './window-schedule.mjs';
 import { dispositionErrors, feePauseErrors } from './disposition.mjs';
 import { formalConfig, armOrder, inclusionErrors } from './formal.mjs';
-import { createFrozenPlan } from './frozen-plan.mjs';
+import { createFrozenPlan, parse } from './frozen-plan.mjs';
 import { checkPVGLengths, measurePVG, PVG_MAX_SURPLUS } from './pvg.mjs';
 // A6 gauge validator: re-reads a collector JSONL and recomputes every verdict from the RAW
 // fields (packed op, receipt logs, A/B read-backs), with its own decoder — it does not import
@@ -501,7 +501,7 @@ function frozenWindow(manifest, attempts, start, end, {path,evidenceDir,register
   }));
   const index = attempts.length ? readFileSync(resolve(evidenceDir,'index.ndjson'),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
   if (index.length !== attempts.length) errors.push('frozen index does not retain every journal attempt');
-  return {manifest,target,cap,slice,slots,scheduleSha,seed,bundleSha256,senders,index,allocationKeys:[],
+  return {manifest,target,cap,slice,slots,scheduleSha,seed,bundleSha256,senders,steps:parse(bytes).steps,index,allocationKeys:[],
     startTimestamp:big(need(manifest,'startTimestamp')),allocations};
 }
 
@@ -1070,12 +1070,22 @@ function validateJournal(file,evidenceDir,frozenPlan,registered,report) {
   checkPassport(need(end, 'passport'),journalLocation(-1));
   // U-6 applies only to protocol-conformant runs, at both pinned passport blocks.
   if (start.protocolConformant === true) {
-    const passports = [pStart,end.passport,...(window ? [...window.senders.values()].flatMap(c=>[c.pStart,c.pEnd].filter(Boolean)) : [])];
+    const uint = v => { try { return typeof v === 'bigint' && v >= 0n ? v : big(v); } catch { return null; } };
+    const planFloor = (plan, arm) => {
+      if (arm === 'SP') { const w = uint(plan?.deploymentContext?.stakeWei), p = uint(plan?.pin?.stake), d = uint(plan?.deploymentContext?.stakeDelay); return w !== null && p !== null && d !== null ? [w + p, d] : null; }
+      const step = [plan?.steps, window.steps].flatMap(a => Array.isArray(a) ? a : []).find(s => s?.id === `0/C16.${arm.toLowerCase()}`);
+      const exp = (Array.isArray(step?.target) ? step.target : []).find(t => t?.signature === 'getDepositInfo(address)')?.expected;
+      const s = uint(exp?.[2]), d = uint(exp?.[3]); return s !== null && d !== null ? [s, d] : null;
+    };
+    const floors = window && new Map([...window.senders].map(([k, c]) => [k, Object.fromEntries(['SP', 'VPM', 'TPM'].map(a => [a, planFloor(c.adapter.plan, a)]))]));
+    const checks = window ? [...[pStart, end.passport].map(p => [p, floors.get(lc(p.invariant.sender))]), ...[...window.senders].flatMap(([k, c]) => [c.pStart, c.pEnd].filter(Boolean).map(p => [p, floors.get(k)]))] : [pStart, end.passport].map(p => [p, { SP: [10n**18n, 86400n], VPM: [10n**18n, 86400n], TPM: [10n**18n, 86400n] }]);
     for (const arm of ['SP', 'VPM', 'TPM']) {
-      const stakes = passports.map(p => p.invariant.stakes[arm]);
-      if (stakes.some(s => s.staked !== true)) errors.push(`arm ${arm}: paymaster not staked`);
-      if (stakes.some(s => big(s.stake) < 1000000000000000000n)) errors.push(`arm ${arm}: paymaster stake below 1000000000000000000 wei`);
-      if (stakes.some(s => big(s.unstakeDelaySec) < 86400n)) errors.push(`arm ${arm}: paymaster unstakeDelaySec below 86400`);
+      const stakes = checks.map(([p, f]) => [p.invariant.stakes[arm], f?.[arm]]);
+      if (window && ([...floors.values()].some(f => !f[arm]) || stakes.some(([, f]) => !f))) errors.push(`arm ${arm}: missing frozen stake plan`);
+      if (stakes.some(([s]) => s.staked !== true)) errors.push(`arm ${arm}: paymaster not staked`);
+      const lowS = stakes.find(([s, f]) => f && big(s.stake) < f[0]), lowD = stakes.find(([s, f]) => f && big(s.unstakeDelaySec) < f[1]);
+      if (lowS) errors.push(`arm ${arm}: paymaster stake below ${lowS[1][0]} wei`);
+      if (lowD) errors.push(`arm ${arm}: paymaster unstakeDelaySec below ${lowD[1][1]}`);
     }
   }
   if (window) checkWindowPrice(end.passport,journalLocation(-1));
