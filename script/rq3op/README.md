@@ -532,9 +532,11 @@ experiment key's setup budget. The example includes one 10000-unit recipient.
 
 These additions and the uniform measurement × gasFactor rule apply only to the
 fresh deployment planner. The legacy Sepolia manifest retains its fixed 480000
-SP postOp limit and original output bytes. Fresh SP postOp rejects a scaled
-measurement below minPostOpGas; `sp_postop_limit` isolates this rule from the
-possible alternative `max(scaled, minPostOpGas)`. The gas tuple is re-read before
+SP postOp limit and original output bytes. Fresh SP postOp rejects a limit below
+minPostOpGas (C-04), so a calibrated minimum at or below the floor is the floor
+itself: `sp_postop_limit` then freezes the limit at minPostOpGas (DSR K9,
+2026-11-27); only a measurement above the floor is scaled, as
+`max(measured × gasFactor, minPostOpGas)`. The gas tuple is re-read before
 send and must still match the pinned tuple.
 
 Setup independently regenerates the complete bundle at its original block using

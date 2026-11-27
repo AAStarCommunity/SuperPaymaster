@@ -466,6 +466,7 @@ def cmd_assemble(args):
                  rule='Safe.execTransaction gasUsed (outer, >= inner call)', note=row.get('note')))
     for op in rec['ops']['ops']:
         if op['verdict'] != 'USEROP_SUCCESS': raise SystemExit(f'STOP op not successful: {op["arm"]} {op["sender"]}')
+        if not op['minima']: continue  # warm-up pass (round -1): sent at the frozen bounds, not measured
         for field in ('call', 'verification', 'paymasterVerification', 'postOp', 'outer'):
             put('arms', op['arm']+'.'+field, op['minima'][field], dict(forkTx=op['tx']['hash'], sender=op['sender'], round=op['round'],
                 frameGasUsed=op['measurement'][field],

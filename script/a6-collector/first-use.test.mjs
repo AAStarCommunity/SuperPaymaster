@@ -28,6 +28,7 @@ async function run(options={}) {
   const reads=[], sends=[], rows=[], messages=[];
   let pendingChecks=0;
   const pending = options.pending ?? new Map();
+  const sent = new Map(); // sender -> first-use ops already included this run
   let head=block;
   const client=endpoint=>({
     getBlock:async()=>head,
@@ -37,10 +38,15 @@ async function run(options={}) {
       assert.equal(functionName,'getNonce');
       assert.equal(args[1],0n);
       reads.push([endpoint,args[0],blockNumber]);
-      if (blockNumber>block.number) return endpoint==='B'&&options.inclusionDisagreement?2n:options.inclusionNonce??1n;
+      if (blockNumber>block.number) { // inclusion block: nonce = ops included so far
+        const after = options.inclusionNonce ?? sent.get(args[0]) ?? 1n;
+        return endpoint==='B'&&options.inclusionDisagreement?2n:after;
+      }
       if (args[0]===skipped) return endpoint==='B'&&options.disagree?2n:1n;
       if (options.none) return 1n;
-      return options.changed && reads.length>6 ? 1n : 0n;
+      if (options.changed && reads.length>6) return 1n;
+      if (options.changedAfter && reads.length>options.changedAfter) return 9n;
+      return sent.get(args[0]) ?? 0n;
     }
   });
   const pubA=client('A'), pubB=client('B');
@@ -80,6 +86,7 @@ async function run(options={}) {
       if (moveClock) advanceClock();
       await assertFirstUseFresh(signed);
       sends.push({arm,sender});
+      sent.set(sender,(sent.get(sender)??0n)+1n);
       const txHash=row.tx.hash, bn=11n+BigInt(idx), blk={hash:receiptHash};
       const rcA={blockHash:blockMismatch?'other':receiptHash};
       Object.assign(row.tx,{blockNumber:bn,blockHash:rcA.blockHash});
@@ -93,7 +100,7 @@ async function run(options={}) {
     catch (e) {writeLine({kind:'first_use_end',exitCode:e.code??1}); return e.message;}
   })()`;
   const status = await runInNewContext(code,{
-    ...context, get sender(){return context.sender;}, signed,sends,moveClock:options.moveClock,
+    ...context, get sender(){return context.sender;}, signed,sends,sent,moveClock:options.moveClock,
     advanceClock:()=>{head={...head,timestamp:options.moveClock};},
     withheld:options.withheld,
     receiptHash:block.hash,blockMismatch:options.blockMismatch,failReceipt:options.failReceipt
@@ -116,17 +123,21 @@ test('first use scans all senders before sending and refuses nonce disagreement'
   assert.deepEqual(result.sends,[]);
 });
 
-test('first use submits two SP attempts in plan order and records their inclusion nonces',async t=>{
+test('first use submits SP,VPM,TPM per sender in plan order and records their inclusion nonces',async t=>{
   const result=await run();
   assert.equal(result.status,0);
-  assert.deepEqual(JSON.parse(stringify(result.sends)),[{arm:'SP',sender:first},{arm:'SP',sender:second}]);
+  assert.deepEqual(JSON.parse(stringify(result.sends)),[
+    {arm:'SP',sender:first},{arm:'VPM',sender:first},{arm:'TPM',sender:first},
+    {arm:'SP',sender:second},{arm:'VPM',sender:second},{arm:'TPM',sender:second}]);
   assert.equal(result.pending.size,0);
   assert.equal(result.pendingChecks,1);
   const attempts=result.rows.filter(row=>row.kind==='first_use_attempt');
-  assert.equal(attempts.length,2);
+  assert.equal(attempts.length,6);
+  const nonces=[['0','1'],['1','2'],['2','3'],['0','1'],['1','2'],['2','3']];
   for (const [i,row] of attempts.entries()) {
-    assert.deepEqual(row.nonceBefore,{A:'0',B:'0',blockNumber:'10'});
-    assert.deepEqual(row.nonceAfter,{A:'1',B:'1',blockNumber:String(11+i)});
+    assert.equal(row.arm,['SP','VPM','TPM'][i%3]);
+    assert.deepEqual(row.nonceBefore,{A:nonces[i][0],B:nonces[i][0],blockNumber:'10'});
+    assert.deepEqual(row.nonceAfter,{A:nonces[i][1],B:nonces[i][1],blockNumber:String(11+i)});
     assert.deepEqual(row.tx,{hash:keccak256(signed),blockNumber:String(11+i),blockHash:block.hash});
     for (const field of ['block_slot','pair_id','allocation','tripletIndex','armOrder']) assert.ok(!(field in row));
   }
@@ -157,8 +168,19 @@ for (const [name,options,error] of [
   if (options.withheld) assert.equal(result.rows.filter(row=>row.kind==='first_use_attempt').length,1);
 });
 
+test('first use refuses when a sender nonce moves mid-run',async()=>{
+  const result=await run({changedAfter:8});
+  assert.equal(result.status,'FIRST_USE_NONCE_CHANGED');
+  assert.deepEqual(JSON.parse(stringify(result.sends)),[{arm:'SP',sender:first}]);
+  const attempts=result.rows.filter(row=>row.kind==='first_use_attempt');
+  assert.equal(attempts.length,2); // the SP op succeeded; the interrupted VPM op still writes its row
+  assert.equal(attempts[1].stoppedBy.reason,'FIRST_USE_NONCE_CHANGED');
+  assert.equal(attempts[1].arm,'VPM');
+});
+
 for (const [options,error] of [
   [{inclusionNonce:0n},'FIRST_USE_NONCE_NOT_ADVANCED'],
+  [{inclusionNonce:2n},'FIRST_USE_NONCE_NOT_ADVANCED'],
   [{inclusionDisagreement:true},'RPC_DISAGREEMENT'],
   [{blockMismatch:true},'RECEIPT_BLOCK_MISMATCH'],
   [{failReceipt:true},'receipt unavailable'],
@@ -196,9 +218,9 @@ test('first use binds exactly the bundle senders in planIndex order',()=>{
 });
 
 
-test('first use retains both transaction hashes if final anchor verification fails',async()=>{
+test('first-use retains all six transaction hashes if final anchor verification fails',async()=>{
   const result=await run({reorg:true});
   assert.equal(result.status,'anchor changed');
-  assert.equal(result.sends.length,2);
+  assert.equal(result.sends.length,6);
   assert.equal(result.pending.size,2);
 });

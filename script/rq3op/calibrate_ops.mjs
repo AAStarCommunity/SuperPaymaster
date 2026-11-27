@@ -120,9 +120,13 @@ for (let si = 0; si < senders.length; si++) {
   if (lower(await call(S, OWNER_ABI, 'owner')) !== lower(owner.address)) throw Error('owner substitution failed');
   out.forkSubstitutions.push({ kind: 'SimpleAccount owner slot 0', account: S, realOwner: O, forkOwner: owner.address });
   const pms = { SP, VPM, TPM };
-  for (let round = 0; round < req.rounds; round++) {
+  // Round -1 is the warm-up pass: one op per arm at the frozen bounds, SP first, so every
+  // measurement round runs at EntryPoint nonce >= 1 (the nonce 0->1 SSTORE is only covered by
+  // SP's verificationGasLimit). Warm-up rows are recorded for audit but carry no minima.
+  for (let round = -1; round < req.rounds; round++) {
+    const warmup = round === -1;
     for (const arm of ['SP', 'VPM', 'TPM']) {
-      if (arm === 'SP' && round > 0) {
+      if (arm === 'SP' && round >= 0) {
         const b = await rpc('eth_getBlockByNumber', ['latest', false]);
         await rpc('evm_mine', [Number(BigInt(b.timestamp) + BigInt(pc.minTxInterval) + 1n)]);
       }
@@ -177,7 +181,7 @@ for (let si = 0; si < senders.length; si++) {
           ruleValueAtUsed: String(ours.pvg.value) };
       }
       let minima = null;
-      if (req.search) {
+      if (req.search && !warmup) {
         // EntryPoint v0.7 charges more against each limit than the callee frame uses (e.g. AA26 counts the nonce
         // update and prefund bookkeeping, EntryPoint.sol _validatePrepayment). Measure each limit as EntryPoint
         // enforces it: the smallest value for which this exact op (re-signed per candidate) still succeeds,
@@ -230,7 +234,7 @@ for (let si = 0; si < senders.length; si++) {
       }
       const data = encodeFunctionData({ abi: EP_ABI, functionName: 'handleOps', args: [[ours.packed], bundler] });
       const outerLimit = BigInt(pc.bounds[arm].outer);
-      const row = { sender: S, arm, round, planIndex: Number(plan.planIndex), userOpHash: ours.hash, nonce: String(nonce), pvgNote,
+      const row = { sender: S, arm, round, warmup, planIndex: Number(plan.planIndex), userOpHash: ours.hash, nonce: String(nonce), pvgNote,
         minima: minima && Object.fromEntries(Object.entries(minima).map(([k, v]) => [k, typeof v === 'bigint' ? Number(v) : v])),
         limits: { call: String(GAS.callGasLimit), verification: String(GAS.verificationGasLimit), paymasterVerification: String(PM_GAS.ver),
           postOp: String(PM_GAS.post), outer: String(outerLimit), preVerification: String(ours.pvg.value) } };
@@ -281,7 +285,7 @@ for (let si = 0; si < senders.length; si++) {
         } catch { row.revertReason = null; }
       }
       row.uoe = cls.event ? { success: cls.event.success, actualGasUsed: String(cls.event.actualGasUsed), actualGasCost: String(cls.event.actualGasCost) } : null;
-      row.measurement = row.verdict === VERDICTS.USEROP_SUCCESS ? {
+      row.measurement = !warmup && row.verdict === VERDICTS.USEROP_SUCCESS ? {
         call: Number(row.frames.call.gasUsed), verification: Number(row.frames.verification.gasUsed),
         paymasterVerification: Number(row.frames.paymasterVerification.gasUsed),
         postOp: row.frames.postOp ? Number(row.frames.postOp.gasUsed) : 0, outer: Number(row.tx.gasUsed) } : null;
