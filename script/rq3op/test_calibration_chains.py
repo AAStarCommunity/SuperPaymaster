@@ -287,6 +287,33 @@ class ExplicitCalibrationChain(unittest.TestCase):
         self.assertEqual(record['pin']['chainId'], self.args.chain)
         self.assert_identity(json.loads((self.p/'fork-transactions.measure.json').read_text()))
 
+    def test_run_verify_mode_stops_on_failed_op_row(self):
+        from unittest.mock import MagicMock
+        q = MagicMock()
+        q.a.qty.side_effect = lambda x: int(x, 16)
+        head = dict(number='0x7b', hash='0xabc')
+        q.a.block_data.return_value = head
+        bundle = dict(safeTransactions=[], plans={'0': dict(taskRecipients=['unused'],
+            steps=[dict(id='C9.mode')], planIndex=0, phaseC=dict(gasTuple=[1]))})
+        (self.p/'inputs').write_text('{"gasFactor": [3, 2]}')
+        bad = dict(sender='0x1', arm='SP', round=0, nonce='0', verdict='TX_FAILED',
+                   tx=dict(hash='0xtx', status='0x0'), uoe=None)
+        (self.p/'ops.verify.json').write_text(json.dumps({'ops': [bad]}))
+        self.args.mode = 'verify'
+        with patch.object(c, 'load_planner', return_value=(q, None, None)), patch.object(c, 'Fork') as fork, \
+             patch.object(c.Runner, 'prepare'), patch.object(c.Runner, 'refresh_price'), \
+             patch.object(c.Runner, 'plan', return_value=(json.dumps(bundle).encode(), head)), \
+             patch.object(c.Runner, 'run_steps', return_value=[]), patch.object(c.subprocess, 'run') as run, \
+             patch('builtins.print'):
+            fork.return_value.anvil = 'mock-anvil'
+            fork.return_value.proc.pid = 123
+            fork.return_value.url = 'http://127.0.0.1:18555'
+            q.m.sp_attempt_precheck.return_value = True
+            q.pre_send.return_value = True
+            run.return_value = SimpleNamespace(returncode=0, stdout='', stderr='')
+            with self.assertRaisesRegex(SystemExit, 'STOP verify op not successful: sender=0x1 arm=SP round=0'):
+                c.cmd_run(self.args)
+
     def test_assemble_without_config_chain_and_identity_refusals(self):
         fields = ('call', 'verification', 'paymasterVerification', 'postOp', 'outer')
         row = dict(gasUsed=1, estimate=1, hash='0xtx', innerEstimate=1)
@@ -294,7 +321,9 @@ class ExplicitCalibrationChain(unittest.TestCase):
             configSha256=hashlib.sha256((self.p/'config').read_bytes()).hexdigest(),
             steps=[dict(row, sid=s) for s in ('C9.allowance', 'C9.total', 'C9.mode', 'C18.approve')],
             extraSteps=[], safe={s: row for s in ('C1', 'GToken.transfer', 'SP.stake.schedule', 'SP.stake.execute')},
-            ops=dict(ops=[dict(verdict='USEROP_SUCCESS', arm=arm, sender='0x1', round=1,
+            ops=dict(ops=[dict(verdict='USEROP_SUCCESS', arm='SP', sender='0x1', round=-1, warmup=True,
+                                warmupMinima={'verification': '41129'}, minima=None, measurement=None, tx=dict(hash='0xw'))] +
+                          [dict(verdict='USEROP_SUCCESS', arm=arm, sender='0x1', round=1,
                 minima=dict.fromkeys(fields, 1), measurement=dict.fromkeys(fields, 1), tx=dict(hash='0xtx'))
                 for arm in ('SP', 'VPM', 'TPM')]), anvil='mock-anvil', plan=dict(sha256='abc'), notes=[])
         self.args.measurements.write_text(json.dumps(record))
@@ -379,3 +408,103 @@ class ExplicitCalibrationChain(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     main()
                 self.assertIn('--chain', err.getvalue())
+
+
+class AssembleSpVerificationMinima(unittest.TestCase):
+    """H1: cmd_assemble folds the round -1 SP warm-up nonce-0 verification minimum into
+    arms.SP.verification = max(nonce0, nonceAtLeast1) and records spVerificationMinima as a new
+    top-level key of both calibration.json and calibration-evidence.json."""
+
+    ARM_VALUES = {'SP': dict(call=11, verification=24029, paymasterVerification=12, postOp=13, outer=14),
+                  'VPM': dict(call=21, verification=24, paymasterVerification=22, postOp=0, outer=24),
+                  'TPM': dict(call=31, verification=34, paymasterVerification=32, postOp=33, outer=35)}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.p = Path(self.tmp.name)
+        self.cfg = full_deploylive_config()
+        (self.p/'config').write_bytes(json.dumps(self.cfg, indent=2).encode())
+        self.args = SimpleNamespace(chain=11155420, config=self.p/'config',
+            measurements=self.p/'measurements.json', out_dir=self.p, evidence_prefix='evidence')
+
+    def write_record(self, sp_warmup_verification):
+        row = dict(gasUsed=1, estimate=1, hash='0xtx', innerEstimate=1)
+        ops = [dict(verdict='USEROP_SUCCESS', arm=arm, sender='0x1', round=0, warmup=False,
+                    minima=dict(vals), measurement=dict(vals), tx=dict(hash='0xtx'))
+               for arm, vals in self.ARM_VALUES.items()]
+        if sp_warmup_verification is not None:
+            ops.append(dict(verdict='USEROP_SUCCESS', arm='SP', sender='0x1', round=-1, warmup=True,
+                            warmupMinima={'verification': str(sp_warmup_verification)}, minima=None,
+                            measurement=None, tx=dict(hash='0xw')))
+        record = dict(pin=dict(chainId=11155420, number=123, hash='0xabc'),
+            configSha256=hashlib.sha256((self.p/'config').read_bytes()).hexdigest(),
+            steps=[dict(row, sid=s) for s in ('C9.allowance', 'C9.total', 'C9.mode', 'C18.approve')],
+            extraSteps=[], safe={s: row for s in ('C1', 'GToken.transfer', 'SP.stake.schedule', 'SP.stake.execute')},
+            ops=dict(ops=ops), anvil='mock-anvil', plan=dict(sha256='abc'), notes=[])
+        self.args.measurements.write_text(json.dumps(record))
+
+    def assemble(self):
+        with patch('builtins.print'):
+            c.cmd_assemble(self.args)
+        return (json.loads((self.p/'calibration.json').read_text()),
+                json.loads((self.p/'calibration-evidence.json').read_text()))
+
+    def test_nonce0_dominates_and_is_recorded_in_both_files(self):
+        self.write_record(41129)
+        cal, ev = self.assemble()
+        self.assertEqual(cal['arms']['SP']['verification'], 41129)
+        self.assertEqual(ev['arms']['SP']['verification'], 41129)
+        minima = dict(nonce0=41129, nonceAtLeast1=24029, rule='SP.verification = max(nonce0, nonceAtLeast1)')
+        self.assertEqual(cal['spVerificationMinima'], minima)
+        self.assertEqual(ev['spVerificationMinima'], minima)
+        self.assertNotIn('spVerificationMinima', cal['arms']['SP'])  # top-level, not inside arms
+        for arm, vals in self.ARM_VALUES.items():
+            for field, value in vals.items():
+                if arm == 'SP' and field == 'verification': continue
+                self.assertEqual(cal['arms'][arm][field], value, f'{arm}.{field} unchanged')
+                self.assertEqual(ev['arms'][arm][field], value, f'{arm}.{field} unchanged')
+        sources = ev['provenance']['arms']['SP.verification']['sources']
+        self.assertTrue(any(s.get('round') == -1 and 'nonce 0' in s['rule'] and 'first-use' in s['rule']
+                            for s in sources), sources)
+
+    def test_nonce_at_least_1_still_wins_when_larger(self):
+        self.write_record(1000)
+        cal, ev = self.assemble()
+        self.assertEqual(cal['arms']['SP']['verification'], 24029)
+        self.assertEqual(cal['spVerificationMinima'], dict(nonce0=1000, nonceAtLeast1=24029,
+            rule='SP.verification = max(nonce0, nonceAtLeast1)'))
+        self.assertEqual(ev['spVerificationMinima']['nonce0'], 1000)
+
+    def test_missing_warmup_sp_row_stops(self):
+        self.write_record(None)
+        with patch('builtins.print'), self.assertRaisesRegex(SystemExit, 'STOP no SP warm-up'):
+            c.cmd_assemble(self.args)
+
+
+class VerifyOpsConservation(unittest.TestCase):
+    """M2: check_verify_ops accepts an all-success consecutive-nonce set and refuses a failed op
+    row, a bad tx status / uoe, or a nonce gap, naming the failing sender/arm/round."""
+
+    def op(self, sender='0x1', arm='SP', round=0, nonce='0', verdict='USEROP_SUCCESS', status='0x1', success=True):
+        return dict(sender=sender, arm=arm, round=round, nonce=nonce, verdict=verdict,
+                    tx=dict(hash='0xtx', status=status), uoe=dict(success=success))
+
+    def test_accepts_all_success_consecutive_nonces(self):
+        c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'), self.op(arm='TPM', nonce='2'),
+                           self.op(round=1, nonce='3'), self.op(round=1, arm='VPM', nonce='4'),
+                           self.op(sender='0x2', nonce='0'), self.op(sender='0x2', arm='VPM', nonce='1')])
+
+    def test_refuses_tx_failed_row(self):
+        with self.assertRaisesRegex(SystemExit, 'STOP verify op not successful: sender=0x1 arm=TPM round=1'):
+            c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'),
+                                self.op(arm='TPM', round=1, nonce='2', verdict='TX_FAILED', status='0x0', success=False)])
+
+    def test_refuses_bad_status_or_uoe(self):
+        for kwargs in (dict(status='0x0'), dict(success=False)):
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(SystemExit, 'STOP verify op not successful: sender=0x1 arm=VPM round=0'):
+                c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1', **kwargs)])
+
+    def test_refuses_nonce_gap(self):
+        with self.assertRaisesRegex(SystemExit, 'STOP verify nonce not conserved: sender=0x1 arm=TPM round=0 nonce=3 expected=2'):
+            c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'), self.op(arm='TPM', nonce='3')])

@@ -430,12 +430,28 @@ class Runner:
                                  capture_output=True, text=True, cwd=str(HERE.parents[1]))
             (out/f'ops.{args.mode}.stdout').write_text(redact(ops.stdout + ops.stderr, opaque=True))
             if ops.returncode: raise SystemExit(f'STOP calibrate_ops failed: {redact(ops.stdout+ops.stderr, opaque=True)}')
+            ops_out = json.loads((out/f'ops.{args.mode}.json').read_text())
+            if args.mode == 'verify': check_verify_ops(ops_out['ops'])
             record.update(safe=safe_rows, steps=steps, extraSteps=extra, postSetupGates=gates, notes=self.notes,
-                          forkTransactions=self.log, ops=json.loads((out/f'ops.{args.mode}.json').read_text()))
+                          forkTransactions=self.log, ops=ops_out)
             print(json.dumps(dict(measurements=write_json(out/f'measurements.{args.mode}.json', record), plan=sha(raw))))
         finally:
             write_json(out/f'fork-transactions.{args.mode}.json', dict(label=rehearsal_label(args.config, args.chain), notes=self.notes, transactions=self.log))
             self.fork.stop()
+
+
+def check_verify_ops(ops):
+    """Verify-mode gate: every op row must be USEROP_SUCCESS with tx status 0x1 and uoe.success, and per sender the key-0 nonces of its rows must be consecutive in send order (each successful op consumed exactly one nonce)."""
+    expected = {}
+    for op in ops:
+        sender, arm, round = op.get('sender'), op.get('arm'), op.get('round')
+        tx, uoe = op.get('tx') or {}, op.get('uoe') or {}
+        if op.get('verdict') != 'USEROP_SUCCESS' or tx.get('status') != '0x1' or uoe.get('success') is not True:
+            raise SystemExit(f'STOP verify op not successful: sender={sender} arm={arm} round={round} verdict={op.get("verdict")} txStatus={tx.get("status")} uoeSuccess={uoe.get("success")}')
+        nonce = int(op['nonce'])
+        if sender not in expected: expected[sender] = nonce
+        if nonce != expected[sender]: raise SystemExit(f'STOP verify nonce not conserved: sender={sender} arm={arm} round={round} nonce={nonce} expected={expected[sender]}')
+        expected[sender] = nonce + 1
 
 
 def cmd_run(args):
@@ -475,6 +491,18 @@ def cmd_assemble(args):
                      ('smallest handleOps gas limit for which this op succeeds with the other limits at measured x gasFactor '
                       '(SP postOp at max(scaled, minPostOpGas))'),
                 outerWithLimits=op['minima'].get('outerWithLimits') if field == 'outer' else None))
+    # Round -1 SP warm-up rows (search on) carry warmupMinima.verification, measured at EntryPoint key-0
+    # nonce 0 before the warm-up op was sent; the collector --first-use sends each sender's first op
+    # (SP arm, nonce 0) at the frozen plan limits, so SP.verification = max(nonce0, nonceAtLeast1).
+    warmup_sp = [op for op in rec['ops']['ops'] if op.get('warmup') and op['arm'] == 'SP' and op.get('warmupMinima')]
+    if not warmup_sp: raise SystemExit('STOP no SP warm-up (round -1) row with warmupMinima.verification in the measurements (run --mode measure with search on)')
+    nonce_at_least_1 = prov['arms'].get('SP.verification', dict(value=0))['value']
+    nonce0 = max(int(op['warmupMinima']['verification']) for op in warmup_sp)
+    for op in warmup_sp:
+        put('arms', 'SP.verification', int(op['warmupMinima']['verification']),
+            dict(forkTx=op['tx']['hash'], sender=op['sender'], round=op['round'],
+                 rule='smallest EntryPoint-accepted verificationGasLimit for this exact op measured at EntryPoint key-0 nonce 0 (binary search before the warm-up op was sent); covers the first-use op, collector.mjs --first-use'))
+    sp_minima = dict(nonce0=nonce0, nonceAtLeast1=nonce_at_least_1, rule='SP.verification = max(nonce0, nonceAtLeast1)')
     arms = {arm: {f: prov['arms'][arm+'.'+f]['value'] for f in ('call', 'verification', 'paymasterVerification', 'postOp', 'outer')}
             for arm in ('SP', 'VPM', 'TPM')}
     setup = {k: v['value'] for k, v in sorted(prov['setup'].items())}
@@ -485,7 +513,7 @@ def cmd_assemble(args):
     for label, sp in (('', cfg['superPaymaster']), ('.lowercase', cfg['superPaymaster'].lower())):
         evidence = dict(label=rehearsal_label(args.config, args.chain), kind='measured', chainId=args.chain, superPaymaster=sp, commit=cfg['commit'], blockNumber=block_number,
                         blockHash=rec['pin']['hash'], arms=arms, setup=setup, ownerPreparation=prep, ownerMaintenance=[],
-                        bundlerMaintenance=[], safeTransactions=safe, provenance=prov,
+                        bundlerMaintenance=[], safeTransactions=safe, provenance=prov, spVerificationMinima=sp_minima,
                         method=dict(fork=dict(anvil=rec['anvil'], **fork_parameters(args.chain), upstream='Tenderly (rpcb)', pin=rec['pin']),
                                     measurementPlanSha256=rec['plan']['sha256'], notes=rec['notes'],
                                     value='setup/safe: max(receipt gasUsed, eth_estimateGas) across senders; arms: max over senders and rounds of the smallest EntryPoint-accepted limit per field (binary search on the fork); outer: smallest handleOps gas limit with the scaled limits; preVerification not calibrated (rule)'))
@@ -493,7 +521,8 @@ def cmd_assemble(args):
         digest = write_json(ev_path, evidence)
         cal = dict(source=dict(kind='measured', blockHash=rec['pin']['hash'], evidenceSha256=digest,
                                evidenceFile=str(Path(args.evidence_prefix)/ev_path.name)),
-                   arms=arms, setup=setup, ownerPreparation=prep, ownerMaintenance=[], bundlerMaintenance=[], safeTransactions=safe)
+                   arms=arms, setup=setup, ownerPreparation=prep, ownerMaintenance=[], bundlerMaintenance=[], safeTransactions=safe,
+                   spVerificationMinima=sp_minima)
         variants[label or 'checksum'] = dict(calibration=write_json(Path(args.out_dir)/f'calibration{label}.json', cal), evidence=digest)
     print(json.dumps(dict(arms=arms, setup=setup, ownerPreparation=prep, safeTransactions=safe, files=variants), indent=1))
 

@@ -122,7 +122,9 @@ for (let si = 0; si < senders.length; si++) {
   const pms = { SP, VPM, TPM };
   // Round -1 is the warm-up pass: one op per arm at the frozen bounds, SP first, so every
   // measurement round runs at EntryPoint nonce >= 1 (the nonce 0->1 SSTORE is only covered by
-  // SP's verificationGasLimit). Warm-up rows are recorded for audit but carry no minima.
+  // SP's verificationGasLimit). Warm-up rows carry no minima; with search on, the SP warm-up row
+  // additionally carries warmupMinima.verification, searched at key-0 nonce 0 before the warm-up
+  // op is sent (it covers the collector --first-use SP op at nonce 0).
   for (let round = -1; round < req.rounds; round++) {
     const warmup = round === -1;
     for (const arm of ['SP', 'VPM', 'TPM']) {
@@ -180,8 +182,8 @@ for (let si = 0; si < senders.length; si++) {
         pvgNote = { collectorResult: 'PVG_SIGNED_FIXED_POINT (collector would STOP before sending)', sequence, usedForCalibration: String(top),
           ruleValueAtUsed: String(ours.pvg.value) };
       }
-      let minima = null;
-      if (req.search && !warmup) {
+      let minima = null, warmupMinima = null;
+      if (req.search) {
         // EntryPoint v0.7 charges more against each limit than the callee frame uses (e.g. AA26 counts the nonce
         // update and prefund bookkeeping, EntryPoint.sol _validatePrepayment). Measure each limit as EntryPoint
         // enforces it: the smallest value for which this exact op (re-signed per candidate) still succeeds,
@@ -218,6 +220,14 @@ for (let si = 0; si < senders.length; si++) {
           while (lo < hi) { const mid = (lo + hi) / 2n; if ((await test(mid)).ok) hi = mid; else lo = mid + 1n; }
           return hi;
         };
+        if (warmup && arm === 'SP') {
+          // Round -1 SP warm-up row: search 'verification' ONLY (other fields at base, outer at
+          // generousOuter), BEFORE this warm-up op is sent, so it is measured at key-0 nonce 0:
+          // the collector --first-use sends each sender's first op (SP arm, nonce 0) at the frozen
+          // plan limits, so SP.verification must also cover nonce 0.
+          warmupMinima = { verification: String(await least(v => trial({ ...base, verification: v }, generousOuter), 1n, base.verification, 'verification')) };
+        }
+        if (!warmup) {
         minima = {};
         for (const field of ['verification', 'paymasterVerification', 'call', 'postOp']) {
           if (field === 'postOp' && arm === 'VPM') { minima.postOp = 0n; continue; }
@@ -231,11 +241,13 @@ for (let si = 0; si < senders.length; si++) {
         minima.outerWithLimits = Object.fromEntries(Object.entries(frozenLike).map(([k, v]) => [k, String(v)]));
         minima.gasUsedAtMinimalLimits = String((await trial(frozenLike, generousOuter)).gasUsed);
         apply(base);
+        }
       }
       const data = encodeFunctionData({ abi: EP_ABI, functionName: 'handleOps', args: [[ours.packed], bundler] });
       const outerLimit = BigInt(pc.bounds[arm].outer);
       const row = { sender: S, arm, round, warmup, planIndex: Number(plan.planIndex), userOpHash: ours.hash, nonce: String(nonce), pvgNote,
         minima: minima && Object.fromEntries(Object.entries(minima).map(([k, v]) => [k, typeof v === 'bigint' ? Number(v) : v])),
+        ...(warmupMinima ? { warmupMinima } : {}),
         limits: { call: String(GAS.callGasLimit), verification: String(GAS.verificationGasLimit), paymasterVerification: String(PM_GAS.ver),
           postOp: String(PM_GAS.post), outer: String(outerLimit), preVerification: String(ours.pvg.value) } };
       let txHash;
