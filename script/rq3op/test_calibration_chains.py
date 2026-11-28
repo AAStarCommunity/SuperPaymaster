@@ -321,7 +321,8 @@ class ExplicitCalibrationChain(unittest.TestCase):
             configSha256=hashlib.sha256((self.p/'config').read_bytes()).hexdigest(),
             steps=[dict(row, sid=s) for s in ('C9.allowance', 'C9.total', 'C9.mode', 'C18.approve')],
             extraSteps=[], safe={s: row for s in ('C1', 'GToken.transfer', 'SP.stake.schedule', 'SP.stake.execute')},
-            ops=dict(ops=[dict(verdict='USEROP_SUCCESS', arm='SP', sender='0x1', round=-1, warmup=True,
+            postSetupGates={'0x1': {}},
+            ops=dict(ops=[dict(verdict='USEROP_SUCCESS', arm='SP', sender='0x1', round=-1, warmup=True, nonce='0',
                                 warmupMinima={'verification': '41129'}, minima=None, measurement=None, tx=dict(hash='0xw'))] +
                           [dict(verdict='USEROP_SUCCESS', arm=arm, sender='0x1', round=1,
                 minima=dict.fromkeys(fields, 1), measurement=dict.fromkeys(fields, 1), tx=dict(hash='0xtx'))
@@ -428,20 +429,20 @@ class AssembleSpVerificationMinima(unittest.TestCase):
         self.args = SimpleNamespace(chain=11155420, config=self.p/'config',
             measurements=self.p/'measurements.json', out_dir=self.p, evidence_prefix='evidence')
 
-    def write_record(self, sp_warmup_verification):
+    def write_record(self, sp_warmup_verification, warmup_nonce='0'):
         row = dict(gasUsed=1, estimate=1, hash='0xtx', innerEstimate=1)
         ops = [dict(verdict='USEROP_SUCCESS', arm=arm, sender='0x1', round=0, warmup=False,
                     minima=dict(vals), measurement=dict(vals), tx=dict(hash='0xtx'))
                for arm, vals in self.ARM_VALUES.items()]
         if sp_warmup_verification is not None:
-            ops.append(dict(verdict='USEROP_SUCCESS', arm='SP', sender='0x1', round=-1, warmup=True,
+            ops.append(dict(verdict='USEROP_SUCCESS', arm='SP', sender='0x1', round=-1, warmup=True, nonce=warmup_nonce,
                             warmupMinima={'verification': str(sp_warmup_verification)}, minima=None,
                             measurement=None, tx=dict(hash='0xw')))
         record = dict(pin=dict(chainId=11155420, number=123, hash='0xabc'),
             configSha256=hashlib.sha256((self.p/'config').read_bytes()).hexdigest(),
             steps=[dict(row, sid=s) for s in ('C9.allowance', 'C9.total', 'C9.mode', 'C18.approve')],
             extraSteps=[], safe={s: row for s in ('C1', 'GToken.transfer', 'SP.stake.schedule', 'SP.stake.execute')},
-            ops=dict(ops=ops), anvil='mock-anvil', plan=dict(sha256='abc'), notes=[])
+            ops=dict(ops=ops), anvil='mock-anvil', plan=dict(sha256='abc'), notes=[], postSetupGates={'0x1': {}})
         self.args.measurements.write_text(json.dumps(record))
 
     def assemble(self):
@@ -481,6 +482,11 @@ class AssembleSpVerificationMinima(unittest.TestCase):
         with patch('builtins.print'), self.assertRaisesRegex(SystemExit, 'STOP no SP warm-up'):
             c.cmd_assemble(self.args)
 
+    def test_warmup_sp_row_not_at_nonce_0_stops(self):
+        self.write_record(41129, warmup_nonce='1')
+        with patch('builtins.print'), self.assertRaisesRegex(SystemExit, 'STOP SP warm-up rows must be exactly one per planned sender at nonce 0'):
+            c.cmd_assemble(self.args)
+
 
 class VerifyOpsConservation(unittest.TestCase):
     """M2: check_verify_ops accepts an all-success consecutive-nonce set and refuses a failed op
@@ -490,21 +496,39 @@ class VerifyOpsConservation(unittest.TestCase):
         return dict(sender=sender, arm=arm, round=round, nonce=nonce, verdict=verdict,
                     tx=dict(hash='0xtx', status=status), uoe=dict(success=success))
 
+    def full(self, senders=('0x1', '0x2'), rounds=1):
+        return [self.op(sender=s, arm=arm, round=r, nonce=str(3 * (r + 1) + i))
+                for s in senders for r in range(-1, rounds) for i, arm in enumerate(('SP', 'VPM', 'TPM'))]
+
     def test_accepts_all_success_consecutive_nonces(self):
-        c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'), self.op(arm='TPM', nonce='2'),
-                           self.op(round=1, nonce='3'), self.op(round=1, arm='VPM', nonce='4'),
-                           self.op(sender='0x2', nonce='0'), self.op(sender='0x2', arm='VPM', nonce='1')])
+        c.check_verify_ops(self.full(), ['0x1', '0x2'], 1)
+
+    def test_refuses_empty_list_and_rounds_below_1(self):
+        with self.assertRaisesRegex(SystemExit, 'STOP verify senders'):
+            c.check_verify_ops([], ['0x1'], 1)
+        with self.assertRaisesRegex(SystemExit, 'STOP verify needs rounds >= 1'):
+            c.check_verify_ops(self.full(rounds=0), ['0x1', '0x2'], 0)
+
+    def test_refuses_missing_sender_and_truncated_rows(self):
+        with self.assertRaisesRegex(SystemExit, 'STOP verify senders'):
+            c.check_verify_ops(self.full(senders=('0x1',)), ['0x1', '0x2'], 1)
+        with self.assertRaisesRegex(SystemExit, 'STOP verify has 11 op rows, expected 12'):
+            c.check_verify_ops(self.full()[:-1], ['0x1', '0x2'], 1)
+
+    def test_refuses_first_row_not_at_nonce_0(self):
+        with self.assertRaisesRegex(SystemExit, 'STOP verify nonce not conserved: sender=0x1 arm=SP round=-1 nonce=1 expected=0'):
+            c.check_verify_ops([self.op(round=-1, nonce='1')], ['0x1'], 1)
 
     def test_refuses_tx_failed_row(self):
         with self.assertRaisesRegex(SystemExit, 'STOP verify op not successful: sender=0x1 arm=TPM round=1'):
             c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'),
-                                self.op(arm='TPM', round=1, nonce='2', verdict='TX_FAILED', status='0x0', success=False)])
+                                self.op(arm='TPM', round=1, nonce='2', verdict='TX_FAILED', status='0x0', success=False)], ['0x1'], 1)
 
     def test_refuses_bad_status_or_uoe(self):
         for kwargs in (dict(status='0x0'), dict(success=False)):
             with self.subTest(kwargs=kwargs), self.assertRaisesRegex(SystemExit, 'STOP verify op not successful: sender=0x1 arm=VPM round=0'):
-                c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1', **kwargs)])
+                c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1', **kwargs)], ['0x1'], 1)
 
     def test_refuses_nonce_gap(self):
         with self.assertRaisesRegex(SystemExit, 'STOP verify nonce not conserved: sender=0x1 arm=TPM round=0 nonce=3 expected=2'):
-            c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'), self.op(arm='TPM', nonce='3')])
+            c.check_verify_ops([self.op(nonce='0'), self.op(arm='VPM', nonce='1'), self.op(arm='TPM', nonce='3')], ['0x1'], 1)

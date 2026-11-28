@@ -431,7 +431,7 @@ class Runner:
             (out/f'ops.{args.mode}.stdout').write_text(redact(ops.stdout + ops.stderr, opaque=True))
             if ops.returncode: raise SystemExit(f'STOP calibrate_ops failed: {redact(ops.stdout+ops.stderr, opaque=True)}')
             ops_out = json.loads((out/f'ops.{args.mode}.json').read_text())
-            if args.mode == 'verify': check_verify_ops(ops_out['ops'])
+            if args.mode == 'verify': check_verify_ops(ops_out['ops'], list(bundle['plans']), args.rounds)
             record.update(safe=safe_rows, steps=steps, extraSteps=extra, postSetupGates=gates, notes=self.notes,
                           forkTransactions=self.log, ops=ops_out)
             print(json.dumps(dict(measurements=write_json(out/f'measurements.{args.mode}.json', record), plan=sha(raw))))
@@ -440,8 +440,9 @@ class Runner:
             self.fork.stop()
 
 
-def check_verify_ops(ops):
-    """Verify-mode gate: every op row must be USEROP_SUCCESS with tx status 0x1 and uoe.success, and per sender the key-0 nonces of its rows must be consecutive in send order (each successful op consumed exactly one nonce)."""
+def check_verify_ops(ops, senders, rounds):
+    """Verify-mode gate: every op row must be USEROP_SUCCESS with tx status 0x1 and uoe.success, and per sender the key-0 nonces of its rows must be consecutive in send order from 0 (each successful op consumed exactly one nonce). The rows must be complete: rounds >= 1, exactly the planned senders, and senders x 3 arms x (1 warm-up + rounds) rows."""
+    if rounds < 1: raise SystemExit(f'STOP verify needs rounds >= 1 (got {rounds})')
     expected = {}
     for op in ops:
         sender, arm, round = op.get('sender'), op.get('arm'), op.get('round')
@@ -449,9 +450,12 @@ def check_verify_ops(ops):
         if op.get('verdict') != 'USEROP_SUCCESS' or tx.get('status') != '0x1' or uoe.get('success') is not True:
             raise SystemExit(f'STOP verify op not successful: sender={sender} arm={arm} round={round} verdict={op.get("verdict")} txStatus={tx.get("status")} uoeSuccess={uoe.get("success")}')
         nonce = int(op['nonce'])
-        if sender not in expected: expected[sender] = nonce
-        if nonce != expected[sender]: raise SystemExit(f'STOP verify nonce not conserved: sender={sender} arm={arm} round={round} nonce={nonce} expected={expected[sender]}')
-        expected[sender] = nonce + 1
+        expected.setdefault(str(sender).lower(), 0)
+        if nonce != expected[str(sender).lower()]: raise SystemExit(f'STOP verify nonce not conserved: sender={sender} arm={arm} round={round} nonce={nonce} expected={expected[str(sender).lower()]}')
+        expected[str(sender).lower()] = nonce + 1
+    planned = sorted(str(s).lower() for s in senders)
+    if sorted(expected) != planned: raise SystemExit(f'STOP verify senders {sorted(expected)} != planned {planned}')
+    if len(ops) != len(planned) * 3 * (1 + rounds): raise SystemExit(f'STOP verify has {len(ops)} op rows, expected {len(planned) * 3 * (1 + rounds)} (senders x 3 arms x (1 warm-up + {rounds} rounds))')
 
 
 def cmd_run(args):
@@ -496,6 +500,10 @@ def cmd_assemble(args):
     # (SP arm, nonce 0) at the frozen plan limits, so SP.verification = max(nonce0, nonceAtLeast1).
     warmup_sp = [op for op in rec['ops']['ops'] if op.get('warmup') and op['arm'] == 'SP' and op.get('warmupMinima')]
     if not warmup_sp: raise SystemExit('STOP no SP warm-up (round -1) row with warmupMinima.verification in the measurements (run --mode measure with search on)')
+    # Exactly one successful SP warm-up row per planned sender (postSetupGates is keyed by the bundle's plan senders), each at nonce 0.
+    planned = sorted(str(s).lower() for s in rec['postSetupGates'])
+    if sorted(str(op['sender']).lower() for op in warmup_sp) != planned or any(str(op['nonce']) != '0' for op in warmup_sp):
+        raise SystemExit(f'STOP SP warm-up rows must be exactly one per planned sender at nonce 0: rows={[(op["sender"], op["nonce"]) for op in warmup_sp]} planned={planned}')
     nonce_at_least_1 = prov['arms'].get('SP.verification', dict(value=0))['value']
     nonce0 = max(int(op['warmupMinima']['verification']) for op in warmup_sp)
     for op in warmup_sp:
