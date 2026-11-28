@@ -191,10 +191,24 @@ nonces, not on these keccaks, so the final plan's C12/C14 bytes are unchanged.
    limit that EntryPoint accepts and that still yields a successful op. Each
    candidate is re-signed and sent inside `evm_snapshot`/`evm_revert`. Callee frame
    gas understates EntryPoint's accounting: AA26 also counts the nonce update.
+   With search on, the round -1 SP warm-up row is additionally searched for the
+   `verification` field only, at EntryPoint key-0 nonce 0 before the warm-up op is
+   sent, and recorded on the row as `warmupMinima.verification` (the collector
+   `--first-use` sends each sender's first op, SP arm at nonce 0, at the frozen
+   plan limits).
 4. `assemble`: builds the calibration (kind `measured`, blockHash = the pin's real
    hash) and its evidence. Every number lists the fork transaction(s) that measured it.
+   `SP.verification = max(nonce0, nonceAtLeast1)`: `nonce0` is the warm-up nonce-0
+   minimum above, `nonceAtLeast1` the usual nonce >= 1 measurement maximum; both are
+   recorded as the new top-level `spVerificationMinima` key of `calibration.json` and
+   the evidence (top-level, not inside `arms`; the planner's `verify_calibration`
+   compares only `arms`/`setup`/... and requires every `arms` value to be a positive
+   int, so the extra key is ignored there).
 5. `run --mode verify`: re-plans with the measured calibration on a fresh fork. It
-   repeats the whole sequence with the frozen limits, without the search.
+   repeats the whole sequence with the frozen limits, without the search. Verify mode
+   STOPs unless every op row is `USEROP_SUCCESS` with tx status `0x1`, `uoe.success`,
+   and per-sender key-0 nonces consecutive in send order (each successful op consumed
+   exactly one nonce).
 
 Outputs belong under `cache/`. Rehearsal outputs must never be reused for a real run.
 
